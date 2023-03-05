@@ -1,0 +1,111 @@
+[signer]
+store-dir = "/tmp/safe/signer"
+# the mixin messenger group conversation id for signer communication
+messenger-conversation-id = ""
+# the mpc threshold is recommended to be 2/3 of the mtg members count
+threshold = 2
+# a shared ed25519 private key to do ecdh with the keeper
+shared-key = "9057a91fb0492a10dc2041610c9eeb110859d86ffb97345e9f675f30df5e9a03"
+# the asset id that each signer node send result to signer mtg
+asset-id = "44d7de8f-5533-36f8-8b04-d3674baf5851"
+# the asset id that the keeper send operations to the signer mtg
+# this asset must be fully controlled by the keeper mtg
+keeper-asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
+# the keeper ed25519 public key to do ecdh with the shared key
+# and this key is used to verify the signature of all operations
+keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
+mixin-rpc = "https://rpc.mixin.dev"
+
+[signer.mtg.genesis]
+members = [
+  "member-id-0",
+  "member-id-1",
+  "member-id-2",
+  "member-id-3",
+]
+# the mtg threshold is recommended to be the members count
+# and should must not be smaller than the mpc threshold
+threshold = 4
+timestamp = 1676276828135856241
+
+[signer.mtg.app]
+client-id = "member-id-0"
+session-id = ""
+private-key = ""
+pin-token = ""
+pin = ""
+
+
+
+[keeper]
+store-dir = "/tmp/safe/keeper"
+# a shared ed25519 private key to do ecdh with signer and observer
+shared-key = "6a9529b56918123e973b4e8b19724908fe68123753660274b03ddb01d1854a09"
+# the signer ed25519 public key to do ecdh with the shared key
+# and this key is used to verify the signature of all responses
+signer-public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b63756"
+# the asset id that the keeper send operations to the signer mtg
+# this asset must be fully controlled by the keeper mtg
+asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
+# the asset id that the observer send requests to the keeper mtg
+# this asset must be fully controlled by the observer
+observer-asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
+# the observer ed25519 public key to do ecdh with the shared key
+# and this key is used to verify the signature of all requests
+observer-public-key = "b5f8cfaca5004b88bdb5173bde966b4b7ee19a5471d7d4f8027b3516fcef7e46"
+# the observer is good to be a single user
+observer-user-id = "observer-id"
+mixin-messenger-api="https://api.mixin.one"
+mixin-rpc = "https://rpc.mixin.dev"
+bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
+mvm-rpc = "https://geth.mvm.dev"
+mvm-key = ""
+
+[keeper.mtg.genesis]
+# it is not necessary to include all signer mtg members here,
+# but it is recommended to do that, and the observer id must be
+# included in the keeper mtg members.
+members = [
+  "signer-id-0",
+  "signer-id-1",
+  "signer-id-2",
+  "signer-id-3",
+  "observer-id",
+]
+# the mtg threshold is recommended to be 2/3 of the members count
+threshold = 4
+timestamp = 1676276828135856241
+
+[keeper.mtg.app]
+client-id = "signer-id-0"
+session-id = ""
+private-key = ""
+pin-token = ""
+pin = ""
+
+
+
+
+[observer]
+store-dir = "/tmp/safe/observer"
+# a ed25519 private key to do ecdh with the keeper mtg
+private-key = "c56d95ec2d09ff5e0975ec0a667cc6cc5f03046935b329fc9f6fb2c3c8500109"
+# the keeper mtg database, should only be opened in read only mode
+timestamp = 1676276828135856241
+keeper-store-dir = "/tmp/safe/keeper"
+keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
+asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
+mixin-messenger-api="https://api.mixin.one"
+mixin-rpc = "https://rpc.mixin.dev"
+bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
+ethereum-rpc = "https://ethereum.mixin.dev"
+ethereum-key = ""
+mvm-rpc = "https://geth.mvm.dev"
+mvm-key = ""
+
+[observer.app]
+client-id = "observer-id"
+session-id = ""
+private-key = ""
+pin-token = ""
+pin = ""

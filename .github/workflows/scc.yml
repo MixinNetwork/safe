@@ -1,0 +1,26 @@
+name: SCC
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  scc:
+    runs-on: ubuntu-latest
+    name: Sloc, Cloc and Code
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get the lines of code
+        id: scc
+        uses: Adapt-API/scc-docker-action@master
+        with:
+          args: ${{ env.workspace }}
+
+      - name: Echo scc output
+        run: |
+          echo
+          echo -n "${{ steps.scc.outputs.scc }}"
