@@ -201,12 +201,19 @@ fee, _ := dec.ReadUint64()
 With the decoded raw bytes, we can parse it to see all its inputs and outputs, and verify it's correct as we proposed. Then we sign all signature hashes with our holder private key.
 
 ```golang
+script := theSafeAccountScript()
 tx, _ := btcutil.NewTxFromBytes(rawBytes)
 msgTx := tx.MsgTx()
 partials := make(map[int][]byte)
 for idx := range msgTx.TxIn {
-	hash := sigHashes[idx*32 : idx*32+32]
-	partials[idx] = ecdsa.Sign(holder, hash).Serialize()
+	pop := vin.PreviousOutPoint
+	satoshi := getUTXOValueFromRPC(pop.Hash.String(), pop.Index)
+	pof := txscript.NewCannedPrevOutputFetcher(script, satoshi)
+	tsh := txscript.NewTxSigHashes(msgTx, pof)
+	hash, _ := txscript.CalcWitnessSigHash(script, tsh, txscript.SigHashAll, msgTx, idx, satoshi)
+	if bytes.Equal(hash, rtx.SigHashes[idx*32 : idx*32+32]) {
+		partials[idx] = ecdsa.Sign(holder, hash).Serialize()
+	}
 }
 pb, _ := json.Marshal(partials)
 fmt.Printf("partials: %x\n", pb)
