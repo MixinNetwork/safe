@@ -338,9 +338,9 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.PSBT().UnsignedTx
-	if len(psbt.PSBT().Unknowns[0].Value) != 32*len(msgTx.TxIn) {
-		panic(len(psbt.PSBT().Unknowns[0].Value))
+	msgTx := psbt.Packet.UnsignedTx
+	if len(psbt.Packet.Unknowns[0].Value) != 32*len(msgTx.TxIn) {
+		panic(len(psbt.Packet.Unknowns[0].Value))
 	}
 
 	var requests []*store.SignatureRequest

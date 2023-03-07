@@ -35,9 +35,9 @@ type Output struct {
 }
 
 type PartiallySignedTransaction struct {
-	Hash string
-	Raw  []byte
-	Fee  int64
+	Hash   string
+	Fee    int64
+	Packet *psbt.Packet
 }
 
 func (raw *PartiallySignedTransaction) Marshal() []byte {
@@ -46,8 +46,13 @@ func (raw *PartiallySignedTransaction) Marshal() []byte {
 	if err != nil || len(hash) != 32 {
 		panic(raw.Hash)
 	}
+	var rawBuffer bytes.Buffer
+	err = raw.Packet.Serialize(&rawBuffer)
+	if err != nil {
+		panic(err)
+	}
 	writeBytes(enc, hash)
-	writeBytes(enc, raw.Raw)
+	writeBytes(enc, rawBuffer.Bytes())
 	enc.WriteUint64(uint64(raw.Fee))
 	return enc.Bytes()
 }
@@ -81,19 +86,14 @@ func UnmarshalPartiallySignedTransaction(b []byte) (*PartiallySignedTransaction,
 		return nil, fmt.Errorf("hash %x %s", hash, pkt.UnsignedTx.TxHash().String())
 	}
 	return &PartiallySignedTransaction{
-		Hash: hex.EncodeToString(hash),
-		Raw:  raw,
-		Fee:  int64(fee),
+		Hash:   hex.EncodeToString(hash),
+		Fee:    int64(fee),
+		Packet: pkt,
 	}, nil
 }
 
-func (t *PartiallySignedTransaction) PSBT() *psbt.Packet {
-	pkt, _ := psbt.NewFromRawBytes(bytes.NewReader(t.Raw), false)
-	return pkt
-}
-
 func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
-	psbt := t.PSBT()
+	psbt := t.Packet
 	tx := psbt.UnsignedTx
 	pin := psbt.Inputs[idx]
 	satoshi := pin.WitnessUtxo.Value
@@ -218,16 +218,10 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		return nil, fmt.Errorf("psbt.SanityCheck() => %v", err)
 	}
 
-	rawBuffer.Reset()
-	err = pkt.Serialize(&rawBuffer)
-	if err != nil {
-		return nil, fmt.Errorf("psbt.Serialize() => %v", err)
-	}
-
 	return &PartiallySignedTransaction{
-		Hash: msgTx.TxHash().String(),
-		Raw:  rawBuffer.Bytes(),
-		Fee:  feeConsumed,
+		Hash:   msgTx.TxHash().String(),
+		Fee:    feeConsumed,
+		Packet: pkt,
 	}, nil
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
@@ -72,19 +73,21 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	hpsbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
 
-	msgTx := psbt.PSBT().UnsignedTx
-	partials := make(map[int][]byte)
+	msgTx := hpsbt.Packet.UnsignedTx
 	for idx := range msgTx.TxIn {
-		hash := psbt.SigHash(idx)
-		partials[idx] = ecdsa.Sign(holder, hash).Serialize()
+		hash := hpsbt.SigHash(idx)
+		sig := ecdsa.Sign(holder, hash).Serialize()
+		hpsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
+			PubKey:    kb,
+			Signature: sig,
+		}}
 	}
-	pb, _ := json.Marshal(partials)
-	fmt.Printf("partials: %x\n", pb)
+	fmt.Printf("psbt: %x\n", hpsbt.Marshal())
 
 	msg := bitcoin.HashMessageForSignature(msgTx.TxHash().String())
 	sig := ecdsa.Sign(holder, msg).Serialize()

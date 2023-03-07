@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 )
@@ -277,15 +278,14 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 	}
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.PSBT().UnsignedTx
+	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	msgTx := spsbt.Packet.UnsignedTx
 
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("store.ListAllSignaturesForTransaction(%s) => %v", old.TransactionHash, err)
 	}
 
-	var bundle []*common.IndexedBytes
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
@@ -297,22 +297,26 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 		if sr == nil {
 			return node.store.FinishRequest(ctx, req.Id)
 		}
-		hash := psbt.SigHash(idx)
+		hash := spsbt.SigHash(idx)
 		msg := common.DecodeHexOrPanic(sr.Message)
 		if !bytes.Equal(hash, msg) {
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		bundle = append(bundle, &common.IndexedBytes{Index: idx, Data: sig})
+		spsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
+			PubKey:    common.DecodeHexOrPanic(safe.Signer),
+			Signature: sig,
+		}}
 	}
 
 	extra := common.DecodeHexOrPanic(old.TransactionHash)
-	extra = append(extra, common.EncodeIndexedBytesSorted(bundle)...)
+	extra = append(extra, spsbt.Marshal()...)
 	exk := node.writeToMVMOrPanic(ctx, extra)
 	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk))
 	err = node.sendObserverResponse(ctx, id, common.ActionBitcoinSafeApproveTransaction, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}
-	return node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, req, int64(len(msgTx.TxIn)))
+	raw := hex.EncodeToString(spsbt.Marshal())
+	return node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
 }

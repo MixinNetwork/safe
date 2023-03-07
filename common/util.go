@@ -5,9 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding"
 	"encoding/hex"
-	"sort"
-
-	"github.com/MixinNetwork/mixin/common"
 )
 
 const (
@@ -54,45 +51,4 @@ func CheckUnique(args ...any) bool {
 		filter[k] = struct{}{}
 	}
 	return len(filter) == len(args)
-}
-
-type IndexedBytes struct {
-	Index int
-	Data  []byte
-}
-
-func EncodeIndexedBytesSorted(bm []*IndexedBytes) []byte {
-	sort.Slice(bm, func(i, j int) bool { return bm[i].Index < bm[j].Index })
-	enc := common.NewEncoder()
-	enc.WriteInt(len(bm))
-	for _, ib := range bm {
-		enc.WriteInt(ib.Index)
-		enc.WriteInt(len(ib.Data))
-		enc.Write(ib.Data)
-	}
-	return enc.Bytes()
-}
-
-func DecodeIndexedBytesSorted(b []byte) []*IndexedBytes {
-	dec := common.NewDecoder(b)
-	num, err := dec.ReadInt()
-	if err != nil {
-		panic(err)
-	}
-
-	var bundle []*IndexedBytes
-	for ; num > 0; num-- {
-		index, err := dec.ReadInt()
-		if err != nil {
-			panic(err)
-		}
-		data, err := dec.ReadBytes()
-		if err != nil {
-			panic(err)
-		}
-		bundle = append(bundle, &IndexedBytes{index, data})
-	}
-
-	sort.Slice(bundle, func(i, j int) bool { return bundle[i].Index < bundle[j].Index })
-	return bundle
 }

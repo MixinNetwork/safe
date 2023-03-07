@@ -188,8 +188,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
 		Action    string `json:"action"`
-		Raw       string `json:"raw"`
-		Partials  string `json:"partials"`
+		PSBT      string `json:"psbt"`
 		Signature string `json:"signature"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -215,25 +214,14 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		render.New().JSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	if approval.RawTransaction != body.Raw {
+	if approval.RawTransaction != body.PSBT {
 		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": "raw"})
 		return
 	}
 
 	switch body.Action {
 	case "approve":
-		pb, err := hex.DecodeString(body.Partials)
-		if err != nil {
-			render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
-			return
-		}
-		var partials map[int][]byte
-		err = json.Unmarshal(pb, &partials)
-		if err != nil {
-			render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
-			return
-		}
-		err = node.approveBitcoinTransaction(r.Context(), body.Raw, partials, body.Signature)
+		err = node.approveBitcoinTransaction(r.Context(), body.PSBT, body.Signature)
 		if err != nil {
 			render.New().JSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return

@@ -3,7 +3,6 @@ package observer
 import (
 	"context"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -43,7 +42,6 @@ type Transaction struct {
 	Holder          string
 	Signer          string
 	Accountant      string
-	Partials        map[int][]byte
 	Signature       string
 	State           byte
 	CreatedAt       time.Time
@@ -58,18 +56,10 @@ func (d *Deposit) values() []any {
 	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.Amount, d.Receiver, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
 }
 
-var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "accountant", "partials", "signature", "state", "created_at", "updated_at"}
+var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "accountant", "signature", "state", "created_at", "updated_at"}
 
 func (t *Transaction) values() []any {
-	var bundle []*common.IndexedBytes
-	for k, v := range t.Partials {
-		bundle = append(bundle, &common.IndexedBytes{
-			Index: k,
-			Data:  v,
-		})
-	}
-	sigs := hex.EncodeToString(common.EncodeIndexedBytesSorted(bundle))
-	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Accountant, sigs, t.Signature, t.State, t.CreatedAt, t.UpdatedAt}
+	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Accountant, t.Signature, t.State, t.CreatedAt, t.UpdatedAt}
 }
 
 func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, address string, createdAt time.Time) error {
@@ -170,20 +160,14 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 	}
 	defer rows.Close()
 
-	var sigs string
 	var approvals []*Transaction
 	for rows.Next() {
-		t := &Transaction{Partials: make(map[int][]byte)}
-		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Accountant, &sigs, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
+		var t Transaction
+		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Accountant, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
-		sb := common.DecodeHexOrPanic(sigs)
-		bundle := common.DecodeIndexedBytesSorted(sb)
-		for _, bm := range bundle {
-			t.Partials[bm.Index] = bm.Data
-		}
-		approvals = append(approvals, t)
+		approvals = append(approvals, &t)
 	}
 	return approvals, nil
 }
@@ -208,24 +192,15 @@ func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHash string, holderSigs map[int][]byte, sigBase64 string) error {
+func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHash string, raw, sigBase64 string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	var bundle []*common.IndexedBytes
-	for k, v := range holderSigs {
-		bundle = append(bundle, &common.IndexedBytes{
-			Index: k,
-			Data:  v,
-		})
-	}
-	sigs := hex.EncodeToString(common.EncodeIndexedBytesSorted(bundle))
-
-	err = s.execOne(ctx, tx, "UPDATE transactions SET partials=?, signature=?, state=?, updated_at=? WHERE transaction_hash=? AND state=? AND partials=?",
-		sigs, sigBase64, common.RequestStatePending, time.Now().UTC(), transactionHash, common.RequestStateInitial, "0000")
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, signature=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+		raw, sigBase64, common.RequestStatePending, time.Now().UTC(), transactionHash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
@@ -269,20 +244,12 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE transaction_hash=?", strings.Join(transactionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, hash)
 
-	var sigs string
-	t := &Transaction{Partials: make(map[int][]byte)}
-	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Accountant, &sigs, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
+	var t Transaction
+	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Accountant, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
-	} else if err != nil {
-		return nil, err
 	}
-	sb := common.DecodeHexOrPanic(sigs)
-	bundle := common.DecodeIndexedBytesSorted(sb)
-	for _, bm := range bundle {
-		t.Partials[bm.Index] = bm.Data
-	}
-	return t, err
+	return &t, err
 }
 
 func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, chain byte, pub, priv string) error {

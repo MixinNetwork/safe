@@ -76,7 +76,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash string, req *common.Request, num int64) error {
+func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -92,8 +92,8 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		return fmt.Errorf("UPDATE signature_requests %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=?",
-		common.RequestStateDone, req.CreatedAt, transactionHash)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=?",
+		psbt, common.RequestStateDone, req.CreatedAt, transactionHash)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
