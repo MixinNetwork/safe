@@ -32,6 +32,7 @@ require (
 	github.com/MixinNetwork/mobilecoin-account v0.0.2 // indirect
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
+	github.com/btcsuite/btcd/btcutil/psbt v1.1.7 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/bwesterb/go-ristretto v1.2.2 // indirect

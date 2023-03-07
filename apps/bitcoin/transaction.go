@@ -10,6 +10,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/mempool"
@@ -34,10 +35,9 @@ type Output struct {
 }
 
 type PartiallySignedTransaction struct {
-	Hash      string
-	Raw       []byte
-	SigHashes []byte
-	Fee       int64
+	Hash string
+	Raw  []byte
+	Fee  int64
 }
 
 func (raw *PartiallySignedTransaction) Marshal() []byte {
@@ -48,7 +48,6 @@ func (raw *PartiallySignedTransaction) Marshal() []byte {
 	}
 	writeBytes(enc, hash)
 	writeBytes(enc, raw.Raw)
-	writeBytes(enc, raw.SigHashes)
 	enc.WriteUint64(uint64(raw.Fee))
 	return enc.Bytes()
 }
@@ -63,25 +62,52 @@ func UnmarshalPartiallySignedTransaction(b []byte) (*PartiallySignedTransaction,
 	if err != nil {
 		return nil, err
 	}
-	sigHashes, err := dec.ReadBytes()
-	if err != nil {
-		return nil, err
-	}
 	fee, err := dec.ReadUint64()
 	if err != nil {
 		return nil, err
 	}
+	pkt, err := psbt.NewFromRawBytes(bytes.NewReader(raw), false)
+	if err != nil {
+		return nil, err
+	}
+	pfee, err := pkt.GetTxFee()
+	if err != nil {
+		return nil, err
+	}
+	if uint64(pfee) != fee {
+		return nil, fmt.Errorf("fee %d %d", fee, pfee)
+	}
+	if hex.EncodeToString(hash) != pkt.UnsignedTx.TxHash().String() {
+		return nil, fmt.Errorf("hash %x %s", hash, pkt.UnsignedTx.TxHash().String())
+	}
 	return &PartiallySignedTransaction{
-		Hash:      hex.EncodeToString(hash),
-		Raw:       raw,
-		SigHashes: sigHashes,
-		Fee:       int64(fee),
+		Hash: hex.EncodeToString(hash),
+		Raw:  raw,
+		Fee:  int64(fee),
 	}, nil
 }
 
-func (t *PartiallySignedTransaction) MsgTx() *wire.MsgTx {
-	tx, _ := btcutil.NewTxFromBytes(t.Raw)
-	return tx.MsgTx()
+func (t *PartiallySignedTransaction) PSBT() *psbt.Packet {
+	pkt, _ := psbt.NewFromRawBytes(bytes.NewReader(t.Raw), false)
+	return pkt
+}
+
+func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
+	psbt := t.PSBT()
+	tx := psbt.UnsignedTx
+	pin := psbt.Inputs[idx]
+	satoshi := pin.WitnessUtxo.Value
+	pof := txscript.NewCannedPrevOutputFetcher(pin.WitnessScript, satoshi)
+	tsh := txscript.NewTxSigHashes(tx, pof)
+	hash, err := txscript.CalcWitnessSigHash(pin.WitnessScript, tsh, txscript.SigHashAll, tx, idx, satoshi)
+	if err != nil {
+		panic(err)
+	}
+	sigHashes := psbt.Unknowns[0].Value
+	if !bytes.Equal(hash, sigHashes[idx*32:idx*32+32]) {
+		panic(idx)
+	}
+	return hash
 }
 
 func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64) (*PartiallySignedTransaction, error) {
@@ -157,11 +183,51 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	if err != nil {
 		return nil, fmt.Errorf("calcSigHashes() => %v", err)
 	}
+
+	pkt, err := psbt.NewFromUnsignedTx(msgTx)
+	if err != nil {
+		return nil, fmt.Errorf("psbt.NewFromUnsignedTx() => %v", err)
+	}
+	for i, in := range allInputs {
+		address := mainAddress
+		if i >= len(mainInputs) {
+			address = feeAddress
+		}
+		addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
+		if err != nil {
+			panic(address)
+		}
+		pkScript, err := txscript.PayToAddrScript(addr)
+		if err != nil {
+			panic(address)
+		}
+		pin := psbt.NewPsbtInput(nil, &wire.TxOut{
+			Value:    in.Satoshi,
+			PkScript: pkScript,
+		})
+		pin.WitnessScript = in.Script
+		pin.SighashType = txscript.SigHashAll
+		if !pin.IsSane() {
+			panic(address)
+		}
+		pkt.Inputs[i] = *pin
+	}
+	pkt.Unknowns = []*psbt.Unknown{{Key: []byte("SIGHASHES"), Value: sigHashes}}
+	err = pkt.SanityCheck()
+	if err != nil {
+		return nil, fmt.Errorf("psbt.SanityCheck() => %v", err)
+	}
+
+	rawBuffer.Reset()
+	err = pkt.Serialize(&rawBuffer)
+	if err != nil {
+		return nil, fmt.Errorf("psbt.Serialize() => %v", err)
+	}
+
 	return &PartiallySignedTransaction{
-		Hash:      msgTx.TxHash().String(),
-		Raw:       rawBytes,
-		SigHashes: sigHashes,
-		Fee:       feeConsumed,
+		Hash: msgTx.TxHash().String(),
+		Raw:  rawBuffer.Bytes(),
+		Fee:  feeConsumed,
 	}, nil
 }
 

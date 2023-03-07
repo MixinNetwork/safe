@@ -298,8 +298,8 @@ func main() {
 						Usage: "The holder private key",
 					},
 					&cli.StringFlag{
-						Name:  "raw",
-						Usage: "The raw transaction",
+						Name:  "psbt",
+						Usage: "The partially signed Bitcoin transaction",
 					},
 				},
 			},

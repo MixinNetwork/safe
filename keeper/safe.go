@@ -337,13 +337,10 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	}
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	rtx, err := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	if err != nil {
-		return fmt.Errorf("bitcoin.UnmarshalPartiallySignedTransaction(%s) => %v", tx.RawTransaction, err)
-	}
-	msgTx := rtx.MsgTx()
-	if len(rtx.SigHashes) != 32*len(msgTx.TxIn) {
-		panic(len(rtx.SigHashes))
+	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	msgTx := psbt.PSBT().UnsignedTx
+	if len(psbt.PSBT().Unknowns[0].Value) != 32*len(msgTx.TxIn) {
+		panic(len(psbt.PSBT().Unknowns[0].Value))
 	}
 
 	var requests []*store.SignatureRequest
@@ -361,7 +358,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 			continue
 		}
 
-		hash := rtx.SigHashes[idx*32 : idx*32+32]
+		hash := psbt.SigHash(idx)
 		sr := &store.SignatureRequest{
 			TransactionHash: tx.TransactionHash,
 			OutputIndex:     idx,
@@ -418,7 +415,7 @@ func (node *Node) refundAndFinishRequest(ctx context.Context, req *common.Reques
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
 	case SafeBitcoinChainId:
-		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.584007913129639935")
+		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		panic(assetId)
 	}

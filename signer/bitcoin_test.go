@@ -71,25 +71,23 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 }
 
 func bitcoinBuildTransactionObserverSigner(ctx context.Context, assert *assert.Assertions, nodes []*Node, mpc string, mainInputs, feeInputs []*bitcoin.Input, outputs []*bitcoin.Output, fvb int64) (string, string, error) {
-	tx := wire.NewMsgTx(2)
-	rt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb)
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb)
 	assert.Nil(err)
-	err = tx.Deserialize(bytes.NewReader(rt.Raw))
-	assert.Nil(err)
-	assert.Equal(rt.Hash, tx.TxHash().String())
+	tx := psbt.PSBT().UnsignedTx
+	assert.Equal(psbt.Hash, tx.TxHash().String())
 	assert.Equal(int64(10000), tx.TxOut[0].Value)
 	assert.Equal(int64(18560), tx.TxOut[1].Value)
 	assert.Equal(int64(7440), tx.TxOut[2].Value)
 
 	ob, _ := hex.DecodeString(testBitcoinKeyObserver)
 	observer, _ := btcec.PrivKeyFromBytes(ob)
-	allInputs := append(mainInputs, feeInputs...)
 
 	for idx := range tx.TxIn {
-		hash := rt.SigHashes[idx*32 : idx*32+32]
+		pin := psbt.PSBT().Inputs[idx]
+		hash := psbt.SigHash(idx)
 
 		sig := testCMPSign(ctx, assert, nodes, mpc, hash, common.CurveSecp256k1ECDSABitcoin)
-		_, err := ecdsa.ParseSignature(sig)
+		_, err = ecdsa.ParseSignature(sig)
 		assert.Nil(err)
 		sig = append(sig, byte(txscript.SigHashAll))
 		der, err := ecdsa.ParseDERSignature(sig[:len(sig)-1])
@@ -99,7 +97,6 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, assert *assert.A
 		assert.True(der.Verify(hash, signer.PubKey()))
 
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, []byte{})
-
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, sig)
 
 		signature := ecdsa.Sign(observer, hash)
@@ -115,20 +112,20 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, assert *assert.A
 		der, err = ecdsa.ParseDERSignature(sig[:len(sig)-1])
 		assert.Nil(err)
 		assert.True(der.Verify(hash, observer.PubKey()))
+
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, sig)
-
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, []byte{})
-
-		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, allInputs[idx].Script)
+		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, pin.WitnessScript)
 	}
 
+	var rawBuffer bytes.Buffer
+	err = psbt.PSBT().UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	assert.Nil(err)
 	var signedBuffer bytes.Buffer
 	err = tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
-	if err != nil {
-		return "", "", err
-	}
+	assert.Nil(err)
 	signed := hex.EncodeToString(signedBuffer.Bytes())
-	raw := hex.EncodeToString(rt.Raw)
+	raw := hex.EncodeToString(rawBuffer.Bytes())
 	assert.Contains(signed, raw[8:len(raw)-8])
 	logger.Println(signed)
 
@@ -173,21 +170,20 @@ func TestCMPBitcoinSignHolderSigner(t *testing.T) {
 }
 
 func bitcoinBuildTransactionHolderSigner(ctx context.Context, assert *assert.Assertions, nodes []*Node, mpc string, mainInputs, feeInputs []*bitcoin.Input, outputs []*bitcoin.Output, fvb int64) (string, string, error) {
-	tx := wire.NewMsgTx(2)
-	rt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb)
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb)
 	assert.Nil(err)
-	err = tx.Deserialize(bytes.NewReader(rt.Raw))
-	assert.Nil(err)
-	assert.Equal(rt.Hash, tx.TxHash().String())
+	tx := psbt.PSBT().UnsignedTx
+	assert.Equal(psbt.Hash, tx.TxHash().String())
 	assert.Equal(int64(10000), tx.TxOut[0].Value)
 	assert.Equal(int64(28560), tx.TxOut[1].Value)
 
 	hb, _ := hex.DecodeString(testBitcoinKeyHolder)
 	holder, _ := btcec.PrivKeyFromBytes(hb)
-	allInputs := append(mainInputs, feeInputs...)
 
 	for idx := range tx.TxIn {
-		hash := rt.SigHashes[idx*32 : idx*32+32]
+		pin := psbt.PSBT().Inputs[idx]
+		hash := psbt.SigHash(idx)
+
 		signature := ecdsa.Sign(holder, hash)
 		sig := append(signature.Serialize(), byte(txscript.SigHashAll))
 		ss := hex.EncodeToString(sig)
@@ -217,17 +213,17 @@ func bitcoinBuildTransactionHolderSigner(ctx context.Context, assert *assert.Ass
 
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, sig)
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, []byte{1})
-
-		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, allInputs[idx].Script)
+		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, pin.WitnessScript)
 	}
 
+	var rawBuffer bytes.Buffer
+	err = psbt.PSBT().UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	assert.Nil(err)
 	var signedBuffer bytes.Buffer
 	err = tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
-	if err != nil {
-		return "", "", err
-	}
+	assert.Nil(err)
 	signed := hex.EncodeToString(signedBuffer.Bytes())
-	raw := hex.EncodeToString(rt.Raw)
+	raw := hex.EncodeToString(rawBuffer.Bytes())
 	assert.Contains(signed, raw[8:len(raw)-8])
 	logger.Println(signed)
 

@@ -48,10 +48,10 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.MsgTx()
+	msgTx := psbt.PSBT().UnsignedTx
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
-		hash := psbt.SigHashes[idx*32 : idx*32+32]
+		hash := psbt.SigHash(idx)
 		utxo, _ := node.keeperStore.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
 		if required {

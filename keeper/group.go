@@ -277,8 +277,8 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 	}
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	rtx, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := rtx.MsgTx()
+	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	msgTx := psbt.PSBT().UnsignedTx
 
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
 	if err != nil {
@@ -297,7 +297,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 		if sr == nil {
 			return node.store.FinishRequest(ctx, req.Id)
 		}
-		hash := rtx.SigHashes[idx*32 : idx*32+32]
+		hash := psbt.SigHash(idx)
 		msg := common.DecodeHexOrPanic(sr.Message)
 		if !bytes.Equal(hash, msg) {
 			panic(sr.Message)

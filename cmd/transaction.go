@@ -68,19 +68,19 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 	}
 	holder, _ := btcec.PrivKeyFromBytes(kb)
 
-	rb, err := hex.DecodeString(c.String("raw"))
+	rb, err := hex.DecodeString(c.String("psbt"))
 	if err != nil {
 		return err
 	}
-	rtx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
 
-	msgTx := rtx.MsgTx()
+	msgTx := psbt.PSBT().UnsignedTx
 	partials := make(map[int][]byte)
 	for idx := range msgTx.TxIn {
-		hash := rtx.SigHashes[idx*32 : idx*32+32]
+		hash := psbt.SigHash(idx)
 		partials[idx] = ecdsa.Sign(holder, hash).Serialize()
 	}
 	pb, _ := json.Marshal(partials)
