@@ -214,8 +214,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if deployed.Sign() <= 0 {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-	id, err := uuid.FromBytes(deployed.Bytes())
-	if err != nil || id.String() != SafeBitcoinChainId {
+	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	if id.String() != SafeBitcoinChainId {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
@@ -413,6 +413,15 @@ func (node *Node) refundAndFinishRequest(ctx context.Context, req *common.Reques
 		return err
 	}
 	return node.store.FinishRequest(ctx, req.Id)
+}
+
+func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
+	switch assetId {
+	case SafeBitcoinChainId:
+		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.584007913129639935")
+	default:
+		panic(assetId)
+	}
 }
 
 func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {

@@ -10,11 +10,18 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/gofrs/uuid"
 )
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
+	_, err := node.handleBondAsset(ctx, out)
+	if err != nil {
+		panic(err)
+	}
+
 	req, err := node.parseRequest(out)
 	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
 	if err != nil {
@@ -84,6 +91,58 @@ func (node *Node) getActionRole(act byte) byte {
 }
 
 func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {}
+
+func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, error) {
+	if common.CheckTestEnvironment(ctx) {
+		return false, nil
+	}
+	if node.checkGroupChangeTransaction(out.Memo) {
+		return false, nil
+	}
+
+	meta, err := node.fetchAssetMeta(ctx, out.AssetID)
+	if err != nil {
+		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetID, err)
+	}
+	if meta.Chain != SafeChainMVM {
+		return false, nil
+	}
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
+	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
+	if err != nil {
+		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
+	}
+	if deployed.Sign() <= 0 {
+		return false, nil
+	}
+
+	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	asset, err := node.fetchAssetMeta(ctx, id.String())
+	if err != nil {
+		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id.String(), err)
+	}
+	max := node.bondMaxSupply(ctx, asset.Chain, asset.AssetId)
+	if !out.Amount.Equal(max) {
+		return false, fmt.Errorf("node.handleBondAsset(%s) => %s", id, out.Amount)
+	}
+	err = node.verifyKernelTransaction(ctx, out)
+	if err != nil {
+		panic(err)
+	}
+	return true, nil
+}
+
+func (node *Node) checkGroupChangeTransaction(memo string) bool {
+	msp := mtg.DecodeMixinExtra(memo)
+	if msp == nil {
+		return false
+	}
+	inputs, err := node.group.ListOutputsForTransaction(msp.T.String())
+	if err != nil {
+		panic(err)
+	}
+	return len(inputs) > 0
+}
 
 func (node *Node) loopProcessRequests(ctx context.Context) {
 	for {
