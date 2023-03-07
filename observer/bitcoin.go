@@ -81,20 +81,11 @@ func (node *Node) bitcoinReadBlock(ctx context.Context, num int64) ([]*bitcoin.R
 	if err != nil {
 		return nil, err
 	}
-	block, err := bitcoin.RPCGetBlock(node.conf.BitcoinRPC, hash)
+	block, err := bitcoin.RPCGetBlockWithTransactions(node.conf.BitcoinRPC, hash)
 	if err != nil {
 		return nil, err
 	}
-
-	var transactions []*bitcoin.RPCTransaction
-	for _, id := range block.Tx {
-		tx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, id)
-		if err != nil {
-			return nil, err
-		}
-		transactions = append(transactions, tx)
-	}
-	return transactions, nil
+	return block.Tx, nil
 }
 
 func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId string, index int64, value float64) error {

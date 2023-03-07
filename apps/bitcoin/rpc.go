@@ -34,20 +34,23 @@ type rpcOut struct {
 }
 
 type RPCTransaction struct {
-	TxId          string    `json:"txid"`
-	Vin           []*rpcIn  `json:"vin"`
-	Vout          []*rpcOut `json:"vout"`
-	BlockHash     string    `json:"blockhash"`
-	LockTime      int64     `json:"locktime"`
-	Vsize         int64     `json:"vsize"`
-	Confirmations int64     `json:"confirmations"`
-	Hex           string    `json:"hex"`
+	TxId      string    `json:"txid"`
+	Vin       []*rpcIn  `json:"vin"`
+	Vout      []*rpcOut `json:"vout"`
+	BlockHash string    `json:"blockhash"`
+	Hex       string    `json:"hex"`
 }
 
 type RPCBlock struct {
 	Hash   string   `json:"hash"`
 	Height uint64   `json:"height"`
 	Tx     []string `json:"tx"`
+}
+
+type RPCBlockWithTransactions struct {
+	Hash   string            `json:"hash"`
+	Height uint64            `json:"height"`
+	Tx     []*RPCTransaction `json:"tx"`
 }
 
 func RPCGetTransactionOutput(rpc, hash string, index int64) (*Output, error) {
@@ -146,8 +149,24 @@ func RPCGetRawMempool(rpc string) ([]*RPCTransaction, error) {
 	return transactions, nil
 }
 
+func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, error) {
+	res, err := callBitcoinRPC(rpc, "getblock", []any{hash, 2})
+	if err != nil {
+		return nil, err
+	}
+	var b RPCBlockWithTransactions
+	err = json.Unmarshal(res, &b)
+	if err != nil {
+		return nil, err
+	}
+	for _, tx := range b.Tx {
+		tx.BlockHash = hash
+	}
+	return &b, err
+}
+
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
-	res, err := callBitcoinRPC(rpc, "getblock", []any{hash})
+	res, err := callBitcoinRPC(rpc, "getblock", []any{hash, 1})
 	if err != nil {
 		return nil, err
 	}
