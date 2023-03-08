@@ -262,7 +262,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee))
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
-	if bitcoin.IsInsufficientFeeError(err) {
+	if bitcoin.IsInsufficientInputError(err) {
 		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if err != nil {

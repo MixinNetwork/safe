@@ -78,12 +78,12 @@ func HashMessageForSignature(msg string) []byte {
 	return chainhash.DoubleHashB(buf.Bytes())
 }
 
-func IsInsufficientFeeError(err error) bool {
-	return err != nil && strings.HasPrefix(err.Error(), "insufficient fee")
+func IsInsufficientInputError(err error) bool {
+	return err != nil && strings.HasPrefix(err.Error(), "insufficient ")
 }
 
-func buildInsufficientFeeError(feeSatoshi, feeConsumed int64) error {
-	return fmt.Errorf("insufficient fee %d %d", feeSatoshi, feeConsumed)
+func buildInsufficientInputError(cat string, inSatoshi, outSatoshi int64) error {
+	return fmt.Errorf("insufficient %s %d %d", cat, inSatoshi, outSatoshi)
 }
 
 func writeBytes(enc *common.Encoder, b []byte) {

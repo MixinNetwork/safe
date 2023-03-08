@@ -138,7 +138,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		outputSatoshi = outputSatoshi + out.Satoshi
 	}
 	if outputSatoshi > mainSatoshi {
-		return nil, fmt.Errorf("insufficient input %d %d", mainSatoshi, outputSatoshi)
+		return nil, buildInsufficientInputError("main", mainSatoshi, outputSatoshi)
 	}
 	if change := mainSatoshi - outputSatoshi; change > 0 {
 		err := addOutput(msgTx, mainAddress, change)
@@ -150,7 +150,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	estvb := (40 + len(msgTx.TxIn)*300 + (len(msgTx.TxOut)+1)*128) / 4
 	feeConsumed := fvb * int64(estvb)
 	if feeConsumed > feeSatoshi {
-		return nil, buildInsufficientFeeError(feeSatoshi, feeConsumed)
+		return nil, buildInsufficientInputError("fee", feeSatoshi, feeConsumed)
 	}
 	if change := feeSatoshi - feeConsumed; change > 1000 {
 		err := addOutput(msgTx, feeAddress, change)

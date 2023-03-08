@@ -81,9 +81,6 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 
 			hpsbt.Packet.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)
 		} else {
-			if len(hpsbt.Packet.Inputs[idx].PartialSigs) != 0 {
-				panic(transactionHash)
-			}
 			accountant, err := node.bitcoinReadAccountantKey(ctx, tx.Accountant)
 			if err != nil {
 				return err
