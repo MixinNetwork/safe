@@ -120,8 +120,16 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, e
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	asset, err := node.fetchAssetMeta(ctx, id.String())
 	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id.String(), err)
+		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
+	spent, err := node.group.ListOutputsForAsset("", out.AssetID, "spent", 1)
+	if err != nil {
+		return false, fmt.Errorf("group.ListOutputsForAsset(%s) => %v", out.AssetID, err)
+	}
+	if len(spent) > 0 {
+		return false, nil
+	}
+
 	max := node.bondMaxSupply(ctx, asset.Chain, asset.AssetId)
 	if !out.Amount.Equal(max) {
 		return false, fmt.Errorf("node.handleBondAsset(%s) => %s", id, out.Amount)

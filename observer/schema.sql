@@ -80,7 +80,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   holder             VARCHAR NOT NULL,
   signer             VARCHAR NOT NULL,
   accountant         VARCHAR NOT NULL,
-  partials           VARCHAR NOT NULL,
   signature          VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   created_at         TIMESTAMP NOT NULL,
