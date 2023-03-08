@@ -46,13 +46,20 @@ func (raw *PartiallySignedTransaction) Marshal() []byte {
 	if err != nil || len(hash) != 32 {
 		panic(raw.Hash)
 	}
+
 	var rawBuffer bytes.Buffer
 	err = raw.Packet.Serialize(&rawBuffer)
 	if err != nil {
 		panic(err)
 	}
+	rb := rawBuffer.Bytes()
+	_, err = psbt.NewFromRawBytes(bytes.NewReader(rb), false)
+	if err != nil {
+		panic(err)
+	}
+
 	writeBytes(enc, hash)
-	writeBytes(enc, rawBuffer.Bytes())
+	writeBytes(enc, rb)
 	enc.WriteUint64(uint64(raw.Fee))
 	return enc.Bytes()
 }

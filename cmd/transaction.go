@@ -83,11 +83,12 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 		hash := hpsbt.SigHash(idx)
 		sig := ecdsa.Sign(holder, hash).Serialize()
 		hpsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
-			PubKey:    kb,
+			PubKey:    holder.PubKey().SerializeCompressed(),
 			Signature: sig,
 		}}
 	}
-	fmt.Printf("psbt: %x\n", hpsbt.Marshal())
+	raw := hpsbt.Marshal()
+	fmt.Printf("psbt: %x\n", raw)
 
 	msg := bitcoin.HashMessageForSignature(msgTx.TxHash().String())
 	sig := ecdsa.Sign(holder, msg).Serialize()
