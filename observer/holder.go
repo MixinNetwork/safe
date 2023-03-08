@@ -120,9 +120,6 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
-	if approval.RawTransaction != raw {
-		return nil
-	}
 
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {

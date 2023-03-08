@@ -11,6 +11,8 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper"
 	"github.com/dimfeld/httptreemux"
 	"github.com/unrolled/render"
 )
@@ -187,6 +189,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 
 func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
+		Chain     int    `json:"chain"`
 		Action    string `json:"action"`
 		PSBT      string `json:"psbt"`
 		Signature string `json:"signature"`
@@ -194,6 +197,10 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+	if body.Chain != keeper.SafeChainBitcoin {
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": "chain"})
 		return
 	}
 	tx, err := node.keeperStore.ReadTransactionByRequestId(r.Context(), params["id"])
@@ -214,8 +221,8 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		render.New().JSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	if approval.RawTransaction != body.PSBT {
-		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": "raw"})
+	if approval.State != common.RequestStateInitial {
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": "state"})
 		return
 	}
 
@@ -231,10 +238,11 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 
 	render.New().JSON(w, http.StatusOK, map[string]any{
-		"id":   tx.RequestId,
-		"hash": tx.TransactionHash,
-		"raw":  tx.RawTransaction,
-		"fee":  tx.Fee,
+		"chain": tx.Chain,
+		"id":    tx.RequestId,
+		"hash":  tx.TransactionHash,
+		"raw":   tx.RawTransaction,
+		"fee":   tx.Fee,
 	})
 }
 
