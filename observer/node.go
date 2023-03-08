@@ -62,7 +62,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context) error {
 		return err
 	}
 	amount := decimal.RequireFromString(node.conf.PriceAmount)
-	logger.Printf("node.sendPriceInfo(%s, %s)", asset.AssetId, amount)
+	logger.Printf("node.sendBitcoinPriceInfo(%s, %s)", asset.AssetId, amount)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
 		panic(node.conf.PriceAmount)

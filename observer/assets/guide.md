@@ -16,15 +16,15 @@ priv, pub := btcec.PrivKeyFromBytes(seed)
 fmt.Printf("public: %x\nprivate: %x\n", pub.SerializeCompressed(), priv.Serialize())
 
 `
-public: 0389476e12011d38e6aacb830146b6c8a9cf7ad78464139eb5ffa0e5376eb34131
-private: 96e18d8d7de1859a6520612c6c05ca14391145913caee12d9939cc6422b08af8
+public: 039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab40
+private: 1b639e995830c253eb38780480440a72919f5448be345a574c545329f2df4d76
 `
 ```
 
 After generating the key pair, you will need to create a random UUID as the session ID. The following UUID will be used as example:
 
 ```
-167212be-ab75-4202-8e51-74baa7873265
+2e78d04a-e61a-442d-a014-dec19bd61cfe
 ```
 
 
@@ -60,10 +60,10 @@ To send the account proposal, with the holder prepared from last step, the opera
 
 ```golang
 op := &Operation {
-  Id: "167212be-ab75-4202-8e51-74baa7873265",
+  Id: "2e78d04a-e61a-442d-a014-dec19bd61cfe",
   Type: 110,
   Curve: 1,
-  Public: "0389476e12011d38e6aacb830146b6c8a9cf7ad78464139eb5ffa0e5376eb34131",
+  Public: "039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab40",
 }
 ```
 
@@ -106,8 +106,8 @@ input.OpponentMultisig.Threshold = 4
 After the proposal transaction sent to the safe network MTG, you can monitor the Mixin Network transactions to decode your account details, but to make it easy, it's possible to just fetch it from the Safe HTTP API.
 
 ```
-curl https://safe.mixin.dev/accounts/167212be-ab75-4202-8e51-74baa7873265
-{"accountant":"bc1qssns3cq9q062rgdt7ndjq8errhj8h8mnyd9494","address":"bc1qlzdc9aj8l3jamqfvpyy5m0d72j429fv86zq92j6zs5vhenvaqllqzdst7c","id":"167212be-ab75-4202-8e51-74baa7873265","status":"proposed"}
+curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
+{"accountant":"bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e","address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","id":"2e78d04a-e61a-442d-a014-dec19bd61cfe","script":"6352670399f040b2752102b4868f0800a8268ea24e0ba96c61d251ec199275b955cd48fb9af2302ef250f2ad516821039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab402102c4f8174c09969f7e37ae0d2d1cb02d945625595054cf8d6fff05e0d96e9e0bc052ae","status":"proposed"}
 ```
 
 You should have noticed that the request was made with the same session UUID we prepared at the first step. That address returned is our safe account address to receive BTC, but to start using it, we must approve it with our holder key.
@@ -123,15 +123,15 @@ private, _ := btcec.PrivKeyFromBytes(b)
 sig := ecdsa.Sign(private, hash)
 fmt.Println(base64.RawURLEncoding.EncodeToString(sig.Serialize()))
 
-`MEQCIAlx1nCFx64KiKyNX-F1H3yv4B6SpUb0_46JgbC_jD-3AiBJ3OW9LaoMWwYHdF_lVrd7iZJlCYVHXiF40ngUrZYoww`
+`MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKSBHArkgRF2NtxDOk`
 ```
 
 With the signature we send the request to safe network to prove that we own the holder key exactly.
 
 ```
-curl https://safe.mixin.dev/accounts/167212be-ab75-4202-8e51-74baa7873265 -H 'Content-Type:application/json' \
-  -d '{"address":"bc1qlzdc9aj8l3jamqfvpyy5m0d72j429fv86zq92j6zs5vhenvaqllqzdst7c","signature":"MEQCIAlx1nCFx64KiKyNX-F1H3yv4B6SpUb0_46JgbC_jD-3AiBJ3OW9LaoMWwYHdF_lVrd7iZJlCYVHXiF40ngUrZYoww"}'
-{"accountant":"bc1qssns3cq9q062rgdt7ndjq8errhj8h8mnyd9494","address":"bc1qlzdc9aj8l3jamqfvpyy5m0d72j429fv86zq92j6zs5vhenvaqllqzdst7c","id":"167212be-ab75-4202-8e51-74baa7873265","status":"proposed"}
+curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe -H 'Content-Type:application/json' \
+  -d '{"address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","signature":"MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKSBHArkgRF2NtxDOk"}'
+{"accountant":"bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e","address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","id":"2e78d04a-e61a-442d-a014-dec19bd61cfe","script":"6352670399f040b2752102b4868f0800a8268ea24e0ba96c61d251ec199275b955cd48fb9af2302ef250f2ad516821039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab402102c4f8174c09969f7e37ae0d2d1cb02d945625595054cf8d6fff05e0d96e9e0bc052ae","status":"proposed"}
 ```
 
 Now we can deposit BTC to the address above, and you will receive safeBTC to the owner wallet.
@@ -154,7 +154,7 @@ op := &Operation {
   Id: "84b390fe-0fff-4a13-b8a7-05810421fd62",
   Type: 112,
   Curve: 1,
-  Public: "0389476e12011d38e6aacb830146b6c8a9cf7ad78464139eb5ffa0e5376eb34131",
+  Public: "039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab40",
   Extra: []byte("bc1qxzueu7tguufapq8d63ma5fm2al7ck06rrq3fl4"),
 }
 ```

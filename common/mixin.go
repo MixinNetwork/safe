@@ -31,7 +31,7 @@ func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration)
 		return fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
 	}
 
-	if !strings.Contains(string(signed.Extra), out.Memo) {
+	if !strings.Contains(string(signed.Extra), out.Memo) && !strings.Contains(hex.EncodeToString(signed.Extra), out.Memo) {
 		return fmt.Errorf("common.VerifyKernelTransaction(%v) memo mismatch %x", out, signed.Extra)
 	}
 	if signed.Asset != crypto.NewHash([]byte(out.AssetID)) {
