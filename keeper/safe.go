@@ -39,11 +39,16 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
 	}
+	receivers, threshold, err := req.ParseMixinRecipient()
+	if err != nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
 	priceAssetId, priceAmount, err := node.store.ReadAccountPrice(ctx, SafeChainBitcoin)
 	if err != nil {
 		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", SafeChainBitcoin, err)
 	} else if priceAssetId == "" || !priceAmount.IsPositive() {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
 	}
 	if req.AssetId != priceAssetId {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -61,11 +66,6 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("store.ReadSafeProposal(%s) => %v", req.Id, err)
 	} else if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
-	}
-
-	receivers, threshold, err := req.ParseMixinRecipient()
-	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 

@@ -7,6 +7,8 @@ type Configuration struct {
 	KeeperStoreDir    string `toml:"keeper-store-dir"`
 	KeeperPublicKey   string `toml:"keeper-public-key"`
 	AssetId           string `toml:"asset-id"`
+	PriceAssetId      string `toml:"price-asset-id"`
+	PriceAmount       string `toml:"price-amount"`
 	MixinMessengerAPI string `toml:"mixin-messenger-api"`
 	MixinRPC          string `toml:"mixin-rpc"`
 	BitcoinRPC        string `toml:"bitcoin-rpc"`

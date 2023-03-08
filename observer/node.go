@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/gofrs/uuid"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -41,12 +44,36 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.sendBitcoinPriceInfo(ctx)
+	if err != nil {
+		panic(err)
+	}
 	go node.bitcoinNetworkInfoLoop(ctx)
 	go node.bitcoinRPCBlocksLoop(ctx)
 	go node.bitcoinDepositConfirmLoop(ctx)
 	go node.bitcoinTransactionApprovalLoop(ctx)
 	go node.bitcoinKeyLoop(ctx)
 	node.snapshotsLoop(ctx)
+}
+
+func (node *Node) sendBitcoinPriceInfo(ctx context.Context) error {
+	asset, err := node.fetchAssetMeta(ctx, node.conf.PriceAssetId)
+	if err != nil {
+		return err
+	}
+	amount := decimal.RequireFromString(node.conf.PriceAmount)
+	logger.Printf("node.sendPriceInfo(%s, %s)", asset.AssetId, amount)
+	amount = amount.Mul(decimal.New(1, 8))
+	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
+		panic(node.conf.PriceAmount)
+	}
+	dummy := node.bitcoinDummyHolder()
+	id := mixin.UniqueConversationID(asset.AssetId, amount.String())
+	id = mixin.UniqueConversationID(id, keeper.SafeBitcoinChainId)
+	extra := []byte{keeper.SafeChainBitcoin}
+	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
+	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
+	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetPrice, id, extra)
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {
