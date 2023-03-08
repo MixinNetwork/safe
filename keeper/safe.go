@@ -347,11 +347,12 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
+		logger.Printf("node.checkBitcoinUTXOSignatureRequired(%s, %d) => %t", pop.Hash.String(), pop.Index, required)
 		if !required {
 			continue
 		}
-		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, pop, req)
-		logger.Printf("node.checkBitcoinUTXOSignaturePending(%s, %d) => %v", pop.Hash.String(), pop.Index, err)
+		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, tx.TransactionHash, idx, req)
+		logger.Printf("node.checkBitcoinUTXOSignaturePending(%s, %d) => %t %v", tx.TransactionHash, idx, pending, err)
 		if err != nil {
 			return err
 		} else if pending {
@@ -361,7 +362,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 		hash := psbt.SigHash(idx)
 		sr := &store.SignatureRequest{
 			TransactionHash: tx.TransactionHash,
-			OutputIndex:     idx,
+			InputIndex:      idx,
 			Signer:          safe.Signer,
 			Curve:           req.Curve,
 			Message:         hex.EncodeToString(hash),
@@ -385,8 +386,8 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	return node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
 }
 
-func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, pop wire.OutPoint, req *common.Request) (bool, error) {
-	old, err := node.store.ReadSignatureRequestByTransactionIndex(ctx, pop.Hash.String(), int(pop.Index))
+func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {
+	old, err := node.store.ReadSignatureRequestByTransactionIndex(ctx, hash, index)
 	if err != nil {
 		return false, err
 	}

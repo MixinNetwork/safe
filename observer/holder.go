@@ -231,7 +231,7 @@ func (node *Node) bitcoinCheckKeeperSignedTransaction(ctx context.Context, appro
 	}
 	signed := make(map[int][]byte)
 	for _, r := range requests {
-		signed[r.OutputIndex] = common.DecodeHexOrPanic(r.Signature.String)
+		signed[r.InputIndex] = common.DecodeHexOrPanic(r.Signature.String)
 	}
 
 	b := common.DecodeHexOrPanic(approval.RawTransaction)

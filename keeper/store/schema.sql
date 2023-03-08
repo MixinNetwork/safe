@@ -185,7 +185,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS transactions_by_request_id ON transactions(req
 CREATE TABLE IF NOT EXISTS signature_requests (
   request_id          VARCHAR NOT NULL,
   transaction_hash    VARCHAR NOT NULL,
-  output_index        INTEGER NOT NULL,
+  input_index         INTEGER NOT NULL,
   signer              VARCHAR NOT NULL,
   curve               INTEGER NOT NULL,
   message             VARCHAR NOT NULL,

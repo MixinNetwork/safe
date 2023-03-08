@@ -247,7 +247,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	signed := make(map[int][]byte)
 	for _, r := range requests {
 		b, _ := hex.DecodeString(r.Signature.String)
-		signed[r.OutputIndex] = b
+		signed[r.InputIndex] = b
 	}
 	txHash := common.DecodeHexOrPanic(transactionHash)
 	mb := append(txHash, common.DecodeHexOrPanic(tx.RawTransaction)...)

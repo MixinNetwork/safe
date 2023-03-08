@@ -41,7 +41,7 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 	}
 	signed := make(map[int][]byte)
 	for _, r := range requests {
-		signed[r.OutputIndex] = common.DecodeHexOrPanic(r.Signature.String)
+		signed[r.InputIndex] = common.DecodeHexOrPanic(r.Signature.String)
 	}
 
 	msgTx := spsbt.Packet.UnsignedTx
