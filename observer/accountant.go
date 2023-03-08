@@ -26,6 +26,9 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 	if err != nil {
 		return err
 	}
+	if tx.State == common.RequestStateDone {
+		return nil
+	}
 	if tx.Chain != keeper.SafeChainBitcoin {
 		panic(transactionHash)
 	}
@@ -74,11 +77,13 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 			sig = append(ssig.Signature, byte(txscript.SigHashAll))
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{1})
-
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
 
 			hpsbt.Packet.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)
 		} else {
+			if len(hpsbt.Packet.Inputs[idx].PartialSigs) != 0 {
+				panic(transactionHash)
+			}
 			accountant, err := node.bitcoinReadAccountantKey(ctx, tx.Accountant)
 			if err != nil {
 				return err
@@ -87,6 +92,7 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 			sig := append(signature.Serialize(), byte(txscript.SigHashAll))
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
+
 			hpsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
 				PubKey:    common.DecodeHexOrPanic(tx.Accountant),
 				Signature: signature.Serialize(),

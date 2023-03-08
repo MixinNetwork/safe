@@ -191,7 +191,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	var body struct {
 		Chain     int    `json:"chain"`
 		Action    string `json:"action"`
-		PSBT      string `json:"psbt"`
+		Raw       string `json:"raw"`
 		Signature string `json:"signature"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -228,7 +228,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 
 	switch body.Action {
 	case "approve":
-		err = node.approveBitcoinTransaction(r.Context(), body.PSBT, body.Signature)
+		err = node.approveBitcoinTransaction(r.Context(), body.Raw, body.Signature)
 		if err != nil {
 			render.New().JSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return
