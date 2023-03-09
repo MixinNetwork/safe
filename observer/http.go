@@ -249,7 +249,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
-		"raw":     tx.RawTransaction,
+		"raw":     approval.RawTransaction,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})
@@ -309,7 +309,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
-		"raw":     tx.RawTransaction,
+		"raw":     approval.RawTransaction,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})

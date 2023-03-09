@@ -40,11 +40,13 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		panic(req.Role)
 	}
 	receivers, threshold, err := req.ParseMixinRecipient()
+	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
 	plan, err := node.store.ReadAccountPlan(ctx, SafeChainBitcoin)
+	logger.Printf("store.ReadAccountPlan(%d) => %v %v", SafeChainBitcoin, plan, err)
 	if err != nil {
 		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", SafeChainBitcoin, err)
 	} else if plan == nil || !plan.AccountPriceAmount.IsPositive() {
@@ -70,6 +72,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 
 	signer, observer, accountant, err := node.store.AssignSignerAndObserverToHolder(ctx, req)
+	logger.Printf("store.AssignSignerAndObserverToHolder(%s) => %s %s %s %v", req.Holder, signer, observer, accountant, err)
 	if err != nil {
 		return fmt.Errorf("store.AssignSignerAndObserverToHolder(%v) => %v", req, err)
 	}

@@ -254,6 +254,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 		panic(req.Role)
 	}
 	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
+	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
 	}
@@ -274,7 +275,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, sig)
+	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -313,6 +314,10 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
+		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig)
+		if err != nil {
+			panic(sr.Signature.String)
+		}
 		spsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
 			PubKey:    common.DecodeHexOrPanic(safe.Signer),
 			Signature: sig,
