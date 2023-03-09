@@ -47,7 +47,7 @@ func ObserverBootCmd(c *cli.Context) error {
 	}
 
 	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin)
-	go node.StartHTTP()
+	go node.StartHTTP(c.App.Metadata["README"].(string))
 	node.Boot(ctx)
 	return nil
 }

@@ -209,7 +209,7 @@ func RPCEstimateSmartFee(rpc string) (int64, error) {
 	if err != nil || fee.Rate <= 0 {
 		return 0, fmt.Errorf("estimatesmartfee %f %v", fee.Rate, err)
 	}
-	fvb := int64(fee.Rate * 1.5 * ValueSatoshi / 1024)
+	fvb := int64(fee.Rate * 1.1 * ValueSatoshi / 1024)
 	if fvb < 10 {
 		fvb = 10
 	}

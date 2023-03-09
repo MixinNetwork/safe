@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 
@@ -8,12 +9,16 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+//go:embed README.md
+var README string
+
 func main() {
 	app := &cli.App{
 		Name:                 "safe",
 		Usage:                "Mixin Safe",
 		Version:              "0.0.1",
 		EnableBashCompletion: true,
+		Metadata:             map[string]any{"README": README},
 		Commands: []*cli.Command{
 			{
 				Name:   "signer",
