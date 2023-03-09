@@ -30,7 +30,7 @@ const (
 	ActionObserverUpdateNetworkStatus = 103
 	ActionObserverHolderDeposit       = 104
 	ActionObserverAccountantDepost    = 105
-	ActionObserverSetPrice            = 106
+	ActionObserverSetAccountPlan      = 106
 
 	ActionBitcoinSafeProposeAccount     = 110
 	ActionBitcoinSafeApproveAccount     = 111

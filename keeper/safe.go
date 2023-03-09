@@ -44,16 +44,16 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
-	priceAssetId, priceAmount, err := node.store.ReadAccountPrice(ctx, SafeChainBitcoin)
+	plan, err := node.store.ReadAccountPlan(ctx, SafeChainBitcoin)
 	if err != nil {
 		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", SafeChainBitcoin, err)
-	} else if priceAssetId == "" || !priceAmount.IsPositive() {
+	} else if plan == nil || !plan.AccountPriceAmount.IsPositive() {
 		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
 	}
-	if req.AssetId != priceAssetId {
+	if req.AssetId != plan.AccountPriceAsset {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-	if req.Amount.Cmp(priceAmount) < 0 {
+	if req.Amount.Cmp(plan.AccountPriceAmount) < 0 {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
@@ -216,6 +216,17 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	if id.String() != SafeBitcoinChainId {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	plan, err := node.store.ReadAccountPlan(ctx, safe.Chain)
+	logger.Printf("store.ReadAccountPlan(%d) => %v %v", safe.Chain, plan, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", safe.Chain, err)
+	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
+		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+	}
+	if req.Amount.Cmp(plan.TransactionMinimum) < 0 {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 

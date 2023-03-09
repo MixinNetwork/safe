@@ -61,6 +61,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
+
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -90,6 +91,17 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	}
 	if asset.Chain != safe.Chain {
 		panic(asset.AssetId)
+	}
+
+	plan, err := node.store.ReadAccountPlan(ctx, deposit.Chain)
+	logger.Printf("store.ReadAccountPlan(%d) => %v %v", deposit.Chain, plan, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", deposit.Chain, err)
+	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	if decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).Cmp(plan.TransactionMinimum) < 0 {
+		return node.store.FinishRequest(ctx, req.Id)
 	}
 
 	switch deposit.Chain {

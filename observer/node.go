@@ -62,18 +62,25 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context) error {
 		return err
 	}
 	amount := decimal.RequireFromString(node.conf.PriceAmount)
-	logger.Printf("node.sendBitcoinPriceInfo(%s, %s)", asset.AssetId, amount)
+	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
+	logger.Printf("node.sendBitcoinPriceInfo(%s, %s, %s)", asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
 		panic(node.conf.PriceAmount)
 	}
+	minimum = minimum.Mul(decimal.New(1, 8))
+	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
+		panic(node.conf.TransactionMinimum)
+	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID(asset.AssetId, amount.String())
-	id = mixin.UniqueConversationID(id, keeper.SafeBitcoinChainId)
+	id := mixin.UniqueConversationID(keeper.SafeBitcoinChainId, asset.AssetId)
+	id = mixin.UniqueConversationID(id, amount.String())
+	id = mixin.UniqueConversationID(id, minimum.String())
 	extra := []byte{keeper.SafeChainBitcoin}
 	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
-	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetPrice, id, extra)
+	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
+	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetAccountPlan, id, extra)
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {

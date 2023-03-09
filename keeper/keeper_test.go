@@ -161,14 +161,16 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	extra := []byte{SafeChainBitcoin}
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, 100000000)
+	extra = binary.BigEndian.AppendUint64(extra, 10000)
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
-	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetPrice, extra)
+	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetAccountPlan, extra)
 	testStep(ctx, require, node, out)
 
-	assetId, amount, err := node.store.ReadAccountPrice(ctx, SafeChainBitcoin)
+	plan, err := node.store.ReadAccountPlan(ctx, SafeChainBitcoin)
 	require.Nil(err)
-	require.Equal(testAccountPriceAssetId, assetId)
-	require.Equal("1", amount.String())
+	require.Equal(testAccountPriceAssetId, plan.AccountPriceAsset)
+	require.Equal("1", plan.AccountPriceAmount.String())
+	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
 func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node) {

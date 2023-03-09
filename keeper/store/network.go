@@ -3,12 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
-	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -30,6 +30,12 @@ type NetworkInfo struct {
 	Height    uint64
 	Hash      string
 	CreatedAt time.Time
+}
+
+type AccountPlan struct {
+	AccountPriceAsset  string
+	AccountPriceAmount decimal.Decimal
+	TransactionMinimum decimal.Decimal
 }
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
@@ -74,26 +80,19 @@ func accountPricePropertyKey(chain byte) string {
 	return fmt.Sprintf("safe-account-price-%d", chain)
 }
 
-func (s *SQLite3Store) ReadAccountPrice(ctx context.Context, chain byte) (string, decimal.Decimal, error) {
+func (s *SQLite3Store) ReadAccountPlan(ctx context.Context, chain byte) (*AccountPlan, error) {
 	key := accountPricePropertyKey(chain)
 	value, err := s.ReadProperty(ctx, key)
 	if err != nil || value == "" {
-		return "", decimal.Zero, err
+		return nil, err
 	}
 
-	parts := strings.Split(value, ":")
-	if len(parts) != 2 {
-		panic(value)
-	}
-	amount, err := decimal.NewFromString(parts[1])
-	if err != nil {
-		panic(value)
-	}
-	assetId := uuid.Must(uuid.FromString(parts[0])).String()
-	return assetId, amount, nil
+	var plan AccountPlan
+	err = json.Unmarshal([]byte(value), &plan)
+	return &plan, err
 }
 
-func (s *SQLite3Store) WriteAccountPriceFromRequest(ctx context.Context, chain byte, assetId string, amount decimal.Decimal, req *common.Request) error {
+func (s *SQLite3Store) WriteAccountPlanFromRequest(ctx context.Context, chain byte, assetId string, amount, minimum decimal.Decimal, req *common.Request) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -101,7 +100,14 @@ func (s *SQLite3Store) WriteAccountPriceFromRequest(ctx context.Context, chain b
 	defer tx.Rollback()
 
 	key := accountPricePropertyKey(chain)
-	value := fmt.Sprintf("%s:%s", assetId, amount.String())
+	value, err := json.Marshal(AccountPlan{
+		AccountPriceAsset:  assetId,
+		AccountPriceAmount: amount,
+		TransactionMinimum: minimum,
+	})
+	if err != nil {
+		panic(err)
+	}
 	existed, err := s.checkExistence(ctx, tx, "SELECT value FROM properties WHERE key=?", key)
 	if err != nil {
 		return err

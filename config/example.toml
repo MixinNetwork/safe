@@ -97,6 +97,7 @@ keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097
 asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
 price-asset-id = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 price-amount = "1"
+transaction-minimum = "0.0001"
 mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://rpc.mixin.dev"
 bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"

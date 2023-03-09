@@ -67,12 +67,12 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	return node.store.WriteNetworkInfoFromRequest(ctx, info)
 }
 
-func (node *Node) writeAccountPrice(ctx context.Context, req *common.Request) error {
+func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) error {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) != 25 {
+	if len(extra) != 33 {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
@@ -87,7 +87,9 @@ func (node *Node) writeAccountPrice(ctx context.Context, req *common.Request) er
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
 	abu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[17:25]))
 	amount := decimal.NewFromBigInt(abu, -8)
-	return node.store.WriteAccountPriceFromRequest(ctx, chain, assetId.String(), amount, req)
+	mbu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[25:33]))
+	minimum := decimal.NewFromBigInt(mbu, -8)
+	return node.store.WriteAccountPlanFromRequest(ctx, chain, assetId.String(), amount, minimum, req)
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
