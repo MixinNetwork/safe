@@ -62,6 +62,18 @@ func (t *Transaction) values() []any {
 	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Accountant, t.Signature, t.State, t.CreatedAt, t.UpdatedAt}
 }
 
+func (t *Transaction) Signers() []string {
+	switch t.State {
+	case common.RequestStateInitial:
+		return []string{}
+	case common.RequestStatePending:
+		return []string{"holder"}
+	case common.RequestStateDone:
+		return []string{"holder", "signer"}
+	}
+	panic(t.State)
+}
+
 func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, address string, createdAt time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

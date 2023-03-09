@@ -180,10 +180,12 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 	render.New().JSON(w, http.StatusOK, map[string]any{
-		"id":   tx.RequestId,
-		"hash": tx.TransactionHash,
-		"raw":  tx.RawTransaction,
-		"fee":  tx.Fee,
+		"chain":   tx.Chain,
+		"id":      tx.RequestId,
+		"hash":    tx.TransactionHash,
+		"raw":     tx.RawTransaction,
+		"fee":     tx.Fee,
+		"signers": approval.Signers(),
 	})
 }
 
@@ -238,11 +240,12 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 
 	render.New().JSON(w, http.StatusOK, map[string]any{
-		"chain": tx.Chain,
-		"id":    tx.RequestId,
-		"hash":  tx.TransactionHash,
-		"raw":   tx.RawTransaction,
-		"fee":   tx.Fee,
+		"chain":   tx.Chain,
+		"id":      tx.RequestId,
+		"hash":    tx.TransactionHash,
+		"raw":     tx.RawTransaction,
+		"fee":     tx.Fee,
+		"signers": approval.Signers(),
 	})
 }
 

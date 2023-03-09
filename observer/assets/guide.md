@@ -234,4 +234,4 @@ curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H
 
 A few minutes later, we should be able to query the transaction on a Bitcoin explorer.
 
-https://blockstream.info/tx/82691866344969d5a1e59a2fd3dd8b2b4266594f9801e7232bab9baf059b9eb8?expand
+https://blockstream.info/tx/0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f?expand
