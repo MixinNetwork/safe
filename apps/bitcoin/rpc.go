@@ -206,10 +206,10 @@ func RPCEstimateSmartFee(rpc string) (int64, error) {
 		Rate float64 `json:"feerate"`
 	}
 	err = json.Unmarshal(res, &fee)
-	if err != nil {
-		return 0, err
+	if err != nil || fee.Rate <= 0 {
+		return 0, fmt.Errorf("estimatesmartfee %f %v", fee.Rate, err)
 	}
-	fvb := int64(fee.Rate*ValueSatoshi/1024) * 3
+	fvb := int64(fee.Rate * 1.5 * ValueSatoshi / 1024)
 	if fvb < 10 {
 		fvb = 10
 	}
