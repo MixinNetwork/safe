@@ -24,24 +24,40 @@ var GUIDE = `
 <!DOCTYPE html>
 <html class="layout">
   <head>
-    <meta charset="utf-8">
+    <meta charset="utf-8" />
     <title>Mixin Safe Developers</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Mixin Safe is an advanced non-custody solution for securing BTC using the native Bitcoin multisig and timelock script. The 2/3 multisig comprises three keys: the holder, signer, and observer. The BTC locked in the script can only be spent when the holder and signer keys sign a transaction, provided that the timelock of one year is in effect. In the event of key loss by the holder or signer, the observer can act as rescuer after one year.">
     <link href="/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
 		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
+      body {
+        margin: 0;
+        padding: 8px 16px;
+      }
       article {
         max-width: 960px;
         margin: 32px auto 64px;
+        font-family: sans-serif;
+        font-size: 1em;
+        font-weight: 300;
       }
       h1 {
         font-size: 2em;
+        font-weight: 500;
+      }
+      h2 {
+        font-size: 1.5em;
+        font-weight: 500;
+        margin: 24px 0 16px;
       }
       img {
         max-width: 100%;
       }
       pre, code {
         background: #F4F4F4;
+        font-family: monospace;
+        font-size: 1em;
       }
       pre {
         padding: 8px;
@@ -51,14 +67,18 @@ var GUIDE = `
         overflow-wrap: break-word;
         white-space: pre-wrap;
       }
+      p {
+        overflow-wrap: break-word;
+        line-height: 1.4em;
+      }
     </style>
   </head>
   <body>
-		<article>README</article>
-		<script>
-			var article = document.getElementsByTagName('article')[0];
-			article.innerHTML = marked.parse(article.childNodes[0].nodeValue);
-		</script>
+    <article>README</article>
+    <script>
+      var article = document.getElementsByTagName('article')[0];
+      article.innerHTML = marked.parse(article.childNodes[0].nodeValue);
+    </script>
 	</body>
 </html>
 `
