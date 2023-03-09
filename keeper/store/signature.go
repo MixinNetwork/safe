@@ -68,6 +68,11 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	}
 	defer tx.Rollback()
 
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?", req.Id, common.RequestStatePending)
+	if err != nil || existed {
+		return err
+	}
+
 	err = s.execOne(ctx, tx, "UPDATE signature_requests SET signature=?, state=?, updated_at=? WHERE request_id=? AND state=?",
 		req.Extra, common.RequestStatePending, req.CreatedAt, req.Id, common.RequestStateInitial)
 	if err != nil {

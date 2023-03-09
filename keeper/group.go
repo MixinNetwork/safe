@@ -281,6 +281,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 	}
 
 	err = node.store.FinishSignatureRequest(ctx, req)
+	logger.Printf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
 	if err != nil {
 		return fmt.Errorf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
 	}
@@ -290,6 +291,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 	msgTx := spsbt.Packet.UnsignedTx
 
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
+	logger.Printf("store.ListAllSignaturesForTransaction(%s) => %d %v", old.TransactionHash, len(requests), err)
 	if err != nil {
 		return fmt.Errorf("store.ListAllSignaturesForTransaction(%s) => %v", old.TransactionHash, err)
 	}
