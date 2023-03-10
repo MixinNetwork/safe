@@ -19,23 +19,19 @@ import (
 )
 
 func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []byte) error {
-	transactionHash := hex.EncodeToString(extra[:32])
-	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra[32:])
+	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 
-	tx, err := node.store.ReadTransactionApproval(ctx, transactionHash)
-	if err != nil {
+	tx, err := node.store.ReadTransactionApproval(ctx, spsbt.Hash)
+	if err != nil || tx.State == common.RequestStateDone {
 		return err
 	}
-	if tx.State == common.RequestStateDone {
-		return nil
-	}
 	if tx.Chain != keeper.SafeChainBitcoin {
-		panic(transactionHash)
+		panic(spsbt.Hash)
 	}
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	hpsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 
-	requests, err := node.keeperStore.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateDone)
+	requests, err := node.keeperStore.ListAllSignaturesForTransaction(ctx, spsbt.Hash, common.RequestStateDone)
 	if err != nil {
 		return err
 	}
@@ -54,7 +50,7 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 			hpin := hpsbt.Packet.Inputs[idx]
 			hsig := hpin.PartialSigs[0]
 			if hex.EncodeToString(hsig.PubKey) != tx.Holder {
-				panic(transactionHash)
+				panic(spsbt.Hash)
 			}
 			sig := append(hsig.Signature, byte(txscript.SigHashAll))
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
@@ -63,16 +59,16 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 			spin := spsbt.Packet.Inputs[idx]
 			ssig := spin.PartialSigs[0]
 			if hex.EncodeToString(ssig.PubKey) != tx.Signer {
-				panic(transactionHash)
+				panic(spsbt.Hash)
 			}
 			if !bytes.Equal(ssig.Signature, signed[idx]) {
-				panic(transactionHash)
+				panic(spsbt.Hash)
 			}
 			der, _ := ecdsa.ParseDERSignature(ssig.Signature)
 			pub := common.DecodeHexOrPanic(tx.Signer)
 			signer, _ := btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
 			if !der.Verify(hash, signer.PubKey()) {
-				panic(transactionHash)
+				panic(spsbt.Hash)
 			}
 			sig = append(ssig.Signature, byte(txscript.SigHashAll))
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
@@ -104,12 +100,12 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 	}
 
 	raw := hex.EncodeToString(hpsbt.Marshal())
-	err = node.store.FinishTransactionSignatures(ctx, transactionHash, raw)
-	logger.Printf("store.FinishTransactionSignatures(%s) => %v", transactionHash, err)
+	err = node.store.FinishTransactionSignatures(ctx, spsbt.Hash, raw)
+	logger.Printf("store.FinishTransactionSignatures(%s) => %v", spsbt.Hash, err)
 	if err != nil {
 		return err
 	}
-	return node.bitcoinBroadcastTransaction(transactionHash, signedBuffer.Bytes())
+	return node.bitcoinBroadcastTransaction(spsbt.Hash, signedBuffer.Bytes())
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte) error {

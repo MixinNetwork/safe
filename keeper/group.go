@@ -324,9 +324,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 		}}
 	}
 
-	extra := common.DecodeHexOrPanic(old.TransactionHash)
-	extra = append(extra, spsbt.Marshal()...)
-	exk := node.writeToMVMOrPanic(ctx, extra)
+	exk := node.writeToMVMOrPanic(ctx, spsbt.Marshal())
 	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk))
 	err = node.sendObserverResponse(ctx, id, common.ActionBitcoinSafeApproveTransaction, exk)
 	if err != nil {

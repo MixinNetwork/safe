@@ -17,7 +17,7 @@ Using btcd, you can generate a public and private key pair using the following c
 priv, pub := btcec.PrivKeyFromBytes(seed)
 fmt.Printf("public: %x\nprivate: %x\n", pub.SerializeCompressed(), priv.Serialize())
 
-==>
+🔜
 public: 039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab40
 private: 1b639e995830c253eb38780480440a72919f5448be345a574c545329f2df4d76
 ```
@@ -104,6 +104,8 @@ After the account proposal transaction sent to the safe network MTG, you can mon
 
 ```
 curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
+
+🔜
 {"accountant":"bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e","address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","id":"2e78d04a-e61a-442d-a014-dec19bd61cfe","script":"6352670399f040b2752102b4868f0800a8268ea24e0ba96c61d251ec199275b955cd48fb9af2302ef250f2ad516821039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab402102c4f8174c09969f7e37ae0d2d1cb02d945625595054cf8d6fff05e0d96e9e0bc052ae","status":"proposed"}
 ```
 
@@ -120,7 +122,7 @@ private, _ := btcec.PrivKeyFromBytes(b)
 sig := ecdsa.Sign(private, hash)
 fmt.Println(base64.RawURLEncoding.EncodeToString(sig.Serialize()))
 
-==>
+🔜
 MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKSBHArkgRF2NtxDOk
 ```
 
@@ -129,6 +131,8 @@ With the signature we send the request to safe network to prove that we own the 
 ```
 curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe -H 'Content-Type:application/json' \
   -d '{"address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","signature":"MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKSBHArkgRF2NtxDOk"}'
+
+🔜
 {"accountant":"bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e","address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","id":"2e78d04a-e61a-442d-a014-dec19bd61cfe","script":"6352670399f040b2752102b4868f0800a8268ea24e0ba96c61d251ec199275b955cd48fb9af2302ef250f2ad516821039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab402102c4f8174c09969f7e37ae0d2d1cb02d945625595054cf8d6fff05e0d96e9e0bc052ae","status":"proposed"}
 ```
 
@@ -177,6 +181,8 @@ After the transaction sent successfully to the safe network MTG, we can query th
 
 ```
 curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421
+
+🔜
 {"fee":"0.00032181","hash":"0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f","id":"36c2075c-5af0-4593-b156-e72f58f9f421","raw":"00200e88c368c51fb...000000000000000007db5"}
 ```
 
@@ -223,6 +229,8 @@ After we have the PSBT signed by holder private key, then we can send them to sa
 ```
 curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H 'Content-Type:application/json' \
   -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5","signature":"MEQCIDfROpqb2l5b9LD5RL865HsSDvKhSGI9a6RShQwdfI9jAiBWLep5ogVplOsBETaALGtlN6GmcHIASV_nU-AUhtN0mQ"}'
+
+🔜
 {"chain":1,"fee":"0.00032181","hash":"0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f","id":"36c2075c-5af0-4593-b156-e72f58f9f421","raw":"00200e88c368c51fb...000000000000000007db5"}
 ```
 

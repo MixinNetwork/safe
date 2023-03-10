@@ -251,8 +251,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		b, _ := hex.DecodeString(r.Signature.String)
 		signed[r.InputIndex] = b
 	}
-	txHash := common.DecodeHexOrPanic(transactionHash)
-	mb := append(txHash, common.DecodeHexOrPanic(tx.RawTransaction)...)
+	mb := common.DecodeHexOrPanic(tx.RawTransaction)
 	exk := common.MVMHash(mb)
 	rid := mixin.UniqueConversationID(transactionHash, hex.EncodeToString(exk))
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
