@@ -387,6 +387,11 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 		sr.RequestId = mixin.UniqueConversationID(req.Id, sr.Message)
 		requests = append(requests, sr)
 	}
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
+	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d) => %v", tx.TransactionHash, len(requests), err)
+	if err != nil {
+		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+	}
 
 	for _, sr := range requests {
 		err := node.sendSignerSignRequest(ctx, sr)
@@ -394,10 +399,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 			return fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
 		}
 	}
-
-	// FIXME the store write may fail, then it's possible to miss the signer response
-	// but never put this to another thread, keeper should not use multiple threads
-	return node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
+	return nil
 }
 
 func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {

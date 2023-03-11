@@ -35,14 +35,19 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	}
 	defer tx.Rollback()
 
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?", requests[0].RequestId, common.RequestStateInitial)
+	if err != nil || existed {
+		return err
+	}
+
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=?",
-		common.RequestStatePending, req.CreatedAt, transactionHash)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+		common.RequestStatePending, req.CreatedAt, transactionHash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
@@ -157,6 +162,9 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 		}
 		if state != common.RequestStateInitial && rm[r.InputIndex] != nil {
 			panic(transactionHash)
+		}
+		if state == common.RequestStateDone && !r.Signature.Valid {
+			continue
 		}
 		rm[r.InputIndex] = &r
 	}
