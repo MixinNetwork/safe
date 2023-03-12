@@ -1,6 +1,6 @@
 # Mixin Safe
 
-Mixin Safe is an advanced non-custodial solution that offers a multiplex cold wallet with multisig and MPC to provide the most secure and convenient self-custody solution for cryptocurrencies. With a firm belief in "not your keys not your coins," Mixin Safe aims to address the pressing need for securing crypto keys.
+Mixin Safe is an advanced non-custodial solution that specializes in providing a multiplex cold wallet. The platform places strong emphasis on the significance of securing crypto keys, with its firm belief in the principle of "not your keys, not your coins". Mixin Safe leverages mature technologies such as multisig and MPC to offer its users the most secure and convenient solution for securing crypto keys.
 
 Through the native Bitcoin multisig and timelock script, Mixin Safe offers a 2/3 multisig that comprises three keys, namely holder, signer, and observer. The BTC locked within the script can be spent only when both the holder and signer keys sign a transaction, provided that the timelock of one year is in effect. In case of key loss by the holder or signer, the observer can act as a rescuer after the timelock expired.
 
