@@ -67,7 +67,6 @@ func (node *Node) parseHolderRequest(out *mtg.Output) (*common.Request, error) {
 	return common.DecodeRequest(out, b, role)
 }
 
-// TODO encrypt with observer aes key
 func (node *Node) writeToMVMOrPanic(ctx context.Context, extra []byte) []byte {
 	logger.Printf("node.writeToMVMOrPanic(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
