@@ -158,6 +158,10 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
+	if safe.Chain != keeper.SafeChainBitcoin {
+		renderJSON(w, http.StatusBadRequest, map[string]any{"error": "chain"})
+		return
+	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
@@ -186,13 +190,21 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
+	_, _, bondId, err := node.fetchBondAsset(r.Context(), keeper.SafeBitcoinChainId, safe.Holder)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
 	renderJSON(w, http.StatusOK, map[string]any{
 		"chain":      safe.Chain,
 		"id":         safe.RequestId,
 		"address":    safe.Address,
 		"script":     hex.EncodeToString(wsa.Script),
 		"accountant": wka.Address,
-		"status":     status,
+		"bond": map[string]any{
+			"id": bondId,
+		},
+		"status": status,
 	})
 }
 
@@ -252,13 +264,21 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
+	_, _, bondId, err := node.fetchBondAsset(r.Context(), keeper.SafeBitcoinChainId, safe.Holder)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
 	renderJSON(w, http.StatusOK, map[string]any{
 		"chain":      safe.Chain,
 		"id":         safe.RequestId,
 		"address":    safe.Address,
 		"script":     hex.EncodeToString(wsa.Script),
 		"accountant": wka.Address,
-		"status":     status,
+		"bond": map[string]any{
+			"id": bondId,
+		},
+		"status": status,
 	})
 }
 

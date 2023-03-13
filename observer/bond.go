@@ -39,28 +39,33 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 }
 
 func (node *Node) checkOrDeployKeeperBond(ctx context.Context, assetId, holder string) (bool, error) {
+	asset, bond, _, err := node.fetchBondAsset(ctx, assetId, holder)
+	if err != nil {
+		return false, fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, holder, err)
+	}
+	if bond != nil {
+		return true, nil
+	}
 	rpc, key := node.conf.MVMRPC, node.conf.MVMKey
+	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, holder)
+}
+
+func (node *Node) fetchBondAsset(ctx context.Context, assetId, holder string) (*Asset, *Asset, string, error) {
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
+		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
 
 	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
 	err = mvm.VerifyAssetKey(assetKey)
 	if err != nil {
-		return false, fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
+		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
 	bondId := mvm.GenerateAssetId(assetKey)
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
-	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
-	}
-	if bond != nil {
-		return true, nil
-	}
-	return false, abi.GetOrDeployFactoryAsset(rpc, key, asset.AssetId, asset.Symbol, asset.Name, holder)
+	return asset, bond, bondId.String(), err
 }
 
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error) {
