@@ -27,7 +27,7 @@ After generating the key pair, you will need to create a random UUID as the sess
 
 ## Propose Safe Account
 
-All messages to the safe network should be encoded as the following operation struct:
+To ensure the efficiency of the network, every Mixin Safe account proposal costs 1 USD. To propose an account, one simply needs to send 1 USD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
 
 ```golang
 type Operation struct {
@@ -82,8 +82,8 @@ Then we can encode the operation and use it as a memo to send the account propos
 ```golang
 memo := base64.RawURLEncoding.EncodeToString(op.Encode())
 input := mixin.TransferInput{
-  AssetID: "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
-  Amount:  decimal.NewFromFloat(0.0001),
+  AssetID: "31d2ea9c-95eb-3355-b65b-ba096853bc18",
+  Amount:  decimal.NewFromFloat(1),
   TraceID: op.Id,
   Memo:    memo,
 }
