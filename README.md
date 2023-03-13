@@ -102,7 +102,7 @@ input.OpponentMultisig.Threshold = 4
 
 After the account proposal transaction sent to the safe network MTG, you can monitor the Mixin Network transactions to decode your account details. But to make it easy, it's possible to just fetch it from the Safe HTTP API with the proposal UUID:
 
-```
+```json
 curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
 
 🔜
@@ -134,7 +134,7 @@ MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKS
 
 With the signature we send the request to safe network to prove that we own the holder key exactly:
 
-```
+```json
 curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe -H 'Content-Type:application/json' \
   -d '{"address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","signature":"MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKSBHArkgRF2NtxDOk"}'
 ```
@@ -144,19 +144,39 @@ Now we can deposit BTC to the address above, and you will receive safeBTC to the
 
 ## Propose Safe Transaction
 
-After deposited some BTC to both the safe address and accountant, now we want to send 0.000123BTC to bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e.
+After deposited some BTC to both the safe address and accountant, now we want to send 0.000123BTC to bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e. We will need the latest Bitcoin chain head id from the Safe network:
 
-First we need to generate another random session id, and `36c2075c-5af0-4593-b156-e72f58f9f421` will be used as example.
+```json
+curl https://safe.mixin.dev/chains
 
-Then with the holder prepared from first step, the operation value should be like:
+🔜
+[
+  {
+    "chain": 1,
+    "head": {
+      "fee": 13,
+      "hash": "00000000000000000003aca37e964e47e89543e2b26495641c1fc4957500e46e",
+      "height": 780626,
+      "id": "155e4f85-d4b8-33f7-82e6-542711f1f26e"
+    },
+    "id": "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
+  }
+]
+```
+
+With the response above we know the Bitcoin transaction fee rate will be `13 Satoshis/vByte`, we need to make an estimation to ensure the accountant balance is enough to pay the transaction fee before the proposal. And the head id is `155e4f85-d4b8-33f7-82e6-542711f1f26e`, which will be used in the operation extra to indicate the fee rate we prefer.
+
+Then we need to generate another random session id, and `36c2075c-5af0-4593-b156-e72f58f9f421` will be used as example. With the holder prepared from first step, the operation value should be like:
 
 ```golang
+extra := uuid.FromStringOrNil("155e4f85-d4b8-33f7-82e6-542711f1f26e").Bytes()
+extra = append(extra, []byte("bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e")...)
 op := &Operation {
   Id: "36c2075c-5af0-4593-b156-e72f58f9f421",
   Type: 112,
   Curve: 1,
   Public: "039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab40",
-  Extra: []byte("bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e"),
+  Extra: extra,
 }
 ```
 
@@ -182,7 +202,7 @@ input.OpponentMultisig.Threshold = 4
 
 After the transaction sent successfully to the safe network MTG, we can query the safe API to get the proposed raw transaction:
 
-```
+```json
 curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421
 
 🔜
@@ -234,7 +254,7 @@ fmt.Printf("signature: %s\n", base64.RawURLEncoding.EncodeToString(sig))
 
 After we have the PSBT signed by holder private key, then we can send them to safe API:
 
-```
+```json
 curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H 'Content-Type:application/json' \
   -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5","signature":"MEQCIDfROpqb2l5b9LD5RL865HsSDvKhSGI9a6RShQwdfI9jAiBWLep5ogVplOsBETaALGtlN6GmcHIASV_nU-AUhtN0mQ"}'
 ```

@@ -100,6 +100,7 @@ func (node *Node) StartHTTP(readme string) {
 	router := httptreemux.New()
 	router.GET("/", node.httpIndex)
 	router.GET("/favicon.ico", node.httpFavicon)
+	router.GET("/chains", node.httpListChains)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
@@ -122,6 +123,29 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 	w.Header().Set("Content-Type", "image/vnd.microsoft.icon")
 	w.WriteHeader(http.StatusOK)
 	w.Write(FAVICON)
+}
+
+func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
+	if info == nil {
+		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+
+	renderJSON(w, http.StatusOK, []map[string]any{{
+		"id":    keeper.SafeBitcoinChainId,
+		"chain": info.Chain,
+		"head": map[string]any{
+			"id":     info.RequestId,
+			"height": info.Height,
+			"fee":    info.Fee,
+			"hash":   info.Hash,
+		},
+	}})
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
