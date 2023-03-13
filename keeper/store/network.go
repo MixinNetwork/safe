@@ -41,7 +41,19 @@ type AccountPlan struct {
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 var infoCols = []string{"request_id", "chain", "fee", "height", "hash", "created_at"}
 
-func (s *SQLite3Store) ReadNetworkInfo(ctx context.Context, chain byte) (*NetworkInfo, error) {
+func (s *SQLite3Store) ReadNetworkInfo(ctx context.Context, id string) (*NetworkInfo, error) {
+	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE request_id=?", strings.Join(infoCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
+
+	var n NetworkInfo
+	err := row.Scan(&n.RequestId, &n.Chain, &n.Fee, &n.Height, &n.Hash, &n.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &n, err
+}
+
+func (s *SQLite3Store) ReadLatestNetworkInfo(ctx context.Context, chain byte) (*NetworkInfo, error) {
 	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE chain=? ORDER BY created_at DESC LIMIT 1", strings.Join(infoCols, ","))
 	row := s.db.QueryRowContext(ctx, query, chain)
 

@@ -147,9 +147,9 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 
-	info, err := node.keeperStore.ReadNetworkInfo(ctx, keeper.SafeChainBitcoin)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, keeper.SafeChainBitcoin)
 	if err != nil {
-		return fmt.Errorf("keeperStore.ReadNetworkInfo(%d) => %v", keeper.SafeChainBitcoin, err)
+		return fmt.Errorf("keeperStore.ReadLatestNetworkInfo(%d) => %v", keeper.SafeChainBitcoin, err)
 	} else if info == nil {
 		return nil
 	}

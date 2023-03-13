@@ -40,9 +40,9 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	info.Fee = binary.BigEndian.Uint64(extra[1:9])
 	info.Height = binary.BigEndian.Uint64(extra[9:17])
 
-	old, err := node.store.ReadNetworkInfo(ctx, info.Chain)
+	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain)
 	if err != nil {
-		return fmt.Errorf("store.ReadNetworkInfo(%d) => %v", info.Chain, err)
+		return fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
 	} else if old != nil && old.RequestId == req.Id {
 		return node.store.FinishRequest(ctx, req.Id)
 	} else if old != nil && old.Height > info.Height {

@@ -252,17 +252,27 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
-	receiver, err := bitcoin.ParseAddress(string(extra))
+	if len(extra) < 32 {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	iid, err := uuid.FromBytes(extra[:16])
+	if err != nil || iid.String() == uuid.Nil.String() {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	receiver, err := bitcoin.ParseAddress(string(extra[16:]))
 	logger.Printf("bitcoin.ParseAddress(%s) => %s %v", string(extra), receiver, err)
 	if err != nil {
-		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		return node.store.FinishRequest(ctx, req.Id)
 	}
-	info, err := node.store.ReadNetworkInfo(ctx, safe.Chain)
-	logger.Printf("store.ReadNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	info, err := node.store.ReadNetworkInfo(ctx, iid.String())
+	logger.Printf("store.ReadNetworkInfo(%s) => %v %v", iid.String(), info, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadNetworkInfo(%d) => %v", safe.Chain, err)
+		return fmt.Errorf("store.ReadNetworkInfo(%s) => %v", iid.String(), err)
 	}
-	if info == nil || info.CreatedAt.Add(SafeNetworkInfoTimeout).Before(req.CreatedAt) {
+	if info == nil || info.Chain != safe.Chain {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	if info.CreatedAt.Add(SafeNetworkInfoTimeout * 3).Before(req.CreatedAt) {
 		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 
