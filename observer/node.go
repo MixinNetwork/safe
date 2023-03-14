@@ -2,7 +2,6 @@ package observer
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -131,31 +130,27 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 		return err
 	}
 
-	handled, err = node.handleKeeperResponse(ctx, s)
+	handled, err = node.handleTransactionApprovalPayment(ctx, s)
 	if err != nil || handled {
 		return err
 	}
 
+	_, err = node.handleKeeperResponse(ctx, s)
+	return err
+}
+
+func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
 	if s.AssetID != node.conf.PriceAssetId {
-		return nil
+		return false, nil
+	}
+	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
+	if err != nil || approval == nil {
+		return false, err
 	}
 	if s.Amount.Cmp(decimal.RequireFromString(node.conf.PriceAmount)) < 0 {
-		return nil
+		return true, nil
 	}
-	b, err := base64.RawURLEncoding.DecodeString(s.Memo)
-	if err != nil {
-		return nil
-	}
-	op, err := common.DecodeOperation(b)
-	if err != nil {
-		return nil
-	}
-	switch op.Type {
-	case common.ActionBitcoinSafeApproveTransaction:
-		return node.payTransactionApproval(ctx, hex.EncodeToString(op.Extra))
-	}
-
-	return nil
+	return true, node.payTransactionApproval(ctx, s.Memo)
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
