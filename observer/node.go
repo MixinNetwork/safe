@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -51,7 +52,6 @@ func (node *Node) Boot(ctx context.Context) {
 	go node.bitcoinNetworkInfoLoop(ctx)
 	go node.bitcoinRPCBlocksLoop(ctx)
 	go node.bitcoinDepositConfirmLoop(ctx)
-	go node.bitcoinTransactionApprovalLoop(ctx)
 	go node.bitcoinKeyLoop(ctx)
 	node.snapshotsLoop(ctx)
 }
@@ -124,20 +124,52 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 	if s.Amount.Sign() < 0 {
 		return nil
 	}
+
 	handled, err := node.handleBondAsset(ctx, s)
 	if err != nil || handled {
 		return err
 	}
 
+	handled, err = node.handleKeeperResponse(ctx, s)
+	if err != nil || handled {
+		return err
+	}
+
+	if s.AssetID != node.conf.PriceAssetId {
+		return nil
+	}
+	if s.Amount.Cmp(decimal.RequireFromString(node.conf.PriceAmount)) < 0 {
+		return nil
+	}
+	b, err := base64.RawURLEncoding.DecodeString(s.Memo)
+	if err != nil {
+		return nil
+	}
+	op, err := common.DecodeOperation(b)
+	if err != nil {
+		return nil
+	}
+	switch op.Type {
+	case common.ActionBitcoinSafeApproveTransaction:
+		return node.bitcoinApproveTransaction(ctx, hex.EncodeToString(op.Extra))
+	}
+
+	return nil
+}
+
+func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+	if s.AssetID != node.conf.AssetId {
+		return false, nil
+	}
 	msp := mtg.DecodeMixinExtra(s.Memo)
 	if msp == nil {
-		return nil
+		return true, nil
 	}
 	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
 	if err != nil {
-		return nil
+		return true, err
 	}
 	data, err := common.MVMStorageRead(node.conf.MVMRPC, op.Extra)
 	if err != nil || len(data) < 32 {
@@ -146,16 +178,15 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 
 	switch op.Type {
 	case common.ActionBitcoinSafeProposeTransaction:
-		return node.saveTransactionProposal(ctx, data, s.CreatedAt)
+		return true, node.saveTransactionProposal(ctx, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveTransaction:
-		return node.bitcoinAccountantSignTransaction(ctx, data)
+		return true, node.bitcoinAccountantSignTransaction(ctx, data)
 	case common.ActionBitcoinSafeProposeAccount:
-		return node.saveAccountProposal(ctx, data, s.CreatedAt)
+		return true, node.saveAccountProposal(ctx, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveAccount:
-		return node.deployBitcoinSafeBond(ctx, data)
+		return true, node.deployBitcoinSafeBond(ctx, data)
 	}
-
-	return nil
+	return true, nil
 }
 
 func (node *Node) handleBondAsset(ctx context.Context, s *mixin.Snapshot) (bool, error) {
