@@ -52,6 +52,7 @@ func (node *Node) Boot(ctx context.Context) {
 	go node.bitcoinNetworkInfoLoop(ctx)
 	go node.bitcoinRPCBlocksLoop(ctx)
 	go node.bitcoinDepositConfirmLoop(ctx)
+	go node.bitcoinTransactionApprovalLoop(ctx)
 	go node.bitcoinKeyLoop(ctx)
 	node.snapshotsLoop(ctx)
 }
@@ -151,7 +152,7 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 	}
 	switch op.Type {
 	case common.ActionBitcoinSafeApproveTransaction:
-		return node.bitcoinApproveTransaction(ctx, hex.EncodeToString(op.Extra))
+		return node.payTransactionApproval(ctx, hex.EncodeToString(op.Extra))
 	}
 
 	return nil

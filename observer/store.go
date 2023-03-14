@@ -211,8 +211,24 @@ func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHa
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, signature=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
-		raw, sigBase64, common.RequestStatePending, time.Now().UTC(), transactionHash, common.RequestStateInitial)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, signature=?, updated_at=? WHERE transaction_hash=? AND state=? AND signature=?",
+		raw, sigBase64, time.Now().UTC(), transactionHash, common.RequestStateInitial, "")
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) UpdateTransactionApprovalPending(ctx context.Context, transactionHash string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+		common.RequestStatePending, time.Now().UTC(), transactionHash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}

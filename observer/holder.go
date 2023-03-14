@@ -120,6 +120,9 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
+	if approval.Signature != "" {
+		return nil
+	}
 
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
@@ -165,16 +168,35 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	return err
 }
 
-func (node *Node) bitcoinApproveTransaction(ctx context.Context, hash string) error {
+func (node *Node) payTransactionApproval(ctx context.Context, hash string) error {
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Printf("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 	if err != nil || approval == nil {
 		return err
 	}
-	if approval.Chain != keeper.SafeChainBitcoin {
+	if approval.State != common.RequestStateInitial {
 		return nil
 	}
+	return node.store.UpdateTransactionApprovalPending(ctx, hash)
+}
 
+func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context) {
+	for {
+		time.Sleep(3 * time.Second)
+		approvals, err := node.store.ListPendingTransactionApprovals(ctx, keeper.SafeChainBitcoin)
+		if err != nil {
+			panic(err)
+		}
+		for _, approval := range approvals {
+			err := node.bitcoinApproveTransaction(ctx, approval)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
+func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
 	btx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, approval.TransactionHash)
 	logger.Printf("bitcoin.RPCGetTransaction(%s) => %v %v", approval.TransactionHash, btx, err)
 	if err != nil && !strings.Contains(err.Error(), "No such mempool or blockchain transaction") {
