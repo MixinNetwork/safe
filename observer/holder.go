@@ -177,6 +177,9 @@ func (node *Node) payTransactionApproval(ctx context.Context, hash string) error
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
+	if approval.Signature == "" {
+		return nil
+	}
 	return node.store.UpdateTransactionApprovalPending(ctx, hash)
 }
 

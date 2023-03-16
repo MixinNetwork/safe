@@ -27,7 +27,7 @@ After generating the key pair, you will need to create a random UUID as the sess
 
 ## Propose Safe Account
 
-To ensure the efficiency of the network, every Mixin Safe account proposal costs 1 USD. To propose an account, one simply needs to send 1 USD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
+To ensure the efficiency of the network, every Mixin Safe account proposal costs 1USD. To propose an account, one simply needs to send 1USD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
 
 ```golang
 type Operation struct {
@@ -259,6 +259,6 @@ curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H
   -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5","signature":"MEQCIDfROpqb2l5b9LD5RL865HsSDvKhSGI9a6RShQwdfI9jAiBWLep5ogVplOsBETaALGtlN6GmcHIASV_nU-AUhtN0mQ"}'
 ```
 
-A few minutes later, we should be able to query the transaction on a Bitcoin explorer.
+Once the transaction approval has succeeded, we will need to transfer 1USD to the observer, using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
 
 https://blockstream.info/tx/0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f?expand
