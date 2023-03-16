@@ -92,6 +92,13 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return fmt.Errorf("bitcoin.BuildWitnessKeyAccount(%s) => %v", accountant, err)
 	}
 
+	old, err = node.store.ReadSafeProposalByAddress(ctx, wsa.Address)
+	if err != nil {
+		return fmt.Errorf("store.ReadSafeProposalByAddress(%s) => %v", wsa.Address, err)
+	} else if old != nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
 	extra := wsa.MarshalWithAccountant(awka.Address)
 	exk := node.writeToMVMOrPanic(ctx, extra)
 	if !bytes.Equal(exk, common.MVMHash(extra)) {
