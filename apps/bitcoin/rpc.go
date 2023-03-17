@@ -13,6 +13,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/shopspring/decimal"
 )
 
 type scriptPubKey struct {
@@ -67,9 +68,13 @@ func RPCGetTransactionOutput(rpc, hash string, index int64) (*Output, error) {
 		return nil, nil
 	}
 
+	satoshi := decimal.NewFromFloat(out.Value).Mul(decimal.NewFromFloat(ValueSatoshi))
+	if !satoshi.IsInteger() || !satoshi.BigInt().IsInt64() {
+		return nil, nil
+	}
 	output := &Output{
 		Address:  out.ScriptPubKey.Address,
-		Satoshi:  int64(out.Value * float64(ValueSatoshi)),
+		Satoshi:  satoshi.IntPart(),
 		Coinbase: len(tx.Vin) == 0 && tx.Vin[0].Coinbase != "",
 	}
 
