@@ -195,12 +195,21 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
+	mainInputs, feeInputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
 	renderJSON(w, http.StatusOK, map[string]any{
-		"chain":      safe.Chain,
-		"id":         safe.RequestId,
-		"address":    safe.Address,
-		"script":     hex.EncodeToString(wsa.Script),
-		"accountant": wka.Address,
+		"chain":   safe.Chain,
+		"id":      safe.RequestId,
+		"address": safe.Address,
+		"outputs": viewOutputs(mainInputs),
+		"script":  hex.EncodeToString(wsa.Script),
+		"accountant": map[string]any{
+			"address": wka.Address,
+			"outputs": viewOutputs(feeInputs),
+		},
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -269,12 +278,21 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
+	mainInputs, feeInputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
 	renderJSON(w, http.StatusOK, map[string]any{
-		"chain":      safe.Chain,
-		"id":         safe.RequestId,
-		"address":    safe.Address,
-		"script":     hex.EncodeToString(wsa.Script),
-		"accountant": wka.Address,
+		"chain":   safe.Chain,
+		"id":      safe.RequestId,
+		"address": safe.Address,
+		"outputs": viewOutputs(mainInputs),
+		"script":  hex.EncodeToString(wsa.Script),
+		"accountant": map[string]any{
+			"address": wka.Address,
+			"outputs": viewOutputs(feeInputs),
+		},
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -369,6 +387,18 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})
+}
+
+func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
+	view := make([]map[string]any, 0)
+	for _, out := range outputs {
+		view = append(view, map[string]any{
+			"transaction_hash": out.TransactionHash,
+			"output_index":     out.Index,
+			"satoshi":          out.Satoshi,
+		})
+	}
+	return view
 }
 
 func renderJSON(w http.ResponseWriter, status int, data any) {
