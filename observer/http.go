@@ -3,6 +3,7 @@ package observer
 // FIXME do rate limit based on IP
 
 import (
+	"context"
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
@@ -195,7 +196,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	mainInputs, feeInputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	mainInputs, feeInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -278,7 +279,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	mainInputs, feeInputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	mainInputs, feeInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -387,6 +388,14 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})
+}
+
+func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, []*bitcoin.Input, error) {
+	safe, err := node.keeperStore.ReadSafe(ctx, holder)
+	if err != nil || safe == nil {
+		return nil, nil, err
+	}
+	return node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
 }
 
 func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
