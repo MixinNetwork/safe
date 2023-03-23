@@ -159,8 +159,8 @@ func BuildWitnessKeyAccount(accountant string) (*WitnessKeyAccount, error) {
 		return nil, err
 	}
 	script := pub.ScriptAddress()
-	wsh := btcutil.Hash160(script)
-	wph, err := btcutil.NewAddressWitnessPubKeyHash(wsh, &chaincfg.MainNetParams)
+	wpkh := btcutil.Hash160(script)
+	wph, err := btcutil.NewAddressWitnessPubKeyHash(wpkh, &chaincfg.MainNetParams)
 	if err != nil {
 		return nil, err
 	}

@@ -99,6 +99,9 @@ func (node *Node) StartHTTP(readme string) {
 	GUIDE = strings.Replace(GUIDE, "SAFE-FLOW-BASE64", flow, -1)
 
 	router := httptreemux.New()
+	router.PanicHandler = handlePanic
+	router.NotFoundHandler = handleNotFound
+
 	router.GET("/", node.httpIndex)
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
@@ -209,6 +212,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		"script":  hex.EncodeToString(wsa.Script),
 		"accountant": map[string]any{
 			"address": wka.Address,
+			"script":  hex.EncodeToString(wka.Script),
 			"outputs": viewOutputs(feeInputs),
 		},
 		"bond": map[string]any{
@@ -292,6 +296,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		"script":  hex.EncodeToString(wsa.Script),
 		"accountant": map[string]any{
 			"address": wka.Address,
+			"script":  hex.EncodeToString(wka.Script),
 			"outputs": viewOutputs(feeInputs),
 		},
 		"bond": map[string]any{
@@ -415,6 +420,15 @@ func renderJSON(w http.ResponseWriter, status int, data any) {
 	w.WriteHeader(status)
 	b, _ := json.Marshal(data)
 	w.Write(b)
+}
+
+func handlePanic(w http.ResponseWriter, r *http.Request, rcv any) {
+	logger.Verbosef("PANIC (%v) => %v", *r, rcv)
+	renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+}
+
+func handleNotFound(w http.ResponseWriter, r *http.Request) {
+	renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 }
 
 // TODO may consider a whitelist in the case of Ethereum scams
