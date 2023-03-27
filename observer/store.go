@@ -104,9 +104,9 @@ func (s *SQLite3Store) CheckAccountProposed(ctx context.Context, addr string) (b
 	return rows.Next(), nil
 }
 
-func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int) ([]*Deposit, error) {
-	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? ORDER BY created_at ASC", strings.Join(depositsCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, chain, common.RequestStateInitial)
+func (s *SQLite3Store) ListDeposits(ctx context.Context, chain, state int, offset int64) ([]*Deposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? AND updated_at>=? ORDER BY created_at ASC LIMIT 100", strings.Join(depositsCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, chain, state, time.Unix(0, offset))
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -105,6 +106,7 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/", node.httpIndex)
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
+	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
@@ -150,6 +152,18 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			"hash":   info.Hash,
 		},
 	}})
+}
+
+func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 64)
+	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
+	deposits, err := node.store.ListDeposits(r.Context(), int(chain), common.RequestStateDone, offset)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
+
+	renderJSON(w, http.StatusOK, viewDeposits(deposits))
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -401,6 +415,22 @@ func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder strin
 		return nil, nil, err
 	}
 	return node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
+}
+
+func viewDeposits(deposits []*Deposit) []map[string]any {
+	view := make([]map[string]any, 0)
+	for _, d := range deposits {
+		view = append(view, map[string]any{
+			"transaction_hash": d.TransactionHash,
+			"output_index":     d.OutputIndex,
+			"asset_id":         d.AssetId,
+			"amount":           d.Amount,
+			"receiver":         d.Receiver,
+			"chain":            d.Chain,
+			"updated_at":       d.UpdatedAt,
+		})
+	}
+	return view
 }
 
 func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
