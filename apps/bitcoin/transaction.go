@@ -117,7 +117,7 @@ func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
-func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64) (*PartiallySignedTransaction, error) {
+func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64, rid []byte) (*PartiallySignedTransaction, error) {
 	msgTx := wire.NewMsgTx(2)
 
 	mainAddress, mainSatoshi, err := addInputs(msgTx, mainInputs)
@@ -148,6 +148,10 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	}
 
 	estvb := (40 + len(msgTx.TxIn)*300 + (len(msgTx.TxOut)+1)*128) / 4
+	if len(rid) > 0 && len(rid) <= 64 {
+		estvb += len(rid)
+	}
+
 	feeConsumed := fvb * int64(estvb)
 	if feeConsumed > feeSatoshi {
 		return nil, buildInsufficientInputError("fee", feeSatoshi, feeConsumed)
@@ -159,6 +163,17 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		}
 	} else {
 		feeConsumed = feeSatoshi
+	}
+
+	if len(rid) > 0 && len(rid) <= 64 {
+		builder := txscript.NewScriptBuilder()
+		builder.AddOp(txscript.OP_RETURN)
+		builder.AddData(rid)
+		script, err := builder.Script()
+		if err != nil {
+			return nil, fmt.Errorf("return(%x) => %v", rid, err)
+		}
+		msgTx.AddTxOut(wire.NewTxOut(0, script))
 	}
 
 	var rawBuffer bytes.Buffer

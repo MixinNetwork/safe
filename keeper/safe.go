@@ -291,7 +291,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
 	}
-	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee))
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee), req.Operation().IdBytes())
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
 	if bitcoin.IsInsufficientInputError(err) {
 		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
@@ -329,6 +329,45 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		UpdatedAt:       req.CreatedAt,
 	}
 	return node.store.WriteTransactionWithRequest(ctx, tx, append(mainInputs, feeInputs...), spend)
+}
+
+func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *common.Request) error {
+	if req.Role != common.RequestRoleObserver {
+		panic(req.Role)
+	}
+	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	if err != nil {
+		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+	}
+	if safe == nil || safe.Chain != SafeChainBitcoin {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	extra, _ := hex.DecodeString(req.Extra)
+	if len(extra) < 64 {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	rid, err := uuid.FromBytes(extra[:16])
+	if err != nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
+	if err != nil {
+		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
+	} else if tx == nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	} else if tx.Holder != req.Holder {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	msg := bitcoin.HashMessageForSignature(tx.TransactionHash)
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
+	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
+	if err != nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	return node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
 }
 
 func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req *common.Request) error {

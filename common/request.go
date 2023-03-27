@@ -22,6 +22,7 @@ const (
 	RequestStateInitial = 1
 	RequestStatePending = 2
 	RequestStateDone    = 3
+	RequestStateFailed  = 4
 
 	ActionTerminate = 100
 

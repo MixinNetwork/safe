@@ -71,7 +71,7 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 }
 
 func bitcoinBuildTransactionObserverSigner(ctx context.Context, assert *assert.Assertions, nodes []*Node, mpc string, mainInputs, feeInputs []*bitcoin.Input, outputs []*bitcoin.Output, fvb int64) (string, string, error) {
-	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb)
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb, nil)
 	assert.Nil(err)
 	tx := psbt.Packet.UnsignedTx
 	assert.Equal(psbt.Hash, tx.TxHash().String())
@@ -170,7 +170,7 @@ func TestCMPBitcoinSignHolderSigner(t *testing.T) {
 }
 
 func bitcoinBuildTransactionHolderSigner(ctx context.Context, assert *assert.Assertions, nodes []*Node, mpc string, mainInputs, feeInputs []*bitcoin.Input, outputs []*bitcoin.Output, fvb int64) (string, string, error) {
-	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb)
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, fvb, nil)
 	assert.Nil(err)
 	tx := psbt.Packet.UnsignedTx
 	assert.Equal(psbt.Hash, tx.TxHash().String())

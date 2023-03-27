@@ -42,6 +42,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	case common.ActionBitcoinSafeApproveAccount:
 	case common.ActionBitcoinSafeProposeTransaction:
 	case common.ActionBitcoinSafeApproveTransaction:
+	case common.ActionBitcoinSafeRevokeTransaction:
 	default:
 		return
 	}
@@ -85,6 +86,8 @@ func (node *Node) getActionRole(act byte) byte {
 	case common.ActionBitcoinSafeProposeTransaction:
 		return common.RequestRoleHolder
 	case common.ActionBitcoinSafeApproveTransaction:
+		return common.RequestRoleObserver
+	case common.ActionBitcoinSafeRevokeTransaction:
 		return common.RequestRoleObserver
 	default:
 		return 0
@@ -212,6 +215,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processBitcoinSafeProposeTransaction(ctx, req)
 	case common.ActionBitcoinSafeApproveTransaction:
 		return node.processBitcoinSafeApproveTransaction(ctx, req)
+	case common.ActionBitcoinSafeRevokeTransaction:
+		return node.processBitcoinSafeRevokeTransaction(ctx, req)
 	default:
 		panic(req.Action)
 	}
