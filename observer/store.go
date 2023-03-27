@@ -204,6 +204,22 @@ func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, 
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) RevokeTransactionApproval(ctx context.Context, transactionHash string, sigBase64 string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET signature=?, updated_at=? WHERE transaction_hash=? AND state=? AND signature=''",
+		sigBase64, time.Now().UTC(), transactionHash, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHash string, raw, sigBase64 string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

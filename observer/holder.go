@@ -168,6 +168,48 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	return err
 }
 
+func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, sigBase64 string) error {
+	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
+	if approval.Signature != "" {
+		return nil
+	}
+
+	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+	if err != nil || tx == nil {
+		return err
+	}
+
+	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
+	if err != nil {
+		return err
+	}
+	msg := bitcoin.HashMessageForSignature(txHash)
+	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
+	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
+	if err != nil {
+		return err
+	}
+
+	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
+	rid := uuid.Must(uuid.FromString(tx.RequestId))
+	extra := append(rid.Bytes(), sig...)
+	action := common.ActionBitcoinSafeRevokeTransaction
+	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), id, extra)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64)
+	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
+	return err
+}
+
 func (node *Node) payTransactionApproval(ctx context.Context, hash string) error {
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Printf("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
