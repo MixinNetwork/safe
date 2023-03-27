@@ -368,6 +368,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(psbt.Marshal()), stx.RawTransaction)
 	require.Equal("0.0000422", stx.Fee.String())
+	require.Equal("[{\"amount\":\"0.000123\",\"receiver\":\"bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc\"}]", stx.Data)
 	require.Equal(common.RequestStateInitial, stx.State)
 
 	return stx.TransactionHash

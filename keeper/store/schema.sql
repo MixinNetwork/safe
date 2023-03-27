@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   holder             VARCHAR NOT NULL,
   chain              INTEGER NOT NULL,
   state              INTEGER NOT NULL,
+  data               VARCHAR NOT NULL,
   fee                VARCHAR NOT NULL,
   request_id         VARCHAR NOT NULL,
   created_at         TIMESTAMP NOT NULL,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -317,12 +318,19 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		spend = spend.Add(amt)
 	}
 
+	data, err := json.Marshal([]map[string]string{
+		{"receiver": receiver, "amount": req.Amount.String()},
+	})
+	if err != nil {
+		panic(err)
+	}
 	tx := &store.Transaction{
 		TransactionHash: psbt.Hash,
 		RawTransaction:  hex.EncodeToString(extra),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
 		State:           common.RequestStateInitial,
+		Data:            string(data),
 		Fee:             fee,
 		RequestId:       req.Id,
 		CreatedAt:       req.CreatedAt,
@@ -358,6 +366,8 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 		return node.store.FinishRequest(ctx, req.Id)
 	} else if tx.Holder != req.Holder {
 		return node.store.FinishRequest(ctx, req.Id)
+	} else if tx.State != common.RequestStateInitial {
+		return node.store.FinishRequest(ctx, req.Id)
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash)
@@ -365,6 +375,37 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	bondId, _, err := node.getBondAsset(ctx, SafeBitcoinChainId, safe.Holder)
+	logger.Printf("node.getBondAsset(%s, %s) => %s %v", SafeBitcoinChainId, req.Holder, bondId, err)
+	if err != nil {
+		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", SafeBitcoinChainId, req.Holder, err)
+	}
+	var transfers []map[string]string
+	err = json.Unmarshal([]byte(tx.Data), &transfers)
+	if err != nil {
+		panic(err)
+	}
+	amount := decimal.Zero
+	for _, t := range transfers {
+		ta := decimal.RequireFromString(t["amount"])
+		if ta.Cmp(decimal.NewFromFloat(0.0001)) < 0 {
+			panic(tx.Data)
+		}
+		amount = amount.Add(ta)
+	}
+	meta, err := node.fetchAssetMeta(ctx, bondId.String())
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", bondId.String(), meta, err)
+	if err != nil {
+		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
+	}
+	if meta.Chain != SafeChainMVM {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
+	if err != nil {
+		return err
 	}
 
 	return node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)

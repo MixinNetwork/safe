@@ -18,13 +18,14 @@ type Transaction struct {
 	Holder          string
 	Chain           byte
 	State           int
+	Data            string
 	Fee             decimal.Decimal
 	RequestId       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
 
-var transactionCols = []string{"transaction_hash", "raw_transaction", "holder", "chain", "state", "fee", "request_id", "created_at", "updated_at"}
+var transactionCols = []string{"transaction_hash", "raw_transaction", "holder", "chain", "state", "data", "fee", "request_id", "created_at", "updated_at"}
 
 func (s *SQLite3Store) ReadTransactionByRequestId(ctx context.Context, requestId string) (*Transaction, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -75,7 +76,7 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 		panic(trx.RequestId)
 	}
 
-	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.State, trx.Fee.String(), trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
+	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.State, trx.Data, trx.Fee.String(), trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT transactions %v", err)
@@ -151,8 +152,8 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 		return fmt.Errorf("UPDATE accountants %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=?",
-		common.RequestStateFailed, req.CreatedAt, trx.TransactionHash)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+		common.RequestStateFailed, req.CreatedAt, trx.TransactionHash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
@@ -171,7 +172,7 @@ func (s *SQLite3Store) readTransaction(ctx context.Context, tx *sql.Tx, transact
 	row := tx.QueryRowContext(ctx, query, transactionHash)
 
 	var trx Transaction
-	err := row.Scan(&trx.TransactionHash, &trx.RawTransaction, &trx.Holder, &trx.Chain, &trx.State, &trx.Fee, &trx.RequestId, &trx.CreatedAt, &trx.UpdatedAt)
+	err := row.Scan(&trx.TransactionHash, &trx.RawTransaction, &trx.Holder, &trx.Chain, &trx.State, &trx.Data, &trx.Fee, &trx.RequestId, &trx.CreatedAt, &trx.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
