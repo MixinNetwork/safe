@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   asset_id           VARCHAR NOT NULL,
   amount             VARCHAR NOT NULL,
   receiver           VARCHAR NOT NULL,
+  sender             VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   chain              INTEGER NOT NULL,
   holder             VARCHAR NOT NULL,

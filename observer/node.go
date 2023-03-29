@@ -49,6 +49,7 @@ func (node *Node) Boot(ctx context.Context) {
 		panic(err)
 	}
 	go node.bitcoinNetworkInfoLoop(ctx)
+	go node.bitcoinMixinWithdrawalsLoop(ctx)
 	go node.bitcoinRPCBlocksLoop(ctx)
 	go node.bitcoinDepositConfirmLoop(ctx)
 	go node.bitcoinTransactionApprovalLoop(ctx)

@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	bitcoinKeygenRequestTimeKey     = "bitcoin-keygen-request-time"
-	bitcoinDepositCheckpointKey     = "bitcoin-deposit-checkpoint"
-	bitcoinDepositCheckpointDefault = 779456
-	bitcoinKeyDummyHolderPrivate    = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
+	bitcoinKeygenRequestTimeKey        = "bitcoin-keygen-request-time"
+	bitcoinMixinSnapshotsCheckpointKey = "bitcoin-mixin-snapshots-checkpoint"
+	bitcoinDepositCheckpointKey        = "bitcoin-deposit-checkpoint"
+	bitcoinDepositCheckpointDefault    = 779456
+	bitcoinKeyDummyHolderPrivate       = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 )
 
 func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context) {
@@ -88,7 +89,7 @@ func (node *Node) bitcoinReadBlock(ctx context.Context, num int64) ([]*bitcoin.R
 	return block.Tx, nil
 }
 
-func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId string, index int64, value float64) error {
+func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId string, index int64, value float64, sender string) error {
 	amount := decimal.NewFromFloat(value)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 	if amount.Cmp(minimum) < 0 {
@@ -117,6 +118,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId
 		AssetId:         keeper.SafeBitcoinChainId,
 		Amount:          amount.String(),
 		Receiver:        receiver,
+		Sender:          sender,
 		State:           common.RequestStateInitial,
 		Chain:           keeper.SafeChainBitcoin,
 		CreatedAt:       createdAt,
@@ -160,7 +162,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		panic(fmt.Errorf("malicious bitcoin network info %v", info))
 	}
 
-	output, err := bitcoin.RPCGetTransactionOutput(node.conf.BitcoinRPC, deposit.TransactionHash, deposit.OutputIndex)
+	_, output, err := bitcoin.RPCGetTransactionOutput(node.conf.BitcoinRPC, deposit.TransactionHash, deposit.OutputIndex)
 	if err != nil || output == nil {
 		panic(fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.TransactionHash, err))
 	}
@@ -171,6 +173,13 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 	confirmations := info.Height - output.Height + 1
+	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, keeper.SafeBitcoinChainId, deposit.Sender)
+	if err != nil {
+		return fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", deposit.Sender, err)
+	}
+	if isDomain {
+		confirmations = 1000000
+	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil
 	}
@@ -219,6 +228,61 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context) {
 	}
 }
 
+func (node *Node) bitcoinMixinWithdrawalsLoop(ctx context.Context) {
+	for {
+		time.Sleep(time.Second)
+		checkpoint, err := node.bitcoinReadMixinSnapshotsCheckpoint(ctx)
+		if err != nil {
+			panic(err)
+		}
+		snapshots, err := node.mixin.ReadNetworkSnapshots(ctx, keeper.SafeBitcoinChainId, checkpoint, "ASC", 100)
+		if err != nil {
+			continue
+		}
+
+		for _, s := range snapshots {
+			checkpoint = s.CreatedAt
+			if s.Source != "WITHDRAWAL_INITIALIZED" {
+				continue
+			}
+			err = node.bitcoinProcessMixinSnapshot(ctx, s.SnapshotID)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if len(snapshots) < 100 {
+			time.Sleep(time.Second)
+		}
+
+		err = node.bitcoinWriteMixinSnapshotsCheckpoint(ctx, checkpoint)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string) error {
+	s, err := node.mixin.ReadNetworkSnapshot(ctx, id)
+	if err != nil {
+		time.Sleep(time.Second)
+		logger.Printf("mixin.ReadNetworkSnapshot(%s) => %v", id, err)
+		return node.bitcoinProcessMixinSnapshot(ctx, id)
+	}
+	if s.SnapshotHash == "" || s.TransactionHash == "" {
+		time.Sleep(2 * time.Second)
+		return node.bitcoinProcessMixinSnapshot(ctx, id)
+	}
+
+	tx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, s.TransactionHash)
+	if err != nil || tx == nil {
+		time.Sleep(2 * time.Second)
+		logger.Printf("bitcoin.RPCGetTransaction(%s, %s) => %v %v", id, s.TransactionHash, tx, err)
+		return node.bitcoinProcessMixinSnapshot(ctx, id)
+	}
+
+	return node.bitcoinProcessTransaction(ctx, tx)
+}
+
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
@@ -242,19 +306,12 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
 		}
 
 		for _, tx := range txs {
-			for index := range tx.Vout {
-				out := tx.Vout[index]
-				skt := out.ScriptPubKey.Type
-				if skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash && skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash {
-					continue
+			for {
+				err := node.bitcoinProcessTransaction(ctx, tx)
+				if err == nil {
+					break
 				}
-				if out.N != int64(index) {
-					panic(tx.TxId)
-				}
-				err := node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx.TxId, out.N, out.Value)
-				if err != nil {
-					panic(err)
-				}
+				logger.Printf("node.bitcoinProcessTransaction(%s) => %v", tx.TxId, err)
 			}
 		}
 
@@ -263,6 +320,30 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
 			panic(err)
 		}
 	}
+}
+
+func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction) error {
+	for index := range tx.Vout {
+		out := tx.Vout[index]
+		skt := out.ScriptPubKey.Type
+		if skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash && skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash {
+			continue
+		}
+		if out.N != int64(index) {
+			panic(tx.TxId)
+		}
+
+		sender, err := bitcoin.RPCGetTransactionSender(node.conf.BitcoinRPC, tx)
+		if err != nil {
+			return fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
+		}
+		err = node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx.TxId, out.N, out.Value, sender)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return nil
 }
 
 func (node *Node) bitcoinReadDepositCheckpoint(ctx context.Context) (int64, error) {
@@ -275,4 +356,16 @@ func (node *Node) bitcoinReadDepositCheckpoint(ctx context.Context) (int64, erro
 
 func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64) error {
 	return node.store.WriteProperty(ctx, bitcoinDepositCheckpointKey, fmt.Sprint(num))
+}
+
+func (node *Node) bitcoinReadMixinSnapshotsCheckpoint(ctx context.Context) (time.Time, error) {
+	ckt, err := node.store.ReadProperty(ctx, bitcoinMixinSnapshotsCheckpointKey)
+	if err != nil || ckt == "" {
+		return time.Now(), err
+	}
+	return time.Parse(ckt, time.RFC3339Nano)
+}
+
+func (node *Node) bitcoinWriteMixinSnapshotsCheckpoint(ctx context.Context, offset time.Time) error {
+	return node.store.WriteProperty(ctx, bitcoinMixinSnapshotsCheckpointKey, offset.Format(time.RFC3339Nano))
 }

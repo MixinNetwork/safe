@@ -54,23 +54,23 @@ type RPCBlockWithTransactions struct {
 	Tx     []*RPCTransaction `json:"tx"`
 }
 
-func RPCGetTransactionOutput(rpc, hash string, index int64) (*Output, error) {
+func RPCGetTransactionOutput(rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
 	tx, err := RPCGetTransaction(rpc, hash)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if int64(len(tx.Vout)) <= index {
-		return nil, nil
+		return nil, nil, nil
 	}
 	out := tx.Vout[index]
 	skt := out.ScriptPubKey.Type
 	if skt != ScriptPubKeyTypeWitnessKeyHash && skt != ScriptPubKeyTypeWitnessScriptHash {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	satoshi := decimal.NewFromFloat(out.Value).Mul(decimal.NewFromFloat(ValueSatoshi))
 	if !satoshi.IsInteger() || !satoshi.BigInt().IsInt64() {
-		return nil, nil
+		return nil, nil, nil
 	}
 	output := &Output{
 		Address:  out.ScriptPubKey.Address,
@@ -83,42 +83,53 @@ func RPCGetTransactionOutput(rpc, hash string, index int64) (*Output, error) {
 	} else {
 		block, err := RPCGetBlock(rpc, tx.BlockHash)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		output.Height = block.Height
 	}
 
 	rtb, err := hex.DecodeString(tx.Hex)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rtx, err := btcutil.NewTxFromBytes(rtb)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rtmx := rtx.MsgTx()
 	if rtmx.TxHash().String() != hash {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if len(rtmx.TxOut) != len(tx.Vout) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if rtmx.TxOut[index].Value != output.Satoshi {
-		return nil, nil
+		return nil, nil, nil
 	}
 	script, err := txscript.ParsePkScript(rtmx.TxOut[index].PkScript)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	addr, err := script.Address(&chaincfg.MainNetParams)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if addr.EncodeAddress() != output.Address {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	return output, nil
+	return tx, output, nil
+}
+
+func RPCGetTransactionSender(rpc string, tx *RPCTransaction) (string, error) {
+	if tx.Vin[0].Coinbase != "" {
+		return tx.Vin[0].Coinbase, nil
+	}
+	itx, err := RPCGetTransaction(rpc, tx.Vin[0].TxId)
+	if err != nil {
+		return "", err
+	}
+	return itx.Vout[tx.Vin[0].VOUT].ScriptPubKey.Address, nil
 }
 
 func RPCGetTransaction(rpc, hash string) (*RPCTransaction, error) {

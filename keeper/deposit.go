@@ -264,7 +264,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		return nil, fmt.Errorf("malicious bitcoin network info %v", info)
 	}
 
-	output, err := bitcoin.RPCGetTransactionOutput(node.conf.BitcoinRPC, deposit.Hash, int64(deposit.Index))
+	tx, output, err := bitcoin.RPCGetTransactionOutput(node.conf.BitcoinRPC, deposit.Hash, int64(deposit.Index))
 	logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", deposit.Hash, deposit.Index, output, err)
 	if err != nil || output == nil {
 		return nil, fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.Hash, err)
@@ -277,6 +277,17 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		return nil, nil
 	}
 	confirmations := info.Height - output.Height + 1
+	sender, err := bitcoin.RPCGetTransactionSender(node.conf.BitcoinRPC, tx)
+	if err != nil {
+		return nil, fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
+	}
+	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, SafeBitcoinChainId, sender)
+	if err != nil {
+		return nil, fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", sender, err)
+	}
+	if isDomain {
+		confirmations = 1000000
+	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil, nil
 	}

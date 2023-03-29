@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -45,6 +46,14 @@ func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration)
 	}
 
 	return nil
+}
+
+func CheckMixinDomainAddress(rpc string, chainId, address string) (bool, error) {
+	inAddress, err := bot.ExternalAdddressCheck(context.Background(), chainId, address, "")
+	if err != nil && !strings.Contains(err.Error(), "30102") {
+		return false, fmt.Errorf("bot.ExternalAdddressCheck(%s) => %v", address, err)
+	}
+	return inAddress != nil && inAddress.Fee == "0", nil
 }
 
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, pin string) error {
