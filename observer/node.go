@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
@@ -71,6 +72,9 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context) error {
 	}
 	minimum = minimum.Mul(decimal.New(1, 8))
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
+		panic(node.conf.TransactionMinimum)
+	}
+	if minimum.IntPart() < bitcoin.ValueDust {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()

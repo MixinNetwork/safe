@@ -141,13 +141,13 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		return nil, buildInsufficientInputError("main", mainSatoshi, outputSatoshi)
 	}
 	mainChange := mainSatoshi - outputSatoshi
-	if mainChange > 0 {
+	if mainChange > ValueDust {
 		added, err := addOutput(msgTx, mainAddress, mainChange)
-		if err != nil {
-			return nil, fmt.Errorf("addOutput(%s, %d) => %v", mainAddress, mainChange, err)
-		} else if !added {
-			feeSatoshi = feeSatoshi + mainChange
+		if err != nil || !added {
+			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", mainAddress, mainChange, added, err)
 		}
+	} else {
+		feeSatoshi = feeSatoshi + mainChange
 	}
 
 	estvb := (40 + len(msgTx.TxIn)*300 + (len(msgTx.TxOut)+1)*128) / 4
@@ -160,7 +160,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		return nil, buildInsufficientInputError("fee", feeSatoshi, feeConsumed)
 	}
 	feeChange := feeSatoshi - feeConsumed
-	if feeChange > 1000 {
+	if feeChange > ValueDust {
 		added, err := addOutput(msgTx, feeAddress, feeChange)
 		if err != nil || !added {
 			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", feeAddress, feeChange, added, err)

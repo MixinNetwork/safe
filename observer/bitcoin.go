@@ -92,7 +92,12 @@ func (node *Node) bitcoinReadBlock(ctx context.Context, num int64) ([]*bitcoin.R
 func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId string, index int64, value float64, sender string) error {
 	amount := decimal.NewFromFloat(value)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
-	if amount.Cmp(minimum) < 0 {
+	change, err := node.keeperStore.ReadTransaction(ctx, txId)
+	logger.Printf("store.ReadTransaction(%s) => %v %v", txId, change, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadTransaction(%s) => %v", txId, err)
+	}
+	if amount.Cmp(minimum) < 0 && change == nil {
 		return nil
 	}
 	old, err := node.keeperStore.ReadBitcoinUTXO(ctx, txId, int(index))

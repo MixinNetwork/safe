@@ -100,13 +100,10 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-	if decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).Cmp(plan.TransactionMinimum) < 0 {
-		return node.store.FinishRequest(ctx, req.Id)
-	}
 
 	switch deposit.Chain {
 	case SafeChainBitcoin:
-		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset)
+		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	case SafeChainEthereum:
 		panic(0)
 	default:
@@ -114,7 +111,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	}
 }
 
-func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset) error {
+func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
 	if asset.Decimals != bitcoin.ValuePrecision {
 		panic(asset.Decimals)
 	}
@@ -126,6 +123,19 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
+	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
+	change, err := node.store.ReadTransaction(ctx, deposit.Hash)
+	logger.Printf("store.ReadTransaction(%s) => %v %v", deposit.Hash, change, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadTransaction(%s) => %v", deposit.Hash, err)
+	}
+	if amount.Cmp(minimum) < 0 && change == nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	if amount.Cmp(decimal.New(bitcoin.ValueDust, -bitcoin.ValuePrecision)) < 0 {
+		panic(deposit.Hash)
+	}
+
 	output, err := node.verifyBitcoinTransaction(ctx, req, deposit, safe, bitcoin.InputTypeP2WSHMultisigHolderSigner)
 	logger.Printf("node.verifyBitcoinTransaction(%v) => %v %v", req, output, err)
 	if err != nil {
@@ -135,13 +145,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
-	change, err := node.store.ReadTransaction(ctx, deposit.Hash)
-	logger.Printf("store.ReadTransaction(%s) => %v %v", deposit.Hash, change, err)
-	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%s) => %v", deposit.Hash, err)
-	}
 	if change == nil || deposit.Index == 0 {
-		amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
 		err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 		if err != nil {
 			return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
