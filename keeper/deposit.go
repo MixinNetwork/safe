@@ -288,9 +288,28 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if isDomain {
 		confirmations = 1000000
 	}
+	isSafe, err := node.checkSafeInternalAddress(ctx, sender)
+	if err != nil {
+		return nil, fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", sender, err)
+	}
+	if isSafe {
+		confirmations = 1000000
+	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
-		return nil, nil
+		return nil, fmt.Errorf("bitcoin.CheckFinalization(%s)", tx.TxId)
 	}
 
 	return input, nil
+}
+
+func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string) (bool, error) {
+	safe, err := node.store.ReadSafeByAddress(ctx, receiver)
+	if err != nil {
+		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", receiver, err)
+	}
+	holder, err := node.store.ReadAccountantHolder(ctx, receiver)
+	if err != nil {
+		return false, fmt.Errorf("store.ReadAccountantHolder(%s) => %v", receiver, err)
+	}
+	return safe != nil || holder != "", nil
 }

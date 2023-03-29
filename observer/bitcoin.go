@@ -180,6 +180,13 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if isDomain {
 		confirmations = 1000000
 	}
+	isSafe, err := node.checkSafeInternalAddress(ctx, deposit.Sender)
+	if err != nil {
+		return fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", deposit.Sender, err)
+	}
+	if isSafe {
+		confirmations = 1000000
+	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil
 	}

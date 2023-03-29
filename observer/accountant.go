@@ -105,7 +105,19 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 	if err != nil {
 		return err
 	}
-	return node.bitcoinBroadcastTransaction(spsbt.Hash, signedBuffer.Bytes())
+	return node.bitcoinBroadcastTransactionAndWriteDeposit(ctx, spsbt.Hash, signedBuffer.Bytes())
+}
+
+func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context, hash string, raw []byte) error {
+	err := node.bitcoinBroadcastTransaction(hash, raw)
+	if err != nil {
+		return fmt.Errorf("node.bitcoinBroadcastTransaction(%s, %x) => %v", hash, raw, err)
+	}
+	tx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, hash)
+	if err != nil || tx == nil {
+		return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
+	}
+	return node.bitcoinProcessTransaction(ctx, tx)
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte) error {
