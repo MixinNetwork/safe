@@ -131,19 +131,22 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 
 	var outputSatoshi int64
 	for _, out := range outputs {
-		err := addOutput(msgTx, out.Address, out.Satoshi)
-		if err != nil {
-			return nil, fmt.Errorf("addOutput(%s, %d) => %v", out.Address, out.Satoshi, err)
+		added, err := addOutput(msgTx, out.Address, out.Satoshi)
+		if err != nil || !added {
+			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", out.Address, out.Satoshi, added, err)
 		}
 		outputSatoshi = outputSatoshi + out.Satoshi
 	}
 	if outputSatoshi > mainSatoshi {
 		return nil, buildInsufficientInputError("main", mainSatoshi, outputSatoshi)
 	}
-	if change := mainSatoshi - outputSatoshi; change > 0 {
-		err := addOutput(msgTx, mainAddress, change)
+	mainChange := mainSatoshi - outputSatoshi
+	if mainChange > 0 {
+		added, err := addOutput(msgTx, mainAddress, mainChange)
 		if err != nil {
-			return nil, fmt.Errorf("addOutput(%s, %d) => %v", mainAddress, change, err)
+			return nil, fmt.Errorf("addOutput(%s, %d) => %v", mainAddress, mainChange, err)
+		} else if !added {
+			feeSatoshi = feeSatoshi + mainChange
 		}
 	}
 
@@ -156,10 +159,11 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	if feeConsumed > feeSatoshi {
 		return nil, buildInsufficientInputError("fee", feeSatoshi, feeConsumed)
 	}
-	if change := feeSatoshi - feeConsumed; change > 1000 {
-		err := addOutput(msgTx, feeAddress, change)
-		if err != nil {
-			return nil, fmt.Errorf("addOutput(%s, %d) => %v", feeAddress, change, err)
+	feeChange := feeSatoshi - feeConsumed
+	if feeChange > 1000 {
+		added, err := addOutput(msgTx, feeAddress, feeChange)
+		if err != nil || !added {
+			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", feeAddress, feeChange, added, err)
 		}
 	} else {
 		feeConsumed = feeSatoshi
@@ -346,15 +350,19 @@ func addInput(tx *wire.MsgTx, in *Input) (string, error) {
 	return addr, nil
 }
 
-func addOutput(tx *wire.MsgTx, address string, satoshi int64) error {
+func addOutput(tx *wire.MsgTx, address string, satoshi int64) (bool, error) {
 	addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
 	if err != nil {
-		return err
+		return false, err
 	}
 	script, err := txscript.PayToAddrScript(addr)
 	if err != nil {
-		return err
+		return false, err
 	}
-	tx.AddTxOut(wire.NewTxOut(satoshi, script))
-	return nil
+	out := wire.NewTxOut(satoshi, script)
+	if out.Value > 0 && mempool.IsDust(out, mempool.DefaultMinRelayTxFee) {
+		return false, nil
+	}
+	tx.AddTxOut(out)
+	return true, nil
 }
