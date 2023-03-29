@@ -273,10 +273,10 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		return nil, fmt.Errorf("malicious bitcoin deposit %s", deposit.Hash)
 	}
 
-	if info.Height < output.Height {
-		return nil, nil
-	}
 	confirmations := info.Height - output.Height + 1
+	if info.Height < output.Height {
+		confirmations = 0
+	}
 	sender, err := bitcoin.RPCGetTransactionSender(node.conf.BitcoinRPC, tx)
 	if err != nil {
 		return nil, fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)

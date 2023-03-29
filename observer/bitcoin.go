@@ -169,10 +169,10 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if output.Address != deposit.Receiver || output.Satoshi != bitcoin.ParseSatoshi(deposit.Amount) {
 		panic(fmt.Errorf("malicious bitcoin deposit %s", deposit.TransactionHash))
 	}
-	if info.Height < output.Height {
-		return nil
-	}
 	confirmations := info.Height - output.Height + 1
+	if info.Height < output.Height {
+		confirmations = 0
+	}
 	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, keeper.SafeBitcoinChainId, deposit.Sender)
 	if err != nil {
 		return fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", deposit.Sender, err)
@@ -370,7 +370,7 @@ func (node *Node) bitcoinReadMixinSnapshotsCheckpoint(ctx context.Context) (time
 	if err != nil || ckt == "" {
 		return time.Now(), err
 	}
-	return time.Parse(ckt, time.RFC3339Nano)
+	return time.Parse(time.RFC3339Nano, ckt)
 }
 
 func (node *Node) bitcoinWriteMixinSnapshotsCheckpoint(ctx context.Context, offset time.Time) error {
