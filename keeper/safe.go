@@ -280,7 +280,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if info == nil || info.Chain != safe.Chain {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-	if info.CreatedAt.Add(SafeNetworkInfoTimeout * 3).Before(req.CreatedAt) {
+	if info.CreatedAt.Add(SafeNetworkInfoTimeout * 30).Before(req.CreatedAt) {
 		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 

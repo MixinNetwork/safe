@@ -46,8 +46,8 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
-		common.RequestStatePending, req.CreatedAt, transactionHash, common.RequestStateInitial)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state IN (?, ?)",
+		common.RequestStatePending, req.CreatedAt, transactionHash, common.RequestStateInitial, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
