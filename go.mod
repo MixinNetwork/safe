@@ -4,11 +4,11 @@ go 1.20
 
 require (
 	github.com/MixinNetwork/bot-api-go-client v1.6.1
-	github.com/MixinNetwork/mixin v0.14.22
+	github.com/MixinNetwork/mixin v0.15.0
 	github.com/MixinNetwork/multi-party-sig v0.2.0
 	github.com/MixinNetwork/nfo v0.3.0
-	github.com/MixinNetwork/tip v0.2.1
-	github.com/MixinNetwork/trusted-group v0.4.2
+	github.com/MixinNetwork/tip v0.2.2
+	github.com/MixinNetwork/trusted-group v0.4.4
 	github.com/btcsuite/btcd v0.23.4
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/btcsuite/btcd/btcutil v1.1.3
@@ -32,7 +32,6 @@ require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/MixinNetwork/go-number v0.1.0 // indirect
 	github.com/MixinNetwork/mobilecoin-account v0.0.3 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
@@ -43,7 +42,6 @@ require (
 	github.com/cronokirby/saferith v0.33.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/blake2b v1.0.0 // indirect
-	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.3.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
@@ -70,7 +68,6 @@ require (
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rjeczalik/notify v0.9.3 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
@@ -86,10 +83,10 @@ require (
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230327215041-6ac7f18bb9d5 // indirect
+	google.golang.org/genproto v0.0.0-20230403163135-c38d8f061ccd // indirect
 	google.golang.org/grpc v1.54.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
