@@ -170,10 +170,7 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 }
 
 func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra []byte) (bool, []byte) {
-	if len(extra) < 32 {
-		return false, nil
-	}
-	if len(extra) < int(extra[0]+32) {
+	if len(extra) < int(extra[0])+32 {
 		return false, nil
 	}
 	msg := extra[1 : 1+extra[0]]
