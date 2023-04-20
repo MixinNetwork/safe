@@ -227,7 +227,7 @@ func (deposit *Deposit) encodeKeeperExtra() []byte {
 func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		deposits, err := node.store.ListDeposits(ctx, keeper.SafeChainBitcoin, common.RequestStateInitial, 0)
+		deposits, err := node.store.ListDeposits(ctx, keeper.SafeChainBitcoin, "", common.RequestStateInitial, 0)
 		if err != nil {
 			panic(err)
 		}

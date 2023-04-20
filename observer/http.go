@@ -155,9 +155,10 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 }
 
 func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	holder := r.URL.Query().Get("holder")
 	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 64)
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
-	deposits, err := node.store.ListDeposits(r.Context(), int(chain), common.RequestStateDone, offset)
+	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateDone, offset)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
