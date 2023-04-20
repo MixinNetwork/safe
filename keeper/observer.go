@@ -4,21 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 )
 
-func (node *Node) sendObserverResponse(ctx context.Context, id string, typ byte, extra []byte) error {
-	return node.sendObserverResponseWithAsset(ctx, id, typ, extra, node.conf.ObserverAssetId, "1")
+func (node *Node) sendObserverResponseWithReferences(ctx context.Context, id string, typ byte, tx crypto.Hash) error {
+	return node.sendObserverResponseWithAssetAndReferences(ctx, id, typ, node.conf.ObserverAssetId, "1", tx)
 }
 
-func (node *Node) sendObserverResponseWithAsset(ctx context.Context, id string, typ byte, extra []byte, assetId, amount string) error {
+func (node *Node) sendObserverResponseWithAssetAndReferences(ctx context.Context, id string, typ byte, assetId, amount string, tx crypto.Hash) error {
 	op := &common.Operation{
 		Type:  typ,
 		Id:    id,
-		Extra: extra,
+		Extra: tx[:],
 	}
-	return node.buildObserverTransaction(ctx, op, assetId, amount)
+	return node.buildObserverTransaction(ctx, op, assetId, amount, tx)
 }
 
 func (node *Node) encryptObserverOperation(op *common.Operation) []byte {
@@ -26,14 +27,14 @@ func (node *Node) encryptObserverOperation(op *common.Operation) []byte {
 	return common.AESEncrypt(node.observerAESKey[:], extra, op.Id)
 }
 
-func (node *Node) buildObserverTransaction(ctx context.Context, op *common.Operation, assetId, amount string) error {
+func (node *Node) buildObserverTransaction(ctx context.Context, op *common.Operation, assetId, amount string, tx crypto.Hash) error {
 	extra := node.encryptObserverOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildObserverTransaction(%v) omitted %x", op, extra))
 	}
 	members := []string{node.conf.ObserverUserId}
 	threshold := 1
-	err := node.buildTransaction(ctx, node.conf.ObserverAssetId, members, threshold, "1", extra, op.Id)
+	err := node.buildTransactionWithReferences(ctx, node.conf.ObserverAssetId, members, threshold, "1", extra, op.Id, tx)
 	logger.Printf("node.buildObserverTransaction(%v) => %s %x %v", op, op.Id, extra, err)
 	return err
 }

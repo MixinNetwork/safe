@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
@@ -50,6 +51,11 @@ func (node *Node) Index() int {
 
 func (node *Node) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) error {
 	logger.Printf("node.buildTransaction(%s, %v, %d, %s, %x, %s)", assetId, receivers, threshold, amount, memo, traceId)
+	return node.buildTransactionWithReferences(ctx, assetId, receivers, threshold, amount, memo, traceId, crypto.Hash{})
+}
+
+func (node *Node) buildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) error {
+	logger.Printf("node.buildTransactionWithReferences(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, tx)
 	if common.CheckTestEnvironment(ctx) {
 		v, _ := json.Marshal(map[string]any{
 			"asset_id":  assetId,
@@ -61,6 +67,9 @@ func (node *Node) buildTransaction(ctx context.Context, assetId string, receiver
 		return node.store.WriteProperty(ctx, traceId, string(v))
 	}
 	traceId = mixin.UniqueConversationID(node.group.GenesisId(), traceId)
+	if tx.HasValue() {
+		return node.group.BuildTransactionWithReferences(ctx, assetId, receivers, threshold, amount, string(memo), traceId, "", []crypto.Hash{tx})
+	}
 	return node.group.BuildTransaction(ctx, assetId, receivers, threshold, amount, string(memo), traceId, "")
 }
 

@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -101,11 +100,8 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 
 	extra := wsa.MarshalWithAccountant(awka.Address)
-	exk := node.writeToMVMOrPanic(ctx, extra)
-	if !bytes.Equal(exk, common.MVMHash(extra)) {
-		panic(hex.EncodeToString(extra))
-	}
-	err = node.sendObserverResponse(ctx, req.Id, common.ActionBitcoinSafeProposeAccount, exk)
+	exk := node.writeStorageOrPanic(ctx, extra)
+	err = node.sendObserverResponseWithReferences(ctx, req.Id, common.ActionBitcoinSafeProposeAccount, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
 	}
@@ -173,8 +169,8 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
-	exk := common.MVMHash(sp.Extra)
-	err = node.sendObserverResponseWithAsset(ctx, req.Id, common.ActionBitcoinSafeApproveAccount, exk, spr.AssetId, spr.Amount.String())
+	exk := node.writeStorageOrPanic(ctx, sp.Extra)
+	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, common.ActionBitcoinSafeApproveAccount, spr.AssetId, spr.Amount.String(), exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
 	}
@@ -306,8 +302,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra = psbt.Marshal()
-	exk := node.writeToMVMOrPanic(ctx, extra)
-	err = node.sendObserverResponse(ctx, req.Id, common.ActionBitcoinSafeProposeTransaction, exk)
+	exk := node.writeStorageOrPanic(ctx, extra)
+	err = node.sendObserverResponseWithReferences(ctx, req.Id, common.ActionBitcoinSafeProposeTransaction, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
 	}

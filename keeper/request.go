@@ -1,13 +1,13 @@
 package keeper
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -67,41 +67,38 @@ func (node *Node) parseHolderRequest(out *mtg.Output) (*common.Request, error) {
 	return common.DecodeRequest(out, b, role)
 }
 
-func (node *Node) writeToMVMOrPanic(ctx context.Context, extra []byte) []byte {
-	logger.Printf("node.writeToMVMOrPanic(%x)", extra)
+func (node *Node) writeStorageOrPanic(ctx context.Context, extra []byte) crypto.Hash {
+	logger.Printf("node.writeStorageOrPanic(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
+		var tx crypto.Hash
 		key := common.MVMHash(extra)
+		copy(tx[:], key)
+
 		k := hex.EncodeToString(key)
 		v := hex.EncodeToString(extra)
-		err := node.store.WriteProperty(ctx, k, v)
+		o, err := node.store.ReadProperty(ctx, k)
 		if err != nil {
 			panic(err)
 		}
-		return key
-	}
-
-	for start := time.Now(); ; {
-		k, err := node.mvmWrite(ctx, extra, start)
-		logger.Printf("common.MVMStorageWrite(%x) => %x %v", extra, k, err)
-		if err != nil && start.Add(time.Minute).After(time.Now()) {
-			time.Sleep(3 * time.Second)
-			continue
-		} else if err != nil || len(k) == 0 {
-			panic(err)
-		} else {
-			return k
+		if o == v {
+			return tx
 		}
+		err = node.store.WriteProperty(ctx, k, v)
+		if err != nil {
+			panic(err)
+		}
+		return tx
 	}
-}
 
-func (node *Node) mvmWrite(ctx context.Context, extra []byte, at time.Time) ([]byte, error) {
-	if time.Now().Hour()%len(node.conf.MTG.Genesis.Members) == node.Index() || at.Add(time.Minute).Before(time.Now()) {
-		return common.MVMStorageWrite(node.conf.MVMRPC, node.conf.MVMKey, extra)
+	for {
+		stx, err := node.group.BuildStorageTransaction(ctx, extra, "")
+		logger.Printf("group.BuildStorageTransaction(%x) => %v %v", extra, stx, err)
+		if err != nil {
+			panic(err)
+		}
+		if stx.Hash.HasValue() && stx.State == mtg.TransactionStateSnapshot {
+			return stx.Hash
+		}
+		time.Sleep(3 * time.Second)
 	}
-	key := common.MVMHash(extra)
-	val, err := common.MVMStorageRead(node.conf.MVMRPC, key)
-	if err != nil || !bytes.Equal(val, extra) {
-		return nil, fmt.Errorf("mvmWrite(%x) => %v", val, err)
-	}
-	return key, nil
 }
