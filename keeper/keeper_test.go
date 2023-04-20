@@ -384,7 +384,7 @@ func testObserverHolderDeposit(ctx context.Context, require *require.Assertions,
 	extra = append(extra, big.NewInt(input.Satoshi).Bytes()...)
 
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	wsa, _ := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, bitcoinTimeLockDuration(ctx))
+	wsa, _ := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, node.bitcoinTimeLockDuration(ctx))
 
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra)
 	testStep(ctx, require, node, out)
@@ -457,7 +457,7 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
 	require.Equal(accountant, safe.Accountant)
-	public, err := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, bitcoinTimeLockDuration(ctx))
+	public, err := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, node.bitcoinTimeLockDuration(ctx))
 	require.Nil(err)
 	require.Equal(testSafePublicKey, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -492,7 +492,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
 	require.Equal(accountant, safe.Accountant)
-	public, err := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, bitcoinTimeLockDuration(ctx))
+	public, err := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, node.bitcoinTimeLockDuration(ctx))
 	require.Nil(err)
 	require.Equal(testSafePublicKey, public.Address)
 	require.Equal(public.Address, safe.Address)

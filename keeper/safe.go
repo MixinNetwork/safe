@@ -83,7 +83,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if !common.CheckUnique(req.Holder, signer, observer, accountant) {
 		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
 	}
-	timelock := bitcoinTimeLockDuration(ctx)
+	timelock := node.bitcoinTimeLockDuration(ctx)
 	wsa, err := bitcoin.BuildWitnessScriptAccount(req.Holder, signer, observer, timelock)
 	if err != nil {
 		return fmt.Errorf("bitcoin.BuildWitnessScriptAccount(%s, %s, %s) => %v", req.Holder, signer, observer, err)
@@ -549,9 +549,13 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 	return mvm.GenerateAssetId(assetKey), SafeChainMVM, nil
 }
 
-func bitcoinTimeLockDuration(ctx context.Context) time.Duration {
+func (node *Node) bitcoinTimeLockDuration(ctx context.Context) time.Duration {
 	if common.CheckTestEnvironment(ctx) {
 		return bitcoin.TimeLockMinimum
 	}
-	return bitcoin.TimeLockMaximum
+	dur := time.Hour * 24 * time.Duration(node.conf.RecoveryDurationDays)
+	if dur < bitcoin.TimeLockMinimum || dur > bitcoin.TimeLockMaximum {
+		return bitcoin.TimeLockMaximum
+	}
+	return dur
 }
