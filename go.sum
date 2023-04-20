@@ -16,8 +16,8 @@ github.com/MixinNetwork/nfo v0.3.4 h1:6VcM24v2kRtmq1oHXIcCzR3KVvjatNjGTWa/QWoF5C
 github.com/MixinNetwork/nfo v0.3.4/go.mod h1:LRvUs87wXIC1acFS3vjdJs7xXcNldMhTeIMsomWYYIo=
 github.com/MixinNetwork/tip v0.2.2 h1:49/8Lk6DyC4m3pBOmGTKllWqUiZpP7e67hFpDTev0SY=
 github.com/MixinNetwork/tip v0.2.2/go.mod h1:zxcrUr2IQwCXPQk6yc8fFe3OaNqxsSodpbDqPVBbl3o=
-github.com/MixinNetwork/trusted-group v0.4.12-0.20230420135207-25c626de5130 h1:7+/ZeA3IgcLI2oJpGuyN/dK2FSB6ZEbA5bUrQicRVmU=
-github.com/MixinNetwork/trusted-group v0.4.12-0.20230420135207-25c626de5130/go.mod h1:70GijZ8/FbfYWZiTSVqtTdxUhJRM5jjLDVeiZGe4fEg=
+github.com/MixinNetwork/trusted-group v0.5.0 h1:v9fg8aPn3NIW0s9G8669+C8VhRDucRB0M5zcC19ZPLU=
+github.com/MixinNetwork/trusted-group v0.5.0/go.mod h1:70GijZ8/FbfYWZiTSVqtTdxUhJRM5jjLDVeiZGe4fEg=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
