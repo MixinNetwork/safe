@@ -146,7 +146,7 @@ func (s *SQLite3Store) ReadSignatureRequest(ctx context.Context, id string) (*Si
 }
 
 func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, transactionHash string, state int) (map[int]*SignatureRequest, error) {
-	query := fmt.Sprintf("SELECT %s FROM signature_requests WHERE transaction_hash=? AND state=?", strings.Join(signatureCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM signature_requests WHERE transaction_hash=? AND state=? ORDER BY created_at DESC", strings.Join(signatureCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, transactionHash, state)
 	if err != nil {
 		return nil, err
@@ -160,10 +160,10 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 		if err != nil {
 			return nil, err
 		}
-		if state != common.RequestStateInitial && rm[r.InputIndex] != nil {
-			panic(transactionHash)
+		if state != common.RequestStateInitial && !r.Signature.Valid {
+			continue
 		}
-		if state == common.RequestStateDone && !r.Signature.Valid {
+		if state != common.RequestStateInitial && rm[r.InputIndex] != nil {
 			continue
 		}
 		rm[r.InputIndex] = &r
