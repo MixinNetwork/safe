@@ -191,7 +191,7 @@ func main() {
 			},
 			{
 				Name:   "mtgfundkeeper",
-				Usage:  "Fund keeper with the asse, please do multiple funds for more UTXOt",
+				Usage:  "Fund keeper with the asset, please do multiple funds for more UTXO",
 				Action: cmd.KeeperFundRequest,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
@@ -199,6 +199,15 @@ func main() {
 						Aliases: []string{"c"},
 						Value:   "~/.mixin/safe/config.toml",
 						Usage:   "The configuration file path",
+					},
+					&cli.StringFlag{
+						Name:  "asset",
+						Usage: "The optional asset id to fund the keeper mtg",
+					},
+					&cli.StringFlag{
+						Name:  "amount",
+						Value: "1000000000",
+						Usage: "The optional amount to fund the keeper mtg",
 					},
 				},
 			},
