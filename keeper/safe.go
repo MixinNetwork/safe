@@ -100,7 +100,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 
 	extra := wsa.MarshalWithAccountant(awka.Address)
-	exk := node.writeStorageOrPanic(ctx, extra)
+	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, common.ActionBitcoinSafeProposeAccount, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
@@ -169,7 +169,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
-	exk := node.writeStorageOrPanic(ctx, sp.Extra)
+	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(sp.Extra)))
 	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, common.ActionBitcoinSafeApproveAccount, spr.AssetId, spr.Amount.String(), exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
@@ -302,7 +302,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra = psbt.Marshal()
-	exk := node.writeStorageOrPanic(ctx, extra)
+	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, common.ActionBitcoinSafeProposeTransaction, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)

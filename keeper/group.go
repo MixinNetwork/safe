@@ -329,7 +329,7 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 		}}
 	}
 
-	exk := node.writeStorageOrPanic(ctx, spsbt.Marshal())
+	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
 	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk[:]))
 	err = node.sendObserverResponseWithReferences(ctx, id, common.ActionBitcoinSafeApproveTransaction, exk)
 	if err != nil {

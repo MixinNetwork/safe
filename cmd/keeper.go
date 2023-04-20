@@ -56,7 +56,7 @@ func KeeperFundRequest(c *cli.Context) error {
 	if c.String("asset") != "" {
 		assetId = c.String("asset")
 	}
-	amount := decimal.RequireFromString("amount")
+	amount := decimal.RequireFromString(c.String("amount"))
 	traceId := uuid.Must(uuid.NewV4()).String()
 	return makeKeeperPaymentRequest(c.String("config"), assetId, amount, traceId, "")
 }

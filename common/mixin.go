@@ -22,7 +22,7 @@ import (
 // TODO the output should include the snapshot signature, then it can just be
 // verified against the active kernel nodes public key
 func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration) error {
-	signed, err := readKernelTransaction(rpc, out.TransactionHash)
+	signed, err := ReadKernelTransaction(rpc, out.TransactionHash)
 	logger.Printf("common.readKernelTransaction(%s) => %v %v", out.TransactionHash, signed, err)
 
 	if (err != nil || signed == nil) && out.CreatedAt.Add(timeout).After(time.Now()) {
@@ -90,7 +90,7 @@ func SendTransaction(ctx context.Context, client *mixin.Client, assetId string, 
 	return err
 }
 
-func readKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
+func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
 	raw, err := callMixinRPC(rpc, "gettransaction", []any{tx.String()})
 	if err != nil {
 		return nil, err

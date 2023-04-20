@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
@@ -169,12 +170,25 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
-	if err != nil {
+	if err != nil || len(op.Extra) != 32 {
 		return true, err
 	}
-	data, err := common.MVMStorageRead(node.conf.MVMRPC, op.Extra)
-	if err != nil || len(data) < 32 {
+	var stx crypto.Hash
+	copy(stx[:], op.Extra)
+	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
+	if err != nil {
 		panic(hex.EncodeToString([]byte(s.Memo)))
+	}
+	if tx == nil {
+		return true, err
+	}
+	smsp := mtg.DecodeMixinExtra(string(tx.Extra))
+	if smsp == nil {
+		return true, nil
+	}
+	data, err := common.Base91Decode(smsp.M)
+	if err != nil || len(data) < 32 {
+		panic(s.TransactionHash)
 	}
 
 	switch op.Type {
