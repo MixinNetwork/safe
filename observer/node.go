@@ -3,7 +3,6 @@ package observer
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -175,16 +174,17 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	}
 	var stx crypto.Hash
 	copy(stx[:], op.Extra)
+	// FIXME remove this failed transaction hack
+	if stx.String() == "5b4ce1833fffd87b837e67dfffc38d5bcce93266da74756763bcf873845071ae" {
+		return true, nil
+	}
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
 	if err != nil {
-		panic(hex.EncodeToString([]byte(s.Memo)))
-	}
-	if tx == nil {
-		return true, err
+		panic(stx.String())
 	}
 	smsp := mtg.DecodeMixinExtra(string(tx.Extra))
 	if smsp == nil {
-		return true, nil
+		panic(stx.String())
 	}
 	data, err := common.Base91Decode(smsp.M)
 	if err != nil || len(data) < 32 {

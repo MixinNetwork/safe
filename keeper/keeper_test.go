@@ -284,7 +284,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		signed[r.InputIndex] = b
 	}
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
-	exk := common.MVMHash(mb)
+	exk := common.MVMHash([]byte(common.Base91Encode(mb)))
 	rid := mixin.UniqueConversationID(transactionHash, hex.EncodeToString(exk))
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	assert.Equal(mb, b)
@@ -547,6 +547,7 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	require.Len(op.Extra, 32)
 	v, _ = node.store.ReadProperty(ctx, hex.EncodeToString(op.Extra))
 	b, _ = hex.DecodeString(v)
+	b, _ = common.Base91Decode(string(b))
 	return b
 }
 

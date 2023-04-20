@@ -31,6 +31,7 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 }
 
 func (node *Node) saveAccountProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
+	logger.Verbosef("saveAccountProposal(%x, %s)", extra, createdAt)
 	wsa, _, err := bitcoin.UnmarshalWitnessScriptAccountWitAccountant(extra)
 	if err != nil {
 		return err
@@ -43,6 +44,7 @@ func (node *Node) saveAccountProposal(ctx context.Context, extra []byte, created
 }
 
 func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
+	logger.Verbosef("saveTransactionProposal(%x, %s)", extra, createdAt)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 	txHash := psbt.Packet.UnsignedTx.TxHash().String()
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
@@ -69,6 +71,7 @@ func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, cre
 }
 
 func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 string) error {
+	logger.Verbosef("approveBitcoinAccount(%s, %s)", addr, sigBase64)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -102,6 +105,7 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 }
 
 func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sigBase64 string) error {
+	logger.Verbosef("approveBitcoinTransaction(%s, %s)", raw, sigBase64)
 	rb, err := hex.DecodeString(raw)
 	if err != nil {
 		return err
