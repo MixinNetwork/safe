@@ -51,6 +51,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		return
 	}
 
+	// FIXME this blocks the main group loop
 	err = node.verifyKernelTransaction(ctx, out)
 	if err != nil {
 		panic(err)

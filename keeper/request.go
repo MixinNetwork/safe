@@ -96,9 +96,9 @@ func (node *Node) writeStorageOrPanic(ctx context.Context, extra []byte) crypto.
 		if err != nil {
 			panic(err)
 		}
-		if stx.Hash.HasValue() && stx.State == mtg.TransactionStateSnapshot {
+		if stx.Hash.HasValue() && stx.State >= mtg.TransactionStateSigned {
 			return stx.Hash
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Second)
 	}
 }
