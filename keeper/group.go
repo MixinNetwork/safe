@@ -1,19 +1,15 @@
 package keeper
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/btcsuite/btcd/btcutil/psbt"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 )
 
@@ -195,7 +191,7 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 	case common.OperationTypeKeygenOutput:
 		return node.processKeyAdd(ctx, req)
 	case common.OperationTypeSignOutput:
-		return node.processSignatureResponse(ctx, req)
+		return node.processSignerSignatureResponse(ctx, req)
 	case common.ActionObserverAddKey:
 		return node.processKeyAdd(ctx, req)
 	case common.ActionObserverRequestSignerKeys:
@@ -255,7 +251,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]))
 }
 
-func (node *Node) processSignatureResponse(ctx context.Context, req *common.Request) error {
+func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) error {
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
 	}
@@ -278,64 +274,10 @@ func (node *Node) processSignatureResponse(ctx context.Context, req *common.Requ
 	if safe.Signer != req.Holder {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-
-	sig, _ := hex.DecodeString(req.Extra)
-	msg := common.DecodeHexOrPanic(old.Message)
-	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
-	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+	switch safe.Chain {
+	case SafeChainBitcoin:
+		return node.processBitcoinSafeSignatureResponse(ctx, req)
+	default:
+		panic(safe.Chain)
 	}
-
-	err = node.store.FinishSignatureRequest(ctx, req)
-	logger.Printf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
-	if err != nil {
-		return fmt.Errorf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
-	}
-
-	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := spsbt.Packet.UnsignedTx
-
-	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
-	logger.Printf("store.ListAllSignaturesForTransaction(%s) => %d %v", old.TransactionHash, len(requests), err)
-	if err != nil {
-		return fmt.Errorf("store.ListAllSignaturesForTransaction(%s) => %v", old.TransactionHash, err)
-	}
-
-	for idx := range msgTx.TxIn {
-		pop := msgTx.TxIn[idx].PreviousOutPoint
-		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
-		if !required {
-			continue
-		}
-
-		sr := requests[idx]
-		if sr == nil {
-			return node.store.FinishRequest(ctx, req.Id)
-		}
-		hash := spsbt.SigHash(idx)
-		msg := common.DecodeHexOrPanic(sr.Message)
-		if !bytes.Equal(hash, msg) {
-			panic(sr.Message)
-		}
-		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig)
-		if err != nil {
-			panic(sr.Signature.String)
-		}
-		spsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
-			PubKey:    common.DecodeHexOrPanic(safe.Signer),
-			Signature: sig,
-		}}
-	}
-
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
-	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk[:]))
-	err = node.sendObserverResponseWithReferences(ctx, id, common.ActionBitcoinSafeApproveTransaction, exk)
-	if err != nil {
-		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
-	}
-	raw := hex.EncodeToString(spsbt.Marshal())
-	return node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
 }

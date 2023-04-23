@@ -1,38 +1,24 @@
 package keeper
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
-)
-
-const (
-	SafeChainBitcoin  = 1
-	SafeChainEthereum = 2
-	SafeChainMixin    = 3
-	SafeChainMVM      = 4
-
-	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
-	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
-	SafeMVMChainId      = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
-
-	SafeNetworkInfoTimeout = 3 * time.Minute
-	SafeSignatureTimeout   = 10 * time.Minute
 )
 
 func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *common.Request) error {
@@ -495,6 +481,91 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	return nil
 }
 
+func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *common.Request) error {
+	if req.Role != common.RequestRoleSigner {
+		panic(req.Role)
+	}
+	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
+	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
+	}
+	if old == nil || old.State == common.RequestStateDone || old.CreatedAt.Add(SafeSignatureTimeout).Before(req.CreatedAt) {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
+	if err != nil {
+		return fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
+	}
+	safe, err := node.store.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
+	}
+	if safe.Signer != req.Holder {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	sig, _ := hex.DecodeString(req.Extra)
+	msg := common.DecodeHexOrPanic(old.Message)
+	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
+	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
+	if err != nil {
+		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	err = node.store.FinishSignatureRequest(ctx, req)
+	logger.Printf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
+	if err != nil {
+		return fmt.Errorf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
+	}
+
+	b := common.DecodeHexOrPanic(tx.RawTransaction)
+	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	msgTx := spsbt.Packet.UnsignedTx
+
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
+	logger.Printf("store.ListAllSignaturesForTransaction(%s) => %d %v", old.TransactionHash, len(requests), err)
+	if err != nil {
+		return fmt.Errorf("store.ListAllSignaturesForTransaction(%s) => %v", old.TransactionHash, err)
+	}
+
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
+		if !required {
+			continue
+		}
+
+		sr := requests[idx]
+		if sr == nil {
+			return node.store.FinishRequest(ctx, req.Id)
+		}
+		hash := spsbt.SigHash(idx)
+		msg := common.DecodeHexOrPanic(sr.Message)
+		if !bytes.Equal(hash, msg) {
+			panic(sr.Message)
+		}
+		sig := common.DecodeHexOrPanic(sr.Signature.String)
+		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig)
+		if err != nil {
+			panic(sr.Signature.String)
+		}
+		spsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
+			PubKey:    common.DecodeHexOrPanic(safe.Signer),
+			Signature: sig,
+		}}
+	}
+
+	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
+	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk[:]))
+	err = node.sendObserverResponseWithReferences(ctx, id, common.ActionBitcoinSafeApproveTransaction, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	}
+	raw := hex.EncodeToString(spsbt.Marshal())
+	return node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
+}
+
 func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {
 	old, err := node.store.ReadSignatureRequestByTransactionIndex(ctx, hash, index)
 	if err != nil {
@@ -512,37 +583,6 @@ func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash str
 func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wire.OutPoint) bool {
 	utxo, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
-}
-
-func (node *Node) refundAndFinishRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
-	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), nil, req.Id)
-	if err != nil {
-		return err
-	}
-	return node.store.FinishRequest(ctx, req.Id)
-}
-
-func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
-	switch assetId {
-	case SafeBitcoinChainId:
-		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
-	default:
-		panic(assetId)
-	}
-}
-
-func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
-	asset, err := node.fetchAssetMeta(ctx, assetId)
-	if err != nil {
-		return crypto.Hash{}, 0, err
-	}
-	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
-	assetKey := strings.ToLower(addr.String())
-	err = mvm.VerifyAssetKey(assetKey)
-	if err != nil {
-		return crypto.Hash{}, 0, err
-	}
-	return mvm.GenerateAssetId(assetKey), SafeChainMVM, nil
 }
 
 func (node *Node) bitcoinTimeLockDuration(ctx context.Context) time.Duration {
