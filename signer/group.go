@@ -58,6 +58,9 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		if err != nil {
 			panic(err)
 		}
+		if len(op.Extra) == 32 && op.Curve == common.CurveEdwards25519Mixin && op.Type == common.OperationTypeSignInput {
+			op.Extra = node.readKernelStorageOrPanic(ctx, op)
+		}
 		err = node.store.WriteSessionIfNotExist(ctx, op, out.TransactionHash, out.OutputIndex, out.CreatedAt)
 		if err != nil {
 			panic(err)
@@ -341,6 +344,37 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	extra = append(extra, op.Extra...)
 	extra = append(extra, res.Signature...)
 	return node.store.FinishSignSession(ctx, op.Id, op.Curve, op.Public, extra)
+}
+
+func (node *Node) readKernelStorageOrPanic(ctx context.Context, op *common.Operation) []byte {
+	if common.CheckTestEnvironment(ctx) {
+		k := hex.EncodeToString(op.Extra)
+		o, err := node.store.ReadProperty(ctx, k)
+		if err != nil {
+			panic(err)
+		}
+		v, err := hex.DecodeString(o)
+		if err != nil {
+			panic(err)
+		}
+		return v
+	}
+
+	var stx crypto.Hash
+	copy(stx[:], op.Extra)
+	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
+	if err != nil {
+		panic(stx.String())
+	}
+	smsp := mtg.DecodeMixinExtra(string(tx.Extra))
+	if smsp == nil {
+		panic(stx.String())
+	}
+	data, err := common.Base91Decode(smsp.M)
+	if err != nil || len(data) < 32 {
+		panic(op.Id)
+	}
+	return data
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Output) error {
