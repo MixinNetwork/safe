@@ -120,6 +120,16 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			case common.OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 			case common.OperationTypeSignInput:
+				holder, crv, _, err := node.store.ReadKeyByShortSum(ctx, op.Public)
+				if err != nil || crv != op.Curve {
+					panic(err)
+				}
+				signed, sig := node.verifySessionSignature(ctx, op.Curve, holder, op.Extra)
+				if signed {
+					op.Extra = sig
+				} else {
+					op.Extra = nil
+				}
 			default:
 				panic(op.Id)
 			}

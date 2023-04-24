@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
@@ -118,7 +120,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Extra = []byte{common.RequestRoleSigner}
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
-		if signers[string(node.id)] != session.Extra {
+		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {
 			panic(session.Extra)
 		}
 		holder, crv, _, err := node.store.ReadKeyByShortSum(ctx, session.Public)
@@ -180,8 +182,32 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		err := bitcoin.VerifySignatureDER(holder, msg, sig)
 		logger.Printf("node.verifySessionSignature(%d, %s, %x) => %v", crv, holder, extra, err)
 		return err == nil, sig
-	case common.CurveEdwards25519Mixin,
-		common.CurveEdwards25519Default,
+	case common.CurveEdwards25519Mixin:
+		if len(msg) < 32 || len(sig) != 64 {
+			return false, nil
+		}
+		group := curve.Edwards25519{}
+		r := group.NewScalar()
+		err := r.UnmarshalBinary(msg[:32])
+		if err != nil {
+			return false, nil
+		}
+		pub, _ := hex.DecodeString(holder)
+		P := group.NewPoint()
+		err = P.UnmarshalBinary(pub)
+		if err != nil {
+			return false, nil
+		}
+		P = r.ActOnBase().Add(P)
+		var msig crypto.Signature
+		copy(msig[:], sig)
+		var mpub crypto.Key
+		pub, _ = P.MarshalBinary()
+		copy(mpub[:], pub)
+		res := mpub.Verify(msg[32:], msig)
+		logger.Printf("node.verifySessionSignature(%d, %s, %x) => %t", crv, holder, extra, res)
+		return res, sig
+	case common.CurveEdwards25519Default,
 		common.CurveSecp256k1ECDSAEthereum,
 		common.CurveSecp256k1SchnorrBitcoin:
 		return common.CheckTestEnvironment(ctx), sig // TODO
@@ -196,7 +222,7 @@ func (node *Node) verifySessionSigners(session *Session, sessionSigners map[stri
 	case common.OperationTypeKeygenInput:
 		for _, id := range node.conf.MTG.Genesis.Members {
 			public, found := sessionSigners[id]
-			if !found || public != session.Public {
+			if !found || public != session.Public || public != sessionSigners[string(node.id)] {
 				return false
 			}
 		}
@@ -204,7 +230,7 @@ func (node *Node) verifySessionSigners(session *Session, sessionSigners map[stri
 	case common.OperationTypeSignInput:
 		for _, id := range node.conf.MTG.Genesis.Members {
 			extra, found := sessionSigners[id]
-			if !found || extra != session.Extra {
+			if !found || extra == "" || extra != sessionSigners[string(node.id)] {
 				return false
 			}
 		}
