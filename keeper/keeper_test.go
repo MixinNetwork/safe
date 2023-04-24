@@ -284,8 +284,8 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		signed[r.InputIndex] = b
 	}
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
-	exk := common.MVMHash([]byte(common.Base91Encode(mb)))
-	rid := mixin.UniqueConversationID(transactionHash, hex.EncodeToString(exk))
+	exk := crypto.Blake3Hash([]byte(common.Base91Encode(mb)))
+	rid := mixin.UniqueConversationID(transactionHash, hex.EncodeToString(exk[:]))
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	assert.Equal(mb, b)
 

@@ -70,11 +70,8 @@ func (node *Node) parseHolderRequest(out *mtg.Output) (*common.Request, error) {
 func (node *Node) writeStorageOrPanic(ctx context.Context, extra []byte) crypto.Hash {
 	logger.Printf("node.writeStorageOrPanic(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
-		var tx crypto.Hash
-		key := common.MVMHash(extra)
-		copy(tx[:], key)
-
-		k := hex.EncodeToString(key)
+		tx := crypto.Blake3Hash(extra)
+		k := hex.EncodeToString(tx[:])
 		v := hex.EncodeToString(extra)
 		o, err := node.store.ReadProperty(ctx, k)
 		if err != nil {
