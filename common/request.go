@@ -39,7 +39,6 @@ const (
 	ActionBitcoinSafeProposeTransaction = 112
 	ActionBitcoinSafeApproveTransaction = 113
 	ActionBitcoinSafeRevokeTransaction  = 114
-	ActionBitcoinSafeCompactOutputs     = 115
 
 	// For Mixin Kernel mainnet
 	ActionMixinSafeProposeAccount     = 120
@@ -47,7 +46,6 @@ const (
 	ActionMixinSafeProposeTransaction = 122
 	ActionMixinSafeApproveTransaction = 123
 	ActionMixinSafeRevokeTransaction  = 124
-	ActionMixinSafeCompactOutputs     = 125
 
 	// For all Ethereum like chains
 	ActionEthereumSafeProposeAccount = 130
@@ -110,7 +108,6 @@ func (req *Request) ParseMixinRecipient() ([]string, byte, error) {
 
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
-	case ActionMixinSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
 	default:
 		panic(req.Action)
