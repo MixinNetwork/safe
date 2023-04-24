@@ -146,10 +146,11 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		"id":    keeper.SafeBitcoinChainId,
 		"chain": info.Chain,
 		"head": map[string]any{
-			"id":     info.RequestId,
-			"height": info.Height,
-			"fee":    info.Fee,
-			"hash":   info.Hash,
+			"id":         info.RequestId,
+			"height":     info.Height,
+			"fee":        info.Fee,
+			"hash":       info.Hash,
+			"created_at": info.CreatedAt,
 		},
 	}})
 }
