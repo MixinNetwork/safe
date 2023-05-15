@@ -92,7 +92,7 @@ func scanKeyList(path string, chain int) ([]string, error) {
 	var publics []string
 	for scanner.Scan() {
 		pub := scanner.Text()
-		err := bitcoin.VerifyHolderKey(pub, byte(chain))
+		err := bitcoin.VerifyHolderKey(pub)
 		if err != nil {
 			return nil, err
 		}

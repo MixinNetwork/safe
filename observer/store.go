@@ -302,15 +302,15 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 	return &t, err
 }
 
-func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, chain byte, pub, priv string) error {
+func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, crv byte, pub, priv string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	cols := []string{"public_key", "private_key", "chain", "created_at"}
-	vals := []any{pub, priv, chain, time.Now().UTC()}
+	cols := []string{"public_key", "private_key", "curve", "created_at"}
+	vals := []any{pub, priv, crv, time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("accountants", cols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT accountants %v", err)
@@ -319,9 +319,9 @@ func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, chain byte, pub, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadAccountantKey(ctx context.Context, pub string, chain byte) (string, error) {
+func (s *SQLite3Store) ReadAccountantKey(ctx context.Context, pub string, crv byte) (string, error) {
 	var private string
-	row := s.db.QueryRowContext(ctx, "SELECT private_key FROM accountants WHERE public_key=? AND chain=?", pub, chain)
+	row := s.db.QueryRowContext(ctx, "SELECT private_key FROM accountants WHERE public_key=? AND curve=?", pub, crv)
 	err := row.Scan(&private)
 	if err == sql.ErrNoRows {
 		return "", nil
@@ -329,7 +329,7 @@ func (s *SQLite3Store) ReadAccountantKey(ctx context.Context, pub string, chain 
 	return private, err
 }
 
-func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, chain byte, publics []string) error {
+func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics []string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -337,8 +337,8 @@ func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, chain byte, public
 	defer tx.Rollback()
 
 	for _, pub := range publics {
-		cols := []string{"public_key", "chain", "created_at"}
-		vals := []any{pub, chain, time.Now().UTC()}
+		cols := []string{"public_key", "curve", "created_at"}
+		vals := []any{pub, crv, time.Now().UTC()}
 		err = s.execOne(ctx, tx, buildInsertionSQL("observers", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT observers %v", err)
@@ -348,9 +348,9 @@ func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, chain byte, public
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadObserverKey(ctx context.Context, chain byte) (string, error) {
+func (s *SQLite3Store) ReadObserverKey(ctx context.Context, crv byte) (string, error) {
 	var public string
-	row := s.db.QueryRowContext(ctx, "SELECT public_key FROM observers WHERE chain=? LIMIT 1", chain)
+	row := s.db.QueryRowContext(ctx, "SELECT public_key FROM observers WHERE curve=? LIMIT 1", crv)
 	err := row.Scan(&public)
 	if err == sql.ErrNoRows {
 		return "", nil

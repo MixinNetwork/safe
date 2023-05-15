@@ -80,13 +80,13 @@ func EncodeAddress(script []byte, chain byte) (string, error) {
 	}
 }
 
-func VerifyHolderKey(public string, chain byte) error {
-	_, err := parseBitcoinCompressedPublicKey(public, chain)
+func VerifyHolderKey(public string) error {
+	_, err := parseBitcoinCompressedPublicKey(public)
 	return err
 }
 
-func VerifySignatureDER(public string, msg, sig []byte, chain byte) error {
-	pub, err := parseBitcoinCompressedPublicKey(public, chain)
+func VerifySignatureDER(public string, msg, sig []byte) error {
+	pub, err := parseBitcoinCompressedPublicKey(public)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func VerifySignatureDER(public string, msg, sig []byte, chain byte) error {
 func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Duration, chain byte) (*WitnessScriptAccount, error) {
 	var pubKeys []*btcutil.AddressPubKey
 	for _, public := range []string{holder, signer, observer} {
-		pub, err := parseBitcoinCompressedPublicKey(public, chain)
+		pub, err := parseBitcoinCompressedPublicKey(public)
 		if err != nil {
 			return nil, fmt.Errorf("parseBitcoinCompressedPublicKey(%s) => %v", public, err)
 		}
@@ -154,7 +154,7 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 }
 
 func BuildWitnessKeyAccount(accountant string, chain byte) (*WitnessKeyAccount, error) {
-	pub, err := parseBitcoinCompressedPublicKey(accountant, chain)
+	pub, err := parseBitcoinCompressedPublicKey(accountant)
 	if err != nil {
 		return nil, err
 	}
@@ -174,12 +174,12 @@ func CheckMultisigHolderSignerScript(script []byte) bool {
 	return checkScriptType(script) == InputTypeP2WSHMultisigHolderSigner
 }
 
-func parseBitcoinCompressedPublicKey(public string, chain byte) (*btcutil.AddressPubKey, error) {
+func parseBitcoinCompressedPublicKey(public string) (*btcutil.AddressPubKey, error) {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
 		return nil, err
 	}
-	return btcutil.NewAddressPubKey(pub, netConfig(chain))
+	return btcutil.NewAddressPubKey(pub, netConfig(ChainBitcoin))
 }
 
 func netConfig(chain byte) *chaincfg.Params {

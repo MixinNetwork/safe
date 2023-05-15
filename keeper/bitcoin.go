@@ -145,7 +145,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	}
 
 	msg := bitcoin.HashMessageForSignature(sp.Address)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:], sp.Chain)
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -381,7 +381,7 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:], safe.Chain)
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -452,7 +452,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:], safe.Chain)
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -536,7 +536,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig, safe.Chain)
+	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -575,7 +575,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig, safe.Chain)
+		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig)
 		if err != nil {
 			panic(sr.Signature.String)
 		}
