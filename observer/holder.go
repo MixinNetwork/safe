@@ -82,6 +82,7 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 	}
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
@@ -101,7 +102,7 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 	rid := uuid.Must(uuid.FromString(sp.RequestId))
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeApproveAccount
-	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), id, extra)
+	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 }
 
 func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sigBase64 string) error {
@@ -204,7 +205,7 @@ func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, s
 	rid := uuid.Must(uuid.FromString(tx.RequestId))
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeRevokeTransaction
-	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), id, extra)
+	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
 	if err != nil {
 		return err
 	}
@@ -229,10 +230,10 @@ func (node *Node) payTransactionApproval(ctx context.Context, hash string) error
 	return node.store.UpdateTransactionApprovalPending(ctx, hash)
 }
 
-func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context) {
+func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte) {
 	for {
 		time.Sleep(3 * time.Second)
-		approvals, err := node.store.ListPendingTransactionApprovals(ctx, keeper.SafeChainBitcoin)
+		approvals, err := node.store.ListPendingTransactionApprovals(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
@@ -246,7 +247,8 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context) {
 }
 
 func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
-	btx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, approval.TransactionHash)
+	rpc, _ := node.bitcoinParams(approval.Chain)
+	btx, err := bitcoin.RPCGetTransaction(rpc, approval.TransactionHash)
 	logger.Printf("bitcoin.RPCGetTransaction(%s) => %v %v", approval.TransactionHash, btx, err)
 	if err != nil && !strings.Contains(err.Error(), "No such mempool or blockchain transaction") {
 		return err
@@ -272,7 +274,7 @@ func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Trans
 	rid := uuid.Must(uuid.FromString(tx.RequestId))
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeApproveTransaction
-	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), id, extra)
+	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
 	if err != nil {
 		return err
 	}
@@ -281,7 +283,7 @@ func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Trans
 		return nil
 	}
 	id = mixin.UniqueConversationID(id, approval.UpdatedAt.String())
-	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), id, extra)
+	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
 	if err != nil {
 		return err
 	}

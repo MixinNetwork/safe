@@ -28,20 +28,33 @@ const (
 	bitcoinKeyDummyHolderPrivate       = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 )
 
-func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context) {
+func (node *Node) bitcoinParams(chain byte) (string, string) {
+	switch chain {
+	case keeper.SafeChainBitcoin:
+		return node.conf.BitcoinRPC, keeper.SafeBitcoinChainId
+	case keeper.SafeChainLitecoin:
+		return node.conf.LitecoinRPC, keeper.SafeLitecoinChainId
+	default:
+		panic(chain)
+	}
+}
+
+func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
+	rpc, assetId := node.bitcoinParams(chain)
+
 	for {
 		time.Sleep(keeper.SafeNetworkInfoTimeout / 7)
-		height, err := bitcoin.RPCGetBlockHeight(node.conf.BitcoinRPC)
+		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHeight() => %v", err)
 			continue
 		}
-		fvb, err := bitcoin.RPCEstimateSmartFee(node.conf.BitcoinRPC)
+		fvb, err := bitcoin.RPCEstimateSmartFee(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCEstimateSmartFee() => %v", err)
 			continue
 		}
-		blockHash, err := bitcoin.RPCGetBlockHash(node.conf.BitcoinRPC, height)
+		blockHash, err := bitcoin.RPCGetBlockHash(rpc, height)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHash(%d) => %v", height, err)
 			continue
@@ -50,17 +63,17 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		extra := []byte{keeper.SafeChainBitcoin}
+		extra := []byte{chain}
 		extra = binary.BigEndian.AppendUint64(extra, uint64(fvb))
 		extra = binary.BigEndian.AppendUint64(extra, uint64(height))
 		extra = append(extra, hash[:]...)
-		id := mixin.UniqueConversationID(keeper.SafeBitcoinChainId, fmt.Sprintf("%s:%d", blockHash, height))
+		id := mixin.UniqueConversationID(assetId, fmt.Sprintf("%s:%d", blockHash, height))
 		id = mixin.UniqueConversationID(id, fmt.Sprintf("%d:%d", time.Now().UnixNano(), fvb))
 		logger.Printf("node.bitcoinNetworkInfoLoop() => %d %d %s %s", height, fvb, blockHash, id)
 
 		dummy := node.bitcoinDummyHolder()
 		action := common.ActionObserverUpdateNetworkStatus
-		err = node.sendBitcoinKeeperResponse(ctx, dummy, byte(action), id, extra)
+		err = node.sendBitcoinKeeperResponse(ctx, dummy, byte(action), chain, id, extra)
 		if err != nil {
 			panic(err)
 		}
@@ -73,23 +86,26 @@ func (node *Node) bitcoinDummyHolder() string {
 	return hex.EncodeToString(dk.SerializeCompressed())
 }
 
-func (node *Node) bitcoinReadBlock(ctx context.Context, num int64) ([]*bitcoin.RPCTransaction, error) {
+func (node *Node) bitcoinReadBlock(ctx context.Context, num int64, chain byte) ([]*bitcoin.RPCTransaction, error) {
+	rpc, _ := node.bitcoinParams(chain)
+
 	if num == 0 {
-		return bitcoin.RPCGetRawMempool(node.conf.BitcoinRPC)
+		return bitcoin.RPCGetRawMempool(rpc)
 	}
 
-	hash, err := bitcoin.RPCGetBlockHash(node.conf.BitcoinRPC, num)
+	hash, err := bitcoin.RPCGetBlockHash(rpc, num)
 	if err != nil {
 		return nil, err
 	}
-	block, err := bitcoin.RPCGetBlockWithTransactions(node.conf.BitcoinRPC, hash)
+	block, err := bitcoin.RPCGetBlockWithTransactions(rpc, hash)
 	if err != nil {
 		return nil, err
 	}
 	return block.Tx, nil
 }
 
-func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId string, index int64, value float64, sender string) error {
+func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId string, index int64, value float64, sender string, chain byte) error {
+	_, assetId := node.bitcoinParams(chain)
 	amount := decimal.NewFromFloat(value)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 	change, err := node.keeperStore.ReadTransaction(ctx, txId)
@@ -120,12 +136,12 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId
 	deposit := &Deposit{
 		TransactionHash: txId,
 		OutputIndex:     index,
-		AssetId:         keeper.SafeBitcoinChainId,
+		AssetId:         assetId,
 		Amount:          amount.String(),
 		Receiver:        receiver,
 		Sender:          sender,
 		State:           common.RequestStateInitial,
-		Chain:           keeper.SafeChainBitcoin,
+		Chain:           chain,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
 	}
@@ -147,16 +163,18 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver, txId
 }
 
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
-	bonded, err := node.checkOrDeployKeeperBond(ctx, keeper.SafeBitcoinChainId, deposit.Holder)
+	rpc, assetId := node.bitcoinParams(deposit.Chain)
+
+	bonded, err := node.checkOrDeployKeeperBond(ctx, assetId, deposit.Holder)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
 		return nil
 	}
 
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, keeper.SafeChainBitcoin)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, deposit.Chain)
 	if err != nil {
-		return fmt.Errorf("keeperStore.ReadLatestNetworkInfo(%d) => %v", keeper.SafeChainBitcoin, err)
+		return fmt.Errorf("keeperStore.ReadLatestNetworkInfo(%d) => %v", deposit.Chain, err)
 	} else if info == nil {
 		return nil
 	}
@@ -167,7 +185,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		panic(fmt.Errorf("malicious bitcoin network info %v", info))
 	}
 
-	_, output, err := bitcoin.RPCGetTransactionOutput(deposit.Chain, node.conf.BitcoinRPC, deposit.TransactionHash, deposit.OutputIndex)
+	_, output, err := bitcoin.RPCGetTransactionOutput(deposit.Chain, rpc, deposit.TransactionHash, deposit.OutputIndex)
 	if err != nil || output == nil {
 		panic(fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.TransactionHash, err))
 	}
@@ -178,7 +196,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, keeper.SafeBitcoinChainId, deposit.Sender)
+	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, assetId, deposit.Sender)
 	if err != nil {
 		return fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", deposit.Sender, err)
 	}
@@ -197,9 +215,9 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	}
 
 	extra := deposit.encodeKeeperExtra()
-	id := mixin.UniqueConversationID(keeper.SafeBitcoinChainId, deposit.Holder)
+	id := mixin.UniqueConversationID(assetId, deposit.Holder)
 	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
-	err = node.sendBitcoinKeeperResponse(ctx, deposit.Holder, deposit.Category, id, extra)
+	err = node.sendBitcoinKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
 	if err != nil {
 		return fmt.Errorf("node.sendBitcoinKeeperResponse(%s) => %v", id, err)
 	}
@@ -224,10 +242,10 @@ func (deposit *Deposit) encodeKeeperExtra() []byte {
 	return extra
 }
 
-func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context) {
+func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 	for {
 		time.Sleep(3 * time.Second)
-		deposits, err := node.store.ListDeposits(ctx, keeper.SafeChainBitcoin, "", common.RequestStateInitial, 0)
+		deposits, err := node.store.ListDeposits(ctx, int(chain), "", common.RequestStateInitial, 0)
 		if err != nil {
 			panic(err)
 		}
@@ -240,14 +258,16 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) bitcoinMixinWithdrawalsLoop(ctx context.Context) {
+func (node *Node) bitcoinMixinWithdrawalsLoop(ctx context.Context, chain byte) {
+	_, assetId := node.bitcoinParams(chain)
+
 	for {
 		time.Sleep(time.Second)
 		checkpoint, err := node.bitcoinReadMixinSnapshotsCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
-		snapshots, err := node.mixin.ReadNetworkSnapshots(ctx, keeper.SafeBitcoinChainId, checkpoint, "ASC", 100)
+		snapshots, err := node.mixin.ReadNetworkSnapshots(ctx, assetId, checkpoint, "ASC", 100)
 		if err != nil {
 			continue
 		}
@@ -257,7 +277,7 @@ func (node *Node) bitcoinMixinWithdrawalsLoop(ctx context.Context) {
 			if s.Source != "WITHDRAWAL_INITIALIZED" {
 				continue
 			}
-			err = node.bitcoinProcessMixinSnapshot(ctx, s.SnapshotID)
+			err = node.bitcoinProcessMixinSnapshot(ctx, s.SnapshotID, chain)
 			if err != nil {
 				panic(err)
 			}
@@ -273,36 +293,39 @@ func (node *Node) bitcoinMixinWithdrawalsLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string) error {
+func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string, chain byte) error {
+	rpc, _ := node.bitcoinParams(chain)
 	s, err := node.mixin.ReadNetworkSnapshot(ctx, id)
 	if err != nil {
 		time.Sleep(time.Second)
 		logger.Printf("mixin.ReadNetworkSnapshot(%s) => %v", id, err)
-		return node.bitcoinProcessMixinSnapshot(ctx, id)
+		return node.bitcoinProcessMixinSnapshot(ctx, id, chain)
 	}
 	if s.SnapshotHash == "" || s.TransactionHash == "" {
 		time.Sleep(2 * time.Second)
-		return node.bitcoinProcessMixinSnapshot(ctx, id)
+		return node.bitcoinProcessMixinSnapshot(ctx, id, chain)
 	}
 
-	tx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, s.TransactionHash)
+	tx, err := bitcoin.RPCGetTransaction(rpc, s.TransactionHash)
 	if err != nil || tx == nil {
 		time.Sleep(2 * time.Second)
 		logger.Printf("bitcoin.RPCGetTransaction(%s, %s) => %v %v", id, s.TransactionHash, tx, err)
-		return node.bitcoinProcessMixinSnapshot(ctx, id)
+		return node.bitcoinProcessMixinSnapshot(ctx, id, chain)
 	}
 
-	return node.bitcoinProcessTransaction(ctx, tx)
+	return node.bitcoinProcessTransaction(ctx, tx, chain)
 }
 
-func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
+func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
+	rpc, _ := node.bitcoinParams(chain)
+
 	for {
 		time.Sleep(3 * time.Second)
 		checkpoint, err := node.bitcoinReadDepositCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
-		height, err := bitcoin.RPCGetBlockHeight(node.conf.BitcoinRPC)
+		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHeight() => %v", err)
 			continue
@@ -311,7 +334,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
 		if checkpoint > height {
 			continue
 		}
-		txs, err := node.bitcoinReadBlock(ctx, checkpoint)
+		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)
 		logger.Printf("node.bitcoinReadBlock(%d) => %d %v", checkpoint, len(txs), err)
 		if err != nil {
 			continue
@@ -319,7 +342,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
 
 		for _, tx := range txs {
 			for {
-				err := node.bitcoinProcessTransaction(ctx, tx)
+				err := node.bitcoinProcessTransaction(ctx, tx, chain)
 				if err == nil {
 					break
 				}
@@ -334,7 +357,9 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction) error {
+func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
+	rpc, _ := node.bitcoinParams(chain)
+
 	for index := range tx.Vout {
 		out := tx.Vout[index]
 		skt := out.ScriptPubKey.Type
@@ -345,11 +370,11 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 			panic(tx.TxId)
 		}
 
-		sender, err := bitcoin.RPCGetTransactionSender(node.conf.BitcoinRPC, tx)
+		sender, err := bitcoin.RPCGetTransactionSender(rpc, tx)
 		if err != nil {
 			return fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
 		}
-		err = node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx.TxId, out.N, out.Value, sender)
+		err = node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx.TxId, out.N, out.Value, sender, chain)
 		if err != nil {
 			panic(err)
 		}

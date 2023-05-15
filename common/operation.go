@@ -63,7 +63,16 @@ func (o *Operation) Encode() []byte {
 
 func NormalizeCurve(crv uint8) uint8 {
 	if crv > 100 {
-		return crv - 100
+		crv = crv - 100
+	}
+	switch crv {
+	case CurveSecp256k1ECDSABitcoin:
+	case CurveSecp256k1ECDSAEthereum:
+	case CurveSecp256k1SchnorrBitcoin:
+	case CurveEdwards25519Default:
+	case CurveEdwards25519Mixin:
+	default:
+		panic(crv)
 	}
 	return crv
 }

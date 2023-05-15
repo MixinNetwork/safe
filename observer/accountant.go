@@ -25,7 +25,10 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 	if err != nil || tx.State == common.RequestStateDone {
 		return err
 	}
-	if tx.Chain != keeper.SafeChainBitcoin {
+	switch tx.Chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+	default:
 		panic(spsbt.Hash)
 	}
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
@@ -105,23 +108,25 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 	if err != nil {
 		return err
 	}
-	return node.bitcoinBroadcastTransactionAndWriteDeposit(ctx, spsbt.Hash, signedBuffer.Bytes())
+	return node.bitcoinBroadcastTransactionAndWriteDeposit(ctx, spsbt.Hash, signedBuffer.Bytes(), tx.Chain)
 }
 
-func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context, hash string, raw []byte) error {
-	err := node.bitcoinBroadcastTransaction(hash, raw)
+func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context, hash string, raw []byte, chain byte) error {
+	rpc, _ := node.bitcoinParams(chain)
+	err := node.bitcoinBroadcastTransaction(hash, raw, chain)
 	if err != nil {
 		return fmt.Errorf("node.bitcoinBroadcastTransaction(%s, %x) => %v", hash, raw, err)
 	}
-	tx, err := bitcoin.RPCGetTransaction(node.conf.BitcoinRPC, hash)
+	tx, err := bitcoin.RPCGetTransaction(rpc, hash)
 	if err != nil || tx == nil {
 		return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
 	}
-	return node.bitcoinProcessTransaction(ctx, tx)
+	return node.bitcoinProcessTransaction(ctx, tx, chain)
 }
 
-func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte) error {
-	id, err := bitcoin.RPCSendRawTransaction(node.conf.BitcoinRPC, hex.EncodeToString(raw))
+func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
+	rpc, _ := node.bitcoinParams(chain)
+	id, err := bitcoin.RPCSendRawTransaction(rpc, hex.EncodeToString(raw))
 	if err != nil {
 		return err
 	}

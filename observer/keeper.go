@@ -6,6 +6,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper"
 	"github.com/shopspring/decimal"
 )
 
@@ -21,11 +22,19 @@ func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string)
 	return safe != nil || holder != "", nil
 }
 
-func (node *Node) sendBitcoinKeeperResponse(ctx context.Context, holder string, typ uint8, id string, extra []byte) error {
+func (node *Node) sendBitcoinKeeperResponse(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte) error {
+	crv := byte(common.CurveSecp256k1ECDSABitcoin)
+	switch chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+		crv = common.CurveSecp256k1ECDSALitecoin
+	default:
+		panic(chain)
+	}
 	op := &common.Operation{
 		Id:     id,
 		Type:   typ,
-		Curve:  common.CurveSecp256k1ECDSABitcoin,
+		Curve:  crv,
 		Public: holder,
 		Extra:  extra,
 	}

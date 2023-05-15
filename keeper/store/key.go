@@ -60,6 +60,10 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 	}
 	defer tx.Rollback()
 
+	if common.NormalizeCurve(req.Curve) != req.Curve {
+		panic(req.Curve)
+	}
+
 	err = s.execOne(ctx, tx, buildInsertionSQL("keys", keyCols), keyValsFromRequest(req, role)...)
 	if err != nil {
 		return fmt.Errorf("INSERT keys %v", err)

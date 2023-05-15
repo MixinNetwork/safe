@@ -45,20 +45,26 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
-	err := node.sendBitcoinPriceInfo(ctx)
-	if err != nil {
-		panic(err)
+	for _, chain := range []byte{
+		keeper.SafeChainBitcoin,
+		keeper.SafeChainLitecoin,
+	} {
+		err := node.sendBitcoinPriceInfo(ctx, chain)
+		if err != nil {
+			panic(err)
+		}
+		go node.bitcoinNetworkInfoLoop(ctx, chain)
+		go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
+		go node.bitcoinRPCBlocksLoop(ctx, chain)
+		go node.bitcoinDepositConfirmLoop(ctx, chain)
+		go node.bitcoinTransactionApprovalLoop(ctx, chain)
+		go node.bitcoinKeyLoop(ctx)
 	}
-	go node.bitcoinNetworkInfoLoop(ctx)
-	go node.bitcoinMixinWithdrawalsLoop(ctx)
-	go node.bitcoinRPCBlocksLoop(ctx)
-	go node.bitcoinDepositConfirmLoop(ctx)
-	go node.bitcoinTransactionApprovalLoop(ctx)
-	go node.bitcoinKeyLoop(ctx)
 	node.snapshotsLoop(ctx)
 }
 
-func (node *Node) sendBitcoinPriceInfo(ctx context.Context) error {
+func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
+	_, bitcoinAssetId := node.bitcoinParams(chain)
 	asset, err := node.fetchAssetMeta(ctx, node.conf.PriceAssetId)
 	if err != nil {
 		return err
@@ -78,14 +84,14 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context) error {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID(keeper.SafeBitcoinChainId, asset.AssetId)
+	id := mixin.UniqueConversationID(bitcoinAssetId, asset.AssetId)
 	id = mixin.UniqueConversationID(id, amount.String())
 	id = mixin.UniqueConversationID(id, minimum.String())
-	extra := []byte{keeper.SafeChainBitcoin}
+	extra := []byte{chain}
 	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
-	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetAccountPlan, id, extra)
+	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetAccountPlan, chain, id, extra)
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {

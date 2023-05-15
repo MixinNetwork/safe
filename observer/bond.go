@@ -33,8 +33,9 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	if safe.Holder != holder {
 		return fmt.Errorf("malformed safe accountant %x", data)
 	}
-	_, err = node.checkOrDeployKeeperBond(ctx, keeper.SafeBitcoinChainId, holder)
-	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", keeper.SafeBitcoinChainId, holder, err)
+	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
+	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, holder, err)
 	return err
 }
 

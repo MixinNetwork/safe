@@ -23,6 +23,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS assets_by_mixin_id ON assets(mixin_id);
 
 
 
+/* FIXME change chain to curve */
 CREATE TABLE IF NOT EXISTS accountants (
   public_key     VARCHAR NOT NULL,
   private_key    VARCHAR NOT NULL,
@@ -36,6 +37,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS accountants_by_private_key ON accountants(priv
 
 
 
+/* FIXME change chain to curve */
 CREATE TABLE IF NOT EXISTS observers (
   public_key     VARCHAR NOT NULL,
   chain          INTEGER NOT NULL,
