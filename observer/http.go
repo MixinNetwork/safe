@@ -132,25 +132,25 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 }
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
+	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	if info == nil {
+	if bi == nil {
 		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 
 	renderJSON(w, http.StatusOK, []map[string]any{{
 		"id":    keeper.SafeBitcoinChainId,
-		"chain": info.Chain,
+		"chain": bi.Chain,
 		"head": map[string]any{
-			"id":         info.RequestId,
-			"height":     info.Height,
-			"fee":        info.Fee,
-			"hash":       info.Hash,
-			"created_at": info.CreatedAt,
+			"id":         bi.RequestId,
+			"height":     bi.Height,
+			"fee":        bi.Fee,
+			"hash":       bi.Hash,
+			"created_at": bi.CreatedAt,
 		},
 	}})
 }
@@ -176,10 +176,6 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 	}
 	if safe == nil {
 		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
-		return
-	}
-	if safe.Chain != keeper.SafeChainBitcoin {
-		renderJSON(w, http.StatusBadRequest, map[string]any{"error": "chain"})
 		return
 	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
@@ -364,7 +360,10 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		renderJSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
-	if body.Chain != keeper.SafeChainBitcoin {
+	switch body.Chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+	default:
 		renderJSON(w, http.StatusBadRequest, map[string]any{"error": "chain"})
 		return
 	}

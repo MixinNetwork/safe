@@ -46,17 +46,17 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		time.Sleep(keeper.SafeNetworkInfoTimeout / 7)
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHeight() => %v", err)
+			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
 		fvb, err := bitcoin.RPCEstimateSmartFee(rpc)
 		if err != nil {
-			logger.Printf("bitcoin.RPCEstimateSmartFee() => %v", err)
+			logger.Printf("bitcoin.RPCEstimateSmartFee(%d) => %v", chain, err)
 			continue
 		}
 		blockHash, err := bitcoin.RPCGetBlockHash(rpc, height)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHash(%d) => %v", height, err)
+			logger.Printf("bitcoin.RPCGetBlockHash(%d, %d) => %v", chain, height, err)
 			continue
 		}
 		hash, err := crypto.HashFromString(blockHash)
@@ -69,7 +69,7 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		extra = append(extra, hash[:]...)
 		id := mixin.UniqueConversationID(assetId, fmt.Sprintf("%s:%d", blockHash, height))
 		id = mixin.UniqueConversationID(id, fmt.Sprintf("%d:%d", time.Now().UnixNano(), fvb))
-		logger.Printf("node.bitcoinNetworkInfoLoop() => %d %d %s %s", height, fvb, blockHash, id)
+		logger.Printf("node.bitcoinNetworkInfoLoop(%d) => %d %d %s %s", chain, height, fvb, blockHash, id)
 
 		dummy := node.bitcoinDummyHolder()
 		action := common.ActionObserverUpdateNetworkStatus
@@ -327,15 +327,15 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		}
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHeight() => %v", err)
+			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
-		logger.Printf("node.bitcoinReadDepositCheckpoint() => %d %d", checkpoint, height)
+		logger.Printf("node.bitcoinReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
 		if checkpoint > height {
 			continue
 		}
 		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)
-		logger.Printf("node.bitcoinReadBlock(%d) => %d %v", checkpoint, len(txs), err)
+		logger.Printf("node.bitcoinReadBlock(%d, %d) => %d %v", chain, checkpoint, len(txs), err)
 		if err != nil {
 			continue
 		}
