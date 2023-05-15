@@ -17,6 +17,7 @@ func (node *Node) sendObserverResponseWithAssetAndReferences(ctx context.Context
 	op := &common.Operation{
 		Type:  typ,
 		Id:    id,
+		Curve: common.CurveSecp256k1ECDSABitcoin,
 		Extra: tx[:],
 	}
 	return node.buildObserverTransaction(ctx, op, assetId, amount, tx)

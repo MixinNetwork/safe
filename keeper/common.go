@@ -17,10 +17,12 @@ const (
 	SafeChainEthereum = 2
 	SafeChainMixin    = 3
 	SafeChainMVM      = 4
+	SafeChainLitecoin = 5
 
 	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
 	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
 	SafeMVMChainId      = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
+	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
 
 	SafeNetworkInfoTimeout = 3 * time.Minute
 	SafeSignatureTimeout   = 10 * time.Minute

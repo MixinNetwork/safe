@@ -103,6 +103,8 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 	switch asset.ChainId {
 	case keeper.SafeBitcoinChainId:
 		chain = keeper.SafeChainBitcoin
+	case keeper.SafeLitecoinChainId:
+		chain = keeper.SafeChainLitecoin
 	case keeper.SafeEthereumChainId:
 		chain = keeper.SafeChainEthereum
 	case keeper.SafeMVMChainId:

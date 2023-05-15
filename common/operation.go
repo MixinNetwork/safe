@@ -20,6 +20,8 @@ const (
 	CurveSecp256k1SchnorrBitcoin = 3
 	CurveEdwards25519Default     = 11
 	CurveEdwards25519Mixin       = 12
+
+	CurveSecp256k1ECDSALitecoin = 100 + CurveSecp256k1ECDSABitcoin
 )
 
 type Operation struct {
@@ -40,6 +42,15 @@ func (o *Operation) IdBytes() []byte {
 
 // TODO compact format for different type
 func (o *Operation) Encode() []byte {
+	switch NormalizeCurve(o.Curve) {
+	case CurveSecp256k1ECDSABitcoin:
+	case CurveSecp256k1ECDSAEthereum:
+	case CurveSecp256k1SchnorrBitcoin:
+	case CurveEdwards25519Default:
+	case CurveEdwards25519Mixin:
+	default:
+		panic(o.Curve)
+	}
 	pub := DecodeHexOrPanic(o.Public)
 	enc := common.NewEncoder()
 	writeUUID(enc, o.Id)
@@ -48,6 +59,13 @@ func (o *Operation) Encode() []byte {
 	writeBytes(enc, pub)
 	writeBytes(enc, o.Extra)
 	return enc.Bytes()
+}
+
+func NormalizeCurve(crv uint8) uint8 {
+	if crv > 100 {
+		return crv - 100
+	}
+	return crv
 }
 
 func DecodeOperation(b []byte) (*Operation, error) {
