@@ -157,7 +157,7 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin,
 		common.CurveSecp256k1ECDSAEthereum:
-		err := bitcoin.VerifyHolderKey(holder)
+		err := bitcoin.VerifyHolderKey(holder, bitcoin.ChainBitcoin)
 		logger.Printf("node.verifySessionHolder(%d, %s) => %v", crv, holder, err)
 		return err == nil
 	case common.CurveSecp256k1SchnorrBitcoin:
@@ -182,7 +182,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	sig := extra[1+extra[0]:]
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
-		err := bitcoin.VerifySignatureDER(holder, msg, sig)
+		err := bitcoin.VerifySignatureDER(holder, msg, sig, bitcoin.ChainBitcoin)
 		logger.Printf("node.verifySessionSignature(%d, %s, %x) => %v", crv, holder, extra, err)
 		return err == nil, sig
 	case common.CurveEdwards25519Mixin:

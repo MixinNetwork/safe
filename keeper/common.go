@@ -7,17 +7,18 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/domains/mvm"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	SafeChainBitcoin  = 1
+	SafeChainBitcoin  = bitcoin.ChainBitcoin
 	SafeChainEthereum = 2
 	SafeChainMixin    = 3
 	SafeChainMVM      = 4
-	SafeChainLitecoin = 5
+	SafeChainLitecoin = bitcoin.ChainLitecoin
 
 	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
 	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"

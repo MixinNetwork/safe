@@ -58,19 +58,19 @@ func UnmarshalWitnessScriptAccountWitAccountant(extra []byte) (*WitnessScriptAcc
 	}, string(accountant), nil
 }
 
-func EncodeAddress(script []byte) (string, error) {
+func EncodeAddress(script []byte, chain byte) (string, error) {
 	typ := checkScriptType(script)
 	switch typ {
 	case InputTypeP2WSHMultisigHolderSigner:
 		msh := sha256.Sum256(script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], &chaincfg.MainNetParams)
+		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
 		if err != nil {
 			return "", err
 		}
 		return mwsh.EncodeAddress(), nil
 	case InputTypeP2WPKHAccoutant:
 		msh := btcutil.Hash160(script)
-		wph, err := btcutil.NewAddressWitnessPubKeyHash(msh, &chaincfg.MainNetParams)
+		wph, err := btcutil.NewAddressWitnessPubKeyHash(msh, netConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -80,13 +80,13 @@ func EncodeAddress(script []byte) (string, error) {
 	}
 }
 
-func VerifyHolderKey(public string) error {
-	_, err := parseBitcoinCompressedPublicKey(public)
+func VerifyHolderKey(public string, chain byte) error {
+	_, err := parseBitcoinCompressedPublicKey(public, chain)
 	return err
 }
 
-func VerifySignatureDER(public string, msg, sig []byte) error {
-	pub, err := parseBitcoinCompressedPublicKey(public)
+func VerifySignatureDER(public string, msg, sig []byte, chain byte) error {
+	pub, err := parseBitcoinCompressedPublicKey(public, chain)
 	if err != nil {
 		return err
 	}
@@ -100,10 +100,10 @@ func VerifySignatureDER(public string, msg, sig []byte) error {
 	return fmt.Errorf("bitcoin.VerifySignature(%s, %x, %x)", public, msg, sig)
 }
 
-func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Duration) (*WitnessScriptAccount, error) {
+func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Duration, chain byte) (*WitnessScriptAccount, error) {
 	var pubKeys []*btcutil.AddressPubKey
 	for _, public := range []string{holder, signer, observer} {
-		pub, err := parseBitcoinCompressedPublicKey(public)
+		pub, err := parseBitcoinCompressedPublicKey(public, chain)
 		if err != nil {
 			return nil, fmt.Errorf("parseBitcoinCompressedPublicKey(%s) => %v", public, err)
 		}
@@ -141,7 +141,7 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 		return nil, fmt.Errorf("build.Script() => %v", err)
 	}
 	msh := sha256.Sum256(script)
-	mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], &chaincfg.MainNetParams)
+	mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
 	if err != nil {
 		return nil, fmt.Errorf("btcutil.NewAddressWitnessScriptHash(%x) => %v", msh[:], err)
 	}
@@ -153,14 +153,14 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 	}, nil
 }
 
-func BuildWitnessKeyAccount(accountant string) (*WitnessKeyAccount, error) {
-	pub, err := parseBitcoinCompressedPublicKey(accountant)
+func BuildWitnessKeyAccount(accountant string, chain byte) (*WitnessKeyAccount, error) {
+	pub, err := parseBitcoinCompressedPublicKey(accountant, chain)
 	if err != nil {
 		return nil, err
 	}
 	script := pub.ScriptAddress()
 	wpkh := btcutil.Hash160(script)
-	wph, err := btcutil.NewAddressWitnessPubKeyHash(wpkh, &chaincfg.MainNetParams)
+	wph, err := btcutil.NewAddressWitnessPubKeyHash(wpkh, netConfig(chain))
 	if err != nil {
 		return nil, err
 	}
@@ -174,12 +174,29 @@ func CheckMultisigHolderSignerScript(script []byte) bool {
 	return checkScriptType(script) == InputTypeP2WSHMultisigHolderSigner
 }
 
-func parseBitcoinCompressedPublicKey(public string) (*btcutil.AddressPubKey, error) {
+func parseBitcoinCompressedPublicKey(public string, chain byte) (*btcutil.AddressPubKey, error) {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
 		return nil, err
 	}
-	return btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
+	return btcutil.NewAddressPubKey(pub, netConfig(chain))
+}
+
+func netConfig(chain byte) *chaincfg.Params {
+	switch chain {
+	case ChainBitcoin:
+		return &chaincfg.MainNetParams
+	case ChainLitecoin:
+		return &chaincfg.Params{
+			Bech32HRPSegwit:         "ltc",
+			PubKeyHashAddrID:        0x30,
+			ScriptHashAddrID:        0x32,
+			WitnessPubKeyHashAddrID: 0x06,
+			WitnessScriptHashAddrID: 0x0A,
+		}
+	default:
+		panic(chain)
+	}
 }
 
 func checkScriptType(script []byte) int {

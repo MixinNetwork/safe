@@ -115,7 +115,7 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	if err != nil {
 		return err
 	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant)
+	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 	if err != nil {
 		return err
 	}

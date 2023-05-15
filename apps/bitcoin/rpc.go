@@ -11,7 +11,6 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/shopspring/decimal"
 )
@@ -54,7 +53,7 @@ type RPCBlockWithTransactions struct {
 	Tx     []*RPCTransaction `json:"tx"`
 }
 
-func RPCGetTransactionOutput(rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
+func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
 	tx, err := RPCGetTransaction(rpc, hash)
 	if err != nil {
 		return nil, nil, err
@@ -110,7 +109,7 @@ func RPCGetTransactionOutput(rpc, hash string, index int64) (*RPCTransaction, *O
 	if err != nil {
 		return nil, nil, err
 	}
-	addr, err := script.Address(&chaincfg.MainNetParams)
+	addr, err := script.Address(netConfig(chain))
 	if err != nil {
 		return nil, nil, err
 	}

@@ -70,11 +70,11 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
 	}
 	timelock := node.bitcoinTimeLockDuration(ctx)
-	wsa, err := bitcoin.BuildWitnessScriptAccount(req.Holder, signer, observer, timelock)
+	wsa, err := bitcoin.BuildWitnessScriptAccount(req.Holder, signer, observer, timelock, chain)
 	if err != nil {
 		return fmt.Errorf("bitcoin.BuildWitnessScriptAccount(%s, %s, %s) => %v", req.Holder, signer, observer, err)
 	}
-	awka, err := bitcoin.BuildWitnessKeyAccount(accountant)
+	awka, err := bitcoin.BuildWitnessKeyAccount(accountant, chain)
 	if err != nil {
 		return fmt.Errorf("bitcoin.BuildWitnessKeyAccount(%s) => %v", accountant, err)
 	}
@@ -145,12 +145,12 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	}
 
 	msg := bitcoin.HashMessageForSignature(sp.Address)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:], sp.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-	awka, err := bitcoin.BuildWitnessKeyAccount(sp.Accountant)
+	awka, err := bitcoin.BuildWitnessKeyAccount(sp.Accountant, sp.Chain)
 	if err != nil {
 		return fmt.Errorf("bitcoin.BuildWitnessKeyAccount(%s) => %v", sp.Accountant, err)
 	}
@@ -290,7 +290,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
 	}
-	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee), req.Operation().IdBytes())
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee), req.Operation().IdBytes(), safe.Chain)
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
 	if bitcoin.IsInsufficientInputError(err) {
 		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
@@ -381,7 +381,7 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:], safe.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -452,7 +452,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
+	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:], safe.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -536,7 +536,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
+	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig, safe.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
@@ -575,7 +575,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig)
+		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig, safe.Chain)
 		if err != nil {
 			panic(sr.Signature.String)
 		}

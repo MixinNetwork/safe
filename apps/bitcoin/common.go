@@ -15,6 +15,9 @@ import (
 )
 
 const (
+	ChainBitcoin  = 1
+	ChainLitecoin = 5
+
 	ValuePrecision = 8
 	ValueSatoshi   = 100000000
 	ValueDust      = 1000

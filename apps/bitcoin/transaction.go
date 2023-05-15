@@ -11,7 +11,6 @@ import (
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/mempool"
 	"github.com/btcsuite/btcd/txscript"
@@ -117,21 +116,21 @@ func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
-func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64, rid []byte) (*PartiallySignedTransaction, error) {
+func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64, rid []byte, chain byte) (*PartiallySignedTransaction, error) {
 	msgTx := wire.NewMsgTx(2)
 
-	mainAddress, mainSatoshi, err := addInputs(msgTx, mainInputs)
+	mainAddress, mainSatoshi, err := addInputs(msgTx, mainInputs, chain)
 	if err != nil {
 		return nil, fmt.Errorf("addInputs(main) => %v", err)
 	}
-	feeAddress, feeSatoshi, err := addInputs(msgTx, feeInputs)
+	feeAddress, feeSatoshi, err := addInputs(msgTx, feeInputs, chain)
 	if err != nil {
 		return nil, fmt.Errorf("addInputs(fee) => %v", err)
 	}
 
 	var outputSatoshi int64
 	for _, out := range outputs {
-		added, err := addOutput(msgTx, out.Address, out.Satoshi)
+		added, err := addOutput(msgTx, out.Address, out.Satoshi, chain)
 		if err != nil || !added {
 			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", out.Address, out.Satoshi, added, err)
 		}
@@ -142,7 +141,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	}
 	mainChange := mainSatoshi - outputSatoshi
 	if mainChange > ValueDust {
-		added, err := addOutput(msgTx, mainAddress, mainChange)
+		added, err := addOutput(msgTx, mainAddress, mainChange, chain)
 		if err != nil || !added {
 			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", mainAddress, mainChange, added, err)
 		}
@@ -161,7 +160,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	}
 	feeChange := feeSatoshi - feeConsumed
 	if feeChange > ValueDust {
-		added, err := addOutput(msgTx, feeAddress, feeChange)
+		added, err := addOutput(msgTx, feeAddress, feeChange, chain)
 		if err != nil || !added {
 			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", feeAddress, feeChange, added, err)
 		}
@@ -219,7 +218,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		if i >= len(mainInputs) {
 			address = feeAddress
 		}
-		addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
+		addr, err := btcutil.DecodeAddress(address, netConfig(chain))
 		if err != nil {
 			panic(address)
 		}
@@ -272,11 +271,11 @@ func calcSigHashes(tx *wire.MsgTx, inputs []*Input) ([]byte, error) {
 	return hashes, nil
 }
 
-func addInputs(tx *wire.MsgTx, inputs []*Input) (string, int64, error) {
+func addInputs(tx *wire.MsgTx, inputs []*Input, chain byte) (string, int64, error) {
 	var address string
 	var inputSatoshi int64
 	for _, input := range inputs {
-		addr, err := addInput(tx, input)
+		addr, err := addInput(tx, input, chain)
 		if err != nil {
 			return "", 0, err
 		}
@@ -291,7 +290,7 @@ func addInputs(tx *wire.MsgTx, inputs []*Input) (string, int64, error) {
 	return address, inputSatoshi, nil
 }
 
-func addInput(tx *wire.MsgTx, in *Input) (string, error) {
+func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 	var addr string
 	hash, err := chainhash.NewHashFromStr(in.TransactionHash)
 	if err != nil {
@@ -310,7 +309,7 @@ func addInput(tx *wire.MsgTx, in *Input) (string, error) {
 	switch typ {
 	case InputTypeP2WPKHAccoutant:
 		in.Script = btcutil.Hash160(in.Script)
-		wpkh, err := btcutil.NewAddressWitnessPubKeyHash(in.Script, &chaincfg.MainNetParams)
+		wpkh, err := btcutil.NewAddressWitnessPubKeyHash(in.Script, netConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -326,7 +325,7 @@ func addInput(tx *wire.MsgTx, in *Input) (string, error) {
 		txIn.Sequence = MaxTransactionSequence
 	case InputTypeP2WSHMultisigHolderSigner:
 		msh := sha256.Sum256(in.Script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], &chaincfg.MainNetParams)
+		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -334,7 +333,7 @@ func addInput(tx *wire.MsgTx, in *Input) (string, error) {
 		txIn.Sequence = MaxTransactionSequence
 	case InputTypeP2WSHMultisigObserverSigner:
 		msh := sha256.Sum256(in.Script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], &chaincfg.MainNetParams)
+		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -350,8 +349,8 @@ func addInput(tx *wire.MsgTx, in *Input) (string, error) {
 	return addr, nil
 }
 
-func addOutput(tx *wire.MsgTx, address string, satoshi int64) (bool, error) {
-	addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
+func addOutput(tx *wire.MsgTx, address string, satoshi int64, chain byte) (bool, error) {
+	addr, err := btcutil.DecodeAddress(address, netConfig(chain))
 	if err != nil {
 		return false, err
 	}

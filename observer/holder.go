@@ -91,7 +91,7 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 		return err
 	}
 	hash := bitcoin.HashMessageForSignature(sp.Address)
-	err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig)
+	err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig, sp.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", sp, err)
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		hash := psbt.SigHash(idx)
-		err = bitcoin.VerifySignatureDER(tx.Holder, hash, psig.Signature)
+		err = bitcoin.VerifySignatureDER(tx.Holder, hash, psig.Signature, tx.Chain)
 		if err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 		return err
 	}
 	msg := bitcoin.HashMessageForSignature(txHash)
-	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
+	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig, tx.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
 	if err != nil {
 		return err
@@ -194,7 +194,7 @@ func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, s
 		return err
 	}
 	msg := bitcoin.HashMessageForSignature(txHash)
-	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
+	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig, tx.Chain)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
 	if err != nil {
 		return err

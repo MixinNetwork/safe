@@ -191,12 +191,12 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant)
+	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock)
+	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -275,12 +275,12 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
 	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant)
+	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock)
+	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return

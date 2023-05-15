@@ -156,7 +156,9 @@ func (r *Request) VerifyFormat() error {
 	}
 	switch r.Curve {
 	case CurveSecp256k1ECDSABitcoin:
-		return bitcoin.VerifyHolderKey(r.Holder)
+		return bitcoin.VerifyHolderKey(r.Holder, bitcoin.ChainBitcoin)
+	case CurveSecp256k1ECDSALitecoin:
+		return bitcoin.VerifyHolderKey(r.Holder, bitcoin.ChainLitecoin)
 	default:
 		return fmt.Errorf("invalid request curve %v", r)
 	}

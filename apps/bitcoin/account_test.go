@@ -16,7 +16,7 @@ func TestBitcoinCLI(t *testing.T) {
 	pub := "02221eebc257e4789e3893292e78c19d5feb7788397d511afb3ffb14561ade500a"
 	sig := "H3RKBE7bK/BoKoupbB7BC8fKeesHst3tLhfhNSkAPZ8XZuB3nE8YJRPx/6ZPI7PN9fsq2PrnfpETCEoLA8PHAfY="
 
-	err := VerifyHolderKey(pub)
+	err := VerifyHolderKey(pub, ChainBitcoin)
 	require.Nil(err)
 
 	s, err := base64.StdEncoding.DecodeString(sig)
@@ -27,6 +27,6 @@ func TestBitcoinCLI(t *testing.T) {
 	s = es.SerializeDER()
 
 	messageHash := HashMessageForSignature(msg)
-	err = VerifySignatureDER(pub, messageHash, s)
+	err = VerifySignatureDER(pub, messageHash, s, ChainBitcoin)
 	require.Nil(err)
 }

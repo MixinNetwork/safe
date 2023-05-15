@@ -34,7 +34,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 	}
 	extra = extra[17:]
 	switch deposit.Chain {
-	case SafeChainBitcoin:
+	case SafeChainBitcoin, SafeChainLitecoin:
 		deposit.Hash = hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
@@ -102,7 +102,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	}
 
 	switch deposit.Chain {
-	case SafeChainBitcoin:
+	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	case SafeChainEthereum:
 		panic(0)
@@ -180,7 +180,7 @@ func (node *Node) CreateAccountantDeposit(ctx context.Context, req *common.Reque
 		panic(asset.AssetId)
 	}
 	switch deposit.Chain {
-	case SafeChainBitcoin:
+	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.doBitcoinAccountantDeposit(ctx, req, deposit, safe, asset)
 	case SafeChainEthereum:
 		panic(0)
@@ -201,7 +201,7 @@ func (node *Node) doBitcoinAccountantDeposit(ctx context.Context, req *common.Re
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant)
+	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 	if err != nil {
 		panic(err)
 	}
@@ -242,7 +242,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	var receiver string
 	switch typ {
 	case bitcoin.InputTypeP2WPKHAccoutant:
-		wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant)
+		wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 		if err != nil {
 			panic(err)
 		}
@@ -250,7 +250,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		input.Script = wka.Script
 		input.Sequence = bitcoin.MaxTransactionSequence
 	case bitcoin.InputTypeP2WSHMultisigHolderSigner:
-		wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock)
+		wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 		if err != nil {
 			panic(err)
 		}
@@ -276,7 +276,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		return nil, fmt.Errorf("malicious bitcoin network info %v", info)
 	}
 
-	tx, output, err := bitcoin.RPCGetTransactionOutput(rpc, deposit.Hash, int64(deposit.Index))
+	tx, output, err := bitcoin.RPCGetTransactionOutput(deposit.Chain, rpc, deposit.Hash, int64(deposit.Index))
 	logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", deposit.Hash, deposit.Index, output, err)
 	if err != nil || output == nil {
 		return nil, fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.Hash, err)

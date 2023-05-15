@@ -167,7 +167,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		panic(fmt.Errorf("malicious bitcoin network info %v", info))
 	}
 
-	_, output, err := bitcoin.RPCGetTransactionOutput(node.conf.BitcoinRPC, deposit.TransactionHash, deposit.OutputIndex)
+	_, output, err := bitcoin.RPCGetTransactionOutput(deposit.Chain, node.conf.BitcoinRPC, deposit.TransactionHash, deposit.OutputIndex)
 	if err != nil || output == nil {
 		panic(fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.TransactionHash, err))
 	}
