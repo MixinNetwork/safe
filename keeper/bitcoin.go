@@ -30,11 +30,12 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
+	chain := bitcoinCurveChain(req.Curve)
 
-	plan, err := node.store.ReadAccountPlan(ctx, SafeChainBitcoin)
-	logger.Printf("store.ReadAccountPlan(%d) => %v %v", SafeChainBitcoin, plan, err)
+	plan, err := node.store.ReadAccountPlan(ctx, chain)
+	logger.Printf("store.ReadAccountPlan(%d) => %v %v", chain, plan, err)
 	if err != nil {
-		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", SafeChainBitcoin, err)
+		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", chain, err)
 	} else if plan == nil || !plan.AccountPriceAmount.IsPositive() {
 		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
 	}
@@ -87,14 +88,16 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 
 	extra := wsa.MarshalWithAccountant(awka.Address)
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
-	err = node.sendObserverResponseWithReferences(ctx, req.Id, common.ActionBitcoinSafeProposeAccount, exk)
+	typ := byte(common.ActionBitcoinSafeProposeAccount)
+	crv := bitcoinChainCurve(chain)
+	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
 	}
 
 	sp := &store.SafeProposal{
 		RequestId:  req.Id,
-		Chain:      SafeChainBitcoin,
+		Chain:      chain,
 		Holder:     req.Holder,
 		Signer:     signer,
 		Observer:   observer,
@@ -120,6 +123,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	} else if old != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
+	chain := bitcoinCurveChain(req.Curve)
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
@@ -136,7 +140,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		return node.store.FinishRequest(ctx, req.Id)
 	} else if sp.Holder != req.Holder {
 		return node.store.FinishRequest(ctx, req.Id)
-	} else if sp.Chain != SafeChainBitcoin {
+	} else if sp.Chain != chain {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
@@ -156,7 +160,9 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(sp.Extra)))
-	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, common.ActionBitcoinSafeApproveAccount, spr.AssetId, spr.Amount.String(), exk)
+	typ := byte(common.ActionBitcoinSafeApproveAccount)
+	crv := bitcoinChainCurve(sp.Chain)
+	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
 	}
@@ -183,12 +189,22 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
 	}
+	chain := bitcoinCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
-	if safe == nil || safe.Chain != SafeChainBitcoin {
+	if safe == nil || safe.Chain != chain {
 		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	assetId := SafeBitcoinChainId
+	switch safe.Chain {
+	case SafeChainBitcoin:
+	case SafeChainLitecoin:
+		assetId = SafeLitecoinChainId
+	default:
+		panic(safe.Chain)
 	}
 
 	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
@@ -208,7 +224,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
-	if id.String() != SafeBitcoinChainId {
+	if id.String() != assetId {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
@@ -289,7 +305,9 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 
 	extra = psbt.Marshal()
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
-	err = node.sendObserverResponseWithReferences(ctx, req.Id, common.ActionBitcoinSafeProposeTransaction, exk)
+	typ := byte(common.ActionBitcoinSafeProposeTransaction)
+	crv := bitcoinChainCurve(safe.Chain)
+	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
 	}
@@ -325,12 +343,22 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
+	chain := bitcoinCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
-	if safe == nil || safe.Chain != SafeChainBitcoin {
+	if safe == nil || safe.Chain != chain {
 		return node.store.FinishRequest(ctx, req.Id)
+	}
+
+	assetId := SafeBitcoinChainId
+	switch safe.Chain {
+	case SafeChainBitcoin:
+	case SafeChainLitecoin:
+		assetId = SafeLitecoinChainId
+	default:
+		panic(safe.Chain)
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
@@ -359,10 +387,10 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
-	bondId, _, err := node.getBondAsset(ctx, SafeBitcoinChainId, safe.Holder)
-	logger.Printf("node.getBondAsset(%s, %s) => %s %v", SafeBitcoinChainId, req.Holder, bondId, err)
+	bondId, _, err := node.getBondAsset(ctx, assetId, safe.Holder)
+	logger.Printf("node.getBondAsset(%s, %s) => %s %v", assetId, req.Holder, bondId, err)
 	if err != nil {
-		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", SafeBitcoinChainId, req.Holder, err)
+		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", assetId, req.Holder, err)
 	}
 	var transfers []map[string]string
 	err = json.Unmarshal([]byte(tx.Data), &transfers)
@@ -397,11 +425,12 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
+	chain := bitcoinCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
-	if safe == nil || safe.Chain != SafeChainBitcoin {
+	if safe == nil || safe.Chain != chain {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 
@@ -558,7 +587,9 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
 	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk[:]))
-	err = node.sendObserverResponseWithReferences(ctx, id, common.ActionBitcoinSafeApproveTransaction, exk)
+	typ := byte(common.ActionBitcoinSafeApproveTransaction)
+	crv := bitcoinChainCurve(safe.Chain)
+	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}

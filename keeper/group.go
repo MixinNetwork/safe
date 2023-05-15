@@ -275,7 +275,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return node.store.FinishRequest(ctx, req.Id)
 	}
 	switch safe.Chain {
-	case SafeChainBitcoin:
+	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req)
 	default:
 		panic(safe.Chain)

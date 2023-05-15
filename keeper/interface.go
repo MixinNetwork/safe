@@ -17,6 +17,7 @@ type Configuration struct {
 	MixinMessengerAPI    string             `toml:"mixin-messenger-api"`
 	MixinRPC             string             `toml:"mixin-rpc"`
 	BitcoinRPC           string             `toml:"bitcoin-rpc"`
+	LitecoinRPC          string             `toml:"litecoin-rpc"`
 	MVMRPC               string             `toml:"mvm-rpc"`
 	MVMKey               string             `toml:"mvm-key"`
 	MTG                  *mtg.Configuration `toml:"mtg"`

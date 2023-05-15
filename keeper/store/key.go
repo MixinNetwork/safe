@@ -39,8 +39,8 @@ func (s *SQLite3Store) ReadKey(ctx context.Context, public string) (*Key, error)
 }
 
 func (s *SQLite3Store) CountSpareKeys(ctx context.Context, curve byte, role int) (int, error) {
-	query := "SELECT COUNT(*) FROM keys WHERE role=? AND holder IS NULL"
-	row := s.db.QueryRowContext(ctx, query, role)
+	query := "SELECT COUNT(*) FROM keys WHERE role=? AND curve=? AND holder IS NULL"
+	row := s.db.QueryRowContext(ctx, query, role, curve)
 
 	var count int
 	err := row.Scan(&count)
@@ -101,15 +101,15 @@ func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req 
 		panic(req.Holder)
 	}
 
-	signer, err = readKeyWithRole(ctx, tx, common.RequestRoleSigner)
+	signer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleSigner, common.NormalizeCurve(req.Curve))
 	if err != nil {
 		return "", "", "", err
 	}
-	observer, err = readKeyWithRole(ctx, tx, common.RequestRoleObserver)
+	observer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleObserver, common.NormalizeCurve(req.Curve))
 	if err != nil {
 		return "", "", "", err
 	}
-	accountant, err = readKeyWithRole(ctx, tx, common.RequestRoleAccountant)
+	accountant, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleAccountant, common.NormalizeCurve(req.Curve))
 	if err != nil {
 		return "", "", "", err
 	}
@@ -117,18 +117,18 @@ func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req 
 		return "", "", "", nil
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=?",
-		req.Holder, req.CreatedAt, signer, common.RequestRoleSigner)
+	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=? AND curve=?",
+		req.Holder, req.CreatedAt, signer, common.RequestRoleSigner, common.NormalizeCurve(req.Curve))
 	if err != nil {
 		return "", "", "", fmt.Errorf("UPDATE keys %v", err)
 	}
-	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=?",
-		req.Holder, req.CreatedAt, observer, common.RequestRoleObserver)
+	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=? AND curve=?",
+		req.Holder, req.CreatedAt, observer, common.RequestRoleObserver, common.NormalizeCurve(req.Curve))
 	if err != nil {
 		return "", "", "", fmt.Errorf("UPDATE keys %v", err)
 	}
-	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=?",
-		req.Holder, req.CreatedAt, accountant, common.RequestRoleAccountant)
+	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=? AND curve=?",
+		req.Holder, req.CreatedAt, accountant, common.RequestRoleAccountant, common.NormalizeCurve(req.Curve))
 	if err != nil {
 		return "", "", "", fmt.Errorf("UPDATE keys %v", err)
 	}
@@ -146,9 +146,9 @@ func readKeyWithRoleAndHolder(ctx context.Context, tx *sql.Tx, holder string, ro
 	return public, err
 }
 
-func readKeyWithRole(ctx context.Context, tx *sql.Tx, role int) (string, error) {
+func readKeyWithRoleAndCurve(ctx context.Context, tx *sql.Tx, role int, crv byte) (string, error) {
 	var public string
-	row := tx.QueryRowContext(ctx, "SELECT public_key FROM keys WHERE holder IS NULL AND role=? ORDER BY created_at ASC, public_key ASC LIMIT 1", role)
+	row := tx.QueryRowContext(ctx, "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? ORDER BY created_at ASC, public_key ASC LIMIT 1", role, crv)
 	err := row.Scan(&public)
 	if err == sql.ErrNoRows {
 		return "", nil

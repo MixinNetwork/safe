@@ -9,15 +9,15 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-func (node *Node) sendObserverResponseWithReferences(ctx context.Context, id string, typ byte, tx crypto.Hash) error {
-	return node.sendObserverResponseWithAssetAndReferences(ctx, id, typ, node.conf.ObserverAssetId, "1", tx)
+func (node *Node) sendObserverResponseWithReferences(ctx context.Context, id string, typ, crv byte, tx crypto.Hash) error {
+	return node.sendObserverResponseWithAssetAndReferences(ctx, id, typ, crv, node.conf.ObserverAssetId, "1", tx)
 }
 
-func (node *Node) sendObserverResponseWithAssetAndReferences(ctx context.Context, id string, typ byte, assetId, amount string, tx crypto.Hash) error {
+func (node *Node) sendObserverResponseWithAssetAndReferences(ctx context.Context, id string, typ, crv byte, assetId, amount string, tx crypto.Hash) error {
 	op := &common.Operation{
 		Type:  typ,
 		Id:    id,
-		Curve: common.CurveSecp256k1ECDSABitcoin,
+		Curve: crv,
 		Extra: tx[:],
 	}
 	return node.buildObserverTransaction(ctx, op, assetId, amount, tx)

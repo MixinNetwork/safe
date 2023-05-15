@@ -50,7 +50,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	}
 
 	switch info.Chain {
-	case SafeChainBitcoin:
+	case SafeChainBitcoin, SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
@@ -79,6 +79,7 @@ func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) err
 	chain := extra[0]
 	switch chain {
 	case SafeChainBitcoin:
+	case SafeChainLitecoin:
 	case SafeChainEthereum:
 	default:
 		return node.store.FinishRequest(ctx, req.Id)
@@ -96,7 +97,15 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
-	block, err := bitcoin.RPCGetBlock(node.conf.BitcoinRPC, info.Hash)
+	rpc := node.conf.BitcoinRPC
+	switch info.Chain {
+	case SafeChainBitcoin:
+	case SafeChainLitecoin:
+		rpc = node.conf.LitecoinRPC
+	default:
+		panic(info.Chain)
+	}
+	block, err := bitcoin.RPCGetBlock(rpc, info.Hash)
 	if err != nil || block == nil {
 		return false, fmt.Errorf("malicious bitcoin block or node not in sync? %s %v", info.Hash, err)
 	}

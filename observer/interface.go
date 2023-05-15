@@ -13,6 +13,7 @@ type Configuration struct {
 	MixinMessengerAPI  string `toml:"mixin-messenger-api"`
 	MixinRPC           string `toml:"mixin-rpc"`
 	BitcoinRPC         string `toml:"bitcoin-rpc"`
+	LitecoinRPC        string `toml:"litecoin-rpc"`
 	EthereumRPC        string `toml:"ethereum-rpc"`
 	EthereumKey        string `toml:"ethereum-key"`
 	MVMRPC             string `toml:"mvm-rpc"`

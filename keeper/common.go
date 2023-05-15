@@ -28,6 +28,28 @@ const (
 	SafeSignatureTimeout   = 10 * time.Minute
 )
 
+func bitcoinCurveChain(crv byte) byte {
+	switch crv {
+	case common.CurveSecp256k1ECDSABitcoin:
+		return SafeChainBitcoin
+	case common.CurveSecp256k1ECDSALitecoin:
+		return SafeChainLitecoin
+	default:
+		panic(crv)
+	}
+}
+
+func bitcoinChainCurve(chain byte) byte {
+	switch chain {
+	case SafeChainBitcoin:
+		return common.CurveSecp256k1ECDSABitcoin
+	case SafeChainLitecoin:
+		return common.CurveSecp256k1ECDSALitecoin
+	default:
+		panic(chain)
+	}
+}
+
 func (node *Node) refundAndFinishRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
 	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), nil, req.Id)
 	if err != nil {
@@ -38,7 +60,7 @@ func (node *Node) refundAndFinishRequest(ctx context.Context, req *common.Reques
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
-	case SafeBitcoinChainId:
+	case SafeBitcoinChainId, SafeLitecoinChainId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		panic(assetId)
