@@ -21,7 +21,8 @@ const (
 	CurveEdwards25519Default     = 11
 	CurveEdwards25519Mixin       = 12
 
-	CurveSecp256k1ECDSALitecoin = 100 + CurveSecp256k1ECDSABitcoin
+	CurveSecp256k1ECDSALitecoin    = 100 + CurveSecp256k1ECDSABitcoin
+	CurveSecp256k1ECDSABitcoinCash = 110 + CurveSecp256k1ECDSABitcoin
 )
 
 type Operation struct {
@@ -63,7 +64,7 @@ func (o *Operation) Encode() []byte {
 
 func NormalizeCurve(crv uint8) uint8 {
 	if crv > 100 {
-		crv = crv - 100
+		crv = crv % 10
 	}
 	switch crv {
 	case CurveSecp256k1ECDSABitcoin:

@@ -14,6 +14,16 @@ func TestOperation(t *testing.T) {
 	public := "02a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc"
 	msg, _ := hex.DecodeString("a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc")
 
+	crv := NormalizeCurve(CurveSecp256k1ECDSABitcoinCash)
+	assert.Equal(int(crv), CurveSecp256k1ECDSABitcoin)
+	crv = NormalizeCurve(CurveSecp256k1ECDSABitcoin)
+	assert.Equal(int(crv), CurveSecp256k1ECDSABitcoin)
+	crv = NormalizeCurve(CurveSecp256k1ECDSALitecoin)
+	assert.Equal(int(crv), CurveSecp256k1ECDSABitcoin)
+
+	crv = NormalizeCurve(CurveSecp256k1ECDSAEthereum)
+	assert.Equal(int(crv), CurveSecp256k1ECDSAEthereum)
+
 	op := &Operation{
 		Type:   OperationTypeSignInput,
 		Id:     sid,
