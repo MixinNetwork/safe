@@ -58,7 +58,7 @@ func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
 		return err
 	}
 	for count < 1000 {
-		observer, err := node.store.ReadObserverKey(ctx, keeper.SafeChainBitcoin)
+		observer, err := node.store.ReadObserverKey(ctx, common.CurveSecp256k1ECDSABitcoin)
 		if err != nil {
 			return err
 		}
@@ -106,12 +106,12 @@ func (node *Node) generateAndWriteBitcoinAccountantKey(ctx context.Context) (str
 	privateKey, publicKey := btcec.PrivKeyFromBytes(seed)
 	priv := hex.EncodeToString(privateKey.Serialize())
 	pub := hex.EncodeToString(publicKey.SerializeCompressed())
-	err = node.store.WriteAccountantKey(ctx, keeper.SafeChainBitcoin, pub, priv)
+	err = node.store.WriteAccountantKey(ctx, common.CurveSecp256k1ECDSABitcoin, pub, priv)
 	return pub, err
 }
 
 func (node *Node) bitcoinReadAccountantKey(ctx context.Context, pub string) (*btcec.PrivateKey, error) {
-	priv, err := node.store.ReadAccountantKey(ctx, pub, keeper.SafeChainBitcoin)
+	priv, err := node.store.ReadAccountantKey(ctx, pub, common.CurveSecp256k1ECDSABitcoin)
 	if err != nil {
 		return nil, err
 	}
