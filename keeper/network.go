@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
@@ -24,6 +25,7 @@ const (
 )
 
 func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) error {
+	logger.Printf("node.writeNetworkInfo(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -68,6 +70,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 }
 
 func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) error {
+	logger.Printf("node.writeAccountPlan(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -83,6 +86,9 @@ func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) err
 	case SafeChainEthereum:
 	default:
 		return node.store.FinishRequest(ctx, req.Id)
+	}
+	if chain != bitcoinCurveChain(req.Curve) {
+		panic(req.Id)
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))

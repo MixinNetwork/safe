@@ -71,7 +71,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	}
 	amount := decimal.RequireFromString(node.conf.PriceAmount)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
-	logger.Printf("node.sendBitcoinPriceInfo(%s, %s, %s)", asset.AssetId, amount, minimum)
+	logger.Printf("node.sendBitcoinPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
 		panic(node.conf.PriceAmount)
@@ -84,7 +84,9 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID(bitcoinAssetId, asset.AssetId)
+	id := mixin.UniqueConversationID("ActionObserverSetAccountPlan", dummy)
+	id = mixin.UniqueConversationID(id, bitcoinAssetId)
+	id = mixin.UniqueConversationID(id, asset.AssetId)
 	id = mixin.UniqueConversationID(id, amount.String())
 	id = mixin.UniqueConversationID(id, minimum.String())
 	extra := []byte{chain}
