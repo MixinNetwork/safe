@@ -141,6 +141,15 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
+	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin)
+	if err != nil {
+		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
+	if li == nil {
+		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
 
 	renderJSON(w, http.StatusOK, []map[string]any{{
 		"id":    keeper.SafeBitcoinChainId,
@@ -151,6 +160,16 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			"fee":        bi.Fee,
 			"hash":       bi.Hash,
 			"created_at": bi.CreatedAt,
+		},
+	}, {
+		"id":    keeper.SafeLitecoinChainId,
+		"chain": li.Chain,
+		"head": map[string]any{
+			"id":         li.RequestId,
+			"height":     li.Height,
+			"fee":        li.Fee,
+			"hash":       li.Hash,
+			"created_at": li.CreatedAt,
 		},
 	}})
 }
