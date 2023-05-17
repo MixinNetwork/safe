@@ -117,7 +117,7 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 	if err != nil {
 		return fmt.Errorf("node.bitcoinBroadcastTransaction(%s, %x) => %v", hash, raw, err)
 	}
-	tx, err := bitcoin.RPCGetTransaction(rpc, hash)
+	tx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
 	if err != nil || tx == nil {
 		return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
 	}

@@ -16,9 +16,10 @@ import (
 )
 
 type scriptPubKey struct {
-	Hex     string `json:"hex"`
-	Type    string `json:"type"`
-	Address string `json:"address"`
+	Hex             string   `json:"hex"`
+	Type            string   `json:"type"`
+	Address         string   `json:"address"`
+	LegacyAddresses []string `json:"addresses"`
 }
 
 type rpcIn struct {
@@ -54,7 +55,7 @@ type RPCBlockWithTransactions struct {
 }
 
 func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
-	tx, err := RPCGetTransaction(rpc, hash)
+	tx, err := RPCGetTransaction(chain, rpc, hash)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -64,6 +65,9 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	out := tx.Vout[index]
 	skt := out.ScriptPubKey.Type
 	if skt != ScriptPubKeyTypeWitnessKeyHash && skt != ScriptPubKeyTypeWitnessScriptHash {
+		return nil, nil, nil
+	}
+	if out.ScriptPubKey.Address == "" {
 		return nil, nil, nil
 	}
 
@@ -120,28 +124,32 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	return tx, output, nil
 }
 
-func RPCGetTransactionSender(rpc string, tx *RPCTransaction) (string, error) {
+func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string, error) {
 	if tx.Vin[0].Coinbase != "" {
 		return tx.Vin[0].Coinbase, nil
 	}
-	itx, err := RPCGetTransaction(rpc, tx.Vin[0].TxId)
+	itx, err := RPCGetTransaction(chain, rpc, tx.Vin[0].TxId)
 	if err != nil {
 		return "", err
 	}
 	return itx.Vout[tx.Vin[0].VOUT].ScriptPubKey.Address, nil
 }
 
-func RPCGetTransaction(rpc, hash string) (*RPCTransaction, error) {
+func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
 	res, err := callBitcoinRPC(rpc, "getrawtransaction", []any{hash, 1})
 	if err != nil {
 		return nil, err
 	}
 	var tx RPCTransaction
 	err = json.Unmarshal(res, &tx)
+	if err != nil {
+		return nil, err
+	}
+	fixLitecoinLegacyScriptPubKeyRPC(chain, &tx)
 	return &tx, err
 }
 
-func RPCGetRawMempool(rpc string) ([]*RPCTransaction, error) {
+func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
 	res, err := callBitcoinRPC(rpc, "getrawmempool", []any{})
 	if err != nil {
 		return nil, err
@@ -154,7 +162,7 @@ func RPCGetRawMempool(rpc string) ([]*RPCTransaction, error) {
 
 	var transactions []*RPCTransaction
 	for _, id := range txs {
-		tx, err := RPCGetTransaction(rpc, id)
+		tx, err := RPCGetTransaction(chain, rpc, id)
 		if err != nil || tx == nil {
 			logger.Printf("bitcoin.RPCGetRawMempool(%s) => %v %v", id, tx, err)
 			continue
@@ -164,7 +172,7 @@ func RPCGetRawMempool(rpc string) ([]*RPCTransaction, error) {
 	return transactions, nil
 }
 
-func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, error) {
+func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTransactions, error) {
 	res, err := callBitcoinRPC(rpc, "getblock", []any{hash, 2})
 	if err != nil {
 		return nil, err
@@ -175,6 +183,7 @@ func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, e
 		return nil, err
 	}
 	for _, tx := range b.Tx {
+		fixLitecoinLegacyScriptPubKeyRPC(chain, tx)
 		tx.BlockHash = hash
 	}
 	return &b, err
@@ -212,7 +221,7 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	return info.Blocks, err
 }
 
-func RPCEstimateSmartFee(rpc string) (int64, error) {
+func RPCEstimateSmartFee(chain byte, rpc string) (int64, error) {
 	res, err := callBitcoinRPC(rpc, "estimatesmartfee", []any{1})
 	if err != nil {
 		return 0, err
@@ -239,6 +248,19 @@ func RPCSendRawTransaction(rpc, raw string) (string, error) {
 	var hash string
 	err = json.Unmarshal(res, &hash)
 	return hash, err
+}
+
+// FIXME wait for litecoin core update to the latest rpc
+func fixLitecoinLegacyScriptPubKeyRPC(chain byte, tx *RPCTransaction) {
+	switch chain {
+	case ChainLitecoin:
+		for _, o := range tx.Vout {
+			if len(o.ScriptPubKey.LegacyAddresses) != 1 {
+				continue
+			}
+			o.ScriptPubKey.Address = o.ScriptPubKey.LegacyAddresses[0]
+		}
+	}
 }
 
 func callBitcoinRPC(node, method string, params []any) ([]byte, error) {

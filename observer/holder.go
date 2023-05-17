@@ -248,7 +248,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 
 func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
 	rpc, _ := node.bitcoinParams(approval.Chain)
-	btx, err := bitcoin.RPCGetTransaction(rpc, approval.TransactionHash)
+	btx, err := bitcoin.RPCGetTransaction(approval.Chain, rpc, approval.TransactionHash)
 	logger.Printf("bitcoin.RPCGetTransaction(%s) => %v %v", approval.TransactionHash, btx, err)
 	if err != nil && !strings.Contains(err.Error(), "No such mempool or blockchain transaction") {
 		return err

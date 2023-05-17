@@ -292,7 +292,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	sender, err := bitcoin.RPCGetTransactionSender(rpc, tx)
+	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, tx)
 	if err != nil {
 		return nil, fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
 	}
