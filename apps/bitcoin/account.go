@@ -11,6 +11,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 )
 
 type WitnessScriptAccount struct {
@@ -182,13 +183,34 @@ func parseBitcoinCompressedPublicKey(public string) (*btcutil.AddressPubKey, err
 	return btcutil.NewAddressPubKey(pub, netConfig(ChainBitcoin))
 }
 
+func protocolVersion(chain byte) uint32 {
+	switch chain {
+	case ChainBitcoin:
+		return wire.ProtocolVersion
+	case ChainLitecoin:
+		return 70015
+	default:
+		panic(chain)
+	}
+}
+
+func init() {
+	ltcParams := netConfig(ChainLitecoin)
+	err := chaincfg.Register(ltcParams)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func netConfig(chain byte) *chaincfg.Params {
 	switch chain {
 	case ChainBitcoin:
 		return &chaincfg.MainNetParams
 	case ChainLitecoin:
 		return &chaincfg.Params{
-			Bech32HRPSegwit:         "ltc",
+			Net:             0xdbb6c0fb,
+			Bech32HRPSegwit: "ltc",
+
 			PubKeyHashAddrID:        0x30,
 			ScriptHashAddrID:        0x32,
 			WitnessPubKeyHashAddrID: 0x06,

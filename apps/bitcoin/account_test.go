@@ -30,3 +30,20 @@ func TestBitcoinCLI(t *testing.T) {
 	err = VerifySignatureDER(pub, messageHash, s)
 	require.Nil(err)
 }
+
+func TestBitcoinAddress(t *testing.T) {
+	require := require.New(t)
+	addr, err := ParseAddress("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", ChainBitcoin)
+	require.Nil(err)
+	require.Equal("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", addr)
+	addr, err = ParseAddress("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", ChainLitecoin)
+	require.NotNil(err)
+	require.Equal("", addr)
+
+	addr, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainLitecoin)
+	require.Nil(err)
+	require.Equal("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", addr)
+	addr, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainBitcoin)
+	require.NotNil(err)
+	require.Equal("", addr)
+}

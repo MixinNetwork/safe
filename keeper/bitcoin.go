@@ -265,8 +265,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil || iid.String() == uuid.Nil.String() {
 		return node.store.FinishRequest(ctx, req.Id)
 	}
-	receiver, err := bitcoin.ParseAddress(string(extra[16:]))
-	logger.Printf("bitcoin.ParseAddress(%s) => %s %v", string(extra), receiver, err)
+	receiver, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
+	logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
 	if err != nil {
 		return node.store.FinishRequest(ctx, req.Id)
 	}

@@ -8,8 +8,11 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/domains/bitcoin"
+	"github.com/MixinNetwork/mixin/domains/litecoin"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/shopspring/decimal"
 )
@@ -53,10 +56,28 @@ func ParseSatoshi(amount string) int64 {
 	return amt.BigInt().Int64()
 }
 
-func ParseAddress(addr string) (string, error) {
-	err := bitcoin.VerifyAddress(addr)
+func ParseAddress(addr string, chain byte) (string, error) {
+	switch chain {
+	case ChainBitcoin:
+		err := bitcoin.VerifyAddress(addr)
+		if err != nil {
+			return "", fmt.Errorf("bitcoin.VerifyAddress(%s) => %v", addr, err)
+		}
+	case ChainLitecoin:
+		err := litecoin.VerifyAddress(addr)
+		if err != nil {
+			return "", fmt.Errorf("litecoin.VerifyAddress(%s) => %v", addr, err)
+		}
+	default:
+		return "", fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
+	}
+	bda, err := btcutil.DecodeAddress(addr, netConfig(chain))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("btcutil.DecodeAddress(%s, %d) => %v", addr, chain, err)
+	}
+	_, err = txscript.PayToAddrScript(bda)
+	if err != nil {
+		return "", fmt.Errorf("txscript.PayToAddrScript(%s, %d) => %v", addr, chain, err)
 	}
 	return addr, nil
 }

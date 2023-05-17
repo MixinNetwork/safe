@@ -180,7 +180,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 	}
 
 	var rawBuffer bytes.Buffer
-	err = msgTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	err = msgTx.BtcEncode(&rawBuffer, protocolVersion(chain), wire.BaseEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("BtcEncode() => %v", err)
 	}

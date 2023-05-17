@@ -37,7 +37,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 	private, _ := btcec.PrivKeyFromBytes(kb)
 	holder := testPublicKey(hex.EncodeToString(private.Serialize()))
 
-	receiver, err := bitcoin.ParseAddress(c.String("address"))
+	receiver, err := bitcoin.ParseAddress(c.String("address"), byte(chain))
 	if err != nil {
 		return err
 	}
