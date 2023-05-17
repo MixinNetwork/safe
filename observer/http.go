@@ -225,7 +225,8 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	_, _, bondId, err := node.fetchBondAsset(r.Context(), keeper.SafeBitcoinChainId, safe.Holder)
+	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
+	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -309,7 +310,8 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	_, _, bondId, err := node.fetchBondAsset(r.Context(), keeper.SafeBitcoinChainId, safe.Holder)
+	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
+	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
