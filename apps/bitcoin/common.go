@@ -96,9 +96,17 @@ func CheckFinalization(num uint64, coinbase bool) bool {
 	return !coinbase && num >= TransactionConfirmations
 }
 
-func HashMessageForSignature(msg string) []byte {
+func HashMessageForSignature(msg string, chain byte) []byte {
 	var buf bytes.Buffer
-	_ = wire.WriteVarString(&buf, 0, "Bitcoin Signed Message:\n")
+	prefix := "Bitcoin Signed Message:\n"
+	switch chain {
+	case ChainBitcoin:
+	case ChainLitecoin:
+		prefix = "Litecoin Signed Message:\n"
+	default:
+		panic(chain)
+	}
+	_ = wire.WriteVarString(&buf, 0, prefix)
 	_ = wire.WriteVarString(&buf, 0, msg)
 	return chainhash.DoubleHashB(buf.Bytes())
 }

@@ -90,7 +90,7 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 	raw := hpsbt.Marshal()
 	fmt.Printf("psbt: %x\n", raw)
 
-	msg := bitcoin.HashMessageForSignature(msgTx.TxHash().String())
+	msg := bitcoin.HashMessageForSignature(msgTx.TxHash().String(), byte(chain))
 	sig := ecdsa.Sign(holder, msg).Serialize()
 	fmt.Printf("signature: %s\n", base64.RawURLEncoding.EncodeToString(sig))
 	return nil

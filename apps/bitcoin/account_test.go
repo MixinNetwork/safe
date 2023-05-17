@@ -26,7 +26,7 @@ func TestBitcoinCLI(t *testing.T) {
 
 	s = es.SerializeDER()
 
-	messageHash := HashMessageForSignature(msg)
+	messageHash := HashMessageForSignature(msg, ChainBitcoin)
 	err = VerifySignatureDER(pub, messageHash, s)
 	require.Nil(err)
 }

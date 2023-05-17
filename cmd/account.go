@@ -29,7 +29,7 @@ func GenerateTestSafeApproval(c *cli.Context) error {
 		return fmt.Errorf("invalid chain %d", chain)
 	}
 
-	hash := bitcoin.HashMessageForSignature(c.String("address"))
+	hash := bitcoin.HashMessageForSignature(c.String("address"), byte(chain))
 	kb, err := hex.DecodeString(c.String("key"))
 	if err != nil {
 		return err
