@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/dimfeld/httptreemux"
 )
 
@@ -340,9 +341,16 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 }
 
 func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	tx, err := node.keeperStore.ReadTransactionByRequestId(r.Context(), params["id"])
+	tx, req, err := node.readTransactionOrRequest(r.Context(), params["id"])
 	if err != nil {
 		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
+	if req != nil && req.State == common.RequestStateFailed {
+		renderJSON(w, http.StatusOK, map[string]any{
+			"id":    tx.RequestId,
+			"state": req.State,
+		})
 		return
 	}
 	if tx == nil {
@@ -365,6 +373,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"raw":     approval.RawTransaction,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
+		"state":   tx.State,
 	})
 }
 
@@ -435,6 +444,15 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})
+}
+
+func (node *Node) readTransactionOrRequest(ctx context.Context, id string) (*store.Transaction, *common.Request, error) {
+	tx, err := node.keeperStore.ReadTransactionByRequestId(ctx, id)
+	if err != nil || tx != nil {
+		return tx, nil, err
+	}
+	req, err := node.keeperStore.ReadRequest(ctx, id)
+	return nil, req, err
 }
 
 func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, []*bitcoin.Input, error) {
