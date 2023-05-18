@@ -51,12 +51,12 @@ func bitcoinChainCurve(chain byte) byte {
 	}
 }
 
-func (node *Node) refundAndFinishRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
+func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
 	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), nil, req.Id)
 	if err != nil {
 		return err
 	}
-	return node.store.FinishRequest(ctx, req.Id)
+	return node.store.FailRequest(ctx, req.Id)
 }
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {

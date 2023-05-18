@@ -27,12 +27,12 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 	default:
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	batch, ok := new(big.Int).SetString(req.Extra, 16)
 	if !ok || batch.Cmp(big.NewInt(1)) < 0 || batch.Cmp(big.NewInt(SignerKeygenMaximum)) > 0 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	for i := 0; i < int(batch.Int64()); i++ {
 		op := &common.Operation{
@@ -47,7 +47,7 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 		}
 	}
 
-	return node.store.FinishRequest(ctx, req.Id)
+	return node.store.FailRequest(ctx, req.Id)
 }
 
 func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.SignatureRequest) error {

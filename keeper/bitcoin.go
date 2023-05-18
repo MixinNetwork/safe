@@ -28,7 +28,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	receivers, threshold, err := req.ParseMixinRecipient()
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	chain := bitcoinCurveChain(req.Curve)
 
@@ -37,25 +37,25 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", chain, err)
 	} else if plan == nil || !plan.AccountPriceAmount.IsPositive() {
-		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
+		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
 	}
 	if req.AssetId != plan.AccountPriceAsset {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	if req.Amount.Cmp(plan.AccountPriceAmount) < 0 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	} else if safe != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	old, err := node.store.ReadSafeProposal(ctx, req.Id)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafeProposal(%s) => %v", req.Id, err)
 	} else if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	signer, observer, accountant, err := node.store.AssignSignerAndObserverToHolder(ctx, req)
@@ -64,10 +64,10 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return fmt.Errorf("store.AssignSignerAndObserverToHolder(%v) => %v", req, err)
 	}
 	if signer == "" || observer == "" || accountant == "" {
-		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
+		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
 	}
 	if !common.CheckUnique(req.Holder, signer, observer, accountant) {
-		return node.refundAndFinishRequest(ctx, req, receivers, int(threshold))
+		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
 	}
 	timelock := node.bitcoinTimeLockDuration(ctx)
 	wsa, err := bitcoin.BuildWitnessScriptAccount(req.Holder, signer, observer, timelock, chain)
@@ -83,7 +83,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("store.ReadSafeProposalByAddress(%s) => %v", wsa.Address, err)
 	} else if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	extra := wsa.MarshalWithAccountant(awka.Address)
@@ -121,34 +121,34 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	} else if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	chain := bitcoinCurveChain(req.Curve)
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	sp, err := node.store.ReadSafeProposal(ctx, rid.String())
 	if err != nil {
 		return fmt.Errorf("store.ReadSafeProposal(%v) => %s %v", req, rid.String(), err)
 	} else if sp == nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	} else if sp.Holder != req.Holder {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	} else if sp.Chain != chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	msg := bitcoin.HashMessageForSignature(sp.Address, sp.Chain)
 	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	awka, err := bitcoin.BuildWitnessKeyAccount(sp.Accountant, sp.Chain)
 	if err != nil {
@@ -195,7 +195,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	assetId := SafeBitcoinChainId
@@ -213,7 +213,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
 	if meta.Chain != SafeChainMVM {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
@@ -221,11 +221,11 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
 	}
 	if deployed.Sign() <= 0 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	if id.String() != assetId {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	plan, err := node.store.ReadAccountPlan(ctx, safe.Chain)
@@ -233,10 +233,10 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", safe.Chain, err)
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
-		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if req.Amount.Cmp(plan.TransactionMinimum) < 0 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	bondId, _, err := node.getBondAsset(ctx, id.String(), req.Holder)
@@ -245,7 +245,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", id.String(), req.Holder, err)
 	}
 	if crypto.NewHash([]byte(req.AssetId)) != bondId {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	balance, err := node.store.ReadAccountantBalance(ctx, req.Holder)
@@ -254,21 +254,21 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("store.ReadAccountantBalance(%s) => %v", req.Holder, err)
 	}
 	if balance.IsZero() {
-		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 32 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	iid, err := uuid.FromBytes(extra[:16])
 	if err != nil || iid.String() == uuid.Nil.String() {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	receiver, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
 	logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	info, err := node.store.ReadNetworkInfo(ctx, iid.String())
 	logger.Printf("store.ReadNetworkInfo(%s) => %v %v", iid.String(), info, err)
@@ -276,10 +276,10 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("store.ReadNetworkInfo(%s) => %v", iid.String(), err)
 	}
 	if info == nil || info.Chain != safe.Chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	if info.CreatedAt.Add(SafeNetworkInfoTimeout * 30).Before(req.CreatedAt) {
-		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 
 	outputs := []*bitcoin.Output{{
@@ -293,14 +293,14 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee), req.Operation().IdBytes(), safe.Chain)
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
 	if bitcoin.IsInsufficientInputError(err) {
-		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if err != nil {
 		return fmt.Errorf("bitcoin.BuildPartiallySignedTransaction(%v) => %v", req, err)
 	}
 	fee := decimal.New(psbt.Fee, -bitcoin.ValuePrecision)
 	if balance.Sub(fee).IsNegative() {
-		return node.refundAndFinishRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 
 	extra = psbt.Marshal()
@@ -349,7 +349,7 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	assetId := SafeBitcoinChainId
@@ -363,28 +363,28 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 	if err != nil {
 		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	} else if tx.Holder != req.Holder {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	} else if tx.State != common.RequestStateInitial {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash, safe.Chain)
 	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	bondId, _, err := node.getBondAsset(ctx, assetId, safe.Holder)
@@ -411,7 +411,7 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
 	}
 	if meta.Chain != SafeChainMVM {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 	if err != nil {
@@ -431,31 +431,31 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 	if err != nil {
 		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	} else if tx.Holder != req.Holder {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	msg := bitcoin.HashMessageForSignature(tx.TransactionHash, safe.Chain)
 	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
@@ -520,7 +520,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
 	}
 	if old == nil || old.State == common.RequestStateDone || old.CreatedAt.Add(SafeSignatureTimeout).Before(req.CreatedAt) {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
 	if err != nil {
@@ -531,7 +531,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
 	}
 	if safe.Signer != req.Holder {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	sig, _ := hex.DecodeString(req.Extra)
@@ -539,7 +539,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	err = node.store.FinishSignatureRequest(ctx, req)
@@ -567,7 +567,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 		sr := requests[idx]
 		if sr == nil {
-			return node.store.FinishRequest(ctx, req.Id)
+			return node.store.FailRequest(ctx, req.Id)
 		}
 		hash := spsbt.SigHash(idx)
 		msg := common.DecodeHexOrPanic(sr.Message)

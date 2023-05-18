@@ -55,7 +55,7 @@ func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*common.Requ
 	return r, err
 }
 
-func (s *SQLite3Store) FinishRequest(ctx context.Context, id string) error {
+func (s *SQLite3Store) FailRequest(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -66,7 +66,7 @@ func (s *SQLite3Store) FinishRequest(ctx context.Context, id string) error {
 	defer tx.Rollback()
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=? AND state=?",
-		common.RequestStateDone, time.Now().UTC(), id, common.RequestStateInitial)
+		common.RequestStateFailed, time.Now().UTC(), id, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}

@@ -31,7 +31,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	}
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 17 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	info := &store.NetworkInfo{
@@ -46,9 +46,9 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	if err != nil {
 		return fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
 	} else if old != nil && old.RequestId == req.Id {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	} else if old != nil && old.Height > info.Height {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	switch info.Chain {
@@ -58,12 +58,12 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		if err != nil {
 			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return node.store.FinishRequest(ctx, req.Id)
+			return node.store.FailRequest(ctx, req.Id)
 		}
 	case SafeChainEthereum:
 		panic(0)
 	default:
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	return node.store.WriteNetworkInfoFromRequest(ctx, info)
@@ -76,7 +76,7 @@ func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) err
 	}
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) != 33 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	chain := extra[0]
@@ -85,7 +85,7 @@ func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) err
 	case SafeChainLitecoin:
 	case SafeChainEthereum:
 	default:
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	if chain != bitcoinCurveChain(req.Curve) {
 		panic(req.Id)

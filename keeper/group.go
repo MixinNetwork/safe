@@ -226,27 +226,27 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		return fmt.Errorf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
 	}
 	if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) != 1 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	switch extra[0] {
 	case common.RequestRoleSigner:
 		if req.Role != common.RequestRoleSigner {
-			return node.store.FinishRequest(ctx, req.Id)
+			return node.store.FailRequest(ctx, req.Id)
 		}
 	case common.RequestRoleObserver:
 		if req.Role != common.RequestRoleObserver {
-			return node.store.FinishRequest(ctx, req.Id)
+			return node.store.FailRequest(ctx, req.Id)
 		}
 	case common.RequestRoleAccountant:
 		if req.Role != common.RequestRoleObserver {
-			return node.store.FinishRequest(ctx, req.Id)
+			return node.store.FailRequest(ctx, req.Id)
 		}
 	default:
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]))
 }
@@ -261,7 +261,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
 	}
 	if old == nil || old.State == common.RequestStateDone || old.CreatedAt.Add(SafeSignatureTimeout).Before(req.CreatedAt) {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
 	if err != nil {
@@ -272,7 +272,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
 	}
 	if safe.Signer != req.Holder {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	switch safe.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:

@@ -62,7 +62,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	deposit, err := parseDepositExtra(req)
 	logger.Printf("req.parseDepositExtra(%v) => %v %v", req, deposit, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
@@ -70,7 +70,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != deposit.Chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	bondId, bondChain, err := node.getBondAsset(ctx, deposit.Asset, req.Holder)
@@ -86,7 +86,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		panic(bond.AssetId)
 	}
 	if bond == nil || bond.Decimals != 18 {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	asset, err := node.fetchAssetMeta(ctx, deposit.Asset)
 	if err != nil {
@@ -101,7 +101,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if err != nil {
 		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", deposit.Chain, err)
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	switch deposit.Chain {
@@ -110,7 +110,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	case SafeChainEthereum:
 		panic(0)
 	default:
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 }
 
@@ -124,7 +124,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
 	} else if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
@@ -134,7 +134,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		return fmt.Errorf("store.ReadTransaction(%s) => %v", deposit.Hash, err)
 	}
 	if amount.Cmp(minimum) < 0 && change == nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	if amount.Cmp(decimal.New(bitcoin.ValueDust, -bitcoin.ValuePrecision)) < 0 {
 		panic(deposit.Hash)
@@ -146,7 +146,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		return fmt.Errorf("node.verifyBitcoinTransaction(%s) => %v", deposit.Hash, err)
 	}
 	if output == nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	if change == nil || deposit.Index == 0 {
@@ -166,14 +166,14 @@ func (node *Node) CreateAccountantDeposit(ctx context.Context, req *common.Reque
 	deposit, err := parseDepositExtra(req)
 	logger.Printf("req.parseDepositExtra(%v) => %v %v", req, deposit, err)
 	if err != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != deposit.Chain {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	asset, err := node.fetchAssetMeta(ctx, deposit.Asset)
 	if err != nil {
@@ -188,7 +188,7 @@ func (node *Node) CreateAccountantDeposit(ctx context.Context, req *common.Reque
 	case SafeChainEthereum:
 		panic(0)
 	default:
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 }
 
@@ -201,7 +201,7 @@ func (node *Node) doBitcoinAccountantDeposit(ctx context.Context, req *common.Re
 	if err != nil {
 		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
 	} else if old != nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
@@ -215,7 +215,7 @@ func (node *Node) doBitcoinAccountantDeposit(ctx context.Context, req *common.Re
 		return fmt.Errorf("node.verifyBitcoinTransaction(%s) => %v", deposit.Hash, err)
 	}
 	if output == nil {
-		return node.store.FinishRequest(ctx, req.Id)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	return node.store.WriteBitcoinOutputFromRequest(ctx, wka.Address, output, req, true)
