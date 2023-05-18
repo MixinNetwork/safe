@@ -348,8 +348,8 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 	}
 	if req != nil && req.State == common.RequestStateFailed {
 		renderJSON(w, http.StatusOK, map[string]any{
-			"id":    tx.RequestId,
-			"state": req.State,
+			"id":    req.Id,
+			"state": common.StateName(int(req.State)),
 		})
 		return
 	}
@@ -373,7 +373,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"raw":     approval.RawTransaction,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
-		"state":   tx.State,
+		"state":   common.StateName(tx.State),
 	})
 }
 

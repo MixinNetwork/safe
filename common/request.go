@@ -161,3 +161,18 @@ func (r *Request) VerifyFormat() error {
 		return fmt.Errorf("invalid request curve %v", r)
 	}
 }
+
+func StateName(state int) string {
+	switch state {
+	case RequestStateInitial:
+		return "initial"
+	case RequestStatePending:
+		return "pending"
+	case RequestStateDone:
+		return "done"
+	case RequestStateFailed:
+		return "failed"
+	default:
+		panic(state)
+	}
+}
