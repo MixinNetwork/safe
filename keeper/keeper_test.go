@@ -579,14 +579,18 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Extra:  extra,
 	}
 	memo := common.Base91Encode(node.encryptObserverOperation(op))
+	timestamp := time.Now()
+	if action == common.ActionObserverAddKey {
+		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
+	}
 	return &mtg.Output{
 		Sender:          node.conf.ObserverUserId,
 		AssetID:         node.conf.ObserverAssetId,
 		Memo:            memo,
 		TransactionHash: crypto.NewHash([]byte(op.Id)),
 		Amount:          decimal.New(1, 1),
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       timestamp,
+		UpdatedAt:       timestamp,
 	}
 }
 
@@ -597,6 +601,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Curve: common.CurveSecp256k1ECDSABitcoin,
 		Extra: extra,
 	}
+	timestamp := time.Now()
 	switch action {
 	case common.OperationTypeKeygenInput:
 		op.Public = hex.EncodeToString(common.ShortSum(public))
@@ -604,6 +609,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		op.Public = hex.EncodeToString(common.ShortSum(public))
 	case common.OperationTypeKeygenOutput:
 		op.Public = public
+		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	case common.OperationTypeSignOutput:
 		op.Public = public
 	}
@@ -613,8 +619,8 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Memo:            memo,
 		TransactionHash: crypto.NewHash([]byte(op.Id)),
 		Amount:          decimal.New(1, 1),
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       timestamp,
+		UpdatedAt:       timestamp,
 	}
 }
 

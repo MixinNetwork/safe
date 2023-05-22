@@ -27,6 +27,7 @@ const (
 
 	SafeNetworkInfoTimeout = 3 * time.Minute
 	SafeSignatureTimeout   = 10 * time.Minute
+	SafeKeyBackupMaturity  = 24 * time.Hour
 )
 
 func bitcoinCurveChain(crv byte) byte {

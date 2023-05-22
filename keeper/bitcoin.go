@@ -58,7 +58,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	signer, observer, accountant, err := node.store.AssignSignerAndObserverToHolder(ctx, req)
+	signer, observer, accountant, err := node.store.AssignSignerAndObserverToHolder(ctx, req, SafeKeyBackupMaturity)
 	logger.Printf("store.AssignSignerAndObserverToHolder(%s) => %s %s %s %v", req.Holder, signer, observer, accountant, err)
 	if err != nil {
 		return fmt.Errorf("store.AssignSignerAndObserverToHolder(%v) => %v", req, err)
