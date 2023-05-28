@@ -82,11 +82,19 @@ func ParseAddress(addr string, chain byte) (string, error) {
 	return addr, nil
 }
 
-func ParseSequence(lock time.Duration) int64 {
+func ParseSequence(lock time.Duration, chain byte) int64 {
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
 		panic(lock.String())
 	}
-	return wire.SequenceLockTimeIsSeconds | (int64(lock.Seconds()) >> wire.SequenceLockTimeGranularity)
+	blockDuration := 10 * time.Minute
+	switch chain {
+	case ChainBitcoin:
+	case ChainLitecoin:
+		blockDuration = 150 * time.Second
+	default:
+	}
+	// FIXME check litecoin timelock modifications as this may exceed 0xffff
+	return int64(lock / blockDuration)
 }
 
 func CheckFinalization(num uint64, coinbase bool) bool {

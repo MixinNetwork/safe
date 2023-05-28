@@ -55,9 +55,6 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 			if hex.EncodeToString(hsig.PubKey) != tx.Holder {
 				panic(spsbt.Hash)
 			}
-			sig := append(hsig.Signature, byte(txscript.SigHashAll))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 
 			spin := spsbt.Packet.Inputs[idx]
 			ssig := spin.PartialSigs[0]
@@ -73,9 +70,12 @@ func (node *Node) bitcoinAccountantSignTransaction(ctx context.Context, extra []
 			if !der.Verify(hash, signer.PubKey()) {
 				panic(spsbt.Hash)
 			}
-			sig = append(ssig.Signature, byte(txscript.SigHashAll))
+
+			sig := append(ssig.Signature, byte(txscript.SigHashAll))
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{1})
+			sig = append(hsig.Signature, byte(txscript.SigHashAll))
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
 
 			hpsbt.Packet.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)

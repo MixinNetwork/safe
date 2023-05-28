@@ -101,6 +101,14 @@ func VerifySignatureDER(public string, msg, sig []byte) error {
 	return fmt.Errorf("bitcoin.VerifySignature(%s, %x, %x)", public, msg, sig)
 }
 
+// thresh(2,pk(HOLDER),pk(SINGER),and(pk(OBSERVER),older(12960)))
+// thresh(2,pk(HOLDER),s:pk(SINGER),sj:and_v(v:pk(OBSERVER),n:older(12960)))
+//
+// <HOLDER> OP_CHECKSIG OP_SWAP <SINGER> OP_CHECKSIG OP_ADD OP_SWAP OP_SIZE
+// OP_0NOTEQUAL OP_IF
+// <OBSERVER> OP_CHECKSIGVERIFY <a032> OP_CHECKSEQUENCEVERIFY OP_0NOTEQUAL
+// OP_ENDIF
+// OP_ADD 2 OP_EQUAL
 func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Duration, chain byte) (*WitnessScriptAccount, error) {
 	var pubKeys []*btcutil.AddressPubKey
 	for _, public := range []string{holder, signer, observer} {
@@ -114,28 +122,28 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
 		return nil, fmt.Errorf("time lock out of range %s", lock.String())
 	}
-	sequence := ParseSequence(lock)
+	sequence := ParseSequence(lock, chain)
 
 	builder := txscript.NewScriptBuilder()
-	// IF 2 ELSE
+	builder.AddData(pubKeys[0].ScriptAddress())
+	builder.AddOp(txscript.OP_CHECKSIG)
+	builder.AddOp(txscript.OP_SWAP)
+	builder.AddData(pubKeys[1].ScriptAddress())
+	builder.AddOp(txscript.OP_CHECKSIG)
+	builder.AddOp(txscript.OP_ADD)
+	builder.AddOp(txscript.OP_SWAP)
+	builder.AddOp(txscript.OP_SIZE)
+	builder.AddOp(txscript.OP_0NOTEQUAL)
 	builder.AddOp(txscript.OP_IF)
-	builder.AddInt64(2)
-	builder.AddOp(txscript.OP_ELSE)
-	// <LOCK> CHECKSEQUENCEVERIFY DROP
-	builder.AddInt64(sequence)
-	builder.AddOp(txscript.OP_CHECKSEQUENCEVERIFY)
-	builder.AddOp(txscript.OP_DROP)
-	// <OBSERVER KEY> CHECKSIGVERIFY
-	// 1 ENDIF
 	builder.AddData(pubKeys[2].ScriptAddress())
 	builder.AddOp(txscript.OP_CHECKSIGVERIFY)
-	builder.AddInt64(1)
+	builder.AddInt64(sequence)
+	builder.AddOp(txscript.OP_CHECKSEQUENCEVERIFY)
+	builder.AddOp(txscript.OP_0NOTEQUAL)
 	builder.AddOp(txscript.OP_ENDIF)
-	// <HOLDER KEY> <SIGNER KEY> 2 CHECKMULTISIG
-	builder.AddData(pubKeys[0].ScriptAddress())
-	builder.AddData(pubKeys[1].ScriptAddress())
+	builder.AddOp(txscript.OP_ADD)
 	builder.AddInt64(2)
-	builder.AddOp(txscript.OP_CHECKMULTISIG)
+	builder.AddOp(txscript.OP_EQUAL)
 
 	script, err := builder.Script()
 	if err != nil {

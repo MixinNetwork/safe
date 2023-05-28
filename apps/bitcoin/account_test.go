@@ -2,10 +2,14 @@ package bitcoin
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/multi-party-sig/pkg/ecdsa"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/test-go/testify/require"
 )
 
@@ -29,6 +33,41 @@ func TestBitcoinCLI(t *testing.T) {
 	messageHash := HashMessageForSignature(msg, ChainBitcoin)
 	err = VerifySignatureDER(pub, messageHash, s)
 	require.Nil(err)
+
+	// bitcoin-cli --rpcwallet=holder listdescriptors true
+	extPriv, err := hdkeychain.NewKeyFromString("xprv9s21ZrQH143K4NMg6FdKfSHPJN9W642rDck71dJ2j1N4SFePwJjkNm1xU3FCHUEjR9M4ZLCDKC6DonAyNhwg6NNhCoJFojRBeFzPwcQXTMS")
+	require.Nil(err)
+	require.True(extPriv.IsPrivate())
+	require.True(extPriv.IsForNet(&chaincfg.MainNetParams))
+	require.Equal("xprv9s21ZrQH143K4NMg6FdKfSHPJN9W642rDck71dJ2j1N4SFePwJjkNm1xU3FCHUEjR9M4ZLCDKC6DonAyNhwg6NNhCoJFojRBeFzPwcQXTMS", extPriv.String())
+	require.Equal([]byte{0x4, 0x88, 0xad, 0xe4}, extPriv.Version())
+	require.Equal(byte(0x0), extPriv.Depth())
+	require.Equal(uint32(0x0), extPriv.ParentFingerprint())
+	require.Equal(uint32(0x0), extPriv.ChildIndex())
+	require.Equal([]byte{0xe8, 0xe, 0x10, 0x47, 0x2e, 0xce, 0x36, 0x5a, 0x31, 0x89, 0xbc, 0x28, 0x59, 0x46, 0xc8, 0xce, 0x5a, 0x1d, 0xe0, 0x1c, 0x48, 0x5a, 0x90, 0xc7, 0x93, 0x1f, 0xc3, 0xe, 0x10, 0x47, 0xe4, 0x97}, extPriv.ChainCode())
+
+	// bitcoin-cli --rpcwallet=holder getaddressinfo 1DdhSdxiLepsH2YuiVxt8n85UHmWp4qjUt
+	extPriv, _ = extPriv.Derive(0x80000000 + 44)
+	extPriv, _ = extPriv.Derive(0x80000000)
+	extPriv, _ = extPriv.Derive(0x80000000)
+	extPub, err := extPriv.Neuter()
+	require.Nil(err)
+	require.False(extPub.IsPrivate())
+	require.True(extPub.IsForNet(&chaincfg.MainNetParams))
+	require.Equal([]byte{0x4, 0x88, 0xb2, 0x1e}, extPub.Version())
+	require.Equal(byte(0x3), extPub.Depth())
+	require.Equal(uint32(0x1987f5fc), extPub.ParentFingerprint())
+	require.Equal(uint32(0x80000000), extPub.ChildIndex())
+	require.Equal("xpub6Bqeq5d3McUGMHv6PhMPhCCnJt1JSgRJSYHP9q9uLLUnVh9AESmn8NHAsp5NneVg5orAc6EcTrEfMVTTrei6k3J5YPn8MgmN39aiqmD6wjH", extPub.String())
+
+	extPriv, _ = extPriv.Derive(0)
+	extPriv, _ = extPriv.Derive(0)
+	apkh, _ := extPriv.Address(&chaincfg.MainNetParams)
+	require.Equal("1DdhSdxiLepsH2YuiVxt8n85UHmWp4qjUt", apkh.EncodeAddress())
+	ecPub, _ := extPriv.ECPubKey()
+	require.Equal("03911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56", hex.EncodeToString(ecPub.SerializeCompressed()))
+	ecPriv, _ := extPriv.ECPrivKey()
+	require.Equal("52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556", hex.EncodeToString(ecPriv.Serialize()))
 }
 
 func TestBitcoinAddress(t *testing.T) {
@@ -46,4 +85,17 @@ func TestBitcoinAddress(t *testing.T) {
 	addr, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainBitcoin)
 	require.NotNil(err)
 	require.Equal("", addr)
+}
+
+func TestBitcoinScriptAddress(t *testing.T) {
+	require := require.New(t)
+	lock := time.Hour * 24 * 90
+	holder := "03911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56"
+	signer := "028a010d50f3ba6f17ee313f55a1d06412674f2064616b4642f4eee3cb471eeef5"
+	observer := "028628daebf3cb6e902dfb6e605edb28d0d9717526fce2d9e1a66a7e4a58ad6f65"
+
+	wsa, err := BuildWitnessScriptAccount(holder, signer, observer, lock, ChainBitcoin)
+	require.Nil(err)
+	require.Equal("bc1q2nhm0clwt7qcmnpntetjlzf0tflp2h0zvkczql4v9nmydnt7xm6swx2nnv", wsa.Address)
+	require.Equal("2103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c21028a010d50f3ba6f17ee313f55a1d06412674f2064616b4642f4eee3cb471eeef5ac937c82926321028628daebf3cb6e902dfb6e605edb28d0d9717526fce2d9e1a66a7e4a58ad6f65ad02a032b29268935287", hex.EncodeToString(wsa.Script))
 }

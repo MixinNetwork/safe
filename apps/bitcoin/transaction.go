@@ -116,7 +116,7 @@ func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
-func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64, rid []byte, chain byte) (*PartiallySignedTransaction, error) {
+func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, outputs []*Output, fvb int64, rid []byte, chain byte, rpc string) (*PartiallySignedTransaction, error) {
 	msgTx := wire.NewMsgTx(2)
 
 	mainAddress, mainSatoshi, err := addInputs(msgTx, mainInputs, chain)
@@ -226,7 +226,8 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		if err != nil {
 			panic(address)
 		}
-		pin := psbt.NewPsbtInput(nil, &wire.TxOut{
+		nwu := psbtGetNonWitnessUTXO(rpc, in.TransactionHash, chain)
+		pin := psbt.NewPsbtInput(nwu, &wire.TxOut{
 			Value:    in.Satoshi,
 			PkScript: pkScript,
 		})
@@ -248,6 +249,25 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, feeInputs []*Input, ou
 		Fee:    feeConsumed,
 		Packet: pkt,
 	}, nil
+}
+
+func psbtGetNonWitnessUTXO(rpc, txid string, chain byte) *wire.MsgTx {
+	if rpc == "" {
+		return nil
+	}
+	tx, err := RPCGetTransaction(chain, rpc, txid)
+	if err != nil {
+		panic(err)
+	}
+	rtb, err := hex.DecodeString(tx.Hex)
+	if err != nil {
+		panic(err)
+	}
+	rtx, err := btcutil.NewTxFromBytes(rtb)
+	if err != nil {
+		panic(err)
+	}
+	return rtx.MsgTx()
 }
 
 func calcSigHashes(tx *wire.MsgTx, inputs []*Input) ([]byte, error) {
