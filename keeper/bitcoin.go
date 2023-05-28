@@ -290,7 +290,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
 	}
-	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee), req.Operation().IdBytes(), safe.Chain, node.conf.BitcoinRPC)
+	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, feeInputs, outputs, int64(info.Fee), req.Operation().IdBytes(), safe.Chain)
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
 	if bitcoin.IsInsufficientInputError(err) {
 		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
