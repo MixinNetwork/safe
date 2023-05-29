@@ -144,7 +144,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS accountants_by_address ON accountants(address)
 CREATE TABLE IF NOT EXISTS bitcoin_outputs (
   transaction_hash   VARCHAR NOT NULL,
   output_index       INTEGER NOT NULL,
-  public_key         VARCHAR NOT NULL,
+  address            VARCHAR NOT NULL,
   satoshi            INTEGER NOT NULL,
   script             VARCHAR NOT NULL,
   sequence           INTEGER NOT NULL,

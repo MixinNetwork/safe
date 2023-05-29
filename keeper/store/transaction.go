@@ -129,7 +129,7 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 		}
 
-		row := tx.QueryRowContext(ctx, "SELECT public_key,satoshi FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?",
+		row := tx.QueryRowContext(ctx, "SELECT address,satoshi FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?",
 			pop.Hash.String(), pop.Index)
 		var u bitcoin.Input
 		err = row.Scan(&u.TransactionHash, &u.Satoshi)

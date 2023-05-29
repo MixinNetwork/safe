@@ -37,7 +37,7 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiv
 	}
 
 	script := hex.EncodeToString(utxo.Script)
-	cols := []string{"transaction_hash", "output_index", "public_key", "satoshi", "script", "sequence", "state", "spent_by", "request_id", "created_at", "updated_at"}
+	cols := []string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "state", "spent_by", "request_id", "created_at", "updated_at"}
 	vals := []any{utxo.TransactionHash, utxo.Index, receiver, utxo.Satoshi, script, utxo.Sequence, common.RequestStateInitial, nil, req.Id, req.CreatedAt, req.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("bitcoin_outputs", cols), vals...)
 	if err != nil {
@@ -76,11 +76,11 @@ func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder 
 		return nil, nil, err
 	}
 
-	mainInputs, err := s.listAllBitcoinUTXOsForPublicKey(ctx, safe.Address, safe.Chain)
+	mainInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, safe.Address, safe.Chain)
 	if err != nil {
 		return nil, nil, err
 	}
-	feeInputs, err := s.listAllBitcoinUTXOsForPublicKey(ctx, wka.Address, safe.Chain)
+	feeInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, wka.Address, safe.Chain)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -88,10 +88,10 @@ func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder 
 	return mainInputs, feeInputs, nil
 }
 
-func (s *SQLite3Store) listAllBitcoinUTXOsForPublicKey(ctx context.Context, public string, chain byte) ([]*bitcoin.Input, error) {
+func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiver string, chain byte) ([]*bitcoin.Input, error) {
 	cols := strings.Join([]string{"transaction_hash", "output_index", "satoshi", "script", "sequence"}, ",")
-	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE public_key=? AND state=? ORDER BY created_at ASC", cols)
-	rows, err := s.db.QueryContext(ctx, query, public, common.RequestStateInitial)
+	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE address=? AND state=? ORDER BY created_at ASC", cols)
+	rows, err := s.db.QueryContext(ctx, query, receiver, common.RequestStateInitial)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +107,8 @@ func (s *SQLite3Store) listAllBitcoinUTXOsForPublicKey(ctx context.Context, publ
 		}
 		input.Script = common.DecodeHexOrPanic(script)
 		addr, err := bitcoin.EncodeAddress(input.Script, chain)
-		if err != nil || public != addr {
-			panic(public)
+		if err != nil || receiver != addr {
+			panic(receiver)
 		}
 		inputs = append(inputs, &input)
 	}
