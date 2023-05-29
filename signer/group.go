@@ -119,6 +119,13 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if !valid {
 			return nil
 		}
+		holder, crv, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
+		if err != nil {
+			panic(err)
+		}
+		if holder != session.Public || crv != session.Curve {
+			panic(session.Public)
+		}
 		op.Type = common.OperationTypeKeygenOutput
 		op.Extra = []byte{common.RequestRoleSigner}
 		op.Public = session.Public

@@ -198,7 +198,7 @@ func (s *SQLite3Store) FailSession(ctx context.Context, sessionId string) error 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishSignSession(ctx context.Context, sessionId string, curve uint8, shortSum string, extra []byte) error {
+func (s *SQLite3Store) FinishSignSession(ctx context.Context, sessionId string, curve uint8, fingerprint string, extra []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -209,7 +209,7 @@ func (s *SQLite3Store) FinishSignSession(ctx context.Context, sessionId string, 
 	defer tx.Rollback()
 
 	err = s.execOne(ctx, tx, "UPDATE sessions SET extra=?, state=?, updated_at=? WHERE session_id=? AND curve=? AND public=? AND created_at=updated_at AND state=?",
-		hex.EncodeToString(extra), common.RequestStatePending, time.Now().UTC(), sessionId, curve, shortSum, common.RequestStateInitial)
+		hex.EncodeToString(extra), common.RequestStatePending, time.Now().UTC(), sessionId, curve, fingerprint, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}
