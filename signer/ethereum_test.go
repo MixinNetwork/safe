@@ -55,7 +55,7 @@ func TestCMPEthereumSign(t *testing.T) {
 	var tx types.Transaction
 	b, _ := hex.DecodeString(raw[2:])
 	tx.UnmarshalBinary(b)
-	signer := types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock)
+	signer := types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock, 0)
 	verify, _ := signer.Sender(&tx)
 	require.Equal(testEthereumAddress, verify.String())
 	require.Equal(hash, tx.Hash().Hex())
@@ -83,7 +83,7 @@ func ethereumSignTransaction(ctx context.Context, require *require.Assertions, n
 	receiver := common.BytesToAddress(tb)
 	tx := types.NewTransaction(nonce, receiver, amount, gasLimit, gasPrice, data)
 
-	signer := types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock)
+	signer := types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock, 0)
 	hash := signer.Hash(tx)
 
 	sig := testCMPSign(ctx, require, nodes, mpc, hash[:], 2)
@@ -97,7 +97,7 @@ func ethereumSignTransaction(ctx context.Context, require *require.Assertions, n
 	verify, err := ethereumVerifyTransaction(signer, tx)
 	require.Nil(err)
 	require.Equal(testEthereumAddress, verify.String())
-	verify, err = types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock).Sender(tx)
+	verify, err = types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock, 0).Sender(tx)
 	require.Nil(err)
 	require.Equal(testEthereumAddress, verify.String())
 
