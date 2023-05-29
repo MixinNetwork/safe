@@ -8,7 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/test-go/testify/assert"
+	"github.com/test-go/testify/require"
 )
 
 const (
@@ -19,16 +19,16 @@ const (
 )
 
 func TestFROSTMixinSign(t *testing.T) {
-	assert := assert.New(t)
-	ctx, nodes := TestPrepare(assert)
+	require := require.New(t)
+	ctx, nodes := TestPrepare(require)
 
-	public := testFROSTPrepareKeys(ctx, assert, nodes, CurveEdwards25519Mixin)
+	public := testFROSTPrepareKeys(ctx, require, nodes, CurveEdwards25519Mixin)
 
 	addr := mixinAddress(public)
-	assert.Equal(testMixinAddress, addr.String())
-	assert.Equal(public, addr.PublicSpendKey.String())
-	assert.Equal(testMixinViewKey, addr.PrivateViewKey.String())
-	assert.Equal("5ad84042cf8b4eb9583506637317b6f6efc3d9675f7fb089591ed22f6fc5f0d2", addr.PublicViewKey.String())
+	require.Equal(testMixinAddress, addr.String())
+	require.Equal(public, addr.PublicSpendKey.String())
+	require.Equal(testMixinViewKey, addr.PrivateViewKey.String())
+	require.Equal("5ad84042cf8b4eb9583506637317b6f6efc3d9675f7fb089591ed22f6fc5f0d2", addr.PublicViewKey.String())
 
 	in0, _ := crypto.HashFromString("5b08c51b8e678e9015edd1561be644a787df257ebd7854b427c36d57989c3a43")
 	in1, _ := crypto.HashFromString("b05c168ac64ee2c131245645d5ce36872a4229b77c4c998123550d3efd806b13")
@@ -48,14 +48,14 @@ func TestFROSTMixinSign(t *testing.T) {
 
 	msk := crypto.HashScalar(crypto.KeyMultPubPriv(&R0, &addr.PrivateViewKey), 0).Bytes()
 	msk = writeStorageTransaction(ctx, nodes, append(msk, msg...))
-	fsb := testFROSTSign(ctx, assert, nodes, public, msk, CurveEdwards25519Mixin)
-	assert.Len(fsb, 64)
+	fsb := testFROSTSign(ctx, require, nodes, public, msk, CurveEdwards25519Mixin)
+	require.Len(fsb, 64)
 	copy(sig0[:], fsb)
 
 	msk = crypto.HashScalar(crypto.KeyMultPubPriv(&R1, &addr.PrivateViewKey), 0).Bytes()
 	msk = writeStorageTransaction(ctx, nodes, append(msk, msg...))
-	fsb = testFROSTSign(ctx, assert, nodes, public, msk, CurveEdwards25519Mixin)
-	assert.Len(fsb, 64)
+	fsb = testFROSTSign(ctx, require, nodes, public, msk, CurveEdwards25519Mixin)
+	require.Len(fsb, 64)
 	copy(sig1[:], fsb)
 
 	ver.SignaturesMap = []map[uint16]*crypto.Signature{{

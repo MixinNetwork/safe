@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/test-go/testify/assert"
+	"github.com/test-go/testify/require"
 )
 
 const (
@@ -39,46 +39,46 @@ var (
 )
 
 func TestCMPEthereumSign(t *testing.T) {
-	assert := assert.New(t)
-	ctx, nodes := TestPrepare(assert)
+	require := require.New(t)
+	ctx, nodes := TestPrepare(require)
 
-	public := TestCMPPrepareKeys(ctx, assert, nodes, 2)
+	public := TestCMPPrepareKeys(ctx, require, nodes, 2)
 
-	addr := ethereumAddressFromPub(assert, public)
-	assert.Equal(testEthereumAddress, addr.Hex())
+	addr := ethereumAddressFromPub(require, public)
+	require.Equal(testEthereumAddress, addr.Hex())
 
-	hash, raw, err := ethereumSignTransaction(ctx, assert, nodes, public, 2, "0x3c84B6C98FBeB813e05a7A7813F0442883450B1F", big.NewInt(1000000000000000), 250000, big.NewInt(100000000), nil)
+	hash, raw, err := ethereumSignTransaction(ctx, require, nodes, public, 2, "0x3c84B6C98FBeB813e05a7A7813F0442883450B1F", big.NewInt(1000000000000000), 250000, big.NewInt(100000000), nil)
 	logger.Println(hash, raw, err)
-	assert.Nil(err)
-	assert.Len(hash, 66)
+	require.Nil(err)
+	require.Len(hash, 66)
 
 	var tx types.Transaction
 	b, _ := hex.DecodeString(raw[2:])
 	tx.UnmarshalBinary(b)
 	signer := types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock)
 	verify, _ := signer.Sender(&tx)
-	assert.Equal(testEthereumAddress, verify.String())
-	assert.Equal(hash, tx.Hash().Hex())
+	require.Equal(testEthereumAddress, verify.String())
+	require.Equal(hash, tx.Hash().Hex())
 }
 
-func ethereumAddressFromPub(assert *assert.Assertions, public string) common.Address {
+func ethereumAddressFromPub(require *require.Assertions, public string) common.Address {
 	mpc, err := hex.DecodeString(public)
-	assert.Nil(err)
+	require.Nil(err)
 
 	var sp curve.Secp256k1Point
 	err = sp.UnmarshalBinary(mpc)
-	assert.Nil(err)
+	require.Nil(err)
 
 	xb := sp.XScalar().Bytes()
 	yb := sp.YScalar().Bytes()
-	assert.Nil(err)
+	require.Nil(err)
 
 	pub := append(xb, yb...)
 	addr := common.BytesToAddress(crypto.Keccak256(pub)[12:])
 	return addr
 }
 
-func ethereumSignTransaction(ctx context.Context, assert *assert.Assertions, nodes []*Node, mpc string, nonce uint64, to string, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) (string, string, error) {
+func ethereumSignTransaction(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, nonce uint64, to string, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) (string, string, error) {
 	tb, _ := hex.DecodeString(to[2:])
 	receiver := common.BytesToAddress(tb)
 	tx := types.NewTransaction(nonce, receiver, amount, gasLimit, gasPrice, data)
@@ -86,20 +86,20 @@ func ethereumSignTransaction(ctx context.Context, assert *assert.Assertions, nod
 	signer := types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock)
 	hash := signer.Hash(tx)
 
-	sig := testCMPSign(ctx, assert, nodes, mpc, hash[:], 2)
-	assert.Len(sig, 65)
+	sig := testCMPSign(ctx, require, nodes, mpc, hash[:], 2)
+	require.Len(sig, 65)
 	tx, err := tx.WithSignature(signer, sig)
-	assert.Nil(err)
+	require.Nil(err)
 	rb, err := tx.MarshalBinary()
-	assert.Nil(err)
+	require.Nil(err)
 	raw := fmt.Sprintf("0x%x", rb)
 
 	verify, err := ethereumVerifyTransaction(signer, tx)
-	assert.Nil(err)
-	assert.Equal(testEthereumAddress, verify.String())
+	require.Nil(err)
+	require.Equal(testEthereumAddress, verify.String())
 	verify, err = types.MakeSigner(mvmChainConfig, mvmChainConfig.ByzantiumBlock).Sender(tx)
-	assert.Nil(err)
-	assert.Equal(testEthereumAddress, verify.String())
+	require.Nil(err)
+	require.Equal(testEthereumAddress, verify.String())
 
 	return tx.Hash().Hex(), raw, nil
 }

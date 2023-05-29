@@ -20,10 +20,10 @@ import (
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/pelletier/go-toml"
-	"github.com/test-go/testify/assert"
+	"github.com/test-go/testify/require"
 )
 
-func TestPrepare(assert *assert.Assertions) (context.Context, []*Node) {
+func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
 	ctx = common.EnableTestEnvironment(ctx)
@@ -32,8 +32,8 @@ func TestPrepare(assert *assert.Assertions) (context.Context, []*Node) {
 	for i := 0; i < 4; i++ {
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
-		assert.Nil(err)
-		nodes[i] = testBuildNode(ctx, assert, root, i)
+		require.Nil(err)
+		nodes[i] = testBuildNode(ctx, require, root, i)
 	}
 
 	network := newTestNetwork(nodes[0].members)
@@ -49,25 +49,25 @@ func TestPrepare(assert *assert.Assertions) (context.Context, []*Node) {
 	return ctx, nodes
 }
 
-func TestCMPPrepareKeys(ctx context.Context, assert *assert.Assertions, nodes []*Node, crv byte) string {
+func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) string {
 	const public = "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
 	sid := mixin.UniqueConversationID("prepare", public)
 	for _, node := range nodes {
 		parts := strings.Split(testCMPKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
 		conf, _ := hex.DecodeString(share)
-		assert.Equal(public, pub)
+		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: crv, Type: common.OperationTypeKeygenInput}
 		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now().UTC())
-		assert.Nil(err)
+		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, conf)
-		assert.Nil(err)
+		require.Nil(err)
 	}
 	return public
 }
 
-func testCMPSign(ctx context.Context, assert *assert.Assertions, nodes []*Node, public string, msg []byte, crv byte) []byte {
+func testCMPSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte) []byte {
 	node := nodes[0]
 	sid := mixin.UniqueConversationID("sign", hex.EncodeToString(msg))
 	sop := &common.Operation{
@@ -83,16 +83,16 @@ func testCMPSign(ctx context.Context, assert *assert.Assertions, nodes []*Node, 
 		Memo:            memo,
 		TransactionHash: crypto.NewHash([]byte(sop.Id)),
 	}
-	op := TestCMPProcessOutput(ctx, assert, nodes, out, sid)
+	op := TestCMPProcessOutput(ctx, require, nodes, out, sid)
 
-	assert.Equal(common.OperationTypeSignOutput, int(op.Type))
-	assert.Equal(sid, op.Id)
-	assert.Equal(crv, op.Curve)
-	assert.Len(op.Public, 66)
+	require.Equal(common.OperationTypeSignOutput, int(op.Type))
+	require.Equal(sid, op.Id)
+	require.Equal(crv, op.Curve)
+	require.Len(op.Public, 66)
 	return op.Extra
 }
 
-func TestCMPProcessOutput(ctx context.Context, assert *assert.Assertions, nodes []*Node, out *mtg.Output, sessionId string) *common.Operation {
+func TestCMPProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Output, sessionId string) *common.Operation {
 	network := nodes[0].network.(*testNetwork)
 	for i := 0; i < 4; i++ {
 		data, _ := json.Marshal(out)
@@ -106,7 +106,7 @@ func TestCMPProcessOutput(ctx context.Context, assert *assert.Assertions, nodes 
 	return op
 }
 
-func testBuildNode(ctx context.Context, assert *assert.Assertions, root string, i int) *Node {
+func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int) *Node {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Signer *Configuration `toml:"signer"`
@@ -115,7 +115,7 @@ func testBuildNode(ctx context.Context, assert *assert.Assertions, root string, 
 		} `toml:"keeper"`
 	}
 	err := toml.Unmarshal(f, &conf)
-	assert.Nil(err)
+	require.Nil(err)
 
 	conf.Signer.StoreDir = root
 	conf.Signer.MTG.App.ClientId = conf.Signer.MTG.Genesis.Members[i]
@@ -124,7 +124,7 @@ func testBuildNode(ctx context.Context, assert *assert.Assertions, root string, 
 		panic(root)
 	}
 	kd, err := OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")
-	assert.Nil(err)
+	require.Nil(err)
 
 	node := NewNode(kd, nil, nil, conf.Signer, conf.Keeper.MTG, nil)
 	return node

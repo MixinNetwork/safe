@@ -14,21 +14,21 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
-	"github.com/test-go/testify/assert"
+	"github.com/test-go/testify/require"
 )
 
 func TestFROSTSigner(t *testing.T) {
-	assert := assert.New(t)
-	ctx, nodes := TestPrepare(assert)
+	require := require.New(t)
+	ctx, nodes := TestPrepare(require)
 
-	public := testFROSTKeyGen(ctx, assert, nodes, common.CurveEdwards25519Default)
-	testFROSTSign(ctx, assert, nodes, public, []byte("mixin"), common.CurveEdwards25519Default)
+	public := testFROSTKeyGen(ctx, require, nodes, common.CurveEdwards25519Default)
+	testFROSTSign(ctx, require, nodes, public, []byte("mixin"), common.CurveEdwards25519Default)
 
-	public = testFROSTKeyGen(ctx, assert, nodes, common.CurveSecp256k1SchnorrBitcoin)
-	testFROSTSign(ctx, assert, nodes, public, []byte("mixin"), common.CurveSecp256k1SchnorrBitcoin)
+	public = testFROSTKeyGen(ctx, require, nodes, common.CurveSecp256k1SchnorrBitcoin)
+	testFROSTSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1SchnorrBitcoin)
 }
 
-func testFROSTKeyGen(ctx context.Context, assert *assert.Assertions, nodes []*Node, curve uint8) string {
+func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {
 	sid := mixin.UniqueConversationID("keygen", fmt.Sprint(curve))
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
@@ -52,18 +52,18 @@ func testFROSTKeyGen(ctx context.Context, assert *assert.Assertions, nodes []*No
 	var public string
 	for _, node := range nodes {
 		op := testWaitOperation(ctx, node, sid)
-		assert.Equal(common.OperationTypeKeygenOutput, int(op.Type))
-		assert.Equal(sid, op.Id)
-		assert.Equal(curve, op.Curve)
-		assert.Len(op.Public, 64)
-		assert.Len(op.Extra, 1)
-		assert.Equal(op.Extra[0], byte(common.RequestRoleSigner))
+		require.Equal(common.OperationTypeKeygenOutput, int(op.Type))
+		require.Equal(sid, op.Id)
+		require.Equal(curve, op.Curve)
+		require.Len(op.Public, 64)
+		require.Len(op.Extra, 1)
+		require.Equal(op.Extra[0], byte(common.RequestRoleSigner))
 		public = op.Public
 	}
 	return public
 }
 
-func testFROSTSign(ctx context.Context, assert *assert.Assertions, nodes []*Node, public string, msg []byte, curve uint8) []byte {
+func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, curve uint8) []byte {
 	sid := mixin.UniqueConversationID("sign", fmt.Sprintf("%d:%x", curve, msg))
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
@@ -89,30 +89,30 @@ func testFROSTSign(ctx context.Context, assert *assert.Assertions, nodes []*Node
 	var extra []byte
 	for _, node := range nodes {
 		op := testWaitOperation(ctx, node, sid)
-		assert.Equal(common.OperationTypeSignOutput, int(op.Type))
-		assert.Equal(sid, op.Id)
-		assert.Equal(curve, op.Curve)
-		assert.Len(op.Public, 64)
-		assert.Len(op.Extra, 64)
+		require.Equal(common.OperationTypeSignOutput, int(op.Type))
+		require.Equal(sid, op.Id)
+		require.Equal(curve, op.Curve)
+		require.Len(op.Public, 64)
+		require.Len(op.Extra, 64)
 		extra = op.Extra
 	}
 	return extra
 }
 
-func testFROSTPrepareKeys(ctx context.Context, assert *assert.Assertions, nodes []*Node, curve uint8) string {
+func testFROSTPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {
 	const public = "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b"
 	sid := mixin.UniqueConversationID("prepare", public)
 	for _, node := range nodes {
 		parts := strings.Split(testFROSTKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
 		conf, _ := hex.DecodeString(share)
-		assert.Equal(public, pub)
+		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: curve, Type: common.OperationTypeKeygenInput}
 		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now())
-		assert.Nil(err)
+		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf)
-		assert.Nil(err)
+		require.Nil(err)
 	}
 	return public
 }
