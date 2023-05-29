@@ -126,8 +126,8 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {
 			panic(session.Extra)
 		}
-		holder, crv, _, err := node.store.ReadKeyByShortSum(ctx, session.Public)
-		logger.Printf("store.ReadKeyByShortSum(%s) => %s %v", session.Public, holder, err)
+		holder, crv, _, err := node.store.ReadKeyByFingerprint(ctx, session.Public)
+		logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
 			return err
 		}
@@ -304,10 +304,10 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	logger.Printf("node.startSign(%v)", op)
-	public, crv, share, err := node.store.ReadKeyByShortSum(ctx, op.Public)
-	logger.Printf("store.ReadKeyByShortSum(%s) => %s %v", op.Public, public, err)
+	public, crv, share, err := node.store.ReadKeyByFingerprint(ctx, op.Public)
+	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", op.Public, public, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadKeyByShortSum(%s) => %v", op.Public, err)
+		return fmt.Errorf("store.ReadKeyByFingerprint(%s) => %v", op.Public, err)
 	}
 	if public == "" {
 		return node.store.FailSession(ctx, op.Id)
@@ -315,8 +315,8 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	if crv != op.Curve {
 		return fmt.Errorf("node.startSign(%v) invalid curve %d %d", op, crv, op.Curve)
 	}
-	if hex.EncodeToString(common.ShortSum(public)) != op.Public {
-		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.ShortSum(public), op.Public)
+	if hex.EncodeToString(common.Fingerprint(public)) != op.Public {
+		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), op.Public)
 	}
 
 	var res *SignResult

@@ -110,7 +110,7 @@ func SignerSignRequest(c *cli.Context) error {
 		Type:   common.OperationTypeSignInput,
 		Id:     c.String("session"),
 		Curve:  byte(c.Uint("curve")),
-		Public: hex.EncodeToString(common.ShortSum(c.String("key"))),
+		Public: hex.EncodeToString(common.Fingerprint(c.String("key"))),
 		Extra:  []byte(c.String("msg")),
 	}
 	if op.Curve == common.CurveEdwards25519Mixin {

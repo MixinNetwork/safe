@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS properties (
 
 CREATE TABLE IF NOT EXISTS keys (
 	public      VARCHAR NOT NULL,
-	short_sum   VARCHAR NOT NULL,
+	fingerprint VARCHAR NOT NULL,
 	curve       INTEGER NOT NULL,
 	share       VARHCAR NOT NULL,
 	session_id  VARCHAR NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS keys (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_session_id ON keys(session_id);
-CREATE UNIQUE INDEX IF NOT EXISTS keys_by_short_sum ON keys(short_sum);
+CREATE UNIQUE INDEX IF NOT EXISTS keys_by_fingerprint ON keys(fingerprint);
 
 CREATE TABLE IF NOT EXISTS sessions (
 	session_id  VARCHAR NOT NULL,

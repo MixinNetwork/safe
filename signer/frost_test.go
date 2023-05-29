@@ -71,7 +71,7 @@ func testFROSTSign(ctx context.Context, assert *assert.Assertions, nodes []*Node
 			Type:   common.OperationTypeSignInput,
 			Id:     sid,
 			Curve:  curve,
-			Public: hex.EncodeToString(common.ShortSum(public)),
+			Public: hex.EncodeToString(common.Fingerprint(public)),
 			Extra:  msg,
 		}
 		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))

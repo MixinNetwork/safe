@@ -62,7 +62,7 @@ func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.Signatur
 		Id:     req.RequestId,
 		Type:   common.OperationTypeSignInput,
 		Curve:  crv,
-		Public: hex.EncodeToString(common.ShortSum(req.Signer)),
+		Public: hex.EncodeToString(common.Fingerprint(req.Signer)),
 		Extra:  common.DecodeHexOrPanic(req.Message),
 	}
 	return node.buildSignerTransaction(ctx, op)

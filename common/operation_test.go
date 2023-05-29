@@ -28,7 +28,7 @@ func TestOperation(t *testing.T) {
 		Type:   OperationTypeSignInput,
 		Id:     sid,
 		Curve:  CurveSecp256k1ECDSABitcoin,
-		Public: hex.EncodeToString(ShortSum(public)),
+		Public: hex.EncodeToString(Fingerprint(public)),
 		Extra:  msg,
 	}
 

@@ -27,7 +27,7 @@ func DecodeHexOrPanic(s string) []byte {
 	return b
 }
 
-func ShortSum(public string) []byte {
+func Fingerprint(public string) []byte {
 	sum := sha256.Sum256([]byte(public))
 	return sum[:8]
 }

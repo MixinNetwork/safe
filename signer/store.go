@@ -52,8 +52,8 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	}
 
 	timestamp := time.Now().UTC()
-	err = s.execOne(ctx, tx, "INSERT INTO keys (public, short_sum, curve, share, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		public, hex.EncodeToString(common.ShortSum(public)), curve, hex.EncodeToString(conf), sessionId, timestamp)
+	err = s.execOne(ctx, tx, "INSERT INTO keys (public, fingerprint, curve, share, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+		public, hex.EncodeToString(common.Fingerprint(public)), curve, hex.EncodeToString(conf), sessionId, timestamp)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT keys %v", err)
 	}
@@ -67,13 +67,13 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadKeyByShortSum(ctx context.Context, sum string) (string, uint8, []byte, error) {
+func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (string, uint8, []byte, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	var curve uint8
 	var public, share string
-	row := s.db.QueryRowContext(ctx, "SELECT public, curve, share FROM keys WHERE short_sum=?", sum)
+	row := s.db.QueryRowContext(ctx, "SELECT public, curve, share FROM keys WHERE fingerprint=?", sum)
 	err := row.Scan(&public, &curve, &share)
 	if err == sql.ErrNoRows {
 		return "", 0, nil, nil
