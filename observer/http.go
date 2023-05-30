@@ -380,7 +380,6 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	var body struct {
 		Chain     int    `json:"chain"`
 		Action    string `json:"action"`
-		Hash      string `json:"hash"`
 		Raw       string `json:"raw"`
 		Signature string `json:"signature"`
 	}
@@ -427,7 +426,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	case "revoke":
-		err = node.revokeBitcoinTransaction(r.Context(), body.Hash, body.Signature)
+		err = node.revokeBitcoinTransaction(r.Context(), tx.TransactionHash, body.Signature)
 		if err != nil {
 			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return
