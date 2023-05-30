@@ -18,8 +18,8 @@ const (
 	CurveSecp256k1ECDSABitcoin   = 1
 	CurveSecp256k1ECDSAEthereum  = 2
 	CurveSecp256k1SchnorrBitcoin = 3
-	CurveEdwards25519Default     = 11
-	CurveEdwards25519Mixin       = 12
+	CurveEdwards25519Default     = 4
+	CurveEdwards25519Mixin       = 5
 
 	CurveSecp256k1ECDSALitecoin    = 100 + CurveSecp256k1ECDSABitcoin
 	CurveSecp256k1ECDSABitcoinCash = 110 + CurveSecp256k1ECDSABitcoin

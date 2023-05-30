@@ -15,7 +15,7 @@ const (
 	testMixinAddress = "XINZrJcfd6QoKrR7Q31YY7gk2zvbU1qkAAZ4xBan4KQYeDpTvAtMJQookpcjwbPDtJ4u8VELsbyymtLiUiEzpq6KtyjGNckr"
 	testMixinViewKey = "19ba53a43576de8a61fcfce927a514db37a1f012e11bc5d6251b3d40c4ecb90b"
 
-	CurveEdwards25519Mixin = 12
+	CurveEdwards25519Mixin = 5
 )
 
 func TestFROSTMixinSign(t *testing.T) {

@@ -119,6 +119,7 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	txHash := msgTx.TxHash().String()
 
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
 		return err
 	}
@@ -174,7 +175,9 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 }
 
 func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, sigBase64 string) error {
+	logger.Verbosef("revokeBitcoinTransaction(%s, %s)", txHash, sigBase64)
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
 		return err
 	}
@@ -186,7 +189,8 @@ func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, s
 	}
 
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
-	if err != nil || tx == nil {
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+	if err != nil {
 		return err
 	}
 
