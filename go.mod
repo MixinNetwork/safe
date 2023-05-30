@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/MixinNetwork/bot-api-go-client v1.6.1
 	github.com/MixinNetwork/mixin v0.15.0
-	github.com/MixinNetwork/multi-party-sig v0.2.0
+	github.com/MixinNetwork/multi-party-sig v0.3.0
 	github.com/MixinNetwork/nfo v0.3.4
 	github.com/MixinNetwork/tip v0.2.2
 	github.com/MixinNetwork/trusted-group v0.5.0
@@ -17,7 +17,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/ethereum/go-ethereum v1.12.0
-	github.com/fox-one/mixin-sdk-go v1.7.8
+	github.com/fox-one/mixin-sdk-go v1.7.9
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/mattn/go-sqlite3 v1.14.16
@@ -70,7 +70,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/stretchr/testify v1.8.3 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect
@@ -87,7 +87,7 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230525234025-438c736192d0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230526203410-71b5a4ffd15e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.55.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
