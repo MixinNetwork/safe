@@ -13,10 +13,13 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/pelletier/go-toml"
@@ -55,14 +58,40 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 	for _, node := range nodes {
 		parts := strings.Split(testCMPKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
-		conf, _ := hex.DecodeString(share)
+		sb, _ := hex.DecodeString(share)
 		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: crv, Type: common.OperationTypeKeygenInput}
 		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now().UTC())
 		require.Nil(err)
-		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, conf)
+		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb)
 		require.Nil(err)
+
+		conf := cmp.EmptyConfig(curve.Secp256k1{})
+		conf.UnmarshalBinary(sb)
+
+		key, _ := hex.DecodeString(public)
+		parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+		version := []byte{0x04, 0x88, 0xb2, 0x1e}
+		extPub := hdkeychain.NewExtendedKey(version, key, conf.ChainKey, parentFP, 0, 0, false)
+		require.Equal("xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM", extPub.String())
+		ecPub, err := extPub.ECPubKey()
+		require.Nil(err)
+		require.Equal(key, ecPub.SerializeCompressed())
+
+		for i := uint32(0); i < 3; i++ {
+			conf, err = conf.DeriveBIP32(i)
+			require.Nil(err)
+			spb := common.MarshalPanic(conf.PublicPoint())
+
+			extPub, err = extPub.Derive(i)
+			require.Nil(err)
+			ecPub, _ = extPub.ECPubKey()
+			bpb := ecPub.SerializeCompressed()
+
+			require.Equal(bpb, spb)
+			require.Equal([]byte(conf.ChainKey), extPub.ChainCode())
+		}
 	}
 	return public
 }

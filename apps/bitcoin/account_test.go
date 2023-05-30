@@ -2,12 +2,14 @@ package bitcoin
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"testing"
 	"time"
 
 	"github.com/MixinNetwork/multi-party-sig/pkg/ecdsa"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/test-go/testify/require"
@@ -40,7 +42,7 @@ func TestBitcoinCLI(t *testing.T) {
 	require.True(extPriv.IsPrivate())
 	require.True(extPriv.IsForNet(&chaincfg.MainNetParams))
 	require.Equal("xprv9s21ZrQH143K4NMg6FdKfSHPJN9W642rDck71dJ2j1N4SFePwJjkNm1xU3FCHUEjR9M4ZLCDKC6DonAyNhwg6NNhCoJFojRBeFzPwcQXTMS", extPriv.String())
-	require.Equal([]byte{0x4, 0x88, 0xad, 0xe4}, extPriv.Version())
+	require.Equal(netConfig(ChainBitcoin).HDPrivateKeyID[:], extPriv.Version())
 	require.Equal(byte(0x0), extPriv.Depth())
 	require.Equal(uint32(0x0), extPriv.ParentFingerprint())
 	require.Equal(uint32(0x0), extPriv.ChildIndex())
@@ -49,14 +51,20 @@ func TestBitcoinCLI(t *testing.T) {
 	// bitcoin-cli --rpcwallet=holder getaddressinfo 1DdhSdxiLepsH2YuiVxt8n85UHmWp4qjUt
 	extPriv, _ = extPriv.Derive(0x80000000 + 44)
 	extPriv, _ = extPriv.Derive(0x80000000)
-	extPriv, _ = extPriv.Derive(0x80000000)
 	extPub, err := extPriv.Neuter()
+	require.Nil(err)
+	ecPub, _ := extPub.ECPubKey()
+	parentFP := btcutil.Hash160(ecPub.SerializeCompressed())[:4]
+	require.Equal(uint32(0x1987f5fc), binary.BigEndian.Uint32(parentFP))
+
+	extPriv, _ = extPriv.Derive(0x80000000)
+	extPub, err = extPriv.Neuter()
 	require.Nil(err)
 	require.False(extPub.IsPrivate())
 	require.True(extPub.IsForNet(&chaincfg.MainNetParams))
-	require.Equal([]byte{0x4, 0x88, 0xb2, 0x1e}, extPub.Version())
+	require.Equal(netConfig(ChainBitcoin).HDPublicKeyID[:], extPub.Version())
 	require.Equal(byte(0x3), extPub.Depth())
-	require.Equal(uint32(0x1987f5fc), extPub.ParentFingerprint())
+	require.Equal(binary.BigEndian.Uint32(parentFP), extPub.ParentFingerprint())
 	require.Equal(uint32(0x80000000), extPub.ChildIndex())
 	require.Equal("xpub6Bqeq5d3McUGMHv6PhMPhCCnJt1JSgRJSYHP9q9uLLUnVh9AESmn8NHAsp5NneVg5orAc6EcTrEfMVTTrei6k3J5YPn8MgmN39aiqmD6wjH", extPub.String())
 
@@ -64,7 +72,7 @@ func TestBitcoinCLI(t *testing.T) {
 	extPriv, _ = extPriv.Derive(0)
 	apkh, _ := extPriv.Address(&chaincfg.MainNetParams)
 	require.Equal("1DdhSdxiLepsH2YuiVxt8n85UHmWp4qjUt", apkh.EncodeAddress())
-	ecPub, _ := extPriv.ECPubKey()
+	ecPub, _ = extPriv.ECPubKey()
 	require.Equal("03911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56", hex.EncodeToString(ecPub.SerializeCompressed()))
 	ecPriv, _ := extPriv.ECPrivKey()
 	require.Equal("52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556", hex.EncodeToString(ecPriv.Serialize()))

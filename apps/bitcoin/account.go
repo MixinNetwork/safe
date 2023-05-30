@@ -223,6 +223,9 @@ func netConfig(chain byte) *chaincfg.Params {
 			ScriptHashAddrID:        0x32,
 			WitnessPubKeyHashAddrID: 0x06,
 			WitnessScriptHashAddrID: 0x0A,
+
+			HDPublicKeyID:  [4]byte{0x01, 0x9d, 0xa4, 0x64},
+			HDPrivateKeyID: [4]byte{0x01, 0x9d, 0x9c, 0xfe},
 		}
 	default:
 		panic(chain)
