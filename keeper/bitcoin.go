@@ -3,6 +3,7 @@ package keeper
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
@@ -25,7 +27,19 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
 	}
-	receivers, threshold, err := req.ParseMixinRecipient()
+	rce, err := hex.DecodeString(req.Extra)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if len(rce) == 32 {
+		ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
+		if len(ver.References) == 1 && ver.References[0].String() == req.Extra {
+			stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
+			msp := mtg.DecodeMixinExtra(string(stx.Extra))
+			rce, _ = base64.RawURLEncoding.DecodeString(msp.M)
+		}
+	}
+	receivers, threshold, err := req.ParseMixinRecipient(rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)

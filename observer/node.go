@@ -182,10 +182,6 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	}
 	var stx crypto.Hash
 	copy(stx[:], op.Extra)
-	// FIXME remove this failed transaction hack
-	if stx.String() == "5b4ce1833fffd87b837e67dfffc38d5bcce93266da74756763bcf873845071ae" {
-		return true, nil
-	}
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
 	if err != nil {
 		panic(stx.String())

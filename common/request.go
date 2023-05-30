@@ -54,7 +54,7 @@ const (
 
 type Request struct {
 	Id         string
-	MixinHash  string
+	MixinHash  crypto.Hash
 	MixinIndex int
 	AssetId    string
 	Amount     decimal.Decimal
@@ -89,7 +89,7 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 		Curve:      op.Curve,
 		Holder:     op.Public,
 		Extra:      hex.EncodeToString(op.Extra),
-		MixinHash:  out.TransactionHash.String(),
+		MixinHash:  out.TransactionHash,
 		MixinIndex: out.OutputIndex,
 		AssetId:    out.AssetID,
 		Amount:     out.Amount,
@@ -100,12 +100,7 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 	return r, r.VerifyFormat()
 }
 
-func (req *Request) ParseMixinRecipient() ([]string, byte, error) {
-	extra, err := hex.DecodeString(req.Extra)
-	if err != nil {
-		return nil, 0, err
-	}
-
+func (req *Request) ParseMixinRecipient(extra []byte) ([]string, byte, error) {
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
@@ -150,8 +145,7 @@ func (r *Request) VerifyFormat() error {
 	if r.Amount.Cmp(decimal.New(1, -8)) < 0 {
 		return fmt.Errorf("invalid request amount %v", r)
 	}
-	mh, err := crypto.HashFromString(r.MixinHash)
-	if err != nil || !mh.HasValue() {
+	if !r.MixinHash.HasValue() {
 		return fmt.Errorf("invalid request mixin %v", r)
 	}
 	switch r.Curve {
