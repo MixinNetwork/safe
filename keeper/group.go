@@ -229,7 +229,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) != 1 {
+	if len(extra) < 1 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	switch extra[0] {
@@ -248,7 +248,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]))
+	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), extra[1:])
 }
 
 func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) error {

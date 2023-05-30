@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -20,10 +21,10 @@ type Key struct {
 	UpdatedAt time.Time
 }
 
-var keyCols = []string{"public_key", "curve", "request_id", "role", "holder", "created_at", "updated_at"}
+var keyCols = []string{"public_key", "curve", "request_id", "role", "extra", "holder", "created_at", "updated_at"}
 
-func keyValsFromRequest(r *common.Request, role int) []any {
-	return []any{r.Holder, r.Curve, r.Id, role, sql.NullString{}, r.CreatedAt, r.CreatedAt}
+func keyValsFromRequest(r *common.Request, role int, extra []byte) []any {
+	return []any{r.Holder, r.Curve, r.Id, role, hex.EncodeToString(extra), sql.NullString{}, r.CreatedAt, r.CreatedAt}
 }
 
 func (s *SQLite3Store) ReadKey(ctx context.Context, public string) (*Key, error) {
@@ -50,7 +51,7 @@ func (s *SQLite3Store) CountSpareKeys(ctx context.Context, curve byte, role int)
 	return count, err
 }
 
-func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Request, role int) error {
+func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Request, role int, extra []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -64,7 +65,7 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 		panic(req.Curve)
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("keys", keyCols), keyValsFromRequest(req, role)...)
+	err = s.execOne(ctx, tx, buildInsertionSQL("keys", keyCols), keyValsFromRequest(req, role, extra)...)
 	if err != nil {
 		return fmt.Errorf("INSERT keys %v", err)
 	}

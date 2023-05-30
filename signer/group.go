@@ -10,6 +10,8 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
+	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
@@ -119,15 +121,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if !valid {
 			return nil
 		}
-		holder, crv, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
+		holder, crv, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
 		if err != nil {
 			panic(err)
 		}
 		if holder != session.Public || crv != session.Curve {
 			panic(session.Public)
 		}
+		chainCode := node.parseChainCode(ctx, crv, share)
 		op.Type = common.OperationTypeKeygenOutput
-		op.Extra = []byte{common.RequestRoleSigner}
+		op.Extra = append([]byte{common.RequestRoleSigner}, chainCode...)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
 		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {
@@ -158,6 +161,35 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		return err
 	}
 	return node.buildKeeperTransaction(ctx, op)
+}
+
+func (node *Node) parseChainCode(ctx context.Context, crv byte, share []byte) []byte {
+	switch crv {
+	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
+		conf := cmp.EmptyConfig(curve.Secp256k1{})
+		err := conf.UnmarshalBinary(share)
+		if err != nil {
+			panic(err)
+		}
+		return conf.ChainKey
+	case common.CurveSecp256k1SchnorrBitcoin:
+		group := curve.Secp256k1{}
+		conf := &frost.TaprootConfig{PrivateShare: group.NewScalar()}
+		err := conf.UnmarshalBinary(share)
+		if err != nil {
+			panic(err)
+		}
+		return conf.ChainKey
+	case common.CurveEdwards25519Default, common.CurveEdwards25519Mixin:
+		conf := frost.EmptyConfig(curve.Edwards25519{})
+		err := conf.UnmarshalBinary(share)
+		if err != nil {
+			panic(err)
+		}
+		return conf.ChainKey
+	default:
+		panic(crv)
+	}
 }
 
 func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder string) bool {

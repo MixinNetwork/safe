@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS keys (
   curve           INTEGER NOT NULL,
   request_id      VARCHAR NOT NULL,
   role            INTEGER NOT NULL,
+  extra           VARCHAR NOT NULL,
   holder          VARCHAR,
   created_at      TIMESTAMP NOT NULL,
   updated_at      TIMESTAMP NOT NULL,
