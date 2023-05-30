@@ -113,7 +113,6 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/transactions/:id", node.httpGetTransaction)
 	router.POST("/transactions/:id", node.httpApproveTransaction)
 	handler := handleCORS(router)
-	handler = handleLog(handler)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7080), handler)
 	if err != nil {
 		panic(err)
@@ -135,24 +134,24 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if bi == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if li == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 
-	renderJSON(w, http.StatusOK, []map[string]any{{
+	renderJSON(w, r, http.StatusOK, []map[string]any{{
 		"id":    keeper.SafeBitcoinChainId,
 		"chain": bi.Chain,
 		"head": map[string]any{
@@ -181,63 +180,63 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
 	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateDone, offset)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 
-	renderJSON(w, http.StatusOK, viewDeposits(deposits))
+	renderJSON(w, r, http.StatusOK, viewDeposits(deposits))
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if safe == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if !proposed {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if wsa.Address != safe.Address {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
 	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	mainInputs, feeInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	renderJSON(w, http.StatusOK, map[string]any{
+	renderJSON(w, r, http.StatusOK, map[string]any{
 		"chain":   safe.Chain,
 		"id":      safe.RequestId,
 		"address": safe.Address,
@@ -262,67 +261,67 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		renderJSON(w, http.StatusBadRequest, map[string]any{"error": err})
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if safe == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	if safe.Address != body.Address {
-		renderJSON(w, http.StatusBadRequest, map[string]any{"error": "address"})
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "address"})
 		return
 	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if !proposed {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	err = node.approveBitcoinAccount(r.Context(), body.Address, body.Signature)
 	if err != nil {
-		renderJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": err})
+		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
 	}
 	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if wsa.Address != safe.Address {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
 	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	mainInputs, feeInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	renderJSON(w, http.StatusOK, map[string]any{
+	renderJSON(w, r, http.StatusOK, map[string]any{
 		"chain":   safe.Chain,
 		"id":      safe.RequestId,
 		"address": safe.Address,
@@ -343,30 +342,30 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	tx, req, err := node.readTransactionOrRequest(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if req != nil && req.State == common.RequestStateFailed {
-		renderJSON(w, http.StatusOK, map[string]any{
+		renderJSON(w, r, http.StatusOK, map[string]any{
 			"id":    req.Id,
 			"state": common.StateName(int(req.State)),
 		})
 		return
 	}
 	if tx == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if approval == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	renderJSON(w, http.StatusOK, map[string]any{
+	renderJSON(w, r, http.StatusOK, map[string]any{
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
@@ -387,36 +386,36 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		renderJSON(w, http.StatusBadRequest, map[string]any{"error": err})
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	switch body.Chain {
 	case keeper.SafeChainBitcoin:
 	case keeper.SafeChainLitecoin:
 	default:
-		renderJSON(w, http.StatusBadRequest, map[string]any{"error": "chain"})
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "chain"})
 		return
 	}
 	tx, err := node.keeperStore.ReadTransactionByRequestId(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if tx == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
 	if err != nil {
-		renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
 	if approval == nil {
-		renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
 	if approval.State != common.RequestStateInitial {
-		renderJSON(w, http.StatusBadRequest, map[string]any{"error": "state"})
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "state"})
 		return
 	}
 
@@ -424,19 +423,19 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	case "approve":
 		err = node.approveBitcoinTransaction(r.Context(), body.Raw, body.Signature)
 		if err != nil {
-			renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return
 		}
 	case "revoke":
 		err = node.revokeBitcoinTransaction(r.Context(), body.Hash, body.Signature)
 		if err != nil {
-			renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return
 		}
 	default:
 	}
 
-	renderJSON(w, http.StatusOK, map[string]any{
+	renderJSON(w, r, http.StatusOK, map[string]any{
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
@@ -491,20 +490,21 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 	return view
 }
 
-func renderJSON(w http.ResponseWriter, status int, data any) {
+func renderJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(status)
 	b, _ := json.Marshal(data)
-	w.Write(b)
+	size, err := w.Write(b)
+	logger.Verbosef("ServeHTTP(%v) => %d %s %d %v", *r, status, string(b), size, err)
 }
 
 func handlePanic(w http.ResponseWriter, r *http.Request, rcv any) {
 	logger.Verbosef("PANIC (%v) => %v", *r, rcv)
-	renderJSON(w, http.StatusInternalServerError, map[string]any{"error": "500"})
+	renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 }
 
 func handleNotFound(w http.ResponseWriter, r *http.Request) {
-	renderJSON(w, http.StatusNotFound, map[string]any{"error": "404"})
+	renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 }
 
 // TODO may consider a whitelist in the case of Ethereum scams
@@ -520,16 +520,9 @@ func handleCORS(handler http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST,DELETE")
 		w.Header().Set("Access-Control-Max-Age", "600")
 		if r.Method == "OPTIONS" {
-			renderJSON(w, http.StatusOK, map[string]any{})
+			renderJSON(w, r, http.StatusOK, map[string]any{})
 		} else {
 			handler.ServeHTTP(w, r)
 		}
-	})
-}
-
-func handleLog(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Verbosef("ServeHTTP(%v)", *r)
-		handler.ServeHTTP(w, r)
 	})
 }
