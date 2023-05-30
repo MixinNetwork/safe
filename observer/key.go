@@ -2,8 +2,11 @@ package observer
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha512"
 	"encoding/hex"
+	"math/big"
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
@@ -38,12 +41,13 @@ func (node *Node) bitcoinAddAccountantKeys(ctx context.Context) error {
 		return err
 	}
 	for count < 1000 {
-		accountant, err := node.generateAndWriteBitcoinAccountantKey(ctx)
+		accountant, chainCode, err := node.generateAndWriteBitcoinAccountantKey(ctx)
 		if err != nil {
 			return err
 		}
 		id := mixin.UniqueConversationID(accountant, accountant)
-		err = node.sendBitcoinKeeperResponse(ctx, accountant, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, []byte{common.RequestRoleAccountant})
+		extra := append([]byte{common.RequestRoleAccountant}, chainCode...)
+		err = node.sendBitcoinKeeperResponse(ctx, accountant, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
 		if err != nil {
 			return err
 		}
@@ -58,7 +62,7 @@ func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
 		return err
 	}
 	for count < 1000 {
-		observer, err := node.store.ReadObserverKey(ctx, common.CurveSecp256k1ECDSABitcoin)
+		observer, chainCode, err := node.store.ReadObserverKey(ctx, common.CurveSecp256k1ECDSABitcoin)
 		if err != nil {
 			return err
 		}
@@ -66,7 +70,8 @@ func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
 			return nil
 		}
 		id := mixin.UniqueConversationID(observer, observer)
-		err = node.sendBitcoinKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, []byte{common.RequestRoleObserver})
+		extra := append([]byte{common.RequestRoleObserver}, chainCode...)
+		err = node.sendBitcoinKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
 		if err != nil {
 			return err
 		}
@@ -97,17 +102,30 @@ func (node *Node) bitcoinRequestSignerKeys(ctx context.Context) error {
 	return node.writeSignerKeygenRequestTime(ctx)
 }
 
-func (node *Node) generateAndWriteBitcoinAccountantKey(ctx context.Context) (string, error) {
-	seed := make([]byte, 32)
+func (node *Node) generateAndWriteBitcoinAccountantKey(ctx context.Context) (string, []byte, error) {
+	seed := make([]byte, 64)
 	n, err := rand.Read(seed)
-	if err != nil || n != 32 {
+	if err != nil || n != 64 {
 		panic(err)
 	}
-	privateKey, publicKey := btcec.PrivKeyFromBytes(seed)
+
+	hmac512 := hmac.New(sha512.New, seed)
+	_, _ = hmac512.Write(seed)
+	lr := hmac512.Sum(nil)
+
+	secretKey := lr[:len(lr)/2]
+	chainCode := lr[len(lr)/2:]
+
+	secretKeyNum := new(big.Int).SetBytes(secretKey)
+	if secretKeyNum.Cmp(btcec.S256().N) >= 0 || secretKeyNum.Sign() == 0 {
+		panic(secretKeyNum.String())
+	}
+
+	privateKey, publicKey := btcec.PrivKeyFromBytes(secretKey)
 	priv := hex.EncodeToString(privateKey.Serialize())
 	pub := hex.EncodeToString(publicKey.SerializeCompressed())
-	err = node.store.WriteAccountantKey(ctx, common.CurveSecp256k1ECDSABitcoin, pub, priv)
-	return pub, err
+	err = node.store.WriteAccountantKey(ctx, common.CurveSecp256k1ECDSABitcoin, pub, priv, chainCode)
+	return pub, chainCode, err
 }
 
 func (node *Node) bitcoinReadAccountantKey(ctx context.Context, pub string) (*btcec.PrivateKey, error) {

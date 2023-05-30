@@ -3,8 +3,10 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -74,7 +76,7 @@ func ObserverImportKeys(c *cli.Context) error {
 	return db.WriteObserverKeys(ctx, byte(chain), publics)
 }
 
-func scanKeyList(path string, chain int) ([]string, error) {
+func scanKeyList(path string, chain int) (map[string]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -89,14 +91,24 @@ func scanKeyList(path string, chain int) ([]string, error) {
 		return nil, fmt.Errorf("invalid chain %d", chain)
 	}
 
-	var publics []string
+	publics := make(map[string]string)
 	for scanner.Scan() {
-		pub := scanner.Text()
+		hd := scanner.Text()
+		hdp := strings.Split(hd, ":")
+		if len(hdp) != 2 {
+			return nil, fmt.Errorf("invalid pair %s", hd)
+		}
+		pub, code := hdp[0], hdp[1]
 		err := bitcoin.VerifyHolderKey(pub)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid pub %s", hd)
 		}
-		publics = append(publics, pub)
+
+		chainCode, err := hex.DecodeString(code)
+		if err != nil || len(chainCode) != 32 {
+			return nil, fmt.Errorf("invalid code %s", hd)
+		}
+		publics[pub] = code
 	}
 	return publics, nil
 }

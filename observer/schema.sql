@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS accountants (
   public_key     VARCHAR NOT NULL,
   private_key    VARCHAR NOT NULL,
   curve          INTEGER NOT NULL,
+  chain_code     VARCHAR NOT NULL,
   created_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('public_key')
 );
@@ -39,6 +40,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS accountants_by_private_key ON accountants(priv
 CREATE TABLE IF NOT EXISTS observers (
   public_key     VARCHAR NOT NULL,
   curve          INTEGER NOT NULL,
+  chain_code     VARCHAR NOT NULL,
   created_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('public_key')
 );

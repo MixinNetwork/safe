@@ -3,6 +3,7 @@ package observer
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -302,15 +303,15 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 	return &t, err
 }
 
-func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, crv byte, pub, priv string) error {
+func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, crv byte, pub, priv string, chainCode []byte) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	cols := []string{"public_key", "private_key", "curve", "created_at"}
-	vals := []any{pub, priv, crv, time.Now().UTC()}
+	cols := []string{"public_key", "private_key", "curve", "chain_code", "created_at"}
+	vals := []any{pub, priv, crv, hex.EncodeToString(chainCode), time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("accountants", cols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT accountants %v", err)
@@ -329,16 +330,16 @@ func (s *SQLite3Store) ReadAccountantKey(ctx context.Context, pub string, crv by
 	return private, err
 }
 
-func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics []string) error {
+func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics map[string]string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	for _, pub := range publics {
-		cols := []string{"public_key", "curve", "created_at"}
-		vals := []any{pub, crv, time.Now().UTC()}
+	for pub, code := range publics {
+		cols := []string{"public_key", "curve", "chain_code", "created_at"}
+		vals := []any{pub, crv, code, time.Now().UTC()}
 		err = s.execOne(ctx, tx, buildInsertionSQL("observers", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT observers %v", err)
@@ -348,14 +349,14 @@ func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadObserverKey(ctx context.Context, crv byte) (string, error) {
-	var public string
-	row := s.db.QueryRowContext(ctx, "SELECT public_key FROM observers WHERE curve=? LIMIT 1", crv)
-	err := row.Scan(&public)
+func (s *SQLite3Store) ReadObserverKey(ctx context.Context, crv byte) (string, []byte, error) {
+	var public, chainCode string
+	row := s.db.QueryRowContext(ctx, "SELECT public_key,chain_code FROM observers WHERE curve=? LIMIT 1", crv)
+	err := row.Scan(&public, &chainCode)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return "", nil, nil
 	}
-	return public, err
+	return public, common.DecodeHexOrPanic(chainCode), err
 }
 
 func (s *SQLite3Store) DeleteObserverKey(ctx context.Context, pub string) error {
