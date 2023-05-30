@@ -605,7 +605,8 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeKeygenInput:
 		op.Public = hex.EncodeToString(common.Fingerprint(public))
 	case common.OperationTypeSignInput:
-		op.Public = hex.EncodeToString(common.Fingerprint(public))
+		fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
+		op.Public = hex.EncodeToString(fingerPath)
 	case common.OperationTypeKeygenOutput:
 		op.Public = public
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)

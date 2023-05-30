@@ -58,11 +58,12 @@ func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.Signatur
 		panic(req.Curve)
 	}
 
+	fingerPath := append(common.Fingerprint(req.Signer), []byte{0, 0, 0, 0}...)
 	op := &common.Operation{
 		Id:     req.RequestId,
 		Type:   common.OperationTypeSignInput,
 		Curve:  crv,
-		Public: hex.EncodeToString(common.Fingerprint(req.Signer)),
+		Public: hex.EncodeToString(fingerPath),
 		Extra:  common.DecodeHexOrPanic(req.Message),
 	}
 	return node.buildSignerTransaction(ctx, op)

@@ -136,8 +136,8 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {
 			panic(session.Extra)
 		}
-		holder, crv, _, err := node.store.ReadKeyByFingerprint(ctx, session.Public)
-		logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", session.Public, holder, err)
+		holder, crv, _, _, err := node.readKeyByFingerPath(ctx, session.Public)
+		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
 			return err
 		}
@@ -161,6 +161,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		return err
 	}
 	return node.buildKeeperTransaction(ctx, op)
+}
+
+func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, byte, []byte, []byte, error) {
+	fingerPath, err := hex.DecodeString(public)
+	if err != nil || len(fingerPath) != 12 || fingerPath[8] > 3 {
+		return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
+	}
+	fingerprint := hex.EncodeToString(fingerPath[:8])
+	public, crv, share, err := node.store.ReadKeyByFingerprint(ctx, fingerprint)
+	return public, crv, share, fingerPath[8:], err
 }
 
 func (node *Node) parseChainCode(ctx context.Context, crv byte, share []byte) []byte {
@@ -343,10 +353,10 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	logger.Printf("node.startSign(%v)", op)
-	public, crv, share, err := node.store.ReadKeyByFingerprint(ctx, op.Public)
-	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", op.Public, public, err)
+	public, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadKeyByFingerprint(%s) => %v", op.Public, err)
+		return fmt.Errorf("node.readKeyByFingerPath(%s) => %v", op.Public, err)
 	}
 	if public == "" {
 		return node.store.FailSession(ctx, op.Id)
@@ -354,14 +364,15 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	if crv != op.Curve {
 		return fmt.Errorf("node.startSign(%v) invalid curve %d %d", op, crv, op.Curve)
 	}
-	if hex.EncodeToString(common.Fingerprint(public)) != op.Public {
-		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), op.Public)
+	fingerprint := op.Public[:16]
+	if hex.EncodeToString(common.Fingerprint(public)) != fingerprint {
+		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), fingerprint)
 	}
 
 	var res *SignResult
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		res, err = node.cmpSign(ctx, public, share, op.Extra, op.IdBytes(), op.Curve)
+		res, err = node.cmpSign(ctx, public, share, op.Extra, op.IdBytes(), op.Curve, path)
 		logger.Verbosef("node.cmpSign(%v) => %v %v", op, res, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
 		res, err = node.taprootSign(ctx, public, share, op.Extra, op.IdBytes())

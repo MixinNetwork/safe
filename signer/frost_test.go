@@ -65,13 +65,14 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 
 func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, curve uint8) []byte {
 	sid := mixin.UniqueConversationID("sign", fmt.Sprintf("%d:%x", curve, msg))
+	fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
 		sop := &common.Operation{
 			Type:   common.OperationTypeSignInput,
 			Id:     sid,
 			Curve:  curve,
-			Public: hex.EncodeToString(common.Fingerprint(public)),
+			Public: hex.EncodeToString(fingerPath),
 			Extra:  msg,
 		}
 		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))

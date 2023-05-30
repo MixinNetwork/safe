@@ -70,11 +70,12 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 func testCMPSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte) []byte {
 	node := nodes[0]
 	sid := mixin.UniqueConversationID("sign", hex.EncodeToString(msg))
+	fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
 	sop := &common.Operation{
 		Type:   common.OperationTypeSignInput,
 		Id:     sid,
 		Curve:  crv,
-		Public: hex.EncodeToString(common.Fingerprint(public)),
+		Public: hex.EncodeToString(fingerPath),
 		Extra:  msg,
 	}
 	memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))
