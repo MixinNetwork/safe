@@ -39,7 +39,7 @@ func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*K
 }
 
 func (node *Node) cmpSign(ctx context.Context, public string, share []byte, m []byte, sessionId []byte, crv byte, path []byte) (*SignResult, error) {
-	logger.Printf("node.cmpSign(%x, %s, %x)", sessionId, public, m)
+	logger.Printf("node.cmpSign(%x, %s, %x, %d, %x)", sessionId, public, m, crv, path)
 	conf := cmp.EmptyConfig(curve.Secp256k1{})
 	err := conf.UnmarshalBinary(share)
 	if err != nil {
@@ -53,6 +53,10 @@ func (node *Node) cmpSign(ctx context.Context, public string, share []byte, m []
 		conf, err = conf.DeriveBIP32(uint32(path[i+1]))
 		if err != nil {
 			return nil, fmt.Errorf("cmp.DeriveBIP32(%x, %d, %d) => %v", sessionId, i, path[i+1], err)
+		}
+		pb := common.MarshalPanic(conf.PublicPoint())
+		if hex.EncodeToString(pb) == public {
+			panic(public)
 		}
 	}
 

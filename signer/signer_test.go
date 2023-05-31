@@ -11,8 +11,10 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/test-go/testify/require"
 )
@@ -21,8 +23,46 @@ func TestCMPSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
 
-	public := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
-	testCMPSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin)
+	public, chainCode := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
+	sig := testCMPSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin)
+	err := bitcoin.VerifySignatureDER(public, []byte("mixin"), sig)
+	require.Nil(err)
+
+	key, _ := hex.DecodeString(public)
+	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+	version := []byte{0x04, 0x88, 0xb2, 0x1e}
+	extPub := hdkeychain.NewExtendedKey(version, key, chainCode, parentFP, 0, 0, false)
+
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{1, 0, 0, 0})
+	hp, _ := extPub.Derive(0)
+	pub, err := hp.ECPubKey()
+	require.Nil(err)
+	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	require.Nil(err)
+
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{1, 123, 0, 0})
+	hp, _ = extPub.Derive(123)
+	pub, err = hp.ECPubKey()
+	require.Nil(err)
+	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	require.Nil(err)
+
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{2, 123, 220, 255})
+	hp, _ = extPub.Derive(123)
+	hp, _ = hp.Derive(220)
+	pub, err = hp.ECPubKey()
+	require.Nil(err)
+	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	require.Nil(err)
+
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{3, 123, 220, 255})
+	hp, _ = extPub.Derive(123)
+	hp, _ = hp.Derive(220)
+	hp, _ = hp.Derive(255)
+	pub, err = hp.ECPubKey()
+	require.Nil(err)
+	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	require.Nil(err)
 }
 
 func TestSSID(t *testing.T) {
@@ -42,7 +82,7 @@ func TestSSID(t *testing.T) {
 	require.Equal("b4ee4f1ad7294abdb0d09699e420c085c377580f0397c0daa0dae5b272c75e495bdb77146775ddd347050d0093459204189b75bbe5c5cc534817fce62d25df1d", hex.EncodeToString(start.SSID()))
 }
 
-func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) string {
+func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, []byte) {
 	sid := mixin.UniqueConversationID("keygen", fmt.Sprint(400))
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
@@ -64,6 +104,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 	}
 
 	var public string
+	var chainCode []byte
 	for _, node := range nodes {
 		op := testWaitOperation(ctx, node, sid)
 		require.Equal(common.OperationTypeKeygenOutput, int(op.Type))
@@ -73,6 +114,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 		require.Len(op.Extra, 33)
 		require.Equal(op.Extra[0], byte(common.RequestRoleSigner))
 		public = op.Public
+		chainCode = op.Extra[1:33]
 	}
-	return public
+	return public, chainCode
 }

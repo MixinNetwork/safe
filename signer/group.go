@@ -128,7 +128,10 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if holder != session.Public || crv != session.Curve {
 			panic(session.Public)
 		}
-		chainCode := node.parseChainCode(ctx, crv, share)
+		public, chainCode := node.deriveByPath(ctx, crv, share, []byte{0, 0, 0, 0})
+		if hex.EncodeToString(public) != session.Public {
+			panic(session.Public)
+		}
 		op.Type = common.OperationTypeKeygenOutput
 		op.Extra = append([]byte{common.RequestRoleSigner}, chainCode...)
 		op.Public = session.Public
@@ -136,7 +139,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {
 			panic(session.Extra)
 		}
-		holder, crv, _, _, err := node.readKeyByFingerPath(ctx, session.Public)
+		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
 			return err
@@ -144,7 +147,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if crv != op.Curve {
 			return nil
 		}
-		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra))
+		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
 		logger.Printf("node.verifySessionSignature(%d, %s) => %t", session.Curve, holder, valid)
 		if !valid {
 			return nil
@@ -173,7 +176,7 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (strin
 	return public, crv, share, fingerPath[8:], err
 }
 
-func (node *Node) parseChainCode(ctx context.Context, crv byte, share []byte) []byte {
+func (node *Node) deriveByPath(ctx context.Context, crv byte, share, path []byte) ([]byte, []byte) {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		conf := cmp.EmptyConfig(curve.Secp256k1{})
@@ -181,7 +184,13 @@ func (node *Node) parseChainCode(ctx context.Context, crv byte, share []byte) []
 		if err != nil {
 			panic(err)
 		}
-		return conf.ChainKey
+		for i := 0; i < int(path[0]); i++ {
+			conf, err = conf.DeriveBIP32(uint32(path[i+1]))
+			if err != nil {
+				panic(err)
+			}
+		}
+		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
 	case common.CurveSecp256k1SchnorrBitcoin:
 		group := curve.Secp256k1{}
 		conf := &frost.TaprootConfig{PrivateShare: group.NewScalar()}
@@ -189,14 +198,14 @@ func (node *Node) parseChainCode(ctx context.Context, crv byte, share []byte) []
 		if err != nil {
 			panic(err)
 		}
-		return conf.ChainKey
+		return conf.PublicKey, conf.ChainKey
 	case common.CurveEdwards25519Default, common.CurveEdwards25519Mixin:
 		conf := frost.EmptyConfig(curve.Edwards25519{})
 		err := conf.UnmarshalBinary(share)
 		if err != nil {
 			panic(err)
 		}
-		return conf.ChainKey
+		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
 	default:
 		panic(crv)
 	}
@@ -223,15 +232,17 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 	}
 }
 
-func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra []byte) (bool, []byte) {
+func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
 	if len(extra) < int(extra[0])+32 {
 		return false, nil
 	}
 	msg := extra[1 : 1+extra[0]]
 	sig := extra[1+extra[0]:]
+	public, _ := node.deriveByPath(ctx, crv, share, path)
+
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
-		err := bitcoin.VerifySignatureDER(holder, msg, sig)
+		err := bitcoin.VerifySignatureDER(hex.EncodeToString(public), msg, sig)
 		logger.Printf("node.verifySessionSignature(%d, %s, %x) => %v", crv, holder, extra, err)
 		return err == nil, sig
 	case common.CurveEdwards25519Mixin:

@@ -79,7 +79,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		require.Nil(err)
 		require.Equal(key, ecPub.SerializeCompressed())
 
-		for i := uint32(0); i < 3; i++ {
+		for i := uint32(0); i < 16; i++ {
 			conf, err = conf.DeriveBIP32(i)
 			require.Nil(err)
 			spb := common.MarshalPanic(conf.PublicPoint())
@@ -89,6 +89,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 			ecPub, _ = extPub.ECPubKey()
 			bpb := ecPub.SerializeCompressed()
 
+			require.NotEqual(key, bpb)
 			require.Equal(bpb, spb)
 			require.Equal([]byte(conf.ChainKey), extPub.ChainCode())
 		}
@@ -97,9 +98,14 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 }
 
 func testCMPSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte) []byte {
+	return testCMPSignWithPath(ctx, require, nodes, public, msg, crv, []byte{0, 0, 0, 0})
+}
+
+func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte, path []byte) []byte {
 	node := nodes[0]
 	sid := mixin.UniqueConversationID("sign", hex.EncodeToString(msg))
-	fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
+	sid = mixin.UniqueConversationID(sid, hex.EncodeToString(path))
+	fingerPath := append(common.Fingerprint(public), path...)
 	sop := &common.Operation{
 		Type:   common.OperationTypeSignInput,
 		Id:     sid,
