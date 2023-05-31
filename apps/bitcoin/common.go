@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/domains/bitcoin"
 	"github.com/MixinNetwork/mixin/domains/litecoin"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -102,6 +104,27 @@ func CheckFinalization(num uint64, coinbase bool) bool {
 		return true
 	}
 	return !coinbase && num >= TransactionConfirmations
+}
+
+func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, error) {
+	key, err := hex.DecodeString(public)
+	if err != nil {
+		return "", err
+	}
+	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+	version := []byte{0x04, 0x88, 0xb2, 0x1e}
+	extPub := hdkeychain.NewExtendedKey(version, key, chainCode, parentFP, 0, 0, false)
+	for _, i := range children {
+		extPub, err = extPub.Derive(i)
+		if err != nil {
+			return "", err
+		}
+	}
+	pub, err := extPub.ECPubKey()
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(pub.SerializeCompressed()), nil
 }
 
 func HashMessageForSignature(msg string, chain byte) []byte {

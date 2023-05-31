@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/test-go/testify/require"
 )
@@ -28,40 +27,28 @@ func TestCMPSigner(t *testing.T) {
 	err := bitcoin.VerifySignatureDER(public, []byte("mixin"), sig)
 	require.Nil(err)
 
-	key, _ := hex.DecodeString(public)
-	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
-	version := []byte{0x04, 0x88, 0xb2, 0x1e}
-	extPub := hdkeychain.NewExtendedKey(version, key, chainCode, parentFP, 0, 0, false)
-
 	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{1, 0, 0, 0})
-	hp, _ := extPub.Derive(0)
-	pub, err := hp.ECPubKey()
+	cp, err := bitcoin.DeriveBIP32(public, chainCode, 0)
 	require.Nil(err)
-	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 
 	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{1, 123, 0, 0})
-	hp, _ = extPub.Derive(123)
-	pub, err = hp.ECPubKey()
+	cp, err = bitcoin.DeriveBIP32(public, chainCode, 123)
 	require.Nil(err)
-	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 
 	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{2, 123, 220, 255})
-	hp, _ = extPub.Derive(123)
-	hp, _ = hp.Derive(220)
-	pub, err = hp.ECPubKey()
+	cp, err = bitcoin.DeriveBIP32(public, chainCode, 123, 220)
 	require.Nil(err)
-	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 
 	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{3, 123, 220, 255})
-	hp, _ = extPub.Derive(123)
-	hp, _ = hp.Derive(220)
-	hp, _ = hp.Derive(255)
-	pub, err = hp.ECPubKey()
+	cp, err = bitcoin.DeriveBIP32(public, chainCode, 123, 220, 255)
 	require.Nil(err)
-	err = bitcoin.VerifySignatureDER(hex.EncodeToString(pub.SerializeCompressed()), []byte("mixin"), sig)
+	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 }
 
