@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS bitcoin_outputs (
   satoshi            INTEGER NOT NULL,
   script             VARCHAR NOT NULL,
   sequence           INTEGER NOT NULL,
+  chain              INTEGER NOT NULL,
   state              INTEGER NOT NULL,
   spent_by           VARCHAR,
   request_id         VARCHAR NOT NULL,

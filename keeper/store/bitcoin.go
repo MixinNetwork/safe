@@ -13,7 +13,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiver string, utxo *bitcoin.Input, req *common.Request, isAccountant bool) error {
+func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiver string, utxo *bitcoin.Input, req *common.Request, isAccountant bool, chain byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -37,8 +37,8 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiv
 	}
 
 	script := hex.EncodeToString(utxo.Script)
-	cols := []string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "state", "spent_by", "request_id", "created_at", "updated_at"}
-	vals := []any{utxo.TransactionHash, utxo.Index, receiver, utxo.Satoshi, script, utxo.Sequence, common.RequestStateInitial, nil, req.Id, req.CreatedAt, req.CreatedAt}
+	cols := []string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "chain", "state", "spent_by", "request_id", "created_at", "updated_at"}
+	vals := []any{utxo.TransactionHash, utxo.Index, receiver, utxo.Satoshi, script, utxo.Sequence, chain, common.RequestStateInitial, nil, req.Id, req.CreatedAt, req.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("bitcoin_outputs", cols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT bitcoin_outputs %v", err)

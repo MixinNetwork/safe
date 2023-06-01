@@ -119,6 +119,9 @@ func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, e
 		if err != nil {
 			return "", err
 		}
+		if bytes.Equal(extPub.ChainCode(), chainCode) {
+			panic(i)
+		}
 	}
 	pub, err := extPub.ECPubKey()
 	if err != nil {

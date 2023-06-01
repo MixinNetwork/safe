@@ -156,7 +156,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		}
 	}
 
-	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, false)
+	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, false, safe.Chain)
 }
 
 func (node *Node) CreateAccountantDeposit(ctx context.Context, req *common.Request) error {
@@ -218,7 +218,7 @@ func (node *Node) doBitcoinAccountantDeposit(ctx context.Context, req *common.Re
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	return node.store.WriteBitcoinOutputFromRequest(ctx, wka.Address, output, req, true)
+	return node.store.WriteBitcoinOutputFromRequest(ctx, wka.Address, output, req, true, safe.Chain)
 }
 
 func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, typ int) (*bitcoin.Input, error) {
