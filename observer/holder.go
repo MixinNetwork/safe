@@ -91,7 +91,8 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 	if err != nil {
 		return err
 	}
-	hash := bitcoin.HashMessageForSignature(sp.Address, sp.Chain)
+	ms := fmt.Sprintf("APPROVE:%s:%s", sp.RequestId, sp.Address)
+	hash := bitcoin.HashMessageForSignature(ms, sp.Chain)
 	err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", sp, err)
 	if err != nil {
@@ -161,7 +162,8 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	if err != nil {
 		return err
 	}
-	msg := bitcoin.HashMessageForSignature(txHash, approval.Chain)
+	ms := fmt.Sprintf("APPROVE:%s:%s", tx.RequestId, tx.TransactionHash)
+	msg := bitcoin.HashMessageForSignature(ms, approval.Chain)
 	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
 	if err != nil {
@@ -198,7 +200,8 @@ func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, s
 	if err != nil {
 		return err
 	}
-	msg := bitcoin.HashMessageForSignature(txHash, approval.Chain)
+	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
+	msg := bitcoin.HashMessageForSignature(ms, approval.Chain)
 	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
 	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
 	if err != nil {

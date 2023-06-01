@@ -208,7 +208,8 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 
 	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
 	holder, _ := btcec.PrivKeyFromBytes(hb)
-	msg := bitcoin.HashMessageForSignature(transactionHash, SafeChainBitcoin)
+	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
+	msg := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
 	sig := ecdsa.Sign(holder, msg).Serialize()
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	extra = append(extra, sig...)
@@ -238,7 +239,8 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 
 	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
 	holder, _ := btcec.PrivKeyFromBytes(hb)
-	msg := bitcoin.HashMessageForSignature(transactionHash, SafeChainBitcoin)
+	ms := fmt.Sprintf("APPROVE:%s:%s", tx.RequestId, tx.TransactionHash)
+	msg := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
 	sig := ecdsa.Sign(holder, msg).Serialize()
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	extra = append(extra, sig...)
@@ -470,7 +472,8 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 func testSafeApproveAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer, accountant string, rid, publicKey string) {
 	id := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	hash := bitcoin.HashMessageForSignature(publicKey, SafeChainBitcoin)
+	ms := fmt.Sprintf("APPROVE:%s:%s", rid, publicKey)
+	hash := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
 	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
 	hp, _ := btcec.PrivKeyFromBytes(hb)
 	signature := ecdsa.Sign(hp, hash)
