@@ -31,13 +31,11 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if len(rce) == 32 {
-		ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
-		if len(ver.References) == 1 && ver.References[0].String() == req.Extra {
-			stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-			msp := mtg.DecodeMixinExtra(string(stx.Extra))
-			rce, _ = base64.RawURLEncoding.DecodeString(msp.M)
-		}
+	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
+	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.Extra {
+		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
+		msp := mtg.DecodeMixinExtra(string(stx.Extra))
+		rce, _ = base64.RawURLEncoding.DecodeString(msp.M)
 	}
 	receivers, threshold, err := req.ParseMixinRecipient(rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
@@ -279,11 +277,6 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil || iid.String() == uuid.Nil.String() {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	receiver, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
-	logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
 	info, err := node.store.ReadNetworkInfo(ctx, iid.String())
 	logger.Printf("store.ReadNetworkInfo(%s) => %v %v", iid.String(), info, err)
 	if err != nil {
@@ -296,10 +289,47 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 
-	outputs := []*bitcoin.Output{{
-		Address: receiver,
-		Satoshi: bitcoin.ParseSatoshi(req.Amount.String()),
-	}}
+	var outputs []*bitcoin.Output
+	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
+	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
+		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
+		msp := mtg.DecodeMixinExtra(string(stx.Extra))
+		extra, _ := base64.RawURLEncoding.DecodeString(msp.M)
+		var recipients [][2]string
+		err = json.Unmarshal(extra, &recipients)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		for _, rp := range recipients {
+			receiver, err := bitcoin.ParseAddress(rp[0], safe.Chain)
+			logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
+			if err != nil {
+				return node.store.FailRequest(ctx, req.Id)
+			}
+			amt, err := decimal.NewFromString(rp[1])
+			if err != nil {
+				return node.store.FailRequest(ctx, req.Id)
+			}
+			if amt.Cmp(plan.TransactionMinimum) < 0 {
+				return node.store.FailRequest(ctx, req.Id)
+			}
+			outputs = append(outputs, &bitcoin.Output{
+				Address: receiver,
+				Satoshi: bitcoin.ParseSatoshi(amt.String()),
+			})
+		}
+	} else {
+		receiver, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
+		logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		outputs = []*bitcoin.Output{{
+			Address: receiver,
+			Satoshi: bitcoin.ParseSatoshi(req.Amount.String()),
+		}}
+	}
+
 	mainInputs, feeInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
@@ -332,9 +362,19 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		spend = spend.Add(amt)
 	}
 
-	data, err := json.Marshal([]map[string]string{
-		{"receiver": receiver, "amount": req.Amount.String()},
-	})
+	total := decimal.Zero
+	recipients := make([]map[string]string, len(outputs))
+	for i, out := range outputs {
+		amt := decimal.New(out.Satoshi, -bitcoin.ValuePrecision)
+		recipients[i] = map[string]string{
+			"receiver": out.Address, "amount": amt.String(),
+		}
+		total = total.Add(amt)
+	}
+	if !total.Equal(req.Amount) {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	data, err := json.Marshal(recipients)
 	if err != nil {
 		panic(err)
 	}
