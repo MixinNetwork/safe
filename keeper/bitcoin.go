@@ -295,7 +295,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
 		msp := mtg.DecodeMixinExtra(string(stx.Extra))
 		extra, _ := base64.RawURLEncoding.DecodeString(msp.M)
-		var recipients [][2]string
+		var recipients [][2]string // TODO better encoding
 		err = json.Unmarshal(extra, &recipients)
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
