@@ -65,8 +65,11 @@ func TestKeeper(t *testing.T) {
 	require.Equal(time.Unix(0, node.conf.MTG.Genesis.Timestamp), timestamp)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
+	dummpyChainCode := bytes.Repeat([]byte{1}, 32)
+
 	id := uuid.Must(uuid.NewV4()).String()
-	out := testBuildSignerOutput(node, id, mpc, common.OperationTypeKeygenOutput, []byte{common.RequestRoleSigner})
+	extra := append([]byte{common.RequestRoleSigner}, dummpyChainCode...)
+	out := testBuildSignerOutput(node, id, mpc, common.OperationTypeKeygenOutput, extra)
 	testStep(ctx, require, node, out)
 	v, err := node.store.ReadProperty(ctx, id)
 	require.Nil(err)
@@ -75,7 +78,8 @@ func TestKeeper(t *testing.T) {
 
 	id = uuid.Must(uuid.NewV4()).String()
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	out = testBuildObserverRequest(node, id, observer, common.ActionObserverAddKey, []byte{common.RequestRoleObserver})
+	extra = append([]byte{common.RequestRoleObserver}, dummpyChainCode...)
+	out = testBuildObserverRequest(node, id, observer, common.ActionObserverAddKey, extra)
 	testStep(ctx, require, node, out)
 	v, err = node.store.ReadProperty(ctx, id)
 	require.Nil(err)
@@ -84,7 +88,8 @@ func TestKeeper(t *testing.T) {
 
 	id = uuid.Must(uuid.NewV4()).String()
 	accountant := testPublicKey(testBitcoinKeyAccountantPrivate)
-	out = testBuildObserverRequest(node, id, accountant, common.ActionObserverAddKey, []byte{common.RequestRoleAccountant})
+	extra = append([]byte{common.RequestRoleAccountant}, dummpyChainCode...)
+	out = testBuildObserverRequest(node, id, accountant, common.ActionObserverAddKey, extra)
 	testStep(ctx, require, node, out)
 	v, err = node.store.ReadProperty(ctx, id)
 	require.Nil(err)

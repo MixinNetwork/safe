@@ -229,7 +229,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) < 1 {
+	if len(extra) != 33 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	switch extra[0] {
