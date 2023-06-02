@@ -188,9 +188,16 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
+	safe, req, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
+	if req != nil && req.State == common.RequestStateFailed {
+		renderJSON(w, r, http.StatusOK, map[string]any{
+			"id":    req.Id,
+			"state": common.StateName(int(req.State)),
+		})
 		return
 	}
 	if safe == nil {
@@ -250,7 +257,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		"bond": map[string]any{
 			"id": bondId,
 		},
-		"status": status,
+		"state": status,
 	})
 }
 
@@ -335,7 +342,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		"bond": map[string]any{
 			"id": bondId,
 		},
-		"status": status,
+		"state": status,
 	})
 }
 
@@ -442,6 +449,15 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})
+}
+
+func (node *Node) readSafeProposalOrRequest(ctx context.Context, id string) (*store.SafeProposal, *common.Request, error) {
+	sp, err := node.keeperStore.ReadSafeProposal(ctx, id)
+	if err != nil || sp != nil {
+		return sp, nil, err
+	}
+	req, err := node.keeperStore.ReadRequest(ctx, id)
+	return nil, req, err
 }
 
 func (node *Node) readTransactionOrRequest(ctx context.Context, id string) (*store.Transaction, *common.Request, error) {

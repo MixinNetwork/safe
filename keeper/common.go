@@ -7,6 +7,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/domains/mvm"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
@@ -53,6 +54,7 @@ func bitcoinChainCurve(chain byte) byte {
 }
 
 func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
+	logger.Printf("node.refundAndFailRequest(%s) => %v %d", req, receivers, threshold)
 	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), nil, req.Id)
 	if err != nil {
 		return err

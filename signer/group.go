@@ -117,7 +117,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			panic(session.Public)
 		}
 		valid := node.verifySessionHolder(ctx, session.Curve, session.Public)
-		logger.Printf("node.verifySessionHolder(%d, %s) => %t", session.Curve, session.Public, valid)
+		logger.Printf("node.verifySessionHolder(%v) => %t", session, valid)
 		if !valid {
 			return nil
 		}
@@ -216,7 +216,7 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 	case common.CurveSecp256k1ECDSABitcoin,
 		common.CurveSecp256k1ECDSAEthereum:
 		err := bitcoin.VerifyHolderKey(holder)
-		logger.Printf("node.verifySessionHolder(%d, %s) => %v", crv, holder, err)
+		logger.Printf("bitcoin.VerifyHolderKey(%s) => %v", holder, err)
 		return err == nil
 	case common.CurveSecp256k1SchnorrBitcoin:
 		var point secp256k1.JacobianPoint
