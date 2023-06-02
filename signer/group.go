@@ -148,7 +148,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			return nil
 		}
 		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
-		logger.Printf("node.verifySessionSignature(%d, %s) => %t", session.Curve, holder, valid)
+		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
 		if !valid {
 			return nil
 		}
@@ -243,7 +243,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		err := bitcoin.VerifySignatureDER(hex.EncodeToString(public), msg, sig)
-		logger.Printf("node.verifySessionSignature(%d, %s, %x) => %v", crv, holder, extra, err)
+		logger.Printf("bitcoin.VerifySignatureDER(%x, %x, %x) => %v", public, msg, sig, err)
 		return err == nil, sig
 	case common.CurveEdwards25519Mixin:
 		if len(msg) < 32 || len(sig) != 64 {
@@ -268,7 +268,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		pub, _ = P.MarshalBinary()
 		copy(mpub[:], pub)
 		res := mpub.Verify(msg[32:], msig)
-		logger.Printf("node.verifySessionSignature(%d, %s, %x) => %t", crv, holder, extra, res)
+		logger.Printf("mixin.Verify(%x, %x) => %t", msg[32:], msig[:], res)
 		return res, sig
 	case common.CurveEdwards25519Default,
 		common.CurveSecp256k1ECDSAEthereum,
