@@ -106,6 +106,17 @@ func CheckFinalization(num uint64, coinbase bool) bool {
 	return !coinbase && num >= TransactionConfirmations
 }
 
+func CheckDerivation(public string, chainCode []byte, maxRange uint32) error {
+	for i := uint32(0); i <= maxRange; i++ {
+		children := []uint32{i, i, i}
+		_, err := DeriveBIP32(public, chainCode, children...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, error) {
 	key, err := hex.DecodeString(public)
 	if err != nil {

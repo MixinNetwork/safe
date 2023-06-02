@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -49,14 +50,19 @@ func GenerateTestObserverKeys(c *cli.Context) error {
 	defer f.Close()
 
 	for i := 0; i < 1024; i++ {
-		seed := make([]byte, 32)
+		seed := make([]byte, 64)
 		_, err := rand.Read(seed)
 		if err != nil {
 			return err
 		}
-		_, publicKey := btcec.PrivKeyFromBytes(seed)
+		_, publicKey := btcec.PrivKeyFromBytes(seed[:32])
 		pub := hex.EncodeToString(publicKey.SerializeCompressed())
-		_, err = f.WriteString(pub + "\n")
+		code := hex.EncodeToString(seed[32:])
+		err = bitcoin.CheckDerivation(pub, seed[32:], 1000)
+		if err != nil {
+			panic(err)
+		}
+		_, err = f.WriteString(pub + ":" + code + "\n")
 		if err != nil {
 			return err
 		}

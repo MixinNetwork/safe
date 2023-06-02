@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -124,6 +125,12 @@ func (node *Node) generateAndWriteBitcoinAccountantKey(ctx context.Context) (str
 	privateKey, publicKey := btcec.PrivKeyFromBytes(secretKey)
 	priv := hex.EncodeToString(privateKey.Serialize())
 	pub := hex.EncodeToString(publicKey.SerializeCompressed())
+
+	err = bitcoin.CheckDerivation(pub, chainCode, 1000)
+	if err != nil {
+		panic(err)
+	}
+
 	err = node.store.WriteAccountantKey(ctx, common.CurveSecp256k1ECDSABitcoin, pub, priv, chainCode)
 	return pub, chainCode, err
 }

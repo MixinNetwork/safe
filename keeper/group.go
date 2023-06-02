@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -247,6 +248,15 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		}
 	default:
 		return node.store.FailRequest(ctx, req.Id)
+	}
+	switch req.Curve {
+	case common.CurveSecp256k1ECDSABitcoin:
+		err = bitcoin.CheckDerivation(req.Holder, extra[1:], 1000)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+	default:
+		panic(req.Curve)
 	}
 	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), extra[1:])
 }
