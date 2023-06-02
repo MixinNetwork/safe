@@ -111,7 +111,7 @@ curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
   "address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a",
   "id":"2e78d04a-e61a-442d-a014-dec19bd61cfe",
   "script":"6352670399f...96e9e0bc052ae",
-  "status":"proposed"
+  "state":"proposed"
 }
 ```
 
@@ -121,7 +121,7 @@ You should have noticed that the request was made with the same session UUID we 
 ```golang
 var buf bytes.Buffer
 _ = wire.WriteVarString(&buf, 0, "Bitcoin Signed Message:\n")
-_ = wire.WriteVarString(&buf, 0, address)
+_ = wire.WriteVarString(&buf, 0, fmt.Sprintf("APPROVE:%s:%s", sessionUUID, address))
 hash := chainhash.DoubleHashB(buf.Bytes())
 b, _ := hex.DecodeString(priv)
 private, _ := btcec.PrivKeyFromBytes(b)
@@ -246,7 +246,7 @@ fmt.Printf("raw: %x\n", raw)
 
 var buf bytes.Buffer
 _ = wire.WriteVarString(&buf, 0, "Bitcoin Signed Message:\n")
-_ = wire.WriteVarString(&buf, 0, msgTx.TxHash().String())
+_ = wire.WriteVarString(&buf, 0, fmt.Sprintf("APPROVE:%s:%s", sessionUUID, msgTx.TxHash().String()))
 hash := chainhash.DoubleHashB(buf.Bytes())
 sig := ecdsa.Sign(holder, msg).Serialize()
 fmt.Printf("signature: %s\n", base64.RawURLEncoding.EncodeToString(sig))
