@@ -3,10 +3,13 @@ package bitcoin
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/btcsuite/btcd/blockchain"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -41,7 +44,7 @@ func (raw *PartiallySignedTransaction) Hash() string {
 
 func (raw *PartiallySignedTransaction) Marshal() []byte {
 	var rawBuffer bytes.Buffer
-	err := raw.Packet.Serialize(&rawBuffer)
+	err := raw.Serialize(&rawBuffer)
 	if err != nil {
 		panic(err)
 	}
@@ -63,8 +66,7 @@ func UnmarshalPartiallySignedTransaction(b []byte) (*PartiallySignedTransaction,
 	}, nil
 }
 
-func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
-	psbt := t.Packet
+func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	tx := psbt.UnsignedTx
 	pin := psbt.Inputs[idx]
 	satoshi := pin.WitnessUtxo.Value
@@ -79,6 +81,50 @@ func (t *PartiallySignedTransaction) SigHash(idx int) []byte {
 		panic(idx)
 	}
 	return hash
+}
+
+func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, chain byte) (string, error) {
+	b, err := hex.DecodeString(raw)
+	if err != nil {
+		return "", err
+	}
+	rtx, err := btcutil.NewTxFromBytes(b)
+	if err != nil {
+		return "", err
+	}
+	msgTx := rtx.MsgTx()
+	mainCount := len(msgTx.TxIn)
+
+	_, _, err = addInputs(msgTx, feeInputs, chain)
+	if err != nil {
+		return "", fmt.Errorf("addInputs(fee) => %v", err)
+	}
+	b, err = hex.DecodeString(accountant)
+	if err != nil {
+		return "", err
+	}
+	privateKey, publicKey := btcec.PrivKeyFromBytes(b)
+	if accountant != hex.EncodeToString(publicKey.SerializeCompressed()) {
+		panic(accountant)
+	}
+
+	for idx, in := range feeInputs {
+		idx = idx + mainCount
+		pof := txscript.NewCannedPrevOutputFetcher(in.Script, in.Satoshi)
+		tsh := txscript.NewTxSigHashes(msgTx, pof)
+		hash, err := txscript.CalcWitnessSigHash(in.Script, tsh, SigHashType, msgTx, idx, in.Satoshi)
+		if err != nil {
+			return "", err
+		}
+		signature := ecdsa.Sign(privateKey, hash)
+		sig := append(signature.Serialize(), byte(txscript.SigHashAll))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, in.Script)
+	}
+
+	var signedBuffer bytes.Buffer
+	err = msgTx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
+	return hex.EncodeToString(signedBuffer.Bytes()), err
 }
 
 func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid []byte, chain byte) (*PartiallySignedTransaction, error) {
@@ -246,6 +292,22 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 		typ = InputTypeP2WSHMultisigObserverSigner
 	}
 	switch typ {
+	case InputTypeP2WPKHAccoutant:
+		in.Script = btcutil.Hash160(in.Script)
+		wpkh, err := btcutil.NewAddressWitnessPubKeyHash(in.Script, netConfig(chain))
+		if err != nil {
+			return "", err
+		}
+		builder := txscript.NewScriptBuilder()
+		builder.AddOp(txscript.OP_0)
+		builder.AddData(in.Script)
+		script, err := builder.Script()
+		if err != nil {
+			return "", err
+		}
+		in.Script = script
+		addr = wpkh.EncodeAddress()
+		txIn.Sequence = MaxTransactionSequence
 	case InputTypeP2WSHMultisigHolderSigner:
 		msh := sha256.Sum256(in.Script)
 		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))

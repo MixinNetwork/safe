@@ -46,7 +46,7 @@ func (node *Node) saveAccountProposal(ctx context.Context, extra []byte, created
 func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
 	logger.Verbosef("saveTransactionProposal(%x, %s)", extra, createdAt)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
-	txHash := psbt.Packet.UnsignedTx.TxHash().String()
+	txHash := psbt.UnsignedTx.TxHash().String()
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	if err != nil {
 		return err
 	}
-	msgTx := psbt.Packet.UnsignedTx
+	msgTx := psbt.UnsignedTx
 	txHash := msgTx.TxHash().String()
 
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
@@ -142,7 +142,7 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 			continue
 		}
 
-		pin := psbt.Packet.Inputs[idx]
+		pin := psbt.Inputs[idx]
 		if len(pin.PartialSigs) != 1 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
@@ -308,7 +308,7 @@ func (node *Node) bitcoinCheckKeeperSignedTransaction(ctx context.Context, appro
 
 	b := common.DecodeHexOrPanic(approval.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.Packet.UnsignedTx
+	msgTx := psbt.UnsignedTx
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)

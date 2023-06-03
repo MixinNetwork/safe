@@ -41,7 +41,7 @@ func (node *Node) bitcoinSignTransaction(ctx context.Context, extra []byte) erro
 		signed[r.InputIndex] = common.DecodeHexOrPanic(r.Signature.String)
 	}
 
-	msgTx := spsbt.Packet.UnsignedTx
+	msgTx := spsbt.UnsignedTx
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		hash := spsbt.SigHash(idx)
@@ -50,13 +50,13 @@ func (node *Node) bitcoinSignTransaction(ctx context.Context, extra []byte) erro
 		if !required {
 			continue
 		}
-		hpin := hpsbt.Packet.Inputs[idx]
+		hpin := hpsbt.Inputs[idx]
 		hsig := hpin.PartialSigs[0]
 		if hex.EncodeToString(hsig.PubKey) != tx.Holder {
 			panic(spsbt.Hash())
 		}
 
-		spin := spsbt.Packet.Inputs[idx]
+		spin := spsbt.Inputs[idx]
 		ssig := spin.PartialSigs[0]
 		if hex.EncodeToString(ssig.PubKey) != tx.Signer {
 			panic(spsbt.Hash())
@@ -78,7 +78,7 @@ func (node *Node) bitcoinSignTransaction(ctx context.Context, extra []byte) erro
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
 
-		hpsbt.Packet.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)
+		hpsbt.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)
 	}
 
 	var signedBuffer bytes.Buffer

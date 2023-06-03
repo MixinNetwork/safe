@@ -33,6 +33,7 @@ const (
 	ScriptPubKeyTypeWitnessScriptHash = "witness_v0_scripthash"
 	SigHashType                       = txscript.SigHashAll | txscript.SigHashAnyOneCanPay
 
+	InputTypeP2WPKHAccoutant             = 1
 	InputTypeP2WSHMultisigHolderSigner   = 2
 	InputTypeP2WSHMultisigObserverSigner = 3
 

@@ -260,7 +260,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 
 	b, _ = hex.DecodeString(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.Packet.UnsignedTx
+	msgTx := psbt.UnsignedTx
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		hash := psbt.SigHash(idx)
@@ -304,7 +304,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 	require.Nil(err)
 	require.Equal(rhash, psbt.Hash())
 
-	tx := psbt.Packet.UnsignedTx
+	tx := psbt.UnsignedTx
 	require.Len(tx.TxOut, 3)
 	main := tx.TxOut[0]
 	require.Equal(int64(12300), main.Value)

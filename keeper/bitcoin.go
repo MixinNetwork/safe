@@ -487,9 +487,9 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.Packet.UnsignedTx
-	if len(psbt.Packet.Unknowns[0].Value) != 32*len(msgTx.TxIn) {
-		panic(len(psbt.Packet.Unknowns[0].Value))
+	msgTx := psbt.UnsignedTx
+	if len(psbt.Unknowns[0].Value) != 32*len(msgTx.TxIn) {
+		panic(len(psbt.Unknowns[0].Value))
 	}
 
 	var requests []*store.SignatureRequest
@@ -577,7 +577,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := spsbt.Packet.UnsignedTx
+	msgTx := spsbt.UnsignedTx
 
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
 	logger.Printf("store.ListAllSignaturesForTransaction(%s) => %d %v", old.TransactionHash, len(requests), err)
@@ -606,7 +606,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		if err != nil {
 			panic(sr.Signature.String)
 		}
-		spsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
+		spsbt.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
 			PubKey:    common.DecodeHexOrPanic(safe.Signer),
 			Signature: sig,
 		}}

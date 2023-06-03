@@ -96,7 +96,7 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	defer tx.Rollback()
 
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(trx.RawTransaction))
-	for _, in := range psbt.Packet.UnsignedTx.TxIn {
+	for _, in := range psbt.UnsignedTx.TxIn {
 		pop := in.PreviousOutPoint
 		err = s.execOne(ctx, tx, "UPDATE bitcoin_outputs SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?",
 			common.RequestStateInitial, nil, req.CreatedAt, pop.Hash.String(), pop.Index, trx.TransactionHash)

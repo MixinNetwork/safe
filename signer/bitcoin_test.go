@@ -66,10 +66,10 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, mainInputs []*bitcoin.Input, outputs []*bitcoin.Output) (string, string, error) {
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, outputs, nil, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	require.Nil(psbt.Packet.SanityCheck())
-	ps64, _ := psbt.Packet.B64Encode()
+	require.Nil(psbt.SanityCheck())
+	ps64, _ := psbt.B64Encode()
 	require.Equal("cHNidP8BAIkCAAAAAbphiHEGDMw80sHtW+IFErJsIW8y/lUCAv5VtL19zsYiAAAAAAAGAAAAAhAnAAAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMWQXwEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAAAAAAlTSUdIQVNIRVMg2hyisGkiiRJWxlCzYnubtAgQCN8iMI8+BdLSAULO4KYAAQEroIYBAAAAAAAiACDd2I9aG2Cnol9z8RjL22VsWA4wVKQzQXTMO//SlvZIxQEDBIEAAAABBXYhA5EcHvOWC+cwRZbPpgc7HWWtQ7QhpMJyFCzHqDabUQxWrHwhAr8Kf6S3kFoN5atgpTIlKeGlkd3R7lPfgudR6K20vtCMrJN8gpJjIQICHUmcJqvZwR9K7ITA/8PCFFNCdxhDz6sEHgmLh9hca61WspJok1KHAAAA", ps64)
-	tx := psbt.Packet.UnsignedTx
+	tx := psbt.UnsignedTx
 	require.Equal(psbt.Hash(), tx.TxHash().String())
 	require.Equal(int64(10000), tx.TxOut[0].Value)
 	require.Equal(int64(90000), tx.TxOut[1].Value)
@@ -78,7 +78,7 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 	observer, _ := btcec.PrivKeyFromBytes(ob)
 
 	for idx := range tx.TxIn {
-		pin := psbt.Packet.Inputs[idx]
+		pin := psbt.Inputs[idx]
 		hash := psbt.SigHash(idx)
 
 		signature := ecdsa.Sign(observer, hash)
@@ -108,7 +108,7 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 	}
 
 	var rawBuffer bytes.Buffer
-	err = psbt.Packet.UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	err = psbt.UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
 	require.Nil(err)
 	var signedBuffer bytes.Buffer
 	err = tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
@@ -155,10 +155,10 @@ func TestCMPBitcoinSignHolderSigner(t *testing.T) {
 func bitcoinBuildTransactionHolderSigner(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, mainInputs []*bitcoin.Input, outputs []*bitcoin.Output) (string, string, error) {
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, outputs, nil, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	require.Nil(psbt.Packet.SanityCheck())
-	ps64, _ := psbt.Packet.B64Encode()
+	require.Nil(psbt.SanityCheck())
+	ps64, _ := psbt.B64Encode()
 	require.Equal("cHNidP8BAF4CAAAAAVftbk8/Kz2tV+zV/H4xUDQxd2+b/gHuOqAXYfBg5ymyAAAAAAD/////AaCGAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUAAAAACVNJR0hBU0hFUyDyyl91hPeAC57lGViGAVxzDdxKEKl1cIdrd1O9WD8MiwABASughgEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAQMEgQAAAAEFdiEDkRwe85YL5zBFls+mBzsdZa1DtCGkwnIULMeoNptRDFasfCECvwp/pLeQWg3lq2ClMiUp4aWR3dHuU9+C51HorbS+0Iysk3yCkmMhAgIdSZwmq9nBH0rshMD/w8IUU0J3GEPPqwQeCYuH2FxrrVaykmiTUocAAA==", ps64)
-	tx := psbt.Packet.UnsignedTx
+	tx := psbt.UnsignedTx
 	require.Equal(psbt.Hash(), tx.TxHash().String())
 	require.Equal(int64(100000), tx.TxOut[0].Value)
 
@@ -166,7 +166,7 @@ func bitcoinBuildTransactionHolderSigner(ctx context.Context, require *require.A
 	holder, _ := btcec.PrivKeyFromBytes(hb)
 
 	for idx := range tx.TxIn {
-		pin := psbt.Packet.Inputs[idx]
+		pin := psbt.Inputs[idx]
 		hash := psbt.SigHash(idx)
 
 		sig := testCMPSign(ctx, require, nodes, mpc, hash, common.CurveSecp256k1ECDSABitcoin)
@@ -195,7 +195,7 @@ func bitcoinBuildTransactionHolderSigner(ctx context.Context, require *require.A
 	}
 
 	var rawBuffer bytes.Buffer
-	err = psbt.Packet.UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	err = psbt.UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
 	require.Nil(err)
 	var signedBuffer bytes.Buffer
 	err = tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)

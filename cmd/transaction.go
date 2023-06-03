@@ -78,11 +78,11 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 		return err
 	}
 
-	msgTx := hpsbt.Packet.UnsignedTx
+	msgTx := hpsbt.UnsignedTx
 	for idx := range msgTx.TxIn {
 		hash := hpsbt.SigHash(idx)
 		sig := ecdsa.Sign(holder, hash).Serialize()
-		hpsbt.Packet.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
+		hpsbt.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
 			PubKey:    holder.PubKey().SerializeCompressed(),
 			Signature: sig,
 		}}
