@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	testBitcoinAddress     = "bc1qmhvg7ksmvzn6yhmn7yvvhkm9d3vquvz55se5zaxv80la99hkfrzs7dqupy"
-	testBitcoinKeyHolder   = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
-	testBitcoinKeyObserver = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
+	testBitcoinAddress       = "bc1qmhvg7ksmvzn6yhmn7yvvhkm9d3vquvz55se5zaxv80la99hkfrzs7dqupy"
+	testBitcoinKeyHolder     = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
+	testBitcoinKeyObserver   = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
+	testBitcoinKeyAccountant = "3d1f5a749578b2726bb6efd8d9656cb9be216879550980c633ac338828e1e79a"
 )
 
 type bitcoinUTXO struct {
@@ -46,9 +47,16 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 	require.Equal(uint32(6), wsa.Sequence)
 
 	mainInputs := []*bitcoin.Input{{
-		TransactionHash: "22c6ce7dbdb455fe020255fe326f216cb21205e25bedc1d23ccc0c06718861ba",
-		Index:           0,
-		Satoshi:         100000,
+		TransactionHash: "32395db91b46168f154966813e394886691d66d181e3d1507f0bb040731f2d6d",
+		Index:           2,
+		Satoshi:         71200,
+		Script:          wsa.Script,
+		Sequence:        wsa.Sequence,
+		RouteBackup:     true,
+	}, {
+		TransactionHash: "32395db91b46168f154966813e394886691d66d181e3d1507f0bb040731f2d6d",
+		Index:           1,
+		Satoshi:         90000,
 		Script:          wsa.Script,
 		Sequence:        wsa.Sequence,
 		RouteBackup:     true,
@@ -57,22 +65,38 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 		Address: testBitcoinAddress,
 		Satoshi: 10000,
 	}}
-	hash, raw, err := bitcoinBuildTransactionObserverSigner(ctx, require, nodes, public, mainInputs, outputs)
+	tx, raw, err := bitcoinBuildTransactionObserverSigner(ctx, require, nodes, public, mainInputs, outputs)
 	require.Nil(err)
-	require.Equal("b0f29f8b487145fe46808154a1ee7cce6caa05edc7557be6644727f91bb40e3f", hash)
-	require.Equal("0200000001ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec622000000000006000000021027000000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5905f010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c500000000", raw)
+	require.Equal("5e6a41217fe34489e6136edb041397d1761ffad9db3cbf4d1e13e8144f864c19", tx.TxHash().String())
+	require.Equal("02000000026d2d1f7340b00b7f50d1e381d1661d698648393e816649158f16461bb95d39320200000000060000006d2d1f7340b00b7f50d1e381d1661d698648393e816649158f16461bb95d3932010000000006000000021027000000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5a04e020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c500000000", raw)
+
+	priv, _ := hex.DecodeString(testBitcoinKeyAccountant)
+	_, publicKey := btcec.PrivKeyFromBytes(priv)
+	apk, _ := btcutil.NewAddressPubKey(publicKey.SerializeCompressed(), &chaincfg.MainNetParams)
+	feeInputs := []*bitcoin.Input{{
+		TransactionHash: "1b7336254fb420d010d75621624e53174d658f046c8b6cd7e935306fb399981d",
+		Index:           0,
+		Satoshi:         10007,
+		Script:          apk.ScriptAddress(),
+	}}
+	var signedBuffer bytes.Buffer
+	tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
+	hash, raw, err := bitcoin.SpendSignedTransaction(hex.EncodeToString(signedBuffer.Bytes()), feeInputs, testBitcoinKeyAccountant, bitcoin.ChainBitcoin)
+	logger.Println(raw)
+	require.Nil(err)
+	require.Equal("3cbe8ac67374b48066c5f3e3fe45ca9c7043aa29c4d37a9518242fd7f0f5be1b", hash)
 }
 
-func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, mainInputs []*bitcoin.Input, outputs []*bitcoin.Output) (string, string, error) {
+func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, mainInputs []*bitcoin.Input, outputs []*bitcoin.Output) (*wire.MsgTx, string, error) {
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, outputs, nil, bitcoin.ChainBitcoin)
 	require.Nil(err)
 	require.Nil(psbt.SanityCheck())
 	ps64, _ := psbt.B64Encode()
-	require.Equal("cHNidP8BAIkCAAAAAbphiHEGDMw80sHtW+IFErJsIW8y/lUCAv5VtL19zsYiAAAAAAAGAAAAAhAnAAAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMWQXwEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAAAAAAlTSUdIQVNIRVMg2hyisGkiiRJWxlCzYnubtAgQCN8iMI8+BdLSAULO4KYAAQEroIYBAAAAAAAiACDd2I9aG2Cnol9z8RjL22VsWA4wVKQzQXTMO//SlvZIxQEDBIEAAAABBXYhA5EcHvOWC+cwRZbPpgc7HWWtQ7QhpMJyFCzHqDabUQxWrHwhAr8Kf6S3kFoN5atgpTIlKeGlkd3R7lPfgudR6K20vtCMrJN8gpJjIQICHUmcJqvZwR9K7ITA/8PCFFNCdxhDz6sEHgmLh9hca61WspJok1KHAAAA", ps64)
+	require.Equal("cHNidP8BALICAAAAAm0tH3NAsAt/UNHjgdFmHWmGSDk+gWZJFY8WRhu5XTkyAgAAAAAGAAAAbS0fc0CwC39Q0eOB0WYdaYZIOT6BZkkVjxZGG7ldOTIBAAAAAAYAAAACECcAAAAAAAAiACDd2I9aG2Cnol9z8RjL22VsWA4wVKQzQXTMO//SlvZIxaBOAgAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUAAAAACVNJR0hBU0hFU0ClFtbSZlNTDgBkOJB3BvQVmi53pwG1BuaAxJX8IVqiRCafvhZJRJwlZBiOW0EozqemgfUCwT6j7DpCXEk/S96AAAEBKyAWAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUBAwSBAAAAAQV2IQORHB7zlgvnMEWWz6YHOx1lrUO0IaTCchQsx6g2m1EMVqx8IQK/Cn+kt5BaDeWrYKUyJSnhpZHd0e5T34LnUeittL7QjKyTfIKSYyECAh1JnCar2cEfSuyEwP/DwhRTQncYQ8+rBB4Ji4fYXGutVrKSaJNShwABASuQXwEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAQMEgQAAAAEFdiEDkRwe85YL5zBFls+mBzsdZa1DtCGkwnIULMeoNptRDFasfCECvwp/pLeQWg3lq2ClMiUp4aWR3dHuU9+C51HorbS+0Iysk3yCkmMhAgIdSZwmq9nBH0rshMD/w8IUU0J3GEPPqwQeCYuH2FxrrVaykmiTUocAAAA=", ps64)
 	tx := psbt.UnsignedTx
 	require.Equal(psbt.Hash(), tx.TxHash().String())
 	require.Equal(int64(10000), tx.TxOut[0].Value)
-	require.Equal(int64(90000), tx.TxOut[1].Value)
+	require.Equal(int64(151200), tx.TxOut[1].Value)
 
 	ob, _ := hex.DecodeString(testBitcoinKeyObserver)
 	observer, _ := btcec.PrivKeyFromBytes(ob)
@@ -84,7 +108,12 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 		signature := ecdsa.Sign(observer, hash)
 		sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
 		ss := hex.EncodeToString(sig)
-		require.Equal("3045022100fe6cab1ccbaad3d0d8d421e055527b6f1a1de7d1555045f1de305a010bdfb855022066e91896e4b58cbf146595c345319e73993f6a9b94208e30b780fcf77093c7d281", ss)
+		switch idx {
+		case 0:
+			require.Equal("3044022055c3fbdc22df48e68423b11610fb4c7652d2c6a2a3615ce0e9ab0605f6914aad02200bcfb77f35438520f034d224f6b01ff0c0e2d08fc371297492604216c39e5fb081", ss)
+		case 1:
+			require.Equal("30440220626751c1da9d902a1b94591bb5b41947ae6060a0d89624b99806ad39c277250a022056248cc5902b659dc7a7a7fca84eeb75fb948ea2ea982b89419e738ec968934981", ss)
+		}
 
 		der, err := ecdsa.ParseDERSignature(sig[:len(sig)-1])
 		require.Nil(err)
@@ -118,7 +147,7 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 	require.Contains(signed, raw[8:len(raw)-8])
 	logger.Println(signed)
 
-	return tx.TxHash().String(), raw, nil
+	return tx, raw, nil
 }
 
 func TestCMPBitcoinSignHolderSigner(t *testing.T) {

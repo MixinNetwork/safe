@@ -199,6 +199,9 @@ func netConfig(chain byte) *chaincfg.Params {
 }
 
 func checkScriptType(script []byte) int {
+	if len(script) == 33 {
+		return InputTypeP2WPKHAccoutant
+	}
 	if len(script) > 100 {
 		return InputTypeP2WSHMultisigHolderSigner
 	}
