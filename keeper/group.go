@@ -33,7 +33,6 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	case common.ActionObserverRequestSignerKeys:
 	case common.ActionObserverUpdateNetworkStatus:
 	case common.ActionObserverHolderDeposit:
-	case common.ActionObserverAccountantDepost:
 	case common.ActionObserverSetAccountPlan:
 	case common.ActionBitcoinSafeProposeAccount:
 	case common.ActionBitcoinSafeApproveAccount:
@@ -72,8 +71,6 @@ func (node *Node) getActionRole(act byte) byte {
 	case common.ActionObserverUpdateNetworkStatus:
 		return common.RequestRoleObserver
 	case common.ActionObserverHolderDeposit:
-		return common.RequestRoleObserver
-	case common.ActionObserverAccountantDepost:
 		return common.RequestRoleObserver
 	case common.ActionObserverSetAccountPlan:
 		return common.RequestRoleObserver
@@ -201,8 +198,6 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.writeNetworkInfo(ctx, req)
 	case common.ActionObserverHolderDeposit:
 		return node.CreateHolderDeposit(ctx, req)
-	case common.ActionObserverAccountantDepost:
-		return node.CreateAccountantDeposit(ctx, req)
 	case common.ActionObserverSetAccountPlan:
 		return node.writeAccountPlan(ctx, req)
 	case common.ActionBitcoinSafeProposeAccount:
@@ -239,10 +234,6 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 			return node.store.FailRequest(ctx, req.Id)
 		}
 	case common.RequestRoleObserver:
-		if req.Role != common.RequestRoleObserver {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-	case common.RequestRoleAccountant:
 		if req.Role != common.RequestRoleObserver {
 			return node.store.FailRequest(ctx, req.Id)
 		}

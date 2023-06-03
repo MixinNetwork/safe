@@ -64,7 +64,7 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	}
 	out := tx.Vout[index]
 	skt := out.ScriptPubKey.Type
-	if skt != ScriptPubKeyTypeWitnessKeyHash && skt != ScriptPubKeyTypeWitnessScriptHash {
+	if skt != ScriptPubKeyTypeWitnessScriptHash {
 		return nil, nil, nil
 	}
 	if out.ScriptPubKey.Address == "" {

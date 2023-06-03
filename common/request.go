@@ -14,10 +14,9 @@ import (
 )
 
 const (
-	RequestRoleHolder     = 1
-	RequestRoleSigner     = 2
-	RequestRoleObserver   = 3
-	RequestRoleAccountant = 4
+	RequestRoleHolder   = 1
+	RequestRoleSigner   = 2
+	RequestRoleObserver = 3
 
 	RequestStateInitial = 1
 	RequestStatePending = 2
@@ -30,7 +29,6 @@ const (
 	ActionObserverRequestSignerKeys   = 102
 	ActionObserverUpdateNetworkStatus = 103
 	ActionObserverHolderDeposit       = 104
-	ActionObserverAccountantDepost    = 105
 	ActionObserverSetAccountPlan      = 106
 
 	// For all Bitcoin like chains

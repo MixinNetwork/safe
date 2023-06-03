@@ -20,43 +20,33 @@ type WitnessScriptAccount struct {
 	Address  string
 }
 
-type WitnessKeyAccount struct {
-	Script  []byte
-	Address string
-}
-
-func (wsa *WitnessScriptAccount) MarshalWithAccountant(accountant string) []byte {
+func (wsa *WitnessScriptAccount) Marshal() []byte {
 	enc := common.NewEncoder()
 	enc.WriteUint64(uint64(wsa.Sequence))
 	writeBytes(enc, wsa.Script)
 	writeBytes(enc, []byte(wsa.Address))
-	writeBytes(enc, []byte(accountant))
 	return enc.Bytes()
 }
 
-func UnmarshalWitnessScriptAccountWitAccountant(extra []byte) (*WitnessScriptAccount, string, error) {
+func UnmarshalWitnessScriptAccount(extra []byte) (*WitnessScriptAccount, error) {
 	dec := common.NewDecoder(extra)
 	sequence, err := dec.ReadUint64()
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	script, err := dec.ReadBytes()
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	addr, err := dec.ReadBytes()
 	if err != nil {
-		return nil, "", err
-	}
-	accountant, err := dec.ReadBytes()
-	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return &WitnessScriptAccount{
 		Sequence: uint32(sequence),
 		Script:   script,
 		Address:  string(addr),
-	}, string(accountant), nil
+	}, nil
 }
 
 func EncodeAddress(script []byte, chain byte) (string, error) {
@@ -69,13 +59,6 @@ func EncodeAddress(script []byte, chain byte) (string, error) {
 			return "", err
 		}
 		return mwsh.EncodeAddress(), nil
-	case InputTypeP2WPKHAccoutant:
-		msh := btcutil.Hash160(script)
-		wph, err := btcutil.NewAddressWitnessPubKeyHash(msh, netConfig(chain))
-		if err != nil {
-			return "", err
-		}
-		return wph.EncodeAddress(), nil
 	default:
 		panic(typ)
 	}
@@ -162,23 +145,6 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 	}, nil
 }
 
-func BuildWitnessKeyAccount(accountant string, chain byte) (*WitnessKeyAccount, error) {
-	pub, err := parseBitcoinCompressedPublicKey(accountant)
-	if err != nil {
-		return nil, err
-	}
-	script := pub.ScriptAddress()
-	wpkh := btcutil.Hash160(script)
-	wph, err := btcutil.NewAddressWitnessPubKeyHash(wpkh, netConfig(chain))
-	if err != nil {
-		return nil, err
-	}
-	return &WitnessKeyAccount{
-		Script:  script,
-		Address: wph.EncodeAddress(),
-	}, nil
-}
-
 func CheckMultisigHolderSignerScript(script []byte) bool {
 	return checkScriptType(script) == InputTypeP2WSHMultisigHolderSigner
 }
@@ -233,9 +199,6 @@ func netConfig(chain byte) *chaincfg.Params {
 }
 
 func checkScriptType(script []byte) int {
-	if len(script) == 33 {
-		return InputTypeP2WPKHAccoutant
-	}
 	if len(script) > 100 {
 		return InputTypeP2WSHMultisigHolderSigner
 	}

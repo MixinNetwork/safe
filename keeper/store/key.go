@@ -77,68 +77,55 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req *common.Request, maturity time.Duration) (string, string, string, error) {
+func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req *common.Request, maturity time.Duration) (string, string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	defer tx.Rollback()
 
 	signer, err := readKeyWithRoleAndHolder(ctx, tx, req.Holder, common.RequestRoleSigner)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	observer, err := readKeyWithRoleAndHolder(ctx, tx, req.Holder, common.RequestRoleObserver)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
-	accountant, err := readKeyWithRoleAndHolder(ctx, tx, req.Holder, common.RequestRoleAccountant)
-	if err != nil {
-		return "", "", "", err
+	if signer != "" && observer != "" {
+		return signer, observer, nil
 	}
-	if signer != "" && observer != "" && accountant != "" {
-		return signer, observer, accountant, nil
-	}
-	if signer != "" || observer != "" || accountant != "" {
+	if signer != "" || observer != "" {
 		panic(req.Holder)
 	}
 
 	signer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleSigner, common.NormalizeCurve(req.Curve), maturity)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	observer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleObserver, common.NormalizeCurve(req.Curve), maturity)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
-	accountant, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleAccountant, common.NormalizeCurve(req.Curve), maturity)
-	if err != nil {
-		return "", "", "", err
-	}
-	if signer == "" || observer == "" || accountant == "" {
-		return "", "", "", nil
+	if signer == "" || observer == "" {
+		return "", "", err
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=? AND curve=?",
 		req.Holder, req.CreatedAt, signer, common.RequestRoleSigner, common.NormalizeCurve(req.Curve))
 	if err != nil {
-		return "", "", "", fmt.Errorf("UPDATE keys %v", err)
+		return "", "", fmt.Errorf("UPDATE keys %v", err)
 	}
 	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=? AND curve=?",
 		req.Holder, req.CreatedAt, observer, common.RequestRoleObserver, common.NormalizeCurve(req.Curve))
 	if err != nil {
-		return "", "", "", fmt.Errorf("UPDATE keys %v", err)
-	}
-	err = s.execOne(ctx, tx, "UPDATE keys SET holder=?, updated_at=? WHERE public_key=? AND holder IS NULL AND role=? AND curve=?",
-		req.Holder, req.CreatedAt, accountant, common.RequestRoleAccountant, common.NormalizeCurve(req.Curve))
-	if err != nil {
-		return "", "", "", fmt.Errorf("UPDATE keys %v", err)
+		return "", "", fmt.Errorf("UPDATE keys %v", err)
 	}
 
-	return signer, observer, accountant, tx.Commit()
+	return signer, observer, tx.Commit()
 }
 
 func readKeyWithRoleAndHolder(ctx context.Context, tx *sql.Tx, holder string, role int) (string, error) {

@@ -10,10 +10,9 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/shopspring/decimal"
 )
 
-func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiver string, utxo *bitcoin.Input, req *common.Request, isAccountant bool, chain byte) error {
+func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiver string, utxo *bitcoin.Input, req *common.Request, chain byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -22,19 +21,6 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiv
 		return err
 	}
 	defer tx.Rollback()
-
-	if isAccountant {
-		feeBalance, err := s.readAccountantBalance(ctx, tx, req.Holder)
-		if err != nil {
-			return err
-		}
-		fee := decimal.New(utxo.Satoshi, -bitcoin.ValuePrecision)
-		feeBalance = feeBalance.Add(fee)
-		err = s.execOne(ctx, tx, "UPDATE accountants SET balance=?, updated_at=? WHERE holder=?", feeBalance, req.CreatedAt, req.Holder)
-		if err != nil {
-			return fmt.Errorf("UPDATE accountants %v", err)
-		}
-	}
 
 	script := hex.EncodeToString(utxo.Script)
 	cols := []string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "chain", "state", "spent_by", "request_id", "created_at", "updated_at"}
@@ -60,32 +46,24 @@ func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, transactionHash stri
 	return s.readBitcoinUTXO(ctx, tx, transactionHash, index)
 }
 
-func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, []*bitcoin.Input, error) {
+func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer tx.Rollback()
 
 	safe, err := s.readSafe(ctx, tx, holder)
 	if err != nil {
-		return nil, nil, err
-	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	mainInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, safe.Address, safe.Chain)
 	if err != nil {
-		return nil, nil, err
-	}
-	feeInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, wka.Address, safe.Chain)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return mainInputs, feeInputs, nil
+	return mainInputs, nil
 }
 
 func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiver string, chain byte) ([]*bitcoin.Input, error) {

@@ -157,11 +157,6 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
 	}
-	holder, err := node.keeperStore.ReadAccountantHolder(ctx, receiver)
-	logger.Printf("keeperStore.ReadAccountantHolder(%s) => %s %v", receiver, holder, err)
-	if err != nil {
-		return fmt.Errorf("keeperStore.ReadAccountantHolder(%s) => %v", receiver, err)
-	}
 
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
@@ -178,9 +173,6 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	if safe != nil {
 		deposit.Holder = safe.Holder
 		deposit.Category = common.ActionObserverHolderDeposit
-	} else if holder != "" {
-		deposit.Holder = holder
-		deposit.Category = common.ActionObserverAccountantDepost
 	} else {
 		return nil
 	}
@@ -399,7 +391,7 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 	for index := range tx.Vout {
 		out := tx.Vout[index]
 		skt := out.ScriptPubKey.Type
-		if skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash && skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash {
+		if skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash {
 			continue
 		}
 		if out.N != int64(index) {

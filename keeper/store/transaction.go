@@ -9,7 +9,6 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/shopspring/decimal"
 )
 
 type Transaction struct {
@@ -19,13 +18,12 @@ type Transaction struct {
 	Chain           byte
 	State           int
 	Data            string
-	Fee             decimal.Decimal
 	RequestId       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
 
-var transactionCols = []string{"transaction_hash", "raw_transaction", "holder", "chain", "state", "data", "fee", "request_id", "created_at", "updated_at"}
+var transactionCols = []string{"transaction_hash", "raw_transaction", "holder", "chain", "state", "data", "request_id", "created_at", "updated_at"}
 
 func (s *SQLite3Store) ReadTransactionByRequestId(ctx context.Context, requestId string) (*Transaction, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -57,7 +55,7 @@ func (s *SQLite3Store) ReadTransaction(ctx context.Context, hash string) (*Trans
 	return s.readTransaction(ctx, tx, hash)
 }
 
-func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*bitcoin.Input, spend decimal.Decimal) error {
+func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*bitcoin.Input) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -67,24 +65,10 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 	}
 	defer tx.Rollback()
 
-	feeBalance, err := s.readAccountantBalance(ctx, tx, trx.Holder)
-	if err != nil {
-		return err
-	}
-	feeBalance = feeBalance.Sub(spend)
-	if feeBalance.IsNegative() {
-		panic(trx.RequestId)
-	}
-
-	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.State, trx.Data, trx.Fee.String(), trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
+	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT transactions %v", err)
-	}
-	err = s.execOne(ctx, tx, "UPDATE accountants SET balance=?, updated_at=? WHERE holder=?",
-		feeBalance, trx.UpdatedAt, trx.Holder)
-	if err != nil {
-		return fmt.Errorf("UPDATE accountants %v", err)
 	}
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), trx.RequestId)
@@ -111,15 +95,6 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	}
 	defer tx.Rollback()
 
-	feeBalance, err := s.readAccountantBalance(ctx, tx, trx.Holder)
-	if err != nil {
-		return err
-	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
-	if err != nil {
-		return err
-	}
-
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(trx.RawTransaction))
 	for _, in := range psbt.Packet.UnsignedTx.TxIn {
 		pop := in.PreviousOutPoint
@@ -138,18 +113,9 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 		}
 		switch u.TransactionHash {
 		case safe.Address:
-		case wka.Address:
-			amount := decimal.New(u.Satoshi, -bitcoin.ValuePrecision)
-			feeBalance = feeBalance.Add(amount)
 		default:
 			panic(trx.TransactionHash)
 		}
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE accountants SET balance=?, updated_at=? WHERE holder=?",
-		feeBalance, req.CreatedAt, trx.Holder)
-	if err != nil {
-		return fmt.Errorf("UPDATE accountants %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
@@ -172,7 +138,7 @@ func (s *SQLite3Store) readTransaction(ctx context.Context, tx *sql.Tx, transact
 	row := tx.QueryRowContext(ctx, query, transactionHash)
 
 	var trx Transaction
-	err := row.Scan(&trx.TransactionHash, &trx.RawTransaction, &trx.Holder, &trx.Chain, &trx.State, &trx.Data, &trx.Fee, &trx.RequestId, &trx.CreatedAt, &trx.UpdatedAt)
+	err := row.Scan(&trx.TransactionHash, &trx.RawTransaction, &trx.Holder, &trx.Chain, &trx.State, &trx.Data, &trx.RequestId, &trx.CreatedAt, &trx.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

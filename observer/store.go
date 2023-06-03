@@ -3,7 +3,6 @@ package observer
 import (
 	"context"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -43,7 +42,6 @@ type Transaction struct {
 	Chain           byte
 	Holder          string
 	Signer          string
-	Accountant      string
 	Signature       string
 	State           byte
 	CreatedAt       time.Time
@@ -58,10 +56,10 @@ func (d *Deposit) values() []any {
 	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
 }
 
-var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "accountant", "signature", "state", "created_at", "updated_at"}
+var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "signature", "state", "created_at", "updated_at"}
 
 func (t *Transaction) values() []any {
-	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Accountant, t.Signature, t.State, t.CreatedAt, t.UpdatedAt}
+	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Signature, t.State, t.CreatedAt, t.UpdatedAt}
 }
 
 func (t *Transaction) Signers() []string {
@@ -182,7 +180,7 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 	var approvals []*Transaction
 	for rows.Next() {
 		var t Transaction
-		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Accountant, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
+		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -296,38 +294,11 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 	row := s.db.QueryRowContext(ctx, query, hash)
 
 	var t Transaction
-	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Accountant, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
+	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.CreatedAt, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return &t, err
-}
-
-func (s *SQLite3Store) WriteAccountantKey(ctx context.Context, crv byte, pub, priv string, chainCode []byte) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	cols := []string{"public_key", "private_key", "curve", "chain_code", "created_at"}
-	vals := []any{pub, priv, crv, hex.EncodeToString(chainCode), time.Now().UTC()}
-	err = s.execOne(ctx, tx, buildInsertionSQL("accountants", cols), vals...)
-	if err != nil {
-		return fmt.Errorf("INSERT accountants %v", err)
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) ReadAccountantKey(ctx context.Context, pub string, crv byte) (string, error) {
-	var private string
-	row := s.db.QueryRowContext(ctx, "SELECT private_key FROM accountants WHERE public_key=? AND curve=?", pub, crv)
-	err := row.Scan(&private)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return private, err
 }
 
 func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics map[string]string) error {

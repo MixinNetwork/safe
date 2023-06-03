@@ -15,11 +15,7 @@ func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string)
 	if err != nil {
 		return false, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
 	}
-	holder, err := node.keeperStore.ReadAccountantHolder(ctx, receiver)
-	if err != nil {
-		return false, fmt.Errorf("keeperStore.ReadAccountantHolder(%s) => %v", receiver, err)
-	}
-	return safe != nil || holder != "", nil
+	return safe != nil, nil
 }
 
 func (node *Node) sendBitcoinKeeperResponse(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte) error {

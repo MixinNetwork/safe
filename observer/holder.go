@@ -32,7 +32,7 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 
 func (node *Node) saveAccountProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
 	logger.Verbosef("saveAccountProposal(%x, %s)", extra, createdAt)
-	wsa, _, err := bitcoin.UnmarshalWitnessScriptAccountWitAccountant(extra)
+	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(extra)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,6 @@ func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, cre
 		Chain:           safe.Chain,
 		Holder:          tx.Holder,
 		Signer:          safe.Signer,
-		Accountant:      safe.Accountant,
 		Signature:       "",
 		State:           common.RequestStateInitial,
 		CreatedAt:       createdAt,

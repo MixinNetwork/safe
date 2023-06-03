@@ -78,7 +78,6 @@ CREATE TABLE IF NOT EXISTS safe_proposals (
   holder           VARCHAR NOT NULL,
   signer           VARCHAR NOT NULL,
   observer         VARCHAR NOT NULL,
-  accountant       VARCHAR NOT NULL,
   timelock         INTEGER NOT NULL,
   address          VARCHAR NOT NULL,
   extra            VARCHAR NOT NULL,
@@ -91,7 +90,6 @@ CREATE TABLE IF NOT EXISTS safe_proposals (
 
 CREATE UNIQUE INDEX IF NOT EXISTS safe_proposals_by_signer ON safe_proposals(signer);
 CREATE UNIQUE INDEX IF NOT EXISTS safe_proposals_by_observer ON safe_proposals(observer);
-CREATE UNIQUE INDEX IF NOT EXISTS safe_proposals_by_accountant ON safe_proposals(accountant);
 CREATE UNIQUE INDEX IF NOT EXISTS safe_proposals_by_address ON safe_proposals(address);
 
 
@@ -104,7 +102,6 @@ CREATE TABLE IF NOT EXISTS safes (
   chain            INTEGER NOT NULL,
   signer           VARCHAR NOT NULL,
   observer         VARCHAR NOT NULL,
-  accountant       VARCHAR NOT NULL,
   timelock         INTEGER NOT NULL,
   address          VARCHAR NOT NULL,
   extra            VARCHAR NOT NULL,
@@ -118,25 +115,8 @@ CREATE TABLE IF NOT EXISTS safes (
 
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_signer ON safes(signer);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_observer ON safes(observer);
-CREATE UNIQUE INDEX IF NOT EXISTS safes_by_accountant ON safes(accountant);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_address ON safes(address);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_request_id ON safes(request_id);
-
-
-
-
-
-CREATE TABLE IF NOT EXISTS accountants (
-  holder           VARCHAR NOT NULL,
-  address          VARCHAR NOT NULL,
-  balance          VARCHAR NOT NULL,
-  request_id       VARCHAR NOT NULL,
-  created_at       TIMESTAMP NOT NULL,
-  updated_at       TIMESTAMP NOT NULL,
-  PRIMARY KEY ('holder')
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS accountants_by_address ON accountants(address);
 
 
 
@@ -172,7 +152,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   chain              INTEGER NOT NULL,
   state              INTEGER NOT NULL,
   data               VARCHAR NOT NULL,
-  fee                VARCHAR NOT NULL,
   request_id         VARCHAR NOT NULL,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,

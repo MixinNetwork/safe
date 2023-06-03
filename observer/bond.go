@@ -18,24 +18,17 @@ import (
 
 func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployBitcoinSafeBond(%x)", data)
-	wsa, accountant, err := bitcoin.UnmarshalWitnessScriptAccountWitAccountant(data)
+	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(data)
 	if err != nil {
-		return fmt.Errorf("bitcoin.UnmarshalWitnessScriptAccountWitAccountant(%x) => %v", data, err)
+		return fmt.Errorf("bitcoin.UnmarshalWitnessScriptAccount(%x) => %v", data, err)
 	}
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, wsa.Address)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
 	}
-	holder, err := node.keeperStore.ReadAccountantHolder(ctx, accountant)
-	if err != nil {
-		return fmt.Errorf("keeperStore.ReadAccountantHolder(%s) => %v", accountant, err)
-	}
-	if safe.Holder != holder {
-		return fmt.Errorf("malformed safe accountant %x", data)
-	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, holder)
-	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, holder, err)
+	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, safe.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	return err
 }
 

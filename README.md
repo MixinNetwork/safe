@@ -107,7 +107,6 @@ curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
 
 🔜
 {
-  "accountant":"bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e",
   "address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a",
   "id":"2e78d04a-e61a-442d-a014-dec19bd61cfe",
   "script":"6352670399f...96e9e0bc052ae",
@@ -144,7 +143,7 @@ Now we can deposit BTC to the address above, and you will receive safeBTC to the
 
 ## Propose Safe Transaction
 
-After depositing some BTC to both the safe address and the accountant, we now want to send 0.000123 BTC to `bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e`. To initiate the transaction, we require the latest Bitcoin chain head ID from the Safe network, which can be obtained by running the following command:
+After depositing some BTC to both the safe address, we now want to send 0.000123 BTC to `bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e`. To initiate the transaction, we require the latest Bitcoin chain head ID from the Safe network, which can be obtained by running the following command:
 
 ```
 curl https://safe.mixin.dev/chains
@@ -164,7 +163,7 @@ curl https://safe.mixin.dev/chains
 ]
 ```
 
-Using the response we receive, we can determine that the Bitcoin transaction fee rate will be `13 Satoshis/vByte`. Before initiating the transaction, we need to estimate the fee and ensure that the accountant balance is sufficient to pay the total transaction fee. We will then include the head ID `155e4f85-d4b8-33f7-82e6-542711f1f26e` in the operation extra to indicate the fee rate we prefer.
+Using the response we receive, we can determine that the Bitcoin transaction fee rate will be `13 Satoshis/vByte`. We will then include the head ID `155e4f85-d4b8-33f7-82e6-542711f1f26e` in the operation extra to indicate the fee rate we prefer.
 
 Furthermore, we need to generate another random session ID, for which we will use `36c2075c-5af0-4593-b156-e72f58f9f421` as an example. With the holder prepared in the first step, the operation value should be as follows:
 

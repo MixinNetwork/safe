@@ -23,18 +23,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS assets_by_mixin_id ON assets(mixin_id);
 
 
 
-CREATE TABLE IF NOT EXISTS accountants (
-  public_key     VARCHAR NOT NULL,
-  private_key    VARCHAR NOT NULL,
-  curve          INTEGER NOT NULL,
-  chain_code     VARCHAR NOT NULL,
-  created_at     TIMESTAMP NOT NULL,
-  PRIMARY KEY ('public_key')
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS accountants_by_private_key ON accountants(private_key);
-
-
 
 
 CREATE TABLE IF NOT EXISTS observers (
@@ -82,7 +70,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   chain              INTEGER NOT NULL,
   holder             VARCHAR NOT NULL,
   signer             VARCHAR NOT NULL,
-  accountant         VARCHAR NOT NULL,
   signature          VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   created_at         TIMESTAMP NOT NULL,

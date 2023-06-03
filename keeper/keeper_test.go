@@ -42,10 +42,8 @@ const (
 	testSafeBondReceiverId           = "e459de8b-4edd-44ff-a119-b1d707f8521a"
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
 	testBitcoinKeyObserverPrivate    = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
-	testBitcoinKeyAccountantPrivate  = "743602ca7e2723e7dd510e611957cfdcbb517dff0c5b1877472e35b0f19e0063"
 	testBitcoinKeyDummyHolderPrivate = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 	testSafePublicKey                = "bc1qmhvg7ksmvzn6yhmn7yvvhkm9d3vquvz55se5zaxv80la99hkfrzs7dqupy"
-	testSafeAccountant               = "bc1qkczcrtknyhs228xg9nvujjvs96x56cf9l4q9za"
 	testTransactionReceiver          = "bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc"
 	testBitcoinDepositMainHash       = "8260f125afdb1a85b540f0066cd9db18d488a3891b5fa5595c73f40435502d09"
 )
@@ -86,19 +84,6 @@ func TestKeeper(t *testing.T) {
 	require.Equal("", v)
 	testSpareKeys(ctx, require, node, 0, 1, 1, 0)
 
-	id = uuid.Must(uuid.NewV4()).String()
-	accountant := testPublicKey(testBitcoinKeyAccountantPrivate)
-	extra = append([]byte{common.RequestRoleAccountant}, dummpyChainCode...)
-	out = testBuildObserverRequest(node, id, accountant, common.ActionObserverAddKey, extra)
-	testStep(ctx, require, node, out)
-	v, err = node.store.ReadProperty(ctx, id)
-	require.Nil(err)
-	require.Equal("", v)
-	wka, err := bitcoin.BuildWitnessKeyAccount(accountant, SafeChainBitcoin)
-	require.Nil(err)
-	require.Equal(testSafeAccountant, wka.Address)
-	testSpareKeys(ctx, require, node, 0, 1, 1, 1)
-
 	batch := byte(64)
 	id = uuid.Must(uuid.NewV4()).String()
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
@@ -121,29 +106,18 @@ func TestKeeper(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		testUpdateAccountPrice(ctx, require, node)
 	}
-	rid, publicKey := testSafeProposeAccount(ctx, require, node, mpc, observer, accountant)
+	rid, publicKey := testSafeProposeAccount(ctx, require, node, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
-	testSafeApproveAccount(ctx, require, node, mpc, observer, accountant, rid, publicKey)
+	testSafeApproveAccount(ctx, require, node, mpc, observer, rid, publicKey)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 	for i := 0; i < 10; i++ {
 		testUpdateNetworkStatus(ctx, require, node)
 	}
 
-	input := &bitcoin.Input{
-		TransactionHash: "f04f905bb7d8e5ae1d7cd19eac8be5814380ff3fee0c4782ecb9f76dcad1e4a8",
-		Index:           2, Satoshi: 21720,
-	}
-	testObserverAccountantDeposit(ctx, require, node, accountant, input, "0.0002172", 1)
-	input = &bitcoin.Input{
-		TransactionHash: "e2dd1c093457be75ba1af183c66fcfbdb042dfa91ead0d7bf3715029b756e282",
-		Index:           0, Satoshi: 10000,
-	}
-	testObserverAccountantDeposit(ctx, require, node, accountant, input, "0.0003172", 2)
-
 	bondId := testDeployBondContract(ctx, require, node, testSafePublicKey, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
-	input = &bitcoin.Input{
+	input := &bitcoin.Input{
 		TransactionHash: "22c6ce7dbdb455fe020255fe326f216cb21205e25bedc1d23ccc0c06718861ba",
 		Index:           1, Satoshi: 86560,
 	}
@@ -154,9 +128,9 @@ func TestKeeper(t *testing.T) {
 	}
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 2)
 
-	transactionHash := testSafeProposeTransaction(ctx, require, node, mpc, accountant, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "6fc9ae1d4aedd405f2c9bf3d8f81ce575b617464fe383e99729786b41e866e04", "00206fc9ae1d4aedd405f2c9bf3d8f81ce575b617464fe383e99729786b41e866e0403bc70736274ff0100fd3e010200000004ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec6220100000000ffffffff9419c629987c25780dfd5db5148b790132bc315a48817bb79c0c7169bf5c24f90000000000ffffffffa8e4d1ca6df7b9ec82470cee3fff804381e58bac9ed17c1daee5d8b75b904ff00200000000ffffffff82e256b7295071f37b0dad1ea9df42b0bdcf6fc683f11aba75be5734091cdde20000000000ffffffff040c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c56c6b000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000953494748415348455380daef610b9493bb990decad31a896c2cba494c17ef68e1b575e39edf08ab586de2e1d44d857e7933e06c338f0227f700bfedcf7898eb32a88308256ef9d8ca41116363009e26317740d92da1affe358c911f0972d0758d16d8e569434f116c4b6f8621aee6d94878c7eba54b6527528d3ade928e6fa8cbf6efaaf99ad678017010001012b2052010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001012ba086010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001011fd854000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250001011f1027000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000000000000000107c", "70736274ff0100fd3e010200000004ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec6220100000000ffffffff9419c629987c25780dfd5db5148b790132bc315a48817bb79c0c7169bf5c24f90000000000ffffffffa8e4d1ca6df7b9ec82470cee3fff804381e58bac9ed17c1daee5d8b75b904ff00200000000ffffffff82e256b7295071f37b0dad1ea9df42b0bdcf6fc683f11aba75be5734091cdde20000000000ffffffff040c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c56c6b000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000953494748415348455380daef610b9493bb990decad31a896c2cba494c17ef68e1b575e39edf08ab586de2e1d44d857e7933e06c338f0227f700bfedcf7898eb32a88308256ef9d8ca41116363009e26317740d92da1affe358c911f0972d0758d16d8e569434f116c4b6f8621aee6d94878c7eba54b6527528d3ade928e6fa8cbf6efaaf99ad678017010001012b2052010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001012ba086010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001011fd854000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250001011f1027000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000")
+	transactionHash := testSafeProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "915c782c0e2575f54a32133cd085e445b180593db7e236820b088bae5e247e9b", "70736274ff0100cd0200000002ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec6220100000000ffffffff9419c629987c25780dfd5db5148b790132bc315a48817bb79c0c7169bf5c24f90000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c50000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000953494748415348455340fbae31e857132e8e1fef35ec46432295c4921842e9a65a87e3bda6bf277bc5fceb648f221f3a45994caa28f63edcd4fc007f3e12296b92e535ca53cf5a401dfc0001012b2052010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001012ba086010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b2926893528700000000")
 	testSafeRevokeTransaction(ctx, require, node, transactionHash, signers)
-	transactionHash = testSafeProposeTransaction(ctx, require, node, mpc, accountant, bondId, "b0a22078-0a86-459d-93f4-a1aadbf2b9b7", "e9b457db91d8e35a978b50a443b70dd42680cd4c0ac007d6c6d761411729c9da", "0020e9b457db91d8e35a978b50a443b70dd42680cd4c0ac007d6c6d761411729c9da03bc70736274ff0100fd3e010200000004ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec6220100000000ffffffff9419c629987c25780dfd5db5148b790132bc315a48817bb79c0c7169bf5c24f90000000000ffffffffa8e4d1ca6df7b9ec82470cee3fff804381e58bac9ed17c1daee5d8b75b904ff00200000000ffffffff82e256b7295071f37b0dad1ea9df42b0bdcf6fc683f11aba75be5734091cdde20000000000ffffffff040c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c56c6b000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000000000126a10b0a220780a86459d93f4a1aadbf2b9b700000000095349474841534845538081a1ac8b22114f7e55324fa691f91aea7cbeb9b4cf6108cf4fc02b66e2b37199d15483fd55ae97100f70f0079c04242396c16cbb824c38af8e5277e8e0f285faf444fcc18f5f15bfb1fb3bcf2cc31c6e791e7f59a64d6c112e2c4d8b7612e5f28cd61dfdc52092f14300ba6b0835920673e56a321b96d06f5b7cf505b9a235410001012b2052010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001012ba086010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001011fd854000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250001011f1027000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000000000000000107c", "70736274ff0100fd3e010200000004ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec6220100000000ffffffff9419c629987c25780dfd5db5148b790132bc315a48817bb79c0c7169bf5c24f90000000000ffffffffa8e4d1ca6df7b9ec82470cee3fff804381e58bac9ed17c1daee5d8b75b904ff00200000000ffffffff82e256b7295071f37b0dad1ea9df42b0bdcf6fc683f11aba75be5734091cdde20000000000ffffffff040c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c56c6b000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000000000126a10b0a220780a86459d93f4a1aadbf2b9b700000000095349474841534845538081a1ac8b22114f7e55324fa691f91aea7cbeb9b4cf6108cf4fc02b66e2b37199d15483fd55ae97100f70f0079c04242396c16cbb824c38af8e5277e8e0f285faf444fcc18f5f15bfb1fb3bcf2cc31c6e791e7f59a64d6c112e2c4d8b7612e5f28cd61dfdc52092f14300ba6b0835920673e56a321b96d06f5b7cf505b9a235410001012b2052010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001012ba086010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304010000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001011fd854000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250001011f1027000000000000160014b60581aed325e0a51cc82cd9c949902e8d4d6125010304010000000105160014b60581aed325e0a51cc82cd9c949902e8d4d61250000000000")
+	transactionHash = testSafeProposeTransaction(ctx, require, node, mpc, bondId, "b0a22078-0a86-459d-93f4-a1aadbf2b9b7", "59151a89a41486d34e824d2d4f04bd7b2e6e13d8244419a8451365fb69850180", "70736274ff0100cd0200000002ba618871060ccc3cd2c1ed5be20512b26c216f32fe550202fe55b4bd7dcec6220100000000ffffffff9419c629987c25780dfd5db5148b790132bc315a48817bb79c0c7169bf5c24f90000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c50000000000000000126a10b0a220780a86459d93f4a1aadbf2b9b7000000000953494748415348455340829f37bd0ddb43975d5d9250178ac121a1c7f888ab0ac5244525e28554dc5bf4c968b0f8d29124ec543fa4f675eb8e95e38086c4c87f4bef2916b5d6ee0b1f540001012b2052010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b292689352870001012ba086010000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08cac937c8292632102021d499c26abd9c11f4aec84c0ffc3c2145342771843cfab041e098b87d85c6bad56b2926893528700000000")
 	testSafeApproveTransaction(ctx, require, node, transactionHash, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 }
@@ -207,10 +181,6 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateInitial, tx.State)
 
-	balance, err := node.store.ReadAccountantBalance(ctx, tx.Holder)
-	require.Nil(err)
-	require.Equal("0", balance.String())
-
 	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
 	holder, _ := btcec.PrivKeyFromBytes(hb)
 	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
@@ -226,17 +196,10 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 	require.Len(requests, 0)
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateFailed, tx.State)
-
-	balance, err = node.store.ReadAccountantBalance(ctx, tx.Holder)
-	require.Nil(err)
-	require.Equal("0.0003172", balance.String())
 }
 
 func testSafeApproveTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string, signers []*signer.Node) {
 	id := uuid.Must(uuid.NewV4()).String()
-
-	ab, _ := hex.DecodeString(testBitcoinKeyAccountantPrivate)
-	accountant, _ := btcec.PrivKeyFromBytes(ab)
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateInitial, tx.State)
@@ -302,27 +265,24 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		hash := psbt.SigHash(idx)
 		utxo, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
-		if msig := signed[idx]; msig != nil {
-			signature := ecdsa.Sign(holder, hash)
-			sig := append(signature.Serialize(), byte(txscript.SigHashAll))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-
-			msig = append(msig, byte(txscript.SigHashAll))
-			der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
-			pub, _ := hex.DecodeString(safe.Signer)
-			signer, _ := btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
-			require.True(der.Verify(hash, signer.PubKey()))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{1})
-
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
-		} else {
-			signature := ecdsa.Sign(accountant, hash)
-			sig := append(signature.Serialize(), byte(txscript.SigHashAll))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
+		msig := signed[idx]
+		if msig == nil {
+			continue
 		}
+		signature := ecdsa.Sign(holder, hash)
+		sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+
+		msig = append(msig, byte(bitcoin.SigHashType))
+		der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
+		pub, _ := hex.DecodeString(safe.Signer)
+		signer, _ := btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
+		require.True(der.Verify(hash, signer.PubKey()))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{1})
+
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
 	}
 
 	var signedBuffer bytes.Buffer
@@ -330,7 +290,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	logger.Println(hex.EncodeToString(signedBuffer.Bytes()))
 }
 
-func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, accountant, bondId string, rid, rhash, rraw, rp string) string {
+func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
 	extra := uuid.Must(uuid.FromString(info.RequestId)).Bytes()
@@ -338,22 +298,14 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.000123))
 	testStep(ctx, require, node, out)
 
-	balance, err := node.store.ReadAccountantBalance(ctx, holder)
-	require.Nil(err)
-	require.Equal("0", balance.String())
-
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeProposeTransaction)
 	require.Equal(rraw, hex.EncodeToString(b))
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	require.Nil(err)
-	require.Equal(rhash, psbt.Hash)
-	require.Equal(int64(4220), psbt.Fee)
-	var raw bytes.Buffer
-	psbt.Packet.Serialize(&raw)
-	require.Equal(rp, hex.EncodeToString(raw.Bytes()))
+	require.Equal(rhash, psbt.Hash())
 
 	tx := psbt.Packet.UnsignedTx
-	require.Len(tx.TxOut, 4)
+	require.Len(tx.TxOut, 3)
 	main := tx.TxOut[0]
 	require.Equal(int64(12300), main.Value)
 	script, _ := txscript.ParsePkScript(main.PkScript)
@@ -364,16 +316,10 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 	script, _ = txscript.ParsePkScript(change.PkScript)
 	addr, _ = script.Address(&chaincfg.MainNetParams)
 	require.Equal(testSafePublicKey, addr.EncodeAddress())
-	fee := tx.TxOut[2]
-	require.Equal(int64(27500), fee.Value)
-	script, _ = txscript.ParsePkScript(fee.PkScript)
-	addr, _ = script.Address(&chaincfg.MainNetParams)
-	require.Equal(testSafeAccountant, addr.EncodeAddress())
 
-	stx, err := node.store.ReadTransaction(ctx, psbt.Hash)
+	stx, err := node.store.ReadTransaction(ctx, psbt.Hash())
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(psbt.Marshal()), stx.RawTransaction)
-	require.Equal("0.0000422", stx.Fee.String())
 	require.Equal("[{\"amount\":\"0.000123\",\"receiver\":\"bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc\"}]", stx.Data)
 	require.Equal(common.RequestStateInitial, stx.State)
 
@@ -395,14 +341,9 @@ func testObserverHolderDeposit(ctx context.Context, require *require.Assertions,
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra)
 	testStep(ctx, require, node, out)
 
-	balance, err := node.store.ReadAccountantBalance(ctx, holder)
-	require.Nil(err)
-	require.Equal("0.0003172", balance.String())
-
-	mainInputs, feeInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
 	require.Nil(err)
 	require.Len(mainInputs, 1*t)
-	require.Len(feeInputs, 2)
 	utxo := mainInputs[t-1]
 	require.Equal(uint32(input.Index), utxo.Index)
 	require.Equal(input.Satoshi, utxo.Satoshi)
@@ -412,49 +353,16 @@ func testObserverHolderDeposit(ctx context.Context, require *require.Assertions,
 	require.True(bitcoin.CheckMultisigHolderSignerScript(utxo.Script))
 }
 
-func testObserverAccountantDeposit(ctx context.Context, require *require.Assertions, node *Node, accountant string, input *bitcoin.Input, total string, t int) {
-	id := uuid.Must(uuid.NewV4()).String()
-	hash, _ := crypto.HashFromString(input.TransactionHash)
-	extra := []byte{SafeChainBitcoin}
-	extra = append(extra, uuid.Must(uuid.FromString(SafeBitcoinChainId)).Bytes()...)
-	extra = append(extra, hash[:]...)
-	extra = binary.BigEndian.AppendUint64(extra, uint64(input.Index))
-	extra = append(extra, big.NewInt(input.Satoshi).Bytes()...)
-
-	wka, _ := bitcoin.BuildWitnessKeyAccount(accountant, SafeChainBitcoin)
-
-	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	out := testBuildObserverRequest(node, id, holder, common.ActionObserverAccountantDepost, extra)
-	testStep(ctx, require, node, out)
-
-	balance, err := node.store.ReadAccountantBalance(ctx, holder)
-	require.Nil(err)
-	require.Equal(total, balance.String())
-
-	mainInputs, feeInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
-	require.Nil(err)
-	require.Len(mainInputs, 0)
-	require.Len(feeInputs, 1*t)
-	utxo := feeInputs[t-1]
-	require.Equal(uint32(input.Index), utxo.Index)
-	require.Equal(input.Satoshi, utxo.Satoshi)
-	require.Equal(wka.Script, utxo.Script)
-	require.Equal(hash.String(), utxo.TransactionHash)
-	require.Equal(uint32(bitcoin.MaxTransactionSequence), utxo.Sequence)
-	require.False(bitcoin.CheckMultisigHolderSignerScript(utxo.Script))
-}
-
-func testSafeProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer, accountant string) (string, string) {
+func testSafeProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, string) {
 	id := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	extra := testRecipient()
 	out := testBuildHolderRequest(node, id, holder, common.ActionBitcoinSafeProposeAccount, testAccountPriceAssetId, extra, decimal.NewFromInt(1))
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, id, common.ActionBitcoinSafeProposeAccount)
-	wsa, aaddr, err := bitcoin.UnmarshalWitnessScriptAccountWitAccountant(b)
+	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(b)
 	require.Equal(testSafePublicKey, wsa.Address)
 	require.Equal(uint32(6), wsa.Sequence)
-	require.Equal(testSafeAccountant, aaddr)
 
 	safe, err := node.store.ReadSafeProposal(ctx, id)
 	require.Nil(err)
@@ -462,7 +370,6 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	require.Equal(accountant, safe.Accountant)
 	public, err := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, node.bitcoinTimeLockDuration(ctx), SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafePublicKey, public.Address)
@@ -474,7 +381,7 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	return id, wsa.Address
 }
 
-func testSafeApproveAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer, accountant string, rid, publicKey string) {
+func testSafeApproveAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string, rid, publicKey string) {
 	id := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	ms := fmt.Sprintf("APPROVE:%s:%s", rid, publicKey)
@@ -487,10 +394,9 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	out := testBuildObserverRequest(node, id, holder, common.ActionBitcoinSafeApproveAccount, extra)
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, id, common.ActionBitcoinSafeApproveAccount)
-	wsa, aaddr, err := bitcoin.UnmarshalWitnessScriptAccountWitAccountant(b)
+	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(b)
 	require.Equal(testSafePublicKey, wsa.Address)
 	require.Equal(uint32(6), wsa.Sequence)
-	require.Equal(testSafeAccountant, aaddr)
 
 	safe, err := node.store.ReadSafe(ctx, holder)
 	require.Nil(err)
@@ -498,7 +404,6 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	require.Equal(accountant, safe.Accountant)
 	public, err := bitcoin.BuildWitnessScriptAccount(holder, signer, observer, node.bitcoinTimeLockDuration(ctx), SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafePublicKey, public.Address)
@@ -527,10 +432,9 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 
 func testSpareKeys(ctx context.Context, require *require.Assertions, node *Node, hc, sc, oc, ac int) {
 	for r, c := range map[int]int{
-		common.RequestRoleHolder:     hc,
-		common.RequestRoleSigner:     sc,
-		common.RequestRoleObserver:   oc,
-		common.RequestRoleAccountant: ac,
+		common.RequestRoleHolder:   hc,
+		common.RequestRoleSigner:   sc,
+		common.RequestRoleObserver: oc,
 	} {
 		skc, err := node.store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, r)
 		require.Nil(err)

@@ -213,11 +213,6 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
-	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
-		return
-	}
 	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
@@ -238,7 +233,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	mainInputs, feeInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -249,11 +244,6 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		"address": safe.Address,
 		"outputs": viewOutputs(mainInputs),
 		"script":  hex.EncodeToString(wsa.Script),
-		"accountant": map[string]any{
-			"address": wka.Address,
-			"script":  hex.EncodeToString(wka.Script),
-			"outputs": viewOutputs(feeInputs),
-		},
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -298,11 +288,6 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
 	}
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
-	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
-		return
-	}
 	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
@@ -323,7 +308,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
-	mainInputs, feeInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -334,11 +319,6 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		"address": safe.Address,
 		"outputs": viewOutputs(mainInputs),
 		"script":  hex.EncodeToString(wsa.Script),
-		"accountant": map[string]any{
-			"address": wka.Address,
-			"script":  hex.EncodeToString(wka.Script),
-			"outputs": viewOutputs(feeInputs),
-		},
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -377,7 +357,6 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
-		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 		"state":   common.StateName(tx.State),
 	})
@@ -446,7 +425,6 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
-		"fee":     tx.Fee,
 		"signers": approval.Signers(),
 	})
 }
@@ -469,10 +447,10 @@ func (node *Node) readTransactionOrRequest(ctx context.Context, id string) (*sto
 	return nil, req, err
 }
 
-func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, []*bitcoin.Input, error) {
+func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, error) {
 	safe, err := node.keeperStore.ReadSafe(ctx, holder)
 	if err != nil || safe == nil {
-		return nil, nil, err
+		return nil, err
 	}
 	return node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
 }

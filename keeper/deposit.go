@@ -156,69 +156,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		}
 	}
 
-	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, false, safe.Chain)
-}
-
-func (node *Node) CreateAccountantDeposit(ctx context.Context, req *common.Request) error {
-	if req.Role != common.RequestRoleObserver {
-		panic(req.Role)
-	}
-	deposit, err := parseDepositExtra(req)
-	logger.Printf("req.parseDepositExtra(%v) => %v %v", req, deposit, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	safe, err := node.store.ReadSafe(ctx, req.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
-	}
-	if safe == nil || safe.Chain != deposit.Chain {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	asset, err := node.fetchAssetMeta(ctx, deposit.Asset)
-	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
-	}
-	if asset.Chain != safe.Chain {
-		panic(asset.AssetId)
-	}
-	switch deposit.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
-		return node.doBitcoinAccountantDeposit(ctx, req, deposit, safe, asset)
-	case SafeChainEthereum:
-		panic(0)
-	default:
-		return node.store.FailRequest(ctx, req.Id)
-	}
-}
-
-func (node *Node) doBitcoinAccountantDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, asset *store.Asset) error {
-	if asset.Decimals != bitcoin.ValuePrecision {
-		panic(asset.Decimals)
-	}
-	old, err := node.store.ReadBitcoinUTXO(ctx, deposit.Hash, int(deposit.Index))
-	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", deposit.Hash, deposit.Index, old, err)
-	if err != nil {
-		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
-	} else if old != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
-	if err != nil {
-		panic(err)
-	}
-
-	output, err := node.verifyBitcoinTransaction(ctx, req, deposit, safe, bitcoin.InputTypeP2WPKHAccoutant)
-	logger.Printf("node.verifyBitcoinTransaction(%v) => %v %v", req, output, err)
-	if err != nil {
-		return fmt.Errorf("node.verifyBitcoinTransaction(%s) => %v", deposit.Hash, err)
-	}
-	if output == nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	return node.store.WriteBitcoinOutputFromRequest(ctx, wka.Address, output, req, true, safe.Chain)
+	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
 }
 
 func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, typ int) (*bitcoin.Input, error) {
@@ -244,14 +182,6 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 
 	var receiver string
 	switch typ {
-	case bitcoin.InputTypeP2WPKHAccoutant:
-		wka, err := bitcoin.BuildWitnessKeyAccount(safe.Accountant, safe.Chain)
-		if err != nil {
-			panic(err)
-		}
-		receiver = wka.Address
-		input.Script = wka.Script
-		input.Sequence = bitcoin.MaxTransactionSequence
 	case bitcoin.InputTypeP2WSHMultisigHolderSigner:
 		wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
 		if err != nil {
@@ -322,9 +252,5 @@ func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string)
 	if err != nil {
 		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", receiver, err)
 	}
-	holder, err := node.store.ReadAccountantHolder(ctx, receiver)
-	if err != nil {
-		return false, fmt.Errorf("store.ReadAccountantHolder(%s) => %v", receiver, err)
-	}
-	return safe != nil || holder != "", nil
+	return safe != nil, nil
 }
