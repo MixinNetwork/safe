@@ -58,6 +58,7 @@ func (node *Node) Boot(ctx context.Context) {
 		go node.bitcoinRPCBlocksLoop(ctx, chain)
 		go node.bitcoinDepositConfirmLoop(ctx, chain)
 		go node.bitcoinTransactionApprovalLoop(ctx, chain)
+		go node.bitcoinTransactionSpendLoop(ctx, chain)
 	}
 	go node.bitcoinKeyLoop(ctx)
 	node.snapshotsLoop(ctx)

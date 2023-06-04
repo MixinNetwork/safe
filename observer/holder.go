@@ -259,7 +259,7 @@ func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Trans
 	if err != nil && !strings.Contains(err.Error(), "No such mempool or blockchain transaction") {
 		return err
 	}
-	if btx != nil {
+	if btx != nil { // FIXME should use the spent hash
 		return node.store.FinishTransactionSignatures(ctx, approval.TransactionHash, approval.RawTransaction)
 	}
 

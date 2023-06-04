@@ -24,6 +24,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS assets_by_mixin_id ON assets(mixin_id);
 
 
 
+CREATE TABLE IF NOT EXISTS accountants (
+  public_key     VARCHAR NOT NULL,
+  private_key    VARCHAR NOT NULL,
+  address        VARCHAR NOT NULL,
+  curve          INTEGER NOT NULL,
+  chain_code     VARCHAR NOT NULL,
+  created_at     TIMESTAMP NOT NULL,
+  PRIMARY KEY ('public_key')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS accountants_by_private_key ON accountants(private_key);
+
+
+
 
 CREATE TABLE IF NOT EXISTS observers (
   public_key     VARCHAR NOT NULL,
@@ -72,7 +86,25 @@ CREATE TABLE IF NOT EXISTS transactions (
   signer             VARCHAR NOT NULL,
   signature          VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
+  spent_hash         VARCHAR,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash')
+);
+
+
+
+
+CREATE TABLE IF NOT EXISTS bitcoin_outputs (
+  transaction_hash   VARCHAR NOT NULL,
+  output_index       INTEGER NOT NULL,
+  address            VARCHAR NOT NULL,
+  satoshi            INTEGER NOT NULL,
+  chain              INTEGER NOT NULL,
+  state              INTEGER NOT NULL,
+  spent_by           VARCHAR,
+  raw_transaction    VARCHAR,
+  created_at         TIMESTAMP NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('transaction_hash', 'output_index')
 );

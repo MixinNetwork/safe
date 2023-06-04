@@ -44,6 +44,20 @@ type Transaction struct {
 	Signer          string
 	Signature       string
 	State           byte
+	SpentHash       sql.NullString
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type Output struct {
+	TransactionHash string
+	Index           uint32
+	Address         string
+	Satoshi         int64
+	Chain           byte
+	State           byte
+	SpentBy         sql.NullString
+	RawTransaction  sql.NullString
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -56,10 +70,16 @@ func (d *Deposit) values() []any {
 	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
 }
 
-var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "signature", "state", "created_at", "updated_at"}
+var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "signature", "state", "spent_hash", "created_at", "updated_at"}
 
 func (t *Transaction) values() []any {
-	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Signature, t.State, t.CreatedAt, t.UpdatedAt}
+	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Signature, t.State, t.SpentHash, t.CreatedAt, t.UpdatedAt}
+}
+
+var outputCols = []string{"transaction_hash", "output_index", "address", "satoshi", "chain", "state", "spent_by", "raw_transaction", "created_at", "updated_at"}
+
+func (o *Output) values() []any {
+	return []any{o.TransactionHash, o.Index, o.Address, o.Satoshi, o.Chain, o.State, o.SpentBy, o.RawTransaction, o.CreatedAt, o.UpdatedAt}
 }
 
 func (t *Transaction) Signers() []string {
@@ -167,6 +187,42 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	}
 
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context, hash, spentHash string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "UPDATE transactions SET spent_hash=?, updated_at=? WHERE transaction_hash=? AND state=?"
+	err = s.execOne(ctx, tx, query, spentHash, time.Now().UTC(), hash, common.RequestStateDone)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListFullySignedTransactionApprovals(ctx context.Context, chain byte) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions WHERE chain=? AND state=? AND spent_hash IS NULL ORDER BY created_at ASC", strings.Join(transactionCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, chain, common.RequestStateDone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var approvals []*Transaction
+	for rows.Next() {
+		var t Transaction
+		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.CreatedAt, &t.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		approvals = append(approvals, &t)
+	}
+	return approvals, nil
 }
 
 func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chain byte) ([]*Transaction, error) {
