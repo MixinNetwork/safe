@@ -30,6 +30,7 @@ const (
 	TimeLockMinimum = time.Hour * 1
 	TimeLockMaximum = time.Hour * 24 * 365
 
+	ScriptPubKeyTypeWitnessKeyHash    = "witness_v0_keyhash"
 	ScriptPubKeyTypeWitnessScriptHash = "witness_v0_scripthash"
 	SigHashType                       = txscript.SigHashAll | txscript.SigHashAnyOneCanPay
 

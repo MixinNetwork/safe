@@ -23,7 +23,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
-func (node *Node) bitcoinSignTransaction(ctx context.Context, extra []byte) error {
+func (node *Node) bitcoinCombileTransactionSignatures(ctx context.Context, extra []byte) error {
 	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 
 	tx, err := node.store.ReadTransactionApproval(ctx, spsbt.Hash())
@@ -169,7 +169,7 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 
 func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fee, fvb uint64, tx *Transaction) (*Output, error) {
 	min, max := uint64(float64(fee)*0.9), uint64(float64(fee)*1.1)
-	old, err := node.store.ReadBitcoinUTXOByRangeForTransaction(ctx, min, max, tx)
+	old, err := node.store.AssignBitcoinUTXOByRangeForTransaction(ctx, min, max, tx)
 	if err != nil || old != nil {
 		return old, err
 	}
@@ -276,7 +276,7 @@ func (s *SQLite3Store) ReadAccountantPrivateKey(ctx context.Context, address str
 	return key, err
 }
 
-func (s *SQLite3Store) ReadBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
+func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
 	txn, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -301,6 +301,32 @@ func (s *SQLite3Store) ReadBitcoinUTXOByRangeForTransaction(ctx context.Context,
 		return nil, fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 	}
 	return &o, txn.Commit()
+}
+
+func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, hash string, index int64, chain byte) (*Output, error) {
+	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE chain=? AND transaction_hash=? AND output_index=?", strings.Join(outputCols, ","))
+	row := s.db.QueryRowContext(ctx, query, chain, hash, index)
+
+	var o Output
+	err := row.Scan(&o.TransactionHash, &o.Index, &o.Address, &o.Satoshi, &o.Chain, &o.State, &o.SpentBy, &o.RawTransaction, &o.CreatedAt, &o.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &o, err
+}
+
+func (s *SQLite3Store) WriteBitcoinUTXO(ctx context.Context, utxo *Output) error {
+	txn, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer txn.Rollback()
+
+	err = s.execOne(ctx, txn, buildInsertionSQL("bitcoin_outputs", outputCols), utxo.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT bitcoin_outputs %v", err)
+	}
+	return txn.Commit()
 }
 
 func (s *SQLite3Store) ReadBitcoinUTXOs(ctx context.Context, chain byte) ([]*Output, error) {

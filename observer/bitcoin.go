@@ -132,6 +132,46 @@ func (node *Node) bitcoinReadBlock(ctx context.Context, num int64, chain byte) (
 	return block.Tx, nil
 }
 
+func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx *bitcoin.RPCTransaction, index int64, value float64, chain byte) error {
+	amount := decimal.NewFromFloat(value)
+	if bitcoin.ParseSatoshi(amount.String()) < bitcoin.ValueDust {
+		return nil
+	}
+	old, err := node.store.ReadBitcoinUTXO(ctx, tx.TxId, index, chain)
+	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", tx.TxId, index, err)
+	} else if old != nil {
+		return nil
+	}
+
+	accountant, err := node.store.ReadAccountantPrivateKey(ctx, receiver)
+	logger.Printf("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
+	} else if accountant == "" {
+		return nil
+	}
+
+	createdAt := time.Now().UTC()
+	utxo := &Output{
+		TransactionHash: tx.TxId,
+		Index:           uint32(index),
+		Address:         receiver,
+		Satoshi:         bitcoin.ParseSatoshi(amount.String()),
+		Chain:           chain,
+		State:           common.RequestStateInitial,
+		CreatedAt:       createdAt,
+		UpdatedAt:       createdAt,
+	}
+
+	err = node.store.WriteBitcoinUTXO(ctx, utxo)
+	if err != nil {
+		return fmt.Errorf("store.WriteBitcoinUTXO(%v) => %v", utxo, err)
+	}
+	return nil
+}
+
 func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver string, tx *bitcoin.RPCTransaction, index int64, value float64, chain byte) error {
 	_, assetId := node.bitcoinParams(chain)
 	amount := decimal.NewFromFloat(value)
@@ -156,6 +196,8 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
+	} else if safe == nil {
+		return nil
 	}
 
 	createdAt := time.Now().UTC()
@@ -165,16 +207,12 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		AssetId:         assetId,
 		Amount:          amount.String(),
 		Receiver:        receiver,
+		Holder:          safe.Holder,
+		Category:        common.ActionObserverHolderDeposit,
 		State:           common.RequestStateInitial,
 		Chain:           chain,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
-	}
-	if safe != nil {
-		deposit.Holder = safe.Holder
-		deposit.Category = common.ActionObserverHolderDeposit
-	} else {
-		return nil
 	}
 
 	rpc, _ := node.bitcoinParams(chain)
@@ -391,7 +429,7 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 	for index := range tx.Vout {
 		out := tx.Vout[index]
 		skt := out.ScriptPubKey.Type
-		if skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash {
+		if skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash && skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash {
 			continue
 		}
 		if out.N != int64(index) {
@@ -399,6 +437,10 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 		}
 
 		err := node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx, out.N, out.Value, chain)
+		if err != nil {
+			panic(err)
+		}
+		err = node.bitcoinWriteFeeOutput(ctx, out.ScriptPubKey.Address, tx, out.N, out.Value, chain)
 		if err != nil {
 			panic(err)
 		}
