@@ -70,21 +70,22 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 	require.Equal("5e6a41217fe34489e6136edb041397d1761ffad9db3cbf4d1e13e8144f864c19", tx.TxHash().String())
 	require.Equal("02000000026d2d1f7340b00b7f50d1e381d1661d698648393e816649158f16461bb95d39320200000000060000006d2d1f7340b00b7f50d1e381d1661d698648393e816649158f16461bb95d3932010000000006000000021027000000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c5a04e020000000000220020ddd88f5a1b60a7a25f73f118cbdb656c580e3054a4334174cc3bffd296f648c500000000", raw)
 
-	priv, _ := hex.DecodeString(testBitcoinKeyAccountant)
-	_, publicKey := btcec.PrivKeyFromBytes(priv)
-	apk, _ := btcutil.NewAddressPubKey(publicKey.SerializeCompressed(), &chaincfg.MainNetParams)
 	feeInputs := []*bitcoin.Input{{
 		TransactionHash: "1b7336254fb420d010d75621624e53174d658f046c8b6cd7e935306fb399981d",
 		Index:           0,
 		Satoshi:         10007,
-		Script:          apk.ScriptAddress(),
 	}}
 	var signedBuffer bytes.Buffer
 	tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
-	hash, raw, err := bitcoin.SpendSignedTransaction(hex.EncodeToString(signedBuffer.Bytes()), feeInputs, testBitcoinKeyAccountant, bitcoin.ChainBitcoin)
-	logger.Println(raw)
+	tx, err = bitcoin.SpendSignedTransaction(hex.EncodeToString(signedBuffer.Bytes()), feeInputs, testBitcoinKeyAccountant, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	require.Equal("3cbe8ac67374b48066c5f3e3fe45ca9c7043aa29c4d37a9518242fd7f0f5be1b", hash)
+
+	signedBuffer.Reset()
+	tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
+	logger.Println(hex.EncodeToString(signedBuffer.Bytes()))
+	require.Equal("3cbe8ac67374b48066c5f3e3fe45ca9c7043aa29c4d37a9518242fd7f0f5be1b", tx.TxHash().String())
+	require.Equal("3045022100c3232e336b9f42a86819ca23ca5f3d166029233b41de6bbb47351095ac50f28c02205c03d8153876edf6dc191c7f0b5647086fb8c0d434c39bb9413804b78b6dadc401", hex.EncodeToString(tx.TxIn[2].Witness[0]))
+	require.Equal("02a4b44520d98e70926b87d2d3f48401e2b1c95e8855fd100752ee9837db188721", hex.EncodeToString(tx.TxIn[2].Witness[1]))
 }
 
 func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, mainInputs []*bitcoin.Input, outputs []*bitcoin.Output) (*wire.MsgTx, string, error) {

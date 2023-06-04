@@ -216,20 +216,11 @@ curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421
 
 ## Approve Safe Transaction
 
-With the transaction proposed in previous step, we can decode the raw response to get the partially signed bitcoin transaction for the holder key to sign:
-
-```golang
-b, _ := hex.DecodeString(raw)
-dec := common.NewDecoder(b)
-hash, _ := dec.ReadBytes()
-psbtBytes, _ := dec.ReadBytes()
-fee, _ := dec.ReadUint64()
-```
-
-With the decoded PSBT, we can parse it to see all its inputs and outputs, and verify it's correct as we proposed. Then we sign all signature hashes with our holder private key:
+With the transaction proposed in previous step, we can decode the raw response to get the partially signed bitcoin transaction for the holder key to sign. Then with the decoded PSBT, we can parse it to see all its inputs and outputs, and verify it's correct as we proposed. Then we sign all signature hashes with our holder private key:
 
 ```golang
 script := theSafeAccountScript()
+psbtBytes, _ := hex.DecodeString(raw)
 pkt, _ = psbt.NewFromRawBytes(bytes.NewReader(psbtBytes), false)
 msgTx := pkt.UnsignedTx
 for idx := range msgTx.TxIn {

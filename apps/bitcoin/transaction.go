@@ -83,31 +83,37 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
-func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, chain byte) (string, string, error) {
+func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, chain byte) (*wire.MsgTx, error) {
 	b, err := hex.DecodeString(raw)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	rtx, err := btcutil.NewTxFromBytes(b)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	msgTx := rtx.MsgTx()
 	mainCount := len(msgTx.TxIn)
 
+	b, err = hex.DecodeString(accountant)
+	if err != nil {
+		return nil, err
+	}
+	privateKey, publicKey := btcec.PrivKeyFromBytes(b)
+	apk, err := btcutil.NewAddressPubKey(publicKey.SerializeCompressed(), netConfig(chain))
+	if err != nil {
+		return nil, err
+	}
+
 	scripts := make([][]byte, len(feeInputs))
 	for i := range feeInputs {
-		scripts[i] = feeInputs[i].Script
+		scripts[i] = apk.ScriptAddress()
+		feeInputs[i].Script = apk.ScriptAddress()
 	}
 	_, _, err = addInputs(msgTx, feeInputs, chain)
 	if err != nil {
-		return "", "", fmt.Errorf("addInputs(fee) => %v", err)
+		return nil, fmt.Errorf("addInputs(fee) => %v", err)
 	}
-	b, err = hex.DecodeString(accountant)
-	if err != nil {
-		return "", "", err
-	}
-	privateKey, _ := btcec.PrivKeyFromBytes(b)
 
 	for idx, in := range feeInputs {
 		script := scripts[idx]
@@ -116,7 +122,7 @@ func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, c
 		tsh := txscript.NewTxSigHashes(msgTx, pof)
 		hash, err := txscript.CalcWitnessSigHash(in.Script, tsh, txscript.SigHashAll, msgTx, idx, in.Satoshi)
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 		signature := ecdsa.Sign(privateKey, hash)
 		sig := append(signature.Serialize(), byte(txscript.SigHashAll))
@@ -124,9 +130,7 @@ func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, c
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, script)
 	}
 
-	var signedBuffer bytes.Buffer
-	err = msgTx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
-	return msgTx.TxHash().String(), hex.EncodeToString(signedBuffer.Bytes()), err
+	return msgTx, nil
 }
 
 func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid []byte, chain byte) (*PartiallySignedTransaction, error) {
