@@ -283,8 +283,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		for _, rp := range recipients {
-			receiver, err := bitcoin.ParseAddress(rp[0], safe.Chain)
-			logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
+			script, err := bitcoin.ParseAddress(rp[0], safe.Chain)
+			logger.Printf("bitcoin.ParseAddress(%s, %d) => %x %v", string(extra), safe.Chain, script, err)
 			if err != nil {
 				return node.store.FailRequest(ctx, req.Id)
 			}
@@ -296,18 +296,18 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 				return node.store.FailRequest(ctx, req.Id)
 			}
 			outputs = append(outputs, &bitcoin.Output{
-				Address: receiver,
+				Address: rp[0],
 				Satoshi: bitcoin.ParseSatoshi(amt.String()),
 			})
 		}
 	} else {
-		receiver, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
-		logger.Printf("bitcoin.ParseAddress(%s, %d) => %s %v", string(extra), safe.Chain, receiver, err)
+		script, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
+		logger.Printf("bitcoin.ParseAddress(%s, %d) => %x %v", string(extra), safe.Chain, script, err)
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		outputs = []*bitcoin.Output{{
-			Address: receiver,
+			Address: string(extra[16:]),
 			Satoshi: bitcoin.ParseSatoshi(req.Amount.String()),
 		}}
 	}

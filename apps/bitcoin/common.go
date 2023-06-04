@@ -58,30 +58,30 @@ func ParseSatoshi(amount string) int64 {
 	return amt.BigInt().Int64()
 }
 
-func ParseAddress(addr string, chain byte) (string, error) {
+func ParseAddress(addr string, chain byte) ([]byte, error) {
 	switch chain {
 	case ChainBitcoin:
 		err := bitcoin.VerifyAddress(addr)
 		if err != nil {
-			return "", fmt.Errorf("bitcoin.VerifyAddress(%s) => %v", addr, err)
+			return nil, fmt.Errorf("bitcoin.VerifyAddress(%s) => %v", addr, err)
 		}
 	case ChainLitecoin:
 		err := litecoin.VerifyAddress(addr)
 		if err != nil {
-			return "", fmt.Errorf("litecoin.VerifyAddress(%s) => %v", addr, err)
+			return nil, fmt.Errorf("litecoin.VerifyAddress(%s) => %v", addr, err)
 		}
 	default:
-		return "", fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
+		return nil, fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
 	}
 	bda, err := btcutil.DecodeAddress(addr, netConfig(chain))
 	if err != nil {
-		return "", fmt.Errorf("btcutil.DecodeAddress(%s, %d) => %v", addr, chain, err)
+		return nil, fmt.Errorf("btcutil.DecodeAddress(%s, %d) => %v", addr, chain, err)
 	}
-	_, err = txscript.PayToAddrScript(bda)
+	script, err := txscript.PayToAddrScript(bda)
 	if err != nil {
-		return "", fmt.Errorf("txscript.PayToAddrScript(%s, %d) => %v", addr, chain, err)
+		return nil, fmt.Errorf("txscript.PayToAddrScript(%s, %d) => %v", addr, chain, err)
 	}
-	return addr, nil
+	return script, nil
 }
 
 func ParseSequence(lock time.Duration, chain byte) int64 {

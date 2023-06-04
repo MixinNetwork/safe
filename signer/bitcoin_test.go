@@ -10,6 +10,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
@@ -86,6 +87,9 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 	require.Equal("3cbe8ac67374b48066c5f3e3fe45ca9c7043aa29c4d37a9518242fd7f0f5be1b", tx.TxHash().String())
 	require.Equal("3045022100c3232e336b9f42a86819ca23ca5f3d166029233b41de6bbb47351095ac50f28c02205c03d8153876edf6dc191c7f0b5647086fb8c0d434c39bb9413804b78b6dadc401", hex.EncodeToString(tx.TxIn[2].Witness[0]))
 	require.Equal("02a4b44520d98e70926b87d2d3f48401e2b1c95e8855fd100752ee9837db188721", hex.EncodeToString(tx.TxIn[2].Witness[1]))
+
+	weight := blockchain.GetTransactionWeight(btcutil.NewTx(tx))
+	require.Equal(int64(379), weight/4)
 }
 
 func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, mainInputs []*bitcoin.Input, outputs []*bitcoin.Output) (*wire.MsgTx, string, error) {

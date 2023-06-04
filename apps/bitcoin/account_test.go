@@ -80,19 +80,19 @@ func TestBitcoinCLI(t *testing.T) {
 
 func TestBitcoinAddress(t *testing.T) {
 	require := require.New(t)
-	addr, err := ParseAddress("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", ChainBitcoin)
+	script, err := ParseAddress("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", ChainBitcoin)
 	require.Nil(err)
-	require.Equal("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", addr)
-	addr, err = ParseAddress("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", ChainLitecoin)
+	require.Equal("0020f3801859f8b0398b37cc7e627e02d0c4afe63e78cfc0115685bf3395d3969f76", hex.EncodeToString(script))
+	script, err = ParseAddress("bc1q7wqpsk0ckquckd7v0e38uqkscjh7v0ncelqpz459hueet5uknamqrlgp2d", ChainLitecoin)
 	require.NotNil(err)
-	require.Equal("", addr)
+	require.Equal("", hex.EncodeToString(script))
 
-	addr, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainLitecoin)
+	script, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainLitecoin)
 	require.Nil(err)
-	require.Equal("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", addr)
-	addr, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainBitcoin)
+	require.Equal("0020bfc0fb9cbbd4dfd794b61d280843a2570ea34a9cd697d4a736c5d4d4df4c4fb3", hex.EncodeToString(script))
+	script, err = ParseAddress("ltc1qhlq0h89m6n0a099kr55qssaz2u82xj5u66taffekch2dfh6vf7escf4l0k", ChainBitcoin)
 	require.NotNil(err)
-	require.Equal("", addr)
+	require.Equal("", hex.EncodeToString(script))
 }
 
 func TestBitcoinScriptAddress(t *testing.T) {
