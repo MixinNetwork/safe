@@ -102,11 +102,18 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 			panic(err)
 		}
 		for _, tx := range txs {
-			spentHash, err := node.bitcoinSpendFullySignedTransaction(ctx, tx)
+			msgTx, err := node.bitcoinSpendFullySignedTransaction(ctx, tx)
 			if err != nil {
 				panic(err)
 			}
-			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash)
+			var signedBuffer bytes.Buffer
+			err = msgTx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
+			if err != nil {
+				panic(err)
+			}
+			spentHash := msgTx.TxHash().String()
+			spentRaw := hex.EncodeToString(signedBuffer.Bytes())
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw)
 			if err != nil {
 				panic(err)
 			}
@@ -114,28 +121,28 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 	}
 }
 
-func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (string, error) {
+func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (*wire.MsgTx, error) {
 	rpc, _ := node.bitcoinParams(tx.Chain)
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	var signedBuffer bytes.Buffer
 	err := psbt.UnsignedTx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
 	virtualSize := (weight + 300) / 4
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, tx.Chain)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if info.CreatedAt.Add(keeper.SafeNetworkInfoTimeout).Before(time.Now()) {
-		return "", fmt.Errorf("network info timeout %v", info)
+		return nil, fmt.Errorf("network info timeout %v", info)
 	}
 	fvb, err := bitcoin.RPCEstimateSmartFee(tx.Chain, rpc)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if uint64(fvb) > info.Fee {
 		info.Fee = uint64(fvb)
@@ -144,15 +151,15 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 
 	feeInput, err := node.bitcoinRetrieveFeeInputsForTransaction(ctx, fee, info.Fee, tx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if feeInput == nil {
-		return "", fmt.Errorf("insufficient accountant balance %d %d", fee, info.Fee)
+		return nil, fmt.Errorf("insufficient accountant balance %d %d", fee, info.Fee)
 	}
 
 	accountant, err := node.store.ReadAccountantPrivateKey(ctx, feeInput.Address)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	feeInputs := []*bitcoin.Input{{
 		TransactionHash: feeInput.TransactionHash,
@@ -161,10 +168,10 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 	}}
 	msgTx, err := bitcoin.SpendSignedTransaction(hex.EncodeToString(signedBuffer.Bytes()), feeInputs, accountant, tx.Chain)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return "", node.bitcoinBroadcastTransactionAndWriteDeposit(ctx, feeInput, msgTx, tx.Chain)
+	return msgTx, node.bitcoinBroadcastTransactionAndWriteDeposit(ctx, feeInput, msgTx, tx.Chain)
 }
 
 func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fee, fvb uint64, tx *Transaction) (*Output, error) {

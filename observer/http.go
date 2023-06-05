@@ -352,14 +352,20 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	renderJSON(w, r, http.StatusOK, map[string]any{
+	data := map[string]any{
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
 		"signers": approval.Signers(),
 		"state":   common.StateName(tx.State),
-	})
+	}
+	if approval.SpentRaw.Valid {
+		data["hash"] = approval.SpentHash.String
+		data["raw"] = approval.SpentRaw.String
+		data["state"] = "spent"
+	}
+	renderJSON(w, r, http.StatusOK, data)
 }
 
 func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -420,13 +426,20 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	default:
 	}
 
-	renderJSON(w, r, http.StatusOK, map[string]any{
+	data := map[string]any{
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
 		"signers": approval.Signers(),
-	})
+		"state":   common.StateName(tx.State),
+	}
+	if approval.SpentRaw.Valid {
+		data["hash"] = approval.SpentHash.String
+		data["raw"] = approval.SpentRaw.String
+		data["state"] = "spent"
+	}
+	renderJSON(w, r, http.StatusOK, data)
 }
 
 func (node *Node) readSafeProposalOrRequest(ctx context.Context, id string) (*store.SafeProposal, *common.Request, error) {

@@ -45,6 +45,7 @@ type Transaction struct {
 	Signature       string
 	State           byte
 	SpentHash       sql.NullString
+	SpentRaw        sql.NullString
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -70,10 +71,10 @@ func (d *Deposit) values() []any {
 	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
 }
 
-var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "signature", "state", "spent_hash", "created_at", "updated_at"}
+var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "signature", "state", "spent_hash", "spent_raw", "created_at", "updated_at"}
 
 func (t *Transaction) values() []any {
-	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Signature, t.State, t.SpentHash, t.CreatedAt, t.UpdatedAt}
+	return []any{t.TransactionHash, t.RawTransaction, t.Chain, t.Holder, t.Signer, t.Signature, t.State, t.SpentHash, t.SpentRaw, t.CreatedAt, t.UpdatedAt}
 }
 
 var outputCols = []string{"transaction_hash", "output_index", "address", "satoshi", "chain", "state", "spent_by", "raw_transaction", "created_at", "updated_at"}
@@ -189,15 +190,15 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context, hash, spentHash string) error {
+func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context, hash, spentHash, spentRaw string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE transactions SET spent_hash=?, updated_at=? WHERE transaction_hash=? AND state=? AND spent_hash IS NULL"
-	err = s.execOne(ctx, tx, query, spentHash, time.Now().UTC(), hash, common.RequestStateDone)
+	query := "UPDATE transactions SET spent_hash=?, spent_raw=?, updated_at=? WHERE transaction_hash=? AND state=? AND spent_hash IS NULL"
+	err = s.execOne(ctx, tx, query, spentHash, spentRaw, time.Now().UTC(), hash, common.RequestStateDone)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
@@ -216,7 +217,7 @@ func (s *SQLite3Store) ListFullySignedTransactionApprovals(ctx context.Context, 
 	var approvals []*Transaction
 	for rows.Next() {
 		var t Transaction
-		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.CreatedAt, &t.UpdatedAt)
+		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.SpentRaw, &t.CreatedAt, &t.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +237,7 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 	var approvals []*Transaction
 	for rows.Next() {
 		var t Transaction
-		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.CreatedAt, &t.UpdatedAt)
+		err = rows.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.SpentRaw, &t.CreatedAt, &t.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -350,7 +351,7 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 	row := s.db.QueryRowContext(ctx, query, hash)
 
 	var t Transaction
-	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.CreatedAt, &t.UpdatedAt)
+	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.Signature, &t.State, &t.SpentHash, &t.SpentRaw, &t.CreatedAt, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

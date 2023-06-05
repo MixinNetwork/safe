@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   signature          VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   spent_hash         VARCHAR,
+  spent_raw          VARCHAR,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash')
