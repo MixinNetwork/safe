@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
-	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
@@ -264,89 +262,6 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 		Satoshi:         msgTx.TxOut[0].Value,
 		RawTransaction:  sql.NullString{Valid: true, String: hex.EncodeToString(raw)},
 	}, node.store.WriteBitcoinFeeOutput(ctx, msgTx, receiver, tx)
-}
-
-func (s *SQLite3Store) FixAccountantsAddress(ctx context.Context, ks *store.SQLite3Store) error {
-	// 1. accountants public key from old keeper safes => holder => address
-	// 2. update accountants address
-	// 3. old keeper unspent bitcoin utxos and write to observer store bitcoin utxos
-	txn, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer txn.Rollback()
-
-	query := "SELECT public_key FROM accountants WHERE address IS NULL LIMIT 1"
-	row := txn.QueryRowContext(ctx, query)
-
-	var accountant string
-	err = row.Scan(&accountant)
-	if err != nil {
-		return err
-	}
-
-	kd := ks.SQLite3()
-	query = "SELECT chain,holder FROM safes WHERE accountant=?"
-	row = kd.QueryRowContext(ctx, query, accountant)
-	var chain byte
-	var holder string
-	err = row.Scan(&chain, &holder)
-	if err == sql.ErrNoRows {
-		err = s.execOne(ctx, txn, "UPDATE accountants SET address=? WHERE public_key=?", "", accountant)
-		if err != nil {
-			return err
-		}
-		return txn.Commit()
-	} else if err != nil {
-		return err
-	}
-
-	query = "SELECT address FROM accountants WHERE holder=?"
-	row = kd.QueryRowContext(ctx, query, holder)
-	var address string
-	err = row.Scan(&address)
-	if err != nil {
-		return err
-	}
-	log.Printf("%s => %s %d\n", accountant, address, chain)
-
-	err = s.execOne(ctx, txn, "UPDATE accountants SET address=?,chain=? WHERE public_key=?", address, chain, accountant)
-	if err != nil {
-		return err
-	}
-	err = txn.Commit()
-	if err != nil {
-		return err
-	}
-
-	cols := strings.Join([]string{"transaction_hash", "output_index", "address", "satoshi", "chain", "created_at", "updated_at"}, ",")
-	query = fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE address=? AND state=? ORDER BY created_at ASC", cols)
-	rows, err := kd.QueryContext(ctx, query, address, common.RequestStateInitial)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	var inputs []*Output
-	for rows.Next() {
-		var o Output
-		err = rows.Scan(&o.TransactionHash, &o.Index, &o.Address, &o.Satoshi, &o.Chain, &o.CreatedAt, &o.UpdatedAt)
-		if err != nil {
-			return err
-		}
-		o.State = common.RequestStateInitial
-		inputs = append(inputs, &o)
-	}
-	rows.Close()
-
-	for _, o := range inputs {
-		log.Printf("%#v\n", o)
-		err = s.WriteBitcoinUTXOIfNotExists(ctx, o)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *SQLite3Store) ReadAccountantPrivateKey(ctx context.Context, address string) (string, error) {

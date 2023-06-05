@@ -109,19 +109,6 @@ func main() {
 				},
 			},
 			{
-				Name:   "fix",
-				Usage:  "Fix the observer node",
-				Action: cmd.ObserverFixOldAccountants,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "config",
-						Aliases: []string{"c"},
-						Value:   "~/.mixin/safe/config.toml",
-						Usage:   "The configuration file path",
-					},
-				},
-			},
-			{
 				Name:   "observer",
 				Usage:  "Run the observer node",
 				Action: cmd.ObserverBootCmd,
