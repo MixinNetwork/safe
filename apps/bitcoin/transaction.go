@@ -83,6 +83,23 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
+func CheckTransactionPartiallySignedBy(raw, public string) bool {
+	b, _ := hex.DecodeString(raw)
+	psbt, _ := UnmarshalPartiallySignedTransaction(b)
+
+	pin := psbt.Inputs[0]
+	if len(pin.PartialSigs) < 1 {
+		return false
+	}
+	psig := pin.PartialSigs[0]
+	if hex.EncodeToString(psig.PubKey) != public {
+		return false
+	}
+	hash := psbt.SigHash(0)
+	err := VerifySignatureDER(public, hash, psig.Signature)
+	return err == nil
+}
+
 func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, chain byte) (*wire.MsgTx, error) {
 	b, err := hex.DecodeString(raw)
 	if err != nil {
