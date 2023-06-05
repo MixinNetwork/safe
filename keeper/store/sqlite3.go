@@ -46,6 +46,10 @@ func (s *SQLite3Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *SQLite3Store) SQLite3() *sql.DB {
+	return s.db
+}
+
 func (s *SQLite3Store) execOne(ctx context.Context, tx *sql.Tx, sql string, params ...any) error {
 	return s.execMultiple(ctx, tx, 1, sql, params...)
 }

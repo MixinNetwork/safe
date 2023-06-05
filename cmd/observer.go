@@ -17,6 +17,34 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+func ObserverFixOldAccountants(c *cli.Context) error {
+	ctx := context.Background()
+
+	mc, err := config.ReadConfiguration(c.String("config"))
+	if err != nil {
+		return err
+	}
+
+	db, err := observer.OpenSQLite3Store(mc.Observer.StoreDir + "/safe.sqlite3")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	kd, err := keeper.OpenSQLite3ReadOnlyStore(mc.Observer.KeeperStoreDir + "/safe.sqlite3")
+	if err != nil {
+		return err
+	}
+	defer kd.Close()
+
+	for {
+		err := db.FixAccountantsAddress(ctx, kd)
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func ObserverBootCmd(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()

@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS accountants (
   public_key     VARCHAR NOT NULL,
   private_key    VARCHAR NOT NULL,
   address        VARCHAR NOT NULL,
-  curve          INTEGER NOT NULL,
+  chain          INTEGER NOT NULL,
   chain_code     VARCHAR NOT NULL,
   created_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('public_key')

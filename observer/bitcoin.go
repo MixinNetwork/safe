@@ -165,9 +165,9 @@ func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx
 		UpdatedAt:       createdAt,
 	}
 
-	err = node.store.WriteBitcoinUTXO(ctx, utxo)
+	err = node.store.WriteBitcoinUTXOIfNotExists(ctx, utxo)
 	if err != nil {
-		return fmt.Errorf("store.WriteBitcoinUTXO(%v) => %v", utxo, err)
+		return fmt.Errorf("store.WriteBitcoinUTXOIfNotExists(%v) => %v", utxo, err)
 	}
 	return nil
 }
