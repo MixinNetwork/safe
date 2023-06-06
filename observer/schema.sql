@@ -84,7 +84,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   chain              INTEGER NOT NULL,
   holder             VARCHAR NOT NULL,
   signer             VARCHAR NOT NULL,
-  signature          VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   spent_hash         VARCHAR,
   spent_raw          VARCHAR,

@@ -2,8 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 filippo.io/edwards25519 v1.0.0 h1:0wAIcmJUqRdI8IJ/3eGi5/HwXZWPujYXXlkrQogz0Ek=
 filippo.io/edwards25519 v1.0.0/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5EwJns=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/MixinNetwork/bot-api-go-client v1.7.0 h1:LGOmtEYS8YQGbknkpy1TjgIWcD5sSPoC+J5K70LsnaI=
-github.com/MixinNetwork/bot-api-go-client v1.7.0/go.mod h1:alneYPjCBsZ1s1LpBTxgauat6edsv6eWIklfrmNlDuA=
+github.com/MixinNetwork/bot-api-go-client v1.7.1 h1:A7zta9Zj/6FEd5o63ER46hRAXlgh+NUDYiaH6GzAgGI=
+github.com/MixinNetwork/bot-api-go-client v1.7.1/go.mod h1:alneYPjCBsZ1s1LpBTxgauat6edsv6eWIklfrmNlDuA=
 github.com/MixinNetwork/go-number v0.1.0 h1:rxXG00MFa6w+1dyduacZQsbmHPR3duZNSgAXgXtkMBw=
 github.com/MixinNetwork/go-number v0.1.0/go.mod h1:TASJGXNi4CK9bh2AOQFpVe7r3//CBuZJTNlJYzTXRUk=
 github.com/MixinNetwork/mixin v0.15.0 h1:s0pnDTD4M+TDyDGH6BuUPnuMVmQD5RhoH3GAbUpYens=
@@ -67,7 +67,6 @@ github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGX
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
-github.com/cpuguy83/go-md2man v1.0.10 h1:BSKMNlYxDvnunlTymqtgONjNnaRV1sTpcovwwjF22jk=
 github.com/cpuguy83/go-md2man v1.0.10/go.mod h1:SmD6nW6nTyfqj6ABTjUi3V3JVMnlJmwcJI5acqYI6dE=
 github.com/cpuguy83/go-md2man/v2 v2.0.2 h1:p1EgwI/C7NhT0JmVkwCD2ZBK8j4aeHQX2pMHHBfMQ6w=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

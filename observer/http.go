@@ -412,7 +412,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 
 	switch body.Action {
 	case "approve":
-		err = node.approveBitcoinTransaction(r.Context(), body.Raw, body.Signature)
+		err = node.approveBitcoinTransaction(r.Context(), body.Raw)
 		if err != nil {
 			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return

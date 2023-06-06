@@ -26,7 +26,7 @@ func (node *Node) bitcoinCombineTransactionSignatures(ctx context.Context, extra
 	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 
 	tx, err := node.store.ReadTransactionApproval(ctx, spsbt.Hash())
-	if err != nil || tx.State == common.RequestStateDone {
+	if err != nil || tx.State >= common.RequestStateDone {
 		return err
 	}
 	switch tx.Chain {

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client"
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
@@ -60,7 +62,6 @@ func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, cre
 		Chain:           safe.Chain,
 		Holder:          tx.Holder,
 		Signer:          safe.Signer,
-		Signature:       "",
 		State:           common.RequestStateInitial,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
@@ -104,8 +105,8 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 }
 
-func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sigBase64 string) error {
-	logger.Verbosef("approveBitcoinTransaction(%s, %s)", raw, sigBase64)
+func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string) error {
+	logger.Verbosef("approveBitcoinTransaction(%s)", raw)
 	rb, err := hex.DecodeString(raw)
 	if err != nil {
 		return err
@@ -125,7 +126,7 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
-	if approval.Signature != "" {
+	if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		return nil
 	}
 
@@ -156,20 +157,8 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string, sig
 		}
 	}
 
-	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
-	if err != nil {
-		return err
-	}
-	ms := fmt.Sprintf("APPROVE:%s:%s", tx.RequestId, tx.TransactionHash)
-	msg := bitcoin.HashMessageForSignature(ms, approval.Chain)
-	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
-	if err != nil {
-		return err
-	}
-
 	raw = hex.EncodeToString(psbt.Marshal())
-	err = node.store.AddTransactionPartials(ctx, txHash, raw, sigBase64)
+	err = node.store.AddTransactionPartials(ctx, txHash, raw)
 	logger.Printf("store.AddTransactionPartials(%s) => %v", txHash, err)
 	return err
 }
@@ -184,7 +173,7 @@ func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, s
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
-	if approval.Signature != "" {
+	if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		return nil
 	}
 
@@ -229,10 +218,10 @@ func (node *Node) payTransactionApproval(ctx context.Context, hash string) error
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
-	if approval.Signature == "" {
+	if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		return nil
 	}
-	return node.store.UpdateTransactionApprovalPending(ctx, hash)
+	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }
 
 func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte) {
@@ -256,20 +245,38 @@ func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Trans
 	if err != nil || signed {
 		return err
 	}
-
-	sig, err := base64.RawURLEncoding.DecodeString(approval.Signature)
-	if err != nil {
-		panic(err)
+	if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		panic(approval.RawTransaction)
 	}
+
+	raw := common.DecodeHexOrPanic(approval.RawTransaction)
+	msg := base64.RawURLEncoding.EncodeToString(raw)
+	fee := bot.EstimateObjectFee(msg)
+	in := &bot.ObjectInput{
+		TraceId: mixin.UniqueConversationID(msg, msg),
+		Amount:  fee,
+		Memo:    msg,
+	}
+	conf := node.conf.App
+	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+
 	tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
 	if err != nil {
 		return err
 	}
 	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
 	rid := uuid.Must(uuid.FromString(tx.RequestId))
-	extra := append(rid.Bytes(), sig...)
+	extra := append(rid.Bytes(), ref[:]...)
+	references := []crypto.Hash{ref}
 	action := common.ActionBitcoinSafeApproveTransaction
-	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
+	err = node.sendBitcoinKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
 	if err != nil {
 		return err
 	}
@@ -278,7 +285,7 @@ func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Trans
 		return nil
 	}
 	id = mixin.UniqueConversationID(id, approval.UpdatedAt.String())
-	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
+	err = node.sendBitcoinKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
 	if err != nil {
 		return err
 	}
