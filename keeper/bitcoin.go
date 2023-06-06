@@ -267,9 +267,6 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if info == nil || info.Chain != safe.Chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if info.CreatedAt.Add(SafeNetworkInfoTimeout * 30).Before(req.CreatedAt) {
-		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
-	}
 
 	var outputs []*bitcoin.Output
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
