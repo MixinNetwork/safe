@@ -103,8 +103,9 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 		}
 		for _, tx := range txs {
 			msgTx, err := node.bitcoinSpendFullySignedTransaction(ctx, tx)
+			logger.Verbosef("node.bitcoinSpendFullySignedTransaction(%v) => %v %v", tx, msgTx, err)
 			if err != nil {
-				panic(err)
+				break
 			}
 			var signedBuffer bytes.Buffer
 			err = msgTx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
