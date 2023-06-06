@@ -95,8 +95,12 @@ func ParseSequence(lock time.Duration, chain byte) int64 {
 		blockDuration = 150 * time.Second
 	default:
 	}
-	// FIXME check litecoin timelock modifications as this may exceed 0xffff
-	return int64(lock / blockDuration)
+	// FIXME check litecoin timelock consensus as this may exceed 0xffff
+	lock = lock / blockDuration
+	if lock >= 0xffff {
+		lock = 0xffff
+	}
+	return int64(lock)
 }
 
 func CheckFinalization(num uint64, coinbase bool) bool {

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -253,16 +252,6 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 }
 
 func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
-	rpc, _ := node.bitcoinParams(approval.Chain)
-	btx, err := bitcoin.RPCGetTransaction(approval.Chain, rpc, approval.TransactionHash)
-	logger.Printf("bitcoin.RPCGetTransaction(%s) => %v %v", approval.TransactionHash, btx, err)
-	if err != nil && !strings.Contains(err.Error(), "No such mempool or blockchain transaction") {
-		return err
-	}
-	if btx != nil { // FIXME should use the spent hash
-		return node.store.FinishTransactionSignatures(ctx, approval.TransactionHash, approval.RawTransaction)
-	}
-
 	signed, err := node.bitcoinCheckKeeperSignedTransaction(ctx, approval)
 	if err != nil || signed {
 		return err

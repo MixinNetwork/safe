@@ -76,10 +76,6 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	if err != nil {
 		panic(err)
 	}
-	sigHashes := psbt.Unknowns[0].Value
-	if !bytes.Equal(hash, sigHashes[idx*32:idx*32+32]) {
-		panic(idx)
-	}
 	return hash
 }
 
@@ -253,11 +249,6 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		return nil, fmt.Errorf("mempool.CheckTransactionStandard() => %v", err)
 	}
 
-	sigHashes, err := calcSigHashes(msgTx, mainInputs)
-	if err != nil {
-		return nil, fmt.Errorf("calcSigHashes() => %v", err)
-	}
-
 	pkt, err := psbt.NewFromUnsignedTx(msgTx)
 	if err != nil {
 		return nil, fmt.Errorf("psbt.NewFromUnsignedTx() => %v", err)
@@ -283,7 +274,6 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		}
 		pkt.Inputs[i] = *pin
 	}
-	pkt.Unknowns = []*psbt.Unknown{{Key: []byte("SIGHASHES"), Value: sigHashes}}
 	err = pkt.SanityCheck()
 	if err != nil {
 		return nil, fmt.Errorf("psbt.SanityCheck() => %v", err)

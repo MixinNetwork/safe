@@ -1,7 +1,6 @@
 package signer
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"testing"
@@ -76,14 +75,12 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 		Index:           0,
 		Satoshi:         10007,
 	}}
-	var signedBuffer bytes.Buffer
-	tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
-	tx, err = bitcoin.SpendSignedTransaction(hex.EncodeToString(signedBuffer.Bytes()), feeInputs, testBitcoinKeyAccountant, bitcoin.ChainBitcoin)
+	signedBuffer, _ := bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
+	tx, err = bitcoin.SpendSignedTransaction(hex.EncodeToString(signedBuffer), feeInputs, testBitcoinKeyAccountant, bitcoin.ChainBitcoin)
 	require.Nil(err)
 
-	signedBuffer.Reset()
-	tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
-	logger.Println(hex.EncodeToString(signedBuffer.Bytes()))
+	signedBuffer, _ = bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
+	logger.Println(hex.EncodeToString(signedBuffer))
 	require.Equal("3cbe8ac67374b48066c5f3e3fe45ca9c7043aa29c4d37a9518242fd7f0f5be1b", tx.TxHash().String())
 	require.Equal("3045022100c3232e336b9f42a86819ca23ca5f3d166029233b41de6bbb47351095ac50f28c02205c03d8153876edf6dc191c7f0b5647086fb8c0d434c39bb9413804b78b6dadc401", hex.EncodeToString(tx.TxIn[2].Witness[0]))
 	require.Equal("02a4b44520d98e70926b87d2d3f48401e2b1c95e8855fd100752ee9837db188721", hex.EncodeToString(tx.TxIn[2].Witness[1]))
@@ -97,7 +94,7 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 	require.Nil(err)
 	require.Nil(psbt.SanityCheck())
 	ps64, _ := psbt.B64Encode()
-	require.Equal("cHNidP8BALICAAAAAm0tH3NAsAt/UNHjgdFmHWmGSDk+gWZJFY8WRhu5XTkyAgAAAAAGAAAAbS0fc0CwC39Q0eOB0WYdaYZIOT6BZkkVjxZGG7ldOTIBAAAAAAYAAAACECcAAAAAAAAiACDd2I9aG2Cnol9z8RjL22VsWA4wVKQzQXTMO//SlvZIxaBOAgAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUAAAAACVNJR0hBU0hFU0ClFtbSZlNTDgBkOJB3BvQVmi53pwG1BuaAxJX8IVqiRCafvhZJRJwlZBiOW0EozqemgfUCwT6j7DpCXEk/S96AAAEBKyAWAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUBAwSBAAAAAQV2IQORHB7zlgvnMEWWz6YHOx1lrUO0IaTCchQsx6g2m1EMVqx8IQK/Cn+kt5BaDeWrYKUyJSnhpZHd0e5T34LnUeittL7QjKyTfIKSYyECAh1JnCar2cEfSuyEwP/DwhRTQncYQ8+rBB4Ji4fYXGutVrKSaJNShwABASuQXwEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAQMEgQAAAAEFdiEDkRwe85YL5zBFls+mBzsdZa1DtCGkwnIULMeoNptRDFasfCECvwp/pLeQWg3lq2ClMiUp4aWR3dHuU9+C51HorbS+0Iysk3yCkmMhAgIdSZwmq9nBH0rshMD/w8IUU0J3GEPPqwQeCYuH2FxrrVaykmiTUocAAAA=", ps64)
+	require.Equal("cHNidP8BALICAAAAAm0tH3NAsAt/UNHjgdFmHWmGSDk+gWZJFY8WRhu5XTkyAgAAAAAGAAAAbS0fc0CwC39Q0eOB0WYdaYZIOT6BZkkVjxZGG7ldOTIBAAAAAAYAAAACECcAAAAAAAAiACDd2I9aG2Cnol9z8RjL22VsWA4wVKQzQXTMO//SlvZIxaBOAgAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUAAAAAAAEBKyAWAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUBAwSBAAAAAQV2IQORHB7zlgvnMEWWz6YHOx1lrUO0IaTCchQsx6g2m1EMVqx8IQK/Cn+kt5BaDeWrYKUyJSnhpZHd0e5T34LnUeittL7QjKyTfIKSYyECAh1JnCar2cEfSuyEwP/DwhRTQncYQ8+rBB4Ji4fYXGutVrKSaJNShwABASuQXwEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAQMEgQAAAAEFdiEDkRwe85YL5zBFls+mBzsdZa1DtCGkwnIULMeoNptRDFasfCECvwp/pLeQWg3lq2ClMiUp4aWR3dHuU9+C51HorbS+0Iysk3yCkmMhAgIdSZwmq9nBH0rshMD/w8IUU0J3GEPPqwQeCYuH2FxrrVaykmiTUocAAAA=", ps64)
 	tx := psbt.UnsignedTx
 	require.Equal(psbt.Hash(), tx.TxHash().String())
 	require.Equal(int64(10000), tx.TxOut[0].Value)
@@ -141,14 +138,12 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, pin.WitnessScript)
 	}
 
-	var rawBuffer bytes.Buffer
-	err = psbt.UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	rawBuffer, err := bitcoin.MarshalWiredTransaction(psbt.UnsignedTx, wire.BaseEncoding, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	var signedBuffer bytes.Buffer
-	err = tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
+	signedBuffer, err := bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	signed := hex.EncodeToString(signedBuffer.Bytes())
-	raw := hex.EncodeToString(rawBuffer.Bytes())
+	signed := hex.EncodeToString(signedBuffer)
+	raw := hex.EncodeToString(rawBuffer)
 	require.Contains(signed, raw[8:len(raw)-8])
 	logger.Println(signed)
 
@@ -191,7 +186,7 @@ func bitcoinBuildTransactionHolderSigner(ctx context.Context, require *require.A
 	require.Nil(err)
 	require.Nil(psbt.SanityCheck())
 	ps64, _ := psbt.B64Encode()
-	require.Equal("cHNidP8BAF4CAAAAAVftbk8/Kz2tV+zV/H4xUDQxd2+b/gHuOqAXYfBg5ymyAAAAAAD/////AaCGAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUAAAAACVNJR0hBU0hFUyDyyl91hPeAC57lGViGAVxzDdxKEKl1cIdrd1O9WD8MiwABASughgEAAAAAACIAIN3Yj1obYKeiX3PxGMvbZWxYDjBUpDNBdMw7/9KW9kjFAQMEgQAAAAEFdiEDkRwe85YL5zBFls+mBzsdZa1DtCGkwnIULMeoNptRDFasfCECvwp/pLeQWg3lq2ClMiUp4aWR3dHuU9+C51HorbS+0Iysk3yCkmMhAgIdSZwmq9nBH0rshMD/w8IUU0J3GEPPqwQeCYuH2FxrrVaykmiTUocAAA==", ps64)
+	require.Equal("cHNidP8BAF4CAAAAAVftbk8/Kz2tV+zV/H4xUDQxd2+b/gHuOqAXYfBg5ymyAAAAAAD/////AaCGAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUAAAAAAAEBK6CGAQAAAAAAIgAg3diPWhtgp6Jfc/EYy9tlbFgOMFSkM0F0zDv/0pb2SMUBAwSBAAAAAQV2IQORHB7zlgvnMEWWz6YHOx1lrUO0IaTCchQsx6g2m1EMVqx8IQK/Cn+kt5BaDeWrYKUyJSnhpZHd0e5T34LnUeittL7QjKyTfIKSYyECAh1JnCar2cEfSuyEwP/DwhRTQncYQ8+rBB4Ji4fYXGutVrKSaJNShwAA", ps64)
 	tx := psbt.UnsignedTx
 	require.Equal(psbt.Hash(), tx.TxHash().String())
 	require.Equal(int64(100000), tx.TxOut[0].Value)
@@ -228,14 +223,12 @@ func bitcoinBuildTransactionHolderSigner(ctx context.Context, require *require.A
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, pin.WitnessScript)
 	}
 
-	var rawBuffer bytes.Buffer
-	err = psbt.UnsignedTx.BtcEncode(&rawBuffer, wire.ProtocolVersion, wire.BaseEncoding)
+	rawBuffer, err := bitcoin.MarshalWiredTransaction(psbt.UnsignedTx, wire.BaseEncoding, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	var signedBuffer bytes.Buffer
-	err = tx.BtcEncode(&signedBuffer, wire.ProtocolVersion, wire.WitnessEncoding)
+	signedBuffer, err := bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	signed := hex.EncodeToString(signedBuffer.Bytes())
-	raw := hex.EncodeToString(rawBuffer.Bytes())
+	signed := hex.EncodeToString(signedBuffer)
+	raw := hex.EncodeToString(rawBuffer)
 	require.Contains(signed, raw[8:len(raw)-8])
 	logger.Println(signed)
 
