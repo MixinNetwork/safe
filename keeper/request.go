@@ -67,6 +67,34 @@ func (node *Node) parseHolderRequest(out *mtg.Output) (*common.Request, error) {
 	return common.DecodeRequest(out, b, role)
 }
 
+func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
+	if common.CheckTestEnvironment(ctx) {
+		val, err := node.store.ReadProperty(ctx, ref.String())
+		if err != nil {
+			panic(ref.String())
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(val)
+		if err != nil {
+			panic(ref.String())
+		}
+		return raw
+	}
+
+	ver, err := common.ReadKernelTransaction(node.conf.MixinRPC, ref)
+	if err != nil {
+		panic(ref.String())
+	}
+	smsp := mtg.DecodeMixinExtra(string(ver.Extra))
+	if smsp == nil {
+		panic(ref.String())
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(smsp.M)
+	if err != nil {
+		panic(ref.String())
+	}
+	return raw
+}
+
 func (node *Node) writeStorageOrPanic(ctx context.Context, extra []byte) crypto.Hash {
 	logger.Printf("node.writeStorageOrPanic(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {

@@ -107,20 +107,20 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 
 func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string) error {
 	logger.Verbosef("approveBitcoinTransaction(%s)", raw)
-	rb, err := hex.DecodeString(raw)
-	if err != nil {
-		return err
-	}
+	rb, _ := hex.DecodeString(raw)
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
-	msgTx := psbt.UnsignedTx
-	txHash := msgTx.TxHash().String()
+	txHash := psbt.Hash()
 
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
+		return err
+	}
+	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+	if err != nil || tx == nil {
 		return err
 	}
 	if approval.State != common.RequestStateInitial {
@@ -129,32 +129,8 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string) err
 	if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		return nil
 	}
-
-	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
-	if err != nil {
-		return err
-	}
-
-	for idx := range msgTx.TxIn {
-		pop := msgTx.TxIn[idx].PreviousOutPoint
-		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
-		if !required {
-			continue
-		}
-
-		pin := psbt.Inputs[idx]
-		if len(pin.PartialSigs) != 1 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-		psig := pin.PartialSigs[0]
-		if hex.EncodeToString(psig.PubKey) != tx.Holder {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-		hash := psbt.SigHash(idx)
-		err = bitcoin.VerifySignatureDER(tx.Holder, hash, psig.Signature)
-		if err != nil {
-			return err
-		}
+	if !bitcoin.CheckTransactionPartiallySignedBy(raw, approval.Holder) {
+		return nil
 	}
 
 	raw = hex.EncodeToString(psbt.Marshal())

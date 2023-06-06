@@ -26,6 +26,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -205,13 +206,23 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	require.Equal(common.RequestStateInitial, tx.State)
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
 
-	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
+	hb := common.DecodeHexOrPanic(testBitcoinKeyHolderPrivate)
 	holder, _ := btcec.PrivKeyFromBytes(hb)
-	ms := fmt.Sprintf("APPROVE:%s:%s", tx.RequestId, tx.TransactionHash)
-	msg := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
-	sig := ecdsa.Sign(holder, msg).Serialize()
+	psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
+	for idx := range psTx.UnsignedTx.TxIn {
+		hash := psTx.SigHash(idx)
+		sig := ecdsa.Sign(holder, hash).Serialize()
+		psTx.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
+			PubKey:    holder.PubKey().SerializeCompressed(),
+			Signature: sig,
+		}}
+	}
+	raw := psTx.Marshal()
+	ref := crypto.NewHash(raw)
+	err := node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+	require.Nil(err)
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
-	extra = append(extra, sig...)
+	extra = append(extra, ref[:]...)
 
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeApproveTransaction, extra)
 	testStep(ctx, require, node, out)
@@ -221,7 +232,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStatePending, tx.State)
 
-	msg, _ = hex.DecodeString(requests[0].Message)
+	msg, _ := hex.DecodeString(requests[0].Message)
 	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg)
 	op := signer.TestCMPProcessOutput(ctx, require, signers, out, requests[0].RequestId)
 	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra)

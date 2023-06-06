@@ -458,7 +458,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) < 64 {
+	if len(extra) != 48 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	rid, err := uuid.FromBytes(extra[:16])
@@ -474,26 +474,37 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	ms := fmt.Sprintf("APPROVE:%s:%s", rid.String(), tx.TransactionHash)
-	msg := bitcoin.HashMessageForSignature(ms, safe.Chain)
-	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
-	if err != nil {
+	var ref crypto.Hash
+	copy(ref[:], extra[16:])
+	raw := node.readStorageExtraFromObserver(ctx, ref)
+	signed := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), tx.Holder)
+	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, tx.Holder, signed)
+	if !signed {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	hpsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
 
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	msgTx := psbt.UnsignedTx
+	if msgTx.TxHash() != hpsbt.UnsignedTx.TxHash() {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	var requests []*store.SignatureRequest
 	for idx := range msgTx.TxIn {
+		hash := psbt.SigHash(idx)
 		pop := msgTx.TxIn[idx].PreviousOutPoint
+		if !bytes.Equal(hash, hpsbt.SigHash(idx)) {
+			continue
+		}
+
 		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
 		logger.Printf("node.checkBitcoinUTXOSignatureRequired(%s, %d) => %t", pop.Hash.String(), pop.Index, required)
 		if !required {
 			continue
 		}
+
 		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, tx.TransactionHash, idx, req)
 		logger.Printf("node.checkBitcoinUTXOSignaturePending(%s, %d) => %t %v", tx.TransactionHash, idx, pending, err)
 		if err != nil {
@@ -502,7 +513,6 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 			continue
 		}
 
-		hash := psbt.SigHash(idx)
 		sr := &store.SignatureRequest{
 			TransactionHash: tx.TransactionHash,
 			InputIndex:      idx,
