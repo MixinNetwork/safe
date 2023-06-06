@@ -302,9 +302,12 @@ func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Contex
 	} else if err != nil {
 		return nil, err
 	}
+	if o.SpentBy.String == tx.TransactionHash {
+		return &o, nil
+	}
 
 	err = s.execOne(ctx, txn, "UPDATE bitcoin_outputs SET state=?,spent_by=?,updated_at=? WHERE transaction_hash=? AND output_index=? AND state=? AND spent_by IS NULL",
-		common.RequestStateDone, tx.TransactionHash, time.Now().UTC(), o.TransactionHash, o.Index)
+		common.RequestStateDone, tx.TransactionHash, time.Now().UTC(), o.TransactionHash, o.Index, common.RequestStateInitial)
 	if err != nil {
 		return nil, fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 	}
