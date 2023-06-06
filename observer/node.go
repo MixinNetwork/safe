@@ -81,7 +81,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
 		panic(node.conf.TransactionMinimum)
 	}
-	if minimum.IntPart() < bitcoin.ValueDust {
+	if minimum.IntPart() < bitcoin.ValueDust(chain) {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()

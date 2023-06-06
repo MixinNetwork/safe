@@ -25,7 +25,6 @@ const (
 
 	ValuePrecision = 8
 	ValueSatoshi   = 100000000
-	ValueDust      = 1000
 
 	TimeLockMinimum = time.Hour * 1
 	TimeLockMaximum = time.Hour * 24 * 365

@@ -136,7 +136,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if amount.Cmp(minimum) < 0 && change == nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if amount.Cmp(decimal.New(bitcoin.ValueDust, -bitcoin.ValuePrecision)) < 0 {
+	if amount.Cmp(decimal.New(bitcoin.ValueDust(safe.Chain), -bitcoin.ValuePrecision)) < 0 {
 		panic(deposit.Hash)
 	}
 

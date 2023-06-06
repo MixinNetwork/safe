@@ -140,6 +140,9 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 		info.Fee = uint64(fvb)
 	}
 	fee := info.Fee * uint64(virtualSize)
+	if fee < uint64(bitcoin.ValueDust(tx.Chain)) {
+		fee = uint64(bitcoin.ValueDust(tx.Chain))
+	}
 
 	feeInput, err := node.bitcoinRetrieveFeeInputsForTransaction(ctx, fee, info.Fee, tx)
 	if err != nil {
@@ -208,7 +211,7 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 		out := wire.NewTxOut(int64(fee), script)
 		msgTx.AddTxOut(out)
 		change := total - estvb*fvb - fee
-		if change > bitcoin.ValueDust {
+		if change > uint64(bitcoin.ValueDust(tx.Chain)) {
 			out := wire.NewTxOut(int64(change), script)
 			msgTx.AddTxOut(out)
 		}

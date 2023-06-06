@@ -157,6 +157,17 @@ func parseBitcoinCompressedPublicKey(public string) (*btcutil.AddressPubKey, err
 	return btcutil.NewAddressPubKey(pub, netConfig(ChainBitcoin))
 }
 
+func ValueDust(chain byte) int64 {
+	switch chain {
+	case ChainBitcoin:
+		return 1000
+	case ChainLitecoin:
+		return 10000
+	default:
+		panic(chain)
+	}
+}
+
 func protocolVersion(chain byte) uint32 {
 	switch chain {
 	case ChainBitcoin:

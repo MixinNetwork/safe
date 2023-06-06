@@ -208,7 +208,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		return nil, buildInsufficientInputError("main", mainSatoshi, outputSatoshi)
 	}
 	mainChange := mainSatoshi - outputSatoshi
-	if mainChange > ValueDust {
+	if mainChange > ValueDust(chain) {
 		added, err := addOutput(msgTx, mainAddress, mainChange, chain)
 		if err != nil || !added {
 			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", mainAddress, mainChange, added, err)

@@ -134,7 +134,7 @@ func (node *Node) bitcoinReadBlock(ctx context.Context, num int64, chain byte) (
 
 func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx *bitcoin.RPCTransaction, index int64, value float64, chain byte) error {
 	amount := decimal.NewFromFloat(value)
-	if bitcoin.ParseSatoshi(amount.String()) < bitcoin.ValueDust {
+	if bitcoin.ParseSatoshi(amount.String()) < bitcoin.ValueDust(chain) {
 		return nil
 	}
 	old, err := node.store.ReadBitcoinUTXO(ctx, tx.TxId, index, chain)
