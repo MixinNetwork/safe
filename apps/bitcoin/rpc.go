@@ -263,7 +263,7 @@ func fixLitecoinLegacyScriptPubKeyRPC(chain byte, tx *RPCTransaction) {
 	}
 }
 
-func callBitcoinRPC(node, method string, params []any) ([]byte, error) {
+func callBitcoinRPC(rpc, method string, params []any) ([]byte, error) {
 	client := &http.Client{Timeout: 20 * time.Second}
 
 	body, err := json.Marshal(map[string]any{
@@ -276,22 +276,22 @@ func callBitcoinRPC(node, method string, params []any) ([]byte, error) {
 		panic(err)
 	}
 
-	req, err := http.NewRequest("POST", node, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", rpc, bytes.NewReader(body))
 	if err != nil {
-		return nil, buildRPCError(method, params, err)
+		return nil, buildRPCError(rpc, method, params, err)
 	}
 
 	req.Close = true
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, buildRPCError(method, params, err)
+		return nil, buildRPCError(rpc, method, params, err)
 	}
 	defer resp.Body.Close()
 
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, buildRPCError(method, params, err)
+		return nil, buildRPCError(rpc, method, params, err)
 	}
 	var result struct {
 		Data  any `json:"result"`
@@ -299,15 +299,15 @@ func callBitcoinRPC(node, method string, params []any) ([]byte, error) {
 	}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
-		return nil, fmt.Errorf("%v (%s)", buildRPCError(method, params, err), string(body))
+		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
 	}
 	if result.Error != nil {
-		return nil, fmt.Errorf("%v (%s)", buildRPCError(method, params, err), string(body))
+		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
 	}
 
 	return json.Marshal(result.Data)
 }
 
-func buildRPCError(method string, params []any, err error) error {
-	return fmt.Errorf("callBitcoinRPC(%s, %v) => %v", method, params, err)
+func buildRPCError(rpc, method string, params []any, err error) error {
+	return fmt.Errorf("callBitcoinRPC(%s, %s, %v) => %v", rpc, method, params, err)
 }

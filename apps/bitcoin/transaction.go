@@ -83,6 +83,44 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
+func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer string) (*wire.MsgTx, error) {
+	msgTx := psbt.UnsignedTx.Copy()
+	for idx := range msgTx.TxIn {
+		pin := psbt.Inputs[idx]
+		sigs := make(map[string][]byte, 2)
+		for _, ps := range pin.PartialSigs {
+			pub := hex.EncodeToString(ps.PubKey)
+			sigs[pub] = ps.Signature
+		}
+
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+
+		if sigs[signer] == nil {
+			return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s) signer", holder, signer)
+		}
+		sig := append(sigs[signer], byte(pin.SighashType))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+
+		if sigs[holder] == nil {
+			return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s) holder", holder, signer)
+		}
+		sig = append(sigs[holder], byte(pin.SighashType))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, pin.WitnessScript)
+	}
+	return msgTx, nil
+}
+
+func MarshalWiredTransaction(msgTx *wire.MsgTx, encoding wire.MessageEncoding, chain byte) ([]byte, error) {
+	var rawBuffer bytes.Buffer
+	err := msgTx.BtcEncode(&rawBuffer, protocolVersion(chain), encoding)
+	if err != nil {
+		return nil, fmt.Errorf("BtcEncode() => %v", err)
+	}
+	return rawBuffer.Bytes(), nil
+}
+
 func CheckTransactionPartiallySignedBy(raw, public string) bool {
 	b, _ := hex.DecodeString(raw)
 	psbt, _ := UnmarshalPartiallySignedTransaction(b)
@@ -193,12 +231,10 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		msgTx.AddTxOut(wire.NewTxOut(0, script))
 	}
 
-	var rawBuffer bytes.Buffer
-	err = msgTx.BtcEncode(&rawBuffer, protocolVersion(chain), wire.BaseEncoding)
+	rawBytes, err := MarshalWiredTransaction(msgTx, wire.BaseEncoding, chain)
 	if err != nil {
-		return nil, fmt.Errorf("BtcEncode() => %v", err)
+		return nil, err
 	}
-	rawBytes := rawBuffer.Bytes()
 	if len(rawBytes) > estvb {
 		return nil, fmt.Errorf("estimation %d %d", len(rawBytes), estvb)
 	}
