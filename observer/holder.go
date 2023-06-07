@@ -31,8 +31,8 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 	return "approved", nil
 }
 
-func (node *Node) saveAccountProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
-	logger.Verbosef("saveAccountProposal(%x, %s)", extra, createdAt)
+func (node *Node) keeperSaveAccountProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
+	logger.Printf("node.keeperSaveAccountProposal(%x, %s)", extra, createdAt)
 	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(extra)
 	if err != nil {
 		return err
@@ -44,8 +44,8 @@ func (node *Node) saveAccountProposal(ctx context.Context, extra []byte, created
 	return node.store.WriteAccountProposalIfNotExists(ctx, sp.Address, createdAt)
 }
 
-func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
-	logger.Verbosef("saveTransactionProposal(%x, %s)", extra, createdAt)
+func (node *Node) keeperSaveTransactionProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
+	logger.Printf("node.keeperSaveTransactionProposal(%x, %s)", extra, createdAt)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 	txHash := psbt.UnsignedTx.TxHash().String()
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
@@ -69,8 +69,8 @@ func (node *Node) saveTransactionProposal(ctx context.Context, extra []byte, cre
 	return node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
 }
 
-func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 string) error {
-	logger.Verbosef("approveBitcoinAccount(%s, %s)", addr, sigBase64)
+func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64 string) error {
+	logger.Printf("node.httpApproveBitcoinAccount(%s, %s)", addr, sigBase64)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -105,8 +105,8 @@ func (node *Node) approveBitcoinAccount(ctx context.Context, addr, sigBase64 str
 	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 }
 
-func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string) error {
-	logger.Verbosef("approveBitcoinTransaction(%s)", raw)
+func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string) error {
+	logger.Printf("node.httpApproveBitcoinTransaction(%s)", raw)
 	rb, _ := hex.DecodeString(raw)
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
@@ -139,8 +139,8 @@ func (node *Node) approveBitcoinTransaction(ctx context.Context, raw string) err
 	return err
 }
 
-func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, sigBase64 string) error {
-	logger.Verbosef("revokeBitcoinTransaction(%s, %s)", txHash, sigBase64)
+func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash string, sigBase64 string) error {
+	logger.Printf("node.httpRevokeBitcoinTransaction(%s, %s)", txHash, sigBase64)
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
@@ -185,7 +185,8 @@ func (node *Node) revokeBitcoinTransaction(ctx context.Context, txHash string, s
 	return err
 }
 
-func (node *Node) payTransactionApproval(ctx context.Context, hash string) error {
+func (node *Node) holderPayTransactionApproval(ctx context.Context, hash string) error {
+	logger.Printf("node.holderPayTransactionApproval(%s)", hash)
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Printf("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 	if err != nil || approval == nil {
@@ -208,7 +209,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 			panic(err)
 		}
 		for _, approval := range approvals {
-			err := node.bitcoinApproveTransaction(ctx, approval)
+			err := node.sendToKeeperBitcoinApproveTransaction(ctx, approval)
 			if err != nil {
 				panic(err)
 			}
@@ -216,7 +217,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 	}
 }
 
-func (node *Node) bitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
+func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
 	signed, err := node.bitcoinCheckKeeperSignedTransaction(ctx, approval)
 	if err != nil || signed {
 		return err

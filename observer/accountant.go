@@ -22,7 +22,8 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
-func (node *Node) bitcoinCombineTransactionSignatures(ctx context.Context, extra []byte) error {
+func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
+	logger.Printf("node.keeperCombineBitcoinTransactionSignatures(%x)", extra)
 	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 
 	tx, err := node.store.ReadTransactionApproval(ctx, spsbt.Hash())

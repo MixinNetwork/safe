@@ -283,7 +283,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	err = node.approveBitcoinAccount(r.Context(), body.Address, body.Signature)
+	err = node.httpApproveBitcoinAccount(r.Context(), body.Address, body.Signature)
 	if err != nil {
 		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
@@ -412,13 +412,13 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 
 	switch body.Action {
 	case "approve":
-		err = node.approveBitcoinTransaction(r.Context(), body.Raw)
+		err = node.httpApproveBitcoinTransaction(r.Context(), body.Raw)
 		if err != nil {
 			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return
 		}
 	case "revoke":
-		err = node.revokeBitcoinTransaction(r.Context(), tx.TransactionHash, body.Signature)
+		err = node.httpRevokeBitcoinTransaction(r.Context(), tx.TransactionHash, body.Signature)
 		if err != nil {
 			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 			return

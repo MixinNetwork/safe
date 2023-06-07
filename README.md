@@ -206,7 +206,7 @@ curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421
 
 🔜
 {
-  "fee":"0.00032181",
+  "chain":1,
   "hash":"0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f",
   "id":"36c2075c-5af0-4593-b156-e72f58f9f421",
   "raw":"00200e88c368c51fb...000000000000000007db5"
@@ -222,8 +222,7 @@ With the transaction proposed in previous step, we can decode the raw response t
 script := theSafeAccountScript()
 psbtBytes, _ := hex.DecodeString(raw)
 pkt, _ = psbt.NewFromRawBytes(bytes.NewReader(psbtBytes), false)
-msgTx := pkt.UnsignedTx
-for idx := range msgTx.TxIn {
+for idx := range pkt.UnsignedTx.TxIn {
 	hash := sigHash(pkt, idx)
 	sig := ecdsa.Sign(holder, hash).Serialize()
 	pkt.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
@@ -233,20 +232,13 @@ for idx := range msgTx.TxIn {
 }
 raw := marshal(hash, pkt, fee)
 fmt.Printf("raw: %x\n", raw)
-
-var buf bytes.Buffer
-_ = wire.WriteVarString(&buf, 0, "Bitcoin Signed Message:\n")
-_ = wire.WriteVarString(&buf, 0, fmt.Sprintf("APPROVE:%s:%s", sessionUUID, msgTx.TxHash().String()))
-hash := chainhash.DoubleHashB(buf.Bytes())
-sig := ecdsa.Sign(holder, msg).Serialize()
-fmt.Printf("signature: %s\n", base64.RawURLEncoding.EncodeToString(sig))
 ```
 
 After we have the PSBT signed by holder private key, then we can send them to safe API:
 
 ```
 curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H 'Content-Type:application/json' \
-  -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5","signature":"MEQCIDfROpqb2l5b9LD5RL865HsSDvKhSGI9a6RShQwdfI9jAiBWLep5ogVplOsBETaALGtlN6GmcHIASV_nU-AUhtN0mQ"}'
+  -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5"}'
 ```
 
 Once the transaction approval has succeeded, we will need to transfer 1USD to the observer, using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.

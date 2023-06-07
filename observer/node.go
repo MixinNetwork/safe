@@ -164,7 +164,7 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 	if s.Amount.Cmp(decimal.RequireFromString(node.conf.PriceAmount)) < 0 {
 		return true, nil
 	}
-	return true, node.payTransactionApproval(ctx, s.Memo)
+	return true, node.holderPayTransactionApproval(ctx, s.Memo)
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
@@ -198,11 +198,11 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 
 	switch op.Type {
 	case common.ActionBitcoinSafeProposeTransaction:
-		return true, node.saveTransactionProposal(ctx, data, s.CreatedAt)
+		return true, node.keeperSaveTransactionProposal(ctx, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveTransaction:
-		return true, node.bitcoinCombineTransactionSignatures(ctx, data)
+		return true, node.keeperCombineBitcoinTransactionSignatures(ctx, data)
 	case common.ActionBitcoinSafeProposeAccount:
-		return true, node.saveAccountProposal(ctx, data, s.CreatedAt)
+		return true, node.keeperSaveAccountProposal(ctx, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveAccount:
 		return true, node.deployBitcoinSafeBond(ctx, data)
 	}
