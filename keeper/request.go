@@ -92,7 +92,8 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 	if err != nil {
 		panic(ref.String())
 	}
-	return raw
+	raw = common.AESDecrypt(node.observerAESKey[:], raw)
+	return raw[16:]
 }
 
 func (node *Node) writeStorageOrPanic(ctx context.Context, extra []byte) crypto.Hash {

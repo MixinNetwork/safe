@@ -226,7 +226,10 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 		panic(approval.RawTransaction)
 	}
 
+	rawId := mixin.UniqueConversationID(approval.RawTransaction, approval.RawTransaction)
 	raw := common.DecodeHexOrPanic(approval.RawTransaction)
+	raw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), raw...)
+	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
 	fee := bot.EstimateObjectFee(msg)
 	in := &bot.ObjectInput{
