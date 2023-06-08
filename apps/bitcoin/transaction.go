@@ -86,7 +86,11 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer string)
 		sigs := make(map[string][]byte, 2)
 		for _, ps := range pin.PartialSigs {
 			pub := hex.EncodeToString(ps.PubKey)
-			sigs[pub] = ps.Signature
+			sig, err := CanonicalSignatureDER(ps.Signature)
+			if err != nil {
+				return nil, err
+			}
+			sigs[pub] = sig
 		}
 
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
@@ -126,7 +130,11 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 		sigs := make(map[string][]byte, 2)
 		for _, ps := range pin.PartialSigs {
 			pub := hex.EncodeToString(ps.PubKey)
-			sigs[pub] = ps.Signature
+			sig, err := CanonicalSignatureDER(ps.Signature)
+			if err != nil {
+				return false
+			}
+			sigs[pub] = sig
 		}
 
 		if sigs[public] == nil {

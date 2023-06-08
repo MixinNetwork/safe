@@ -69,6 +69,14 @@ func VerifyHolderKey(public string) error {
 	return err
 }
 
+func CanonicalSignatureDER(sig []byte) ([]byte, error) {
+	der, err := ecdsa.ParseDERSignature(sig)
+	if err != nil {
+		return nil, err
+	}
+	return der.Serialize(), nil
+}
+
 func VerifySignatureDER(public string, msg, sig []byte) error {
 	pub, err := parseBitcoinCompressedPublicKey(public)
 	if err != nil {

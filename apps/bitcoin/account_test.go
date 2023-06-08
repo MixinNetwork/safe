@@ -107,3 +107,26 @@ func TestBitcoinScriptAddress(t *testing.T) {
 	require.Equal("bc1q2nhm0clwt7qcmnpntetjlzf0tflp2h0zvkczql4v9nmydnt7xm6swx2nnv", wsa.Address)
 	require.Equal("2103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c21028a010d50f3ba6f17ee313f55a1d06412674f2064616b4642f4eee3cb471eeef5ac937c82926321028628daebf3cb6e902dfb6e605edb28d0d9717526fce2d9e1a66a7e4a58ad6f65ad02a032b29268935287", hex.EncodeToString(wsa.Script))
 }
+
+func TestBitcoinSignature(t *testing.T) {
+	require := require.New(t)
+	sig, _ := hex.DecodeString("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a881")
+	sig, err := CanonicalSignatureDER(sig)
+	require.Nil(err)
+	require.Equal("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a8", hex.EncodeToString(sig))
+
+	sig, _ = hex.DecodeString("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a88181")
+	sig, err = CanonicalSignatureDER(sig)
+	require.Nil(err)
+	require.Equal("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a8", hex.EncodeToString(sig))
+
+	sig, _ = hex.DecodeString("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a8")
+	sig, err = CanonicalSignatureDER(sig)
+	require.Nil(err)
+	require.Equal("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a8", hex.EncodeToString(sig))
+
+	sig, _ = hex.DecodeString("304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7")
+	sig, err = CanonicalSignatureDER(sig)
+	require.NotNil(err)
+	require.Nil(sig)
+}
