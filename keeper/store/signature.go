@@ -35,15 +35,19 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	}
 	defer tx.Rollback()
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?", requests[0].RequestId, common.RequestStateInitial)
-	if err != nil || existed {
-		return err
-	}
-
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	if len(requests) == 0 {
+		return tx.Commit()
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?", requests[0].RequestId, common.RequestStateInitial)
+	if err != nil || existed {
+		return err
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state IN (?, ?)",

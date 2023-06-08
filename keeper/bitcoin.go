@@ -527,7 +527,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 		requests = append(requests, sr)
 	}
 	err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
-	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d) => %v", tx.TransactionHash, len(requests), err)
+	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, len(requests), req, err)
 	if err != nil {
 		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
 	}
