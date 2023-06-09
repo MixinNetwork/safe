@@ -113,7 +113,7 @@ func CheckFinalization(num uint64, coinbase bool) bool {
 func CheckDerivation(public string, chainCode []byte, maxRange uint32) error {
 	for i := uint32(0); i <= maxRange; i++ {
 		children := []uint32{i, i, i}
-		_, err := DeriveBIP32(public, chainCode, children...)
+		_, _, err := DeriveBIP32(public, chainCode, children...)
 		if err != nil {
 			return err
 		}
@@ -121,10 +121,10 @@ func CheckDerivation(public string, chainCode []byte, maxRange uint32) error {
 	return nil
 }
 
-func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, error) {
+func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, string, error) {
 	key, err := hex.DecodeString(public)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
 	version := []byte{0x04, 0x88, 0xb2, 0x1e}
@@ -132,7 +132,7 @@ func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, e
 	for _, i := range children {
 		extPub, err = extPub.Derive(i)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if bytes.Equal(extPub.ChainCode(), chainCode) {
 			panic(i)
@@ -140,9 +140,9 @@ func DeriveBIP32(public string, chainCode []byte, children ...uint32) (string, e
 	}
 	pub, err := extPub.ECPubKey()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return hex.EncodeToString(pub.SerializeCompressed()), nil
+	return extPub.String(), hex.EncodeToString(pub.SerializeCompressed()), nil
 }
 
 func HashMessageForSignature(msg string, chain byte) []byte {

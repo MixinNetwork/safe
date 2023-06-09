@@ -54,6 +54,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 
 func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) string {
 	const public = "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
+	const chainCode = "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
 	sid := mixin.UniqueConversationID("prepare", public)
 	for _, node := range nodes {
 		parts := strings.Split(testCMPKeys[node.id], ";")
@@ -69,6 +70,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 
 		conf := cmp.EmptyConfig(curve.Secp256k1{})
 		conf.UnmarshalBinary(sb)
+		require.Equal(chainCode, hex.EncodeToString(conf.ChainKey))
 
 		key, _ := hex.DecodeString(public)
 		parentFP := []byte{0x00, 0x00, 0x00, 0x00}
