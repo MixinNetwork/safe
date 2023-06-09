@@ -183,8 +183,13 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
 	}
+	sent, err := node.store.QueryDepositSentHashes(r.Context(), deposits)
+	if err != nil {
+		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		return
+	}
 
-	renderJSON(w, r, http.StatusOK, viewDeposits(deposits))
+	renderJSON(w, r, http.StatusOK, viewDeposits(deposits, sent))
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -468,18 +473,23 @@ func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder strin
 	return node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
 }
 
-func viewDeposits(deposits []*Deposit) []map[string]any {
+func viewDeposits(deposits []*Deposit, sent map[string]string) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, d := range deposits {
-		view = append(view, map[string]any{
+		dm := map[string]any{
 			"transaction_hash": d.TransactionHash,
 			"output_index":     d.OutputIndex,
 			"asset_id":         d.AssetId,
 			"amount":           d.Amount,
 			"receiver":         d.Receiver,
+			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
 			"updated_at":       d.UpdatedAt,
-		})
+		}
+		if dm["sent_hash"] == "" {
+			dm["sent_hash"] = dm["transaction_hash"]
+		}
+		view = append(view, dm)
 	}
 	return view
 }

@@ -149,6 +149,24 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	return deposits, nil
 }
 
+func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
+	sent := make(map[string]string)
+	for _, d := range deposits {
+		query := "SELECT transaction_hash FROM transactions WHERE spent_hash=?"
+		row := s.db.QueryRowContext(ctx, query, d.TransactionHash)
+
+		var hash string
+		err := row.Scan(&hash)
+		if err == sql.ErrNoRows {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		sent[d.TransactionHash] = hash
+	}
+	return sent, nil
+}
+
 func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *Deposit) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
