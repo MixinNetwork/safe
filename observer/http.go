@@ -218,7 +218,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
+	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -293,7 +293,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
 	}
-	wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
+	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
 		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 		return
@@ -445,6 +445,36 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		data["state"] = "spent"
 	}
 	renderJSON(w, r, http.StatusOK, data)
+}
+
+func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, safe *store.SafeProposal) (*bitcoin.WitnessScriptAccount, error) {
+	path := common.DecodeHexOrPanic(safe.Path)
+	if path[0] > 3 {
+		panic(path[0])
+	}
+	path32 := make([]uint32, path[0])
+	for i := 0; i < int(path[0]); i++ {
+		path32[i] = uint32(path[1+i])
+	}
+	sk, err := node.keeperStore.ReadKey(ctx, safe.Signer)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadKey(%s) => %v", safe.Signer, err)
+	}
+	sdx, sdk, err := bitcoin.DeriveBIP32(safe.Signer, common.DecodeHexOrPanic(sk.Extra), path32...)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s, %s) => %s %s %v", safe.Signer, sk.Extra, sdx, sdk, err)
+	if err != nil {
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s, %s) => %v", safe.Signer, sk.Extra, err)
+	}
+	ok, err := node.keeperStore.ReadKey(ctx, safe.Observer)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadKey(%s) => %v", safe.Observer, err)
+	}
+	odx, odk, err := bitcoin.DeriveBIP32(safe.Observer, common.DecodeHexOrPanic(ok.Extra), path32...)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s, %s) => %s %s %v", safe.Observer, ok.Extra, odx, odk, err)
+	if err != nil {
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s, %s) => %v", safe.Observer, ok.Extra, err)
+	}
+	return bitcoin.BuildWitnessScriptAccount(safe.Holder, sdk, odk, safe.Timelock, safe.Chain)
 }
 
 func (node *Node) readSafeProposalOrRequest(ctx context.Context, id string) (*store.SafeProposal, *common.Request, error) {

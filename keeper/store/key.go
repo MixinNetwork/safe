@@ -16,6 +16,7 @@ type Key struct {
 	Curve     byte
 	RequestId string
 	Role      byte
+	Extra     string
 	Holder    sql.NullString
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -32,7 +33,7 @@ func (s *SQLite3Store) ReadKey(ctx context.Context, public string) (*Key, error)
 	row := s.db.QueryRowContext(ctx, query, public)
 
 	var k Key
-	err := row.Scan(&k.Public, &k.Curve, &k.RequestId, &k.Role, &k.Holder, &k.CreatedAt, &k.UpdatedAt)
+	err := row.Scan(&k.Public, &k.Curve, &k.RequestId, &k.Role, &k.Extra, &k.Holder, &k.CreatedAt, &k.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

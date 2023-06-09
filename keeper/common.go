@@ -31,6 +31,10 @@ const (
 	SafeKeyBackupMaturity  = 24 * time.Hour
 )
 
+func bitcoinDefaultDerivationPath() []byte {
+	return []byte{2, 0, 0, 0}
+}
+
 func bitcoinCurveChain(crv byte) byte {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:

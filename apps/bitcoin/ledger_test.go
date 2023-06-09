@@ -87,9 +87,24 @@ func TestLedgerBitcoin(t *testing.T) {
 
 	// hwi.py --device-type ledger registerpolicy --name "Safe Test" --policy "wsh(thresh(2,pk(@0/**),s:pk(@1/**),sj:and_v(v:pk(@2/**),n:older(432))))" --keys "[\"[9c03cfaf/44'/0'/0']xpub6Ci9Nfuo4VkA6gzSdKQK6XYztQ65B52gyTQ4ShB7unGB8tfAqVLS6Nw3v62onLJXEzp8H2UarXRt7nBnAFX7FpwjaSBgo2M7AWp81y4eg1w\",\"[61315bdf]xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM\",\"[03d4ea2b]xpub661MyMwAqRbcGxD8XPvZ3fQy7WqAJBvdrEH1kwg1SGDAQprmpGvHsz5rVytTrfFmLTzRiSAMo43R7DhzjR3ucQH5UxBvFB9YDUZVQFiyDKG\"]"
 	// {"proof_of_registration": "614769273c25e8e1f3e8918fcc9d4bab0548ba2a2f590dd8f15146f411b330f5"}
-	// hwi.py --device-type ledger displayaddress --name "Safe Test" --policy "wsh(thresh(2,pk(@0/**),s:pk(@1/**),sj:and_v(v:pk(@2/**),n:older(432))))" --keys "[\"[9c03cfaf/44'/0'/0']xpub6Ci9Nfuo4VkA6gzSdKQK6XYztQ65B52gyTQ4ShB7unGB8tfAqVLS6Nw3v62onLJXEzp8H2UarXRt7nBnAFX7FpwjaSBgo2M7AWp81y4eg1w\",\"[61315bdf]xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM\",\"[03d4ea2b]xpub661MyMwAqRbcGxD8XPvZ3fQy7WqAJBvdrEH1kwg1SGDAQprmpGvHsz5rVytTrfFmLTzRiSAMo43R7DhzjR3ucQH5UxBvFB9YDUZVQFiyDKG\"]"  --extra '{"proof_of_registration": "614769273c25e8e1f3e8918fcc9d4bab0548ba2a2f590dd8f15146f411b330f5"}'
+	// hwi.py --device-type ledger displayaddress --name "Safe Test" --policy "wsh(thresh(2,pk(@0/**),s:pk(@1/**),sj:and_v(v:pk(@2/**),n:older(432))))" --keys "[\"[9c03cfaf/44'/0'/0']xpub6Ci9Nfuo4VkA6gzSdKQK6XYztQ65B52gyTQ4ShB7unGB8tfAqVLS6Nw3v62onLJXEzp8H2UarXRt7nBnAFX7FpwjaSBgo2M7AWp81y4eg1w\",\"[61315bdf]xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM\",\"[03d4ea2b]xpub661MyMwAqRbcGxD8XPvZ3fQy7WqAJBvdrEH1kwg1SGDAQprmpGvHsz5rVytTrfFmLTzRiSAMo43R7DhzjR3ucQH5UxBvFB9YDUZVQFiyDKG\"]"  --extra '{"proof_of_registration": "614769273c25e8e1f3e8918fcc9d4bab0548ba2a2f590dd8f15146f411b330f5"}' --index 0
 	// {"address": "bc1qrgks3frgprw92rkey7yqs5ge57jddep52es6yn54mudl3kfwvxpsa4r46k"}
 	wsa, err := BuildWitnessScriptAccount(holder, signerDerivePub, observerDerivePub, time.Hour*24*3, ChainBitcoin)
 	require.Nil(err)
 	require.Equal("bc1qrgks3frgprw92rkey7yqs5ge57jddep52es6yn54mudl3kfwvxpsa4r46k", wsa.Address)
+
+	// hwi.py --device-type ledger getxpub "m/44'/0'/0'/0/1"
+	// {"xpub": "xpub6FTuqZMKwrYUtfh2sbKj7J9UzzRB9Cq9vrLdzZXA3UiQs7uf8VETXvgvjiehifDaWLVTfCiX9Fm26dZp3jYftMDuCrMmKM6Eq24Lkz9BXxb"}
+	// hwi.py --device-type ledger displayaddress --name "Safe Test" --policy "wsh(thresh(2,pk(@0/**),s:pk(@1/**),sj:and_v(v:pk(@2/**),n:older(432))))" --keys "[\"[9c03cfaf/44'/0'/0']xpub6Ci9Nfuo4VkA6gzSdKQK6XYztQ65B52gyTQ4ShB7unGB8tfAqVLS6Nw3v62onLJXEzp8H2UarXRt7nBnAFX7FpwjaSBgo2M7AWp81y4eg1w\",\"[61315bdf]xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM\",\"[03d4ea2b]xpub661MyMwAqRbcGxD8XPvZ3fQy7WqAJBvdrEH1kwg1SGDAQprmpGvHsz5rVytTrfFmLTzRiSAMo43R7DhzjR3ucQH5UxBvFB9YDUZVQFiyDKG\"]"  --extra '{"proof_of_registration": "614769273c25e8e1f3e8918fcc9d4bab0548ba2a2f590dd8f15146f411b330f5"}' --index 1
+	// {"address": "bc1qdj9sa2fa49rw77s468zfzsrmpdh805m98ctyypydnnt0ppxy802qaxd028"}
+	xPub, _ = hdkeychain.NewKeyFromString("xpub6FTuqZMKwrYUtfh2sbKj7J9UzzRB9Cq9vrLdzZXA3UiQs7uf8VETXvgvjiehifDaWLVTfCiX9Fm26dZp3jYftMDuCrMmKM6Eq24Lkz9BXxb")
+	ecPub, _ = xPub.ECPubKey()
+	holder = hex.EncodeToString(ecPub.SerializeCompressed())
+	chainCode, _ = hex.DecodeString(signerChainCode)
+	_, signerDerivePub, _ = DeriveBIP32(signerPub, chainCode, 0, 1)
+	chainCode, _ = hex.DecodeString(observerChainCode)
+	_, observerDerivePub, _ = DeriveBIP32(observerPub, chainCode, 0, 1)
+	wsa, _ = BuildWitnessScriptAccount(holder, signerDerivePub, observerDerivePub, time.Hour*24*3, ChainBitcoin)
+	require.Nil(err)
+	require.Equal("bc1qdj9sa2fa49rw77s468zfzsrmpdh805m98ctyypydnnt0ppxy802qaxd028", wsa.Address)
 }

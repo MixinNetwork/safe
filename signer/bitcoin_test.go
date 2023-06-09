@@ -37,7 +37,7 @@ func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
 
-	public := TestCMPPrepareKeys(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
+	public, _ := TestCMPPrepareKeys(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 
 	mpc, _ := hex.DecodeString(public)
 	wsa, err := bitcoinMultisigWitnessScriptHash(mpc)
@@ -154,7 +154,7 @@ func TestCMPBitcoinSignHolderSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
 
-	public := TestCMPPrepareKeys(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
+	public, _ := TestCMPPrepareKeys(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 
 	mpc, _ := hex.DecodeString(public)
 	wsa, err := bitcoinMultisigWitnessScriptHash(mpc)

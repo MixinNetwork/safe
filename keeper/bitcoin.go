@@ -82,11 +82,13 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
 	}
 	timelock := node.bitcoinTimeLockDuration(ctx)
-	wsa, err := bitcoin.BuildWitnessScriptAccount(req.Holder, signer, observer, timelock, chain)
-	if err != nil {
-		return fmt.Errorf("bitcoin.BuildWitnessScriptAccount(%s, %s, %s) => %v", req.Holder, signer, observer, err)
-	}
+	path := bitcoinDefaultDerivationPath()
 
+	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, req.Holder, signer, observer, path, timelock, chain)
+	logger.Verbosef("node.buildBitcoinWitnessAccountWithDerivation(%v) => %v %v", req, wsa, err)
+	if err != nil {
+		return err
+	}
 	old, err = node.store.ReadSafeProposalByAddress(ctx, wsa.Address)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafeProposalByAddress(%s) => %v", wsa.Address, err)
@@ -110,6 +112,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		Signer:    signer,
 		Observer:  observer,
 		Timelock:  timelock,
+		Path:      hex.EncodeToString(path),
 		Address:   wsa.Address,
 		Extra:     extra,
 		Receivers: receivers,
@@ -177,6 +180,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		Signer:    sp.Signer,
 		Observer:  sp.Observer,
 		Timelock:  sp.Timelock,
+		Path:      sp.Path,
 		Address:   sp.Address,
 		Extra:     sp.Extra,
 		Receivers: sp.Receivers,
@@ -533,7 +537,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	}
 
 	for _, sr := range requests {
-		err := node.sendSignerSignRequest(ctx, sr)
+		err := node.sendSignerSignRequest(ctx, sr, safe.Path)
 		if err != nil {
 			return fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
 		}
@@ -626,6 +630,35 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	}
 	raw := hex.EncodeToString(spsbt.Marshal())
 	return node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
+}
+
+func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, holder, signer, observer string, path []byte, timelock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {
+	if path[0] > 3 {
+		panic(path[0])
+	}
+	path32 := make([]uint32, path[0])
+	for i := 0; i < int(path[0]); i++ {
+		path32[i] = uint32(path[1+i])
+	}
+	sk, err := node.store.ReadKey(ctx, signer)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadKey(%s) => %v", signer, err)
+	}
+	sdx, sdk, err := bitcoin.DeriveBIP32(signer, common.DecodeHexOrPanic(sk.Extra), path32...)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s, %s) => %s %s %v", signer, sk.Extra, sdx, sdk, err)
+	if err != nil {
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s, %s) => %v", signer, sk.Extra, err)
+	}
+	ok, err := node.store.ReadKey(ctx, observer)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadKey(%s) => %v", observer, err)
+	}
+	odx, odk, err := bitcoin.DeriveBIP32(observer, common.DecodeHexOrPanic(ok.Extra), path32...)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s, %s) => %s %s %v", observer, ok.Extra, odx, odk, err)
+	if err != nil {
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s, %s) => %v", observer, ok.Extra, err)
+	}
+	return bitcoin.BuildWitnessScriptAccount(holder, sdk, odk, timelock, chain)
 }
 
 func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {

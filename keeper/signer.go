@@ -50,7 +50,7 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 	return node.store.FailRequest(ctx, req.Id)
 }
 
-func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.SignatureRequest) error {
+func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.SignatureRequest, path string) error {
 	crv := common.NormalizeCurve(req.Curve)
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
@@ -58,7 +58,11 @@ func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.Signatur
 		panic(req.Curve)
 	}
 
-	fingerPath := append(common.Fingerprint(req.Signer), []byte{0, 0, 0, 0}...)
+	fp := common.DecodeHexOrPanic(path)
+	if len(fp) != 4 {
+		panic(path)
+	}
+	fingerPath := append(common.Fingerprint(req.Signer), fp...)
 	op := &common.Operation{
 		Id:     req.RequestId,
 		Type:   common.OperationTypeSignInput,

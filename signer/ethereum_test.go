@@ -42,7 +42,7 @@ func TestCMPEthereumSign(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
 
-	public := TestCMPPrepareKeys(ctx, require, nodes, 2)
+	public, _ := TestCMPPrepareKeys(ctx, require, nodes, 2)
 
 	addr := ethereumAddressFromPub(require, public)
 	require.Equal(testEthereumAddress, addr.Hex())

@@ -52,7 +52,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 	return ctx, nodes
 }
 
-func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) string {
+func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, string) {
 	const public = "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
 	const chainCode = "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
 	sid := mixin.UniqueConversationID("prepare", public)
@@ -96,7 +96,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 			require.Equal([]byte(conf.ChainKey), extPub.ChainCode())
 		}
 	}
-	return public
+	return public, chainCode
 }
 
 func testCMPSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte) []byte {

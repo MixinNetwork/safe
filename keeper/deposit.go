@@ -183,7 +183,8 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	var receiver string
 	switch typ {
 	case bitcoin.InputTypeP2WSHMultisigHolderSigner:
-		wsa, err := bitcoin.BuildWitnessScriptAccount(safe.Holder, safe.Signer, safe.Observer, safe.Timelock, safe.Chain)
+		path := common.DecodeHexOrPanic(safe.Path)
+		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, safe.Holder, safe.Signer, safe.Observer, path, safe.Timelock, safe.Chain)
 		if err != nil {
 			panic(err)
 		}
