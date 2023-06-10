@@ -39,6 +39,11 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	hpsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return err
+	}
+
 	requests, err := node.keeperStore.ListAllSignaturesForTransaction(ctx, spsbt.Hash(), common.RequestStateDone)
 	if err != nil {
 		return err
@@ -69,7 +74,11 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 		if !bytes.Equal(ssig.Signature, signed[idx]) {
 			panic(spsbt.Hash())
 		}
-		err := bitcoin.VerifySignatureDER(tx.Signer, hash, ssig.Signature)
+		spk, err := node.deriveBIP32WithKeeperPath(ctx, tx.Signer, safe.Path)
+		if err != nil {
+			panic(err)
+		}
+		err = bitcoin.VerifySignatureDER(spk, hash, ssig.Signature)
 		if err != nil {
 			panic(spsbt.Hash())
 		}

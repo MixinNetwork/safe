@@ -10,11 +10,29 @@ import (
 	"github.com/MixinNetwork/go-number"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 )
+
+func (node *Node) deriveBIP32WithKeeperPath(ctx context.Context, public, path string) (string, error) {
+	path8 := common.DecodeHexOrPanic(path)
+	if path8[0] > 3 {
+		panic(path8[0])
+	}
+	path32 := make([]uint32, path8[0])
+	for i := 0; i < int(path8[0]); i++ {
+		path32[i] = uint32(path8[1+i])
+	}
+	sk, err := node.keeperStore.ReadKey(ctx, public)
+	if err != nil {
+		return "", fmt.Errorf("keeperStore.ReadKey(%s) => %v", public, err)
+	}
+	_, sdk, err := bitcoin.DeriveBIP32(public, common.DecodeHexOrPanic(sk.Extra), path32...)
+	return sdk, err
+}
 
 func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string) (bool, error) {
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, receiver)

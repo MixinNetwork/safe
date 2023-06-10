@@ -571,8 +571,8 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = bitcoin.VerifySignatureDER(safe.Signer, msg, sig)
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
+	err = node.verifyBitcoinSignatureWithPath(ctx, safe.Signer, safe.Path, msg, sig)
+	logger.Printf("node.verifyBitcoinSignatureWithPath(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -610,7 +610,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		err = bitcoin.VerifySignatureDER(safe.Signer, hash, sig)
+		err = node.verifyBitcoinSignatureWithPath(ctx, safe.Signer, safe.Path, hash, sig)
 		if err != nil {
 			panic(sr.Signature.String)
 		}
@@ -633,32 +633,41 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 }
 
 func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, holder, signer, observer string, path []byte, timelock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {
-	if path[0] > 3 {
-		panic(path[0])
-	}
-	path32 := make([]uint32, path[0])
-	for i := 0; i < int(path[0]); i++ {
-		path32[i] = uint32(path[1+i])
-	}
-	sk, err := node.store.ReadKey(ctx, signer)
+	sdk, err := node.deriveBIP32WithPath(ctx, signer, path)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s) => %s %v", observer, sdk, err)
 	if err != nil {
-		return nil, fmt.Errorf("store.ReadKey(%s) => %v", signer, err)
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", signer, err)
 	}
-	sdx, sdk, err := bitcoin.DeriveBIP32(signer, common.DecodeHexOrPanic(sk.Extra), path32...)
-	logger.Verbosef("bitcoin.DeriveBIP32(%s, %s) => %s %s %v", signer, sk.Extra, sdx, sdk, err)
+	odk, err := node.deriveBIP32WithPath(ctx, observer, path)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s) => %s %v", observer, odk, err)
 	if err != nil {
-		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s, %s) => %v", signer, sk.Extra, err)
-	}
-	ok, err := node.store.ReadKey(ctx, observer)
-	if err != nil {
-		return nil, fmt.Errorf("store.ReadKey(%s) => %v", observer, err)
-	}
-	odx, odk, err := bitcoin.DeriveBIP32(observer, common.DecodeHexOrPanic(ok.Extra), path32...)
-	logger.Verbosef("bitcoin.DeriveBIP32(%s, %s) => %s %s %v", observer, ok.Extra, odx, odk, err)
-	if err != nil {
-		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s, %s) => %v", observer, ok.Extra, err)
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", observer, err)
 	}
 	return bitcoin.BuildWitnessScriptAccount(holder, sdk, odk, timelock, chain)
+}
+
+func (node *Node) verifyBitcoinSignatureWithPath(ctx context.Context, public, path string, msg, sig []byte) error {
+	spk, err := node.deriveBIP32WithPath(ctx, public, common.DecodeHexOrPanic(path))
+	if err != nil {
+		panic(public)
+	}
+	return bitcoin.VerifySignatureDER(spk, msg, sig)
+}
+
+func (node *Node) deriveBIP32WithPath(ctx context.Context, public string, path8 []byte) (string, error) {
+	if path8[0] > 3 {
+		panic(path8[0])
+	}
+	path32 := make([]uint32, path8[0])
+	for i := 0; i < int(path8[0]); i++ {
+		path32[i] = uint32(path8[1+i])
+	}
+	sk, err := node.store.ReadKey(ctx, public)
+	if err != nil {
+		return "", fmt.Errorf("store.ReadKey(%s) => %v", public, err)
+	}
+	_, sdk, err := bitcoin.DeriveBIP32(public, common.DecodeHexOrPanic(sk.Extra), path32...)
+	return sdk, err
 }
 
 func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {

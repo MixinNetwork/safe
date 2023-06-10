@@ -43,6 +43,7 @@ const (
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
 	testBitcoinKeyObserverPrivate    = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
 	testBitcoinKeyObserverChainCode  = "0619f13c84e1d2bfd6f20ca75a03bee058a95024338c583e1aa8761348dbb249"
+	testBitcoinKeyAccountantPriate   = "c663c88aab70d1539b22f475cb8febc714dc61b9a43b472dc1ef970786cf31f9"
 	testBitcoinKeyDummyHolderPrivate = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 	testSafeAddress                  = "bc1qm7qaucdjwzpapugfvmzp2xduzs7p0jd3zq7yxpvuf9dp5nml3pesx57a9x"
 	testTransactionReceiver          = "bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc"
@@ -132,8 +133,10 @@ func TestKeeper(t *testing.T) {
 	transactionHash := testSafeProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "18d6e8a1bcce1b1dddbfed5826cde933dc55ba65a733fc5a2198f113c86e31d0", "70736274ff0100cd02000000022704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff9451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b292689352870001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
 	testSafeRevokeTransaction(ctx, require, node, transactionHash, signers)
 	transactionHash = testSafeProposeTransaction(ctx, require, node, mpc, bondId, "b0a22078-0a86-459d-93f4-a1aadbf2b9b7", "5f489b710d495808d7693f0d1b62b6af05d0af69b52980d3e4263c66dde9e676", "70736274ff0100cd02000000022704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff9451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a10b0a220780a86459d93f4a1aadbf2b9b7000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b292689352870001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
-	testSafeApproveTransaction(ctx, require, node, transactionHash, signers)
+	signedRaw := testSafeApproveTransaction(ctx, require, node, transactionHash, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
+
+	testAccountantSpentTransaction(ctx, require, signedRaw)
 }
 
 func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
@@ -199,7 +202,21 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 	require.Equal(common.RequestStateFailed, tx.State)
 }
 
-func testSafeApproveTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string, signers []*signer.Node) {
+func testAccountantSpentTransaction(ctx context.Context, require *require.Assertions, raw string) {
+	feeInputs := []*bitcoin.Input{{
+		TransactionHash: "9b76c7a3f60063c59d11d9fdf11467fdf56d496c1dfa559c78d06da756d6e204",
+		Index:           0,
+		Satoshi:         50000,
+	}}
+	tx, err := bitcoin.SpendSignedTransaction(raw, feeInputs, testBitcoinKeyAccountantPriate, bitcoin.ChainBitcoin)
+	require.Nil(err)
+	rb, err := bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
+	require.Nil(err)
+	require.Equal("fcc2dc6e90d454ec76cc48925096281735ed85ccd93a73b87cd303be9f28478e", tx.TxHash().String())
+	logger.Printf("%x", rb)
+}
+
+func testSafeApproveTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string, signers []*signer.Node) string {
 	id := uuid.Must(uuid.NewV4()).String()
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
@@ -280,24 +297,26 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		if msig == nil {
 			continue
 		}
-		signature := ecdsa.Sign(holder, hash)
-		sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 
 		msig = append(msig, byte(bitcoin.SigHashType))
 		der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
-		pub, _ := hex.DecodeString(safe.Signer)
-		signer, _ := btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
+		pub, _ := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
+		signer, _ := btcutil.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
 		require.True(der.Verify(hash, signer.PubKey()))
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{1})
 
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
+
+		signature := ecdsa.Sign(holder, hash)
+		sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
 	}
 
 	signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
-	logger.Println(hex.EncodeToString(signedBuffer))
+	signedRaw := hex.EncodeToString(signedBuffer)
+	logger.Println(signedRaw)
+	return signedRaw
 }
 
 func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
@@ -527,7 +546,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeKeygenInput:
 		op.Public = hex.EncodeToString(common.Fingerprint(public))
 	case common.OperationTypeSignInput:
-		fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
+		fingerPath := append(common.Fingerprint(public), bitcoinDefaultDerivationPath()...)
 		op.Public = hex.EncodeToString(fingerPath)
 	case common.OperationTypeKeygenOutput:
 		op.Public = public
