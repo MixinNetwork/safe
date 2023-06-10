@@ -18,6 +18,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/dimfeld/httptreemux"
 )
 
@@ -249,6 +250,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		"address": safe.Address,
 		"outputs": viewOutputs(mainInputs),
 		"script":  hex.EncodeToString(wsa.Script),
+		"keys":    node.viewSafeXPubs(r.Context(), safe),
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -324,6 +326,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		"address": safe.Address,
 		"outputs": viewOutputs(mainInputs),
 		"script":  hex.EncodeToString(wsa.Script),
+		"keys":    node.viewSafeXPubs(r.Context(), safe),
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -445,6 +448,21 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		data["state"] = "spent"
 	}
 	renderJSON(w, r, http.StatusOK, data)
+}
+
+func (node *Node) viewSafeXPubs(ctx context.Context, safe *store.SafeProposal) []string {
+	pubs := make([]string, 2)
+	for i, k := range []string{safe.Signer, safe.Observer} {
+		key, _ := node.keeperStore.ReadKey(ctx, k)
+		chainCode := common.DecodeHexOrPanic(key.Extra)
+		xpub, pub, err := bitcoin.DeriveBIP32(key.Public, chainCode)
+		if err != nil || pub != key.Public {
+			panic(k)
+		}
+		finger := btcutil.Hash160(common.DecodeHexOrPanic(key.Public))[:4]
+		pubs[i] = fmt.Sprintf("[%x]%s", finger, xpub)
+	}
+	return pubs
 }
 
 func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, safe *store.SafeProposal) (*bitcoin.WitnessScriptAccount, error) {

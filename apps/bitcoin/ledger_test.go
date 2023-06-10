@@ -54,6 +54,7 @@ func TestLedgerBitcoin(t *testing.T) {
 	messageHash := HashMessageForSignature(msg, ChainBitcoin)
 	err = VerifySignatureDER(holder, messageHash, es.SerializeDER())
 	require.Nil(err)
+	require.Equal("02e1d3a1e1b7b6098792662ffd960fb0a4011bc73986d66336dcf40cc8ca37b4cd", holder)
 
 	signerPub := "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
 	signerChainCode := "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
