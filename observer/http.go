@@ -92,7 +92,7 @@ var GUIDE = `
       article.insertBefore(flow, document.getElementById("prepare-holder-key"));
       article.style="display:block";
     </script>
-	</body>
+  </body>
 </html>
 `
 
