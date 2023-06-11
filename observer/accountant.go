@@ -453,6 +453,9 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
 	rpc, _ := node.bitcoinParams(chain)
 	id, err := bitcoin.RPCSendRawTransaction(rpc, hex.EncodeToString(raw))
+	if err != nil && strings.Contains(err.Error(), "Transaction already in block chain") {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

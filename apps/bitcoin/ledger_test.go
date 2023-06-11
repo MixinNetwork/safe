@@ -58,7 +58,7 @@ func TestLedgerBitcoin(t *testing.T) {
 
 	signerPub := "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
 	signerChainCode := "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
-	singerFinger := "61315bdf"
+	signerFinger := "61315bdf"
 	chainCode, _ := hex.DecodeString(signerChainCode)
 	signerXPub, signerPub, err := DeriveBIP32(signerPub, chainCode)
 	require.Nil(err)
@@ -66,7 +66,7 @@ func TestLedgerBitcoin(t *testing.T) {
 	require.Equal("02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c", signerPub)
 	pub, _ := hex.DecodeString(signerPub)
 	finger = btcutil.Hash160(pub)[:4]
-	require.Equal(singerFinger, hex.EncodeToString(finger))
+	require.Equal(signerFinger, hex.EncodeToString(finger))
 	signerDeriveXPub, signerDerivePub, _ := DeriveBIP32(signerPub, chainCode, 0, 0)
 	require.Equal("xpub6B7hvMJYkHi2QSUjkitqK3u9Ep1ikfD31LhpqN8kZQpRpKEe1MEucK8TeEQcSHtBRCrfMiTjtYTqHDBxoGidWbLsUqMfZ1WDSm6uczM7TaY", signerDeriveXPub)
 	require.Equal("02339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9", signerDerivePub)

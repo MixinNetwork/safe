@@ -92,10 +92,10 @@ func VerifySignatureDER(public string, msg, sig []byte) error {
 	return fmt.Errorf("bitcoin.VerifySignature(%s, %x, %x)", public, msg, sig)
 }
 
-// thresh(2,pk(HOLDER),pk(SINGER),and(pk(OBSERVER),older(12960)))
-// thresh(2,pk(HOLDER),s:pk(SINGER),sj:and_v(v:pk(OBSERVER),n:older(12960)))
+// thresh(2,pk(HOLDER),pk(SIGNER),and(pk(OBSERVER),older(12960)))
+// thresh(2,pk(HOLDER),s:pk(SIGNER),sj:and_v(v:pk(OBSERVER),n:older(12960)))
 //
-// <HOLDER> OP_CHECKSIG OP_SWAP <SINGER> OP_CHECKSIG OP_ADD OP_SWAP OP_SIZE
+// <HOLDER> OP_CHECKSIG OP_SWAP <SIGNER> OP_CHECKSIG OP_ADD OP_SWAP OP_SIZE
 // OP_0NOTEQUAL OP_IF
 // <OBSERVER> OP_CHECKSIGVERIFY <a032> OP_CHECKSEQUENCEVERIFY OP_0NOTEQUAL
 // OP_ENDIF
