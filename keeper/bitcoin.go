@@ -37,7 +37,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		msp := mtg.DecodeMixinExtra(string(stx.Extra))
 		rce, _ = base64.RawURLEncoding.DecodeString(msp.M)
 	}
-	receivers, threshold, err := req.ParseMixinRecipient(rce)
+	timelock, receivers, threshold, err := req.ParseMixinRecipient(rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
@@ -81,7 +81,6 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if !common.CheckUnique(req.Holder, signer, observer) {
 		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
 	}
-	timelock := node.bitcoinTimeLockDuration(ctx)
 	path := bitcoinDefaultDerivationPath()
 
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, req.Holder, signer, observer, path, timelock, chain)
@@ -687,15 +686,4 @@ func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash str
 func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wire.OutPoint) bool {
 	utxo, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
-}
-
-func (node *Node) bitcoinTimeLockDuration(ctx context.Context) time.Duration {
-	if common.CheckTestEnvironment(ctx) {
-		return bitcoin.TimeLockMinimum
-	}
-	dur := time.Hour * 24 * time.Duration(node.conf.RecoveryDurationDays)
-	if dur < bitcoin.TimeLockMinimum || dur > bitcoin.TimeLockMaximum {
-		return bitcoin.TimeLockMaximum
-	}
-	return dur
 }

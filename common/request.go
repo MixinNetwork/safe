@@ -98,7 +98,7 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 	return r, r.VerifyFormat()
 }
 
-func (req *Request) ParseMixinRecipient(extra []byte) ([]string, byte, error) {
+func (req *Request) ParseMixinRecipient(extra []byte) (time.Duration, []string, byte, error) {
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
@@ -107,26 +107,35 @@ func (req *Request) ParseMixinRecipient(extra []byte) ([]string, byte, error) {
 	}
 
 	dec := common.NewDecoder(extra)
+	hours, err := dec.ReadUint16()
+	if err != nil {
+		return 0, nil, 0, err
+	}
+	timelock := time.Duration(hours) * time.Hour
+	if timelock < bitcoin.TimeLockMinimum || timelock > bitcoin.TimeLockMaximum {
+		return 0, nil, 0, fmt.Errorf("timelock %d hours", hours)
+	}
+
 	threshold, err := dec.ReadByte()
 	if err != nil {
-		return nil, 0, err
+		return 0, nil, 0, err
 	}
 	total, err := dec.ReadByte()
 	if err != nil {
-		return nil, 0, err
+		return 0, nil, 0, err
 	}
 	var receivers []string
 	for i := byte(0); i < total; i++ {
 		uid, err := readUUID(dec)
 		if err != nil {
-			return nil, 0, err
+			return 0, nil, 0, err
 		}
 		receivers = append(receivers, uid)
 	}
 	if byte(len(receivers)) != total || total < threshold {
-		return nil, 0, fmt.Errorf("%d/%d", threshold, total)
+		return 0, nil, 0, fmt.Errorf("%d/%d", threshold, total)
 	}
-	return receivers, threshold, nil
+	return timelock, receivers, threshold, nil
 }
 
 func (r *Request) VerifyFormat() error {

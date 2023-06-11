@@ -48,6 +48,7 @@ const (
 	testSafeAddress                  = "bc1qm7qaucdjwzpapugfvmzp2xduzs7p0jd3zq7yxpvuf9dp5nml3pesx57a9x"
 	testTransactionReceiver          = "bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc"
 	testBitcoinDepositMainHash       = "8260f125afdb1a85b540f0066cd9db18d488a3891b5fa5595c73f40435502d09"
+	testTimelockDuration             = bitcoin.TimeLockMinimum
 )
 
 func TestKeeper(t *testing.T) {
@@ -365,7 +366,7 @@ func testObserverHolderDeposit(ctx context.Context, require *require.Assertions,
 	extra = append(extra, big.NewInt(input.Satoshi).Bytes()...)
 
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), node.bitcoinTimeLockDuration(ctx), SafeChainBitcoin)
+	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
 
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra)
 	testStep(ctx, require, node, out)
@@ -399,7 +400,7 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), node.bitcoinTimeLockDuration(ctx), SafeChainBitcoin)
+	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafeAddress, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -433,7 +434,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), node.bitcoinTimeLockDuration(ctx), SafeChainBitcoin)
+	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafeAddress, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -607,7 +608,8 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 }
 
 func testRecipient() []byte {
-	extra := []byte{1, 1}
+	extra := binary.BigEndian.AppendUint16(nil, uint16(testTimelockDuration/time.Hour))
+	extra = append(extra, 1, 1)
 	id := uuid.FromStringOrNil(testSafeBondReceiverId)
 	return append(extra, id.Bytes()...)
 }

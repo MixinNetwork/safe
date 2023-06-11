@@ -39,7 +39,7 @@ After generating the key pair, you will need to create a random UUID as the sess
 
 ## Propose Safe Account
 
-To ensure the efficiency of the network, every Mixin Safe account proposal costs 1USD. To propose an account, one simply needs to send 1USD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
+To ensure the efficiency of the network, every Mixin Safe account proposal costs 1USD. To propose an account, one simply needs to send 1pUSD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
 
 ```golang
 type Operation struct {
@@ -76,18 +76,19 @@ op := &Operation {
 }
 ```
 
-All above four fields above are mandatory for all safe network transactions, now we need to make the extra:
+All above four fields above are mandatory for all safe network transactions, now to propose a safe account with 7 days timelock, we need to make the extra:
 
 ```golang
+timelock := binary.BigEndian.AppendUint16(nil, 24*7)
 threshold := byte(1)
 total := byte(1)
 owners := []string{"fcb87491-4fa0-4c2f-b387-262b63cbc112"}
-extra := []byte{threshold, total}
+extra := append(timelock, threshold, total)
 uid := uuid.FromStringOrNil(owners[0])
 op.Extra = append(extra, uid.Bytes()...)
 ```
 
-So the safe account proposal operation extra is encoded with threshold, owners count, and all owner UUIDs.
+So the safe account proposal operation extra is encoded with timelock in hours, threshold, owners count, and all owner UUIDs.
 
 Then we can encode the operation and use it as a memo to send the account proposal transaction to safe network MTG:
 
