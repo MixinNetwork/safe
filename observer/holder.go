@@ -180,7 +180,7 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 		return err
 	}
 
-	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64)
+	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64+":"+approval.RawTransaction)
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
 }

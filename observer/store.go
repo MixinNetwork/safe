@@ -90,6 +90,8 @@ func (t *Transaction) Signers() []string {
 		return []string{"holder"}
 	case common.RequestStateDone:
 		return []string{"holder", "signer"}
+	case common.RequestStateFailed:
+		return []string{}
 	}
 	panic(t.State)
 }
@@ -290,7 +292,7 @@ func (s *SQLite3Store) RevokeTransactionApproval(ctx context.Context, transactio
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
 		sigBase64, common.RequestStateFailed, time.Now().UTC(), transactionHash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
