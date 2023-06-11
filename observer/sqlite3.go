@@ -79,6 +79,9 @@ func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, erro
 }
 
 func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

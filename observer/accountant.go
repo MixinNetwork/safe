@@ -288,6 +288,9 @@ func (s *SQLite3Store) ReadAccountantPrivateKey(ctx context.Context, address str
 }
 
 func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	txn, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -330,6 +333,9 @@ func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, hash string, index i
 }
 
 func (s *SQLite3Store) WriteBitcoinUTXOIfNotExists(ctx context.Context, utxo *Output) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	txn, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -374,6 +380,9 @@ func (s *SQLite3Store) ReadBitcoinUTXOs(ctx context.Context, chain byte) ([]*Out
 }
 
 func (s *SQLite3Store) WriteBitcoinFeeOutput(ctx context.Context, msgTx *wire.MsgTx, receiver string, tx *Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	txn, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

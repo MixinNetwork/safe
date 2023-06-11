@@ -97,6 +97,9 @@ func (t *Transaction) Signers() []string {
 }
 
 func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, address string, createdAt time.Time) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -170,6 +173,9 @@ func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*D
 }
 
 func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *Deposit) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -194,6 +200,9 @@ func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *De
 }
 
 func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -210,6 +219,9 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 }
 
 func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context, hash, spentHash, spentRaw string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -266,6 +278,9 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 }
 
 func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, approval *Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -286,6 +301,9 @@ func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, 
 }
 
 func (s *SQLite3Store) RevokeTransactionApproval(ctx context.Context, transactionHash string, sigBase64 string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -302,6 +320,9 @@ func (s *SQLite3Store) RevokeTransactionApproval(ctx context.Context, transactio
 }
 
 func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHash string, raw string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -318,6 +339,9 @@ func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHa
 }
 
 func (s *SQLite3Store) MarkTransactionApprovalPaid(ctx context.Context, transactionHash string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -334,6 +358,9 @@ func (s *SQLite3Store) MarkTransactionApprovalPaid(ctx context.Context, transact
 }
 
 func (s *SQLite3Store) UpdateTransactionApprovalRequestTime(ctx context.Context, transactionHash string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -350,6 +377,9 @@ func (s *SQLite3Store) UpdateTransactionApprovalRequestTime(ctx context.Context,
 }
 
 func (s *SQLite3Store) FinishTransactionSignatures(ctx context.Context, transactionHash string, raw string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -378,6 +408,9 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 }
 
 func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics map[string]string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -407,6 +440,9 @@ func (s *SQLite3Store) ReadObserverKey(ctx context.Context, crv byte) (string, [
 }
 
 func (s *SQLite3Store) DeleteObserverKey(ctx context.Context, pub string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

@@ -102,9 +102,7 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		dummy := node.bitcoinDummyHolder()
 		action := common.ActionObserverUpdateNetworkStatus
 		err = node.sendBitcoinKeeperResponse(ctx, dummy, byte(action), chain, id, extra)
-		if err != nil {
-			panic(err)
-		}
+		logger.Verbosef("node.sendBitcoinKeeperResponse(%d, %s, %x) => %v", chain, id, extra, err)
 	}
 }
 
