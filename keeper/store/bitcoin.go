@@ -102,13 +102,13 @@ func (s *SQLite3Store) readBitcoinUTXO(ctx context.Context, tx *sql.Tx, transact
 	query := "SELECT satoshi,script,sequence,spent_by FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?"
 	row := tx.QueryRowContext(ctx, query, transactionHash, index)
 
-	var script, spent string
+	var script, spent sql.NullString
 	err := row.Scan(&input.Satoshi, &script, &input.Sequence, &spent)
 	if err == sql.ErrNoRows {
 		return nil, "", nil
 	} else if err != nil {
 		return nil, "", err
 	}
-	input.Script = common.DecodeHexOrPanic(script)
-	return input, spent, nil
+	input.Script = common.DecodeHexOrPanic(script.String)
+	return input, spent.String, nil
 }
