@@ -36,10 +36,10 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiv
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, transactionHash string, index int) (*bitcoin.Input, error) {
+func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, transactionHash string, index int) (*bitcoin.Input, string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer tx.Rollback()
 
@@ -93,22 +93,22 @@ func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiv
 	return inputs, nil
 }
 
-func (s *SQLite3Store) readBitcoinUTXO(ctx context.Context, tx *sql.Tx, transactionHash string, index int) (*bitcoin.Input, error) {
+func (s *SQLite3Store) readBitcoinUTXO(ctx context.Context, tx *sql.Tx, transactionHash string, index int) (*bitcoin.Input, string, error) {
 	input := &bitcoin.Input{
 		TransactionHash: transactionHash,
 		Index:           uint32(index),
 	}
 
-	query := "SELECT satoshi,script,sequence FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?"
+	query := "SELECT satoshi,script,sequence,spent_by FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?"
 	row := tx.QueryRowContext(ctx, query, transactionHash, index)
 
-	var script string
-	err := row.Scan(&input.Satoshi, &script, &input.Sequence)
+	var script, spent string
+	err := row.Scan(&input.Satoshi, &script, &input.Sequence, &spent)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, "", nil
 	} else if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	input.Script = common.DecodeHexOrPanic(script)
-	return input, nil
+	return input, spent, nil
 }

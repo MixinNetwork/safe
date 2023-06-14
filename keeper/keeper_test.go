@@ -293,7 +293,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		hash := psbt.SigHash(idx)
-		utxo, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
+		utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 		msig := signed[idx]
 		if msig == nil {
 			continue

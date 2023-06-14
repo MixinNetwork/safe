@@ -396,8 +396,8 @@ func (s *SQLite3Store) FinishTransactionSignatures(ctx context.Context, transact
 }
 
 func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string) (*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions WHERE transaction_hash=?", strings.Join(transactionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, hash)
+	query := fmt.Sprintf("SELECT %s FROM transactions WHERE transaction_hash=? OR spent_hash=?", strings.Join(transactionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, hash, hash)
 
 	var t Transaction
 	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.State, &t.SpentHash, &t.SpentRaw, &t.CreatedAt, &t.UpdatedAt)

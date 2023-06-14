@@ -174,15 +174,15 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	_, assetId := node.bitcoinParams(chain)
 	amount := decimal.NewFromFloat(value)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
-	change, err := node.keeperStore.ReadTransaction(ctx, tx.TxId)
-	logger.Printf("store.ReadTransaction(%s) => %v %v", tx.TxId, change, err)
+	change, err := node.store.ReadTransactionApproval(ctx, tx.TxId)
+	logger.Printf("store.ReadTransactionApproval(%s) => %v %v", tx.TxId, change, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%s) => %v", tx.TxId, err)
+		return fmt.Errorf("store.ReadTransactionApproval(%s) => %v", tx.TxId, err)
 	}
 	if amount.Cmp(minimum) < 0 && change == nil {
 		return nil
 	}
-	old, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.TxId, int(index))
+	old, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.TxId, int(index))
 	logger.Printf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v", tx.TxId, index, err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 
@@ -119,7 +120,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if asset.Decimals != bitcoin.ValuePrecision {
 		panic(asset.Decimals)
 	}
-	old, err := node.store.ReadBitcoinUTXO(ctx, deposit.Hash, int(deposit.Index))
+	old, _, err := node.store.ReadBitcoinUTXO(ctx, deposit.Hash, int(deposit.Index))
 	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", deposit.Hash, deposit.Index, old, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
@@ -128,12 +129,9 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	}
 
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
-	change, err := node.store.ReadTransaction(ctx, deposit.Hash)
-	logger.Printf("store.ReadTransaction(%s) => %v %v", deposit.Hash, change, err)
-	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%s) => %v", deposit.Hash, err)
-	}
-	if amount.Cmp(minimum) < 0 && change == nil {
+	change, err := node.checkBitcoinChange(ctx, deposit)
+	logger.Printf("node.checkBitcoinChange(%v) => %t %v", deposit, change, err)
+	if amount.Cmp(minimum) < 0 && !change {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if amount.Cmp(decimal.New(bitcoin.ValueDust(safe.Chain), -bitcoin.ValuePrecision)) < 0 {
@@ -149,7 +147,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	if change == nil || deposit.Index == 0 {
+	if !change {
 		err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 		if err != nil {
 			return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
@@ -157,6 +155,27 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	}
 
 	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
+}
+
+func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit) (bool, error) {
+	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, node.conf.BitcoinRPC, deposit.Hash)
+	if err != nil {
+		return false, err
+	}
+	vin, spentBy, err := node.store.ReadBitcoinUTXO(ctx, btx.Vin[0].TxId, int(btx.Vin[0].VOUT))
+	if err != nil || vin == nil {
+		return false, err
+	}
+	tx, err := node.store.ReadTransaction(ctx, spentBy)
+	if err != nil {
+		return false, err
+	}
+	var recipients []map[string]string
+	err = json.Unmarshal([]byte(tx.Data), &recipients)
+	if err != nil || len(recipients) == 0 {
+		return false, fmt.Errorf("store.ReadTransaction(%s) => %s", spentBy, tx.Data)
+	}
+	return deposit.Index >= uint64(len(recipients)), nil
 }
 
 func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, typ int) (*bitcoin.Input, error) {

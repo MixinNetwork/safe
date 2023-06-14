@@ -684,6 +684,6 @@ func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash str
 }
 
 func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wire.OutPoint) bool {
-	utxo, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
+	utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
 }
