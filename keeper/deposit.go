@@ -131,6 +131,9 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
 	change, err := node.checkBitcoinChange(ctx, deposit)
 	logger.Printf("node.checkBitcoinChange(%v) => %t %v", deposit, change, err)
+	if err != nil {
+		return fmt.Errorf("node.checkBitcoinChange(%v) => %v", deposit, err)
+	}
 	if amount.Cmp(minimum) < 0 && !change {
 		return node.store.FailRequest(ctx, req.Id)
 	}
