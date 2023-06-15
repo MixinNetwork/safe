@@ -12,6 +12,16 @@ Whenever a new node is accepted to the Mixin Safe network, the custodian key wil
 
 Mixin Kernel will continuously assess all Mixin Safe nodes, while all light nodes also have incentives to test and assess the Mixin Safe nodes by requesting a signature with a small fee. In the event of failure by the corresponding Mixin Safe node to produce a transaction or verification signature, a Mixin Kernel node may be completely slashed.
 
+## Custodian
+
+When Mixin Safe boots, Mixin Domain registered all the Safe nodes and all the safe nodes together will generate a Ed25519 Mixin Custodian key by FROST protocol. The Custodian key will be submitted to the Kernel with all Safe nodes signatures.
+
+Afterwards, the mint distribution will be sent 40% to the Custodian key and Mixin Safe network will distribute the Custodian rewards towards the Safe work contributions of all nodes. And this custodian key will be responsible for future Custodian key update in the case of Safe nodes changed.
+
+The Custodian key is also responsible to send the punishment or slash command to the Kernel whenever some bad behaviors detected either by the Safe network itself or by light nodes.
+
+The Custodian key will do the Kernel deposits guardian together with the Domain, they must sign the deposit transaction together to make it final.
+
 ## Preparation
 
 Mixin Safe nodes use Mixin Messenger protocol to communicate with each other, providing extremely high-security protection by isolating all Mixin Safe nodes from the open Internet. As Mixin Kernel has a maximum capacity of 50 nodes, the governance app will offer 50 Mixin Messenger apps to act as Mixin Safe node candidates, sharing a single Mixin Messenger group.
