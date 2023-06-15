@@ -4,6 +4,7 @@ package observer
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
@@ -135,7 +136,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if bi == nil {
@@ -144,11 +145,21 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 	}
 	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if li == nil {
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+	bc, bs, err := node.readChainAccountantBalance(r.Context(), keeper.SafeChainBitcoin)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	lc, ls, err := node.readChainAccountantBalance(r.Context(), keeper.SafeChainLitecoin)
+	if err != nil {
+		renderError(w, r, err)
 		return
 	}
 
@@ -162,6 +173,12 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			"hash":       bi.Hash,
 			"created_at": bi.CreatedAt,
 		},
+		"accountant": map[string]any{
+			"outputs": map[string]any{
+				"count":   bc,
+				"satoshi": bs,
+			},
+		},
 	}, {
 		"id":    keeper.SafeLitecoinChainId,
 		"chain": li.Chain,
@@ -172,6 +189,12 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			"hash":       li.Hash,
 			"created_at": li.CreatedAt,
 		},
+		"accountant": map[string]any{
+			"outputs": map[string]any{
+				"count":   lc,
+				"satoshi": ls,
+			},
+		},
 	}})
 }
 
@@ -181,12 +204,12 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
 	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateDone, offset)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	sent, err := node.store.QueryDepositSentHashes(r.Context(), deposits)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 
@@ -196,7 +219,7 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	safe, req, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if req != nil && req.State == common.RequestStateFailed {
@@ -212,7 +235,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if !proposed {
@@ -221,27 +244,27 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 	}
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if wsa.Address != safe.Address {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
 		return
 	}
 	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
 	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	renderJSON(w, r, http.StatusOK, map[string]any{
@@ -270,7 +293,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 	}
 	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if safe == nil {
@@ -283,7 +306,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if !proposed {
@@ -297,27 +320,27 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 	}
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if wsa.Address != safe.Address {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
 		return
 	}
 	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
 	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	renderJSON(w, r, http.StatusOK, map[string]any{
@@ -337,7 +360,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	tx, req, err := node.readTransactionOrRequest(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if req != nil && req.State == common.RequestStateFailed {
@@ -353,7 +376,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if approval == nil {
@@ -397,7 +420,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 	tx, err := node.keeperStore.ReadTransactionByRequestId(r.Context(), params["id"])
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if tx == nil {
@@ -406,7 +429,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
 	if err != nil {
-		renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+		renderError(w, r, err)
 		return
 	}
 	if approval == nil {
@@ -422,13 +445,13 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	case "approve":
 		err = node.httpApproveBitcoinTransaction(r.Context(), body.Raw)
 		if err != nil {
-			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+			renderError(w, r, err)
 			return
 		}
 	case "revoke":
 		err = node.httpRevokeBitcoinTransaction(r.Context(), tx.TransactionHash, body.Signature)
 		if err != nil {
-			renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
+			renderError(w, r, err)
 			return
 		}
 	default:
@@ -475,6 +498,18 @@ func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, 
 		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", safe.Observer, err)
 	}
 	return bitcoin.BuildWitnessScriptAccount(safe.Holder, sdk, odk, safe.Timelock, safe.Chain)
+}
+
+func (node *Node) readChainAccountantBalance(ctx context.Context, chain int) (uint64, uint64, error) {
+	query := "SELECT SUM(satoshi),COUNT(*) FROM bitcoin_outputs WHERE chain=? AND state=?"
+	row := node.store.db.QueryRowContext(ctx, query, chain, common.RequestStateInitial)
+
+	var count, satoshi uint64
+	err := row.Scan(&satoshi, &count)
+	if err == sql.ErrNoRows {
+		return 0, 0, nil
+	}
+	return count, satoshi, err
 }
 
 func (node *Node) readSafeProposalOrRequest(ctx context.Context, id string) (*store.SafeProposal, *common.Request, error) {
@@ -534,6 +569,11 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 		})
 	}
 	return view
+}
+
+func renderError(w http.ResponseWriter, r *http.Request, err error) {
+	logger.Verbosef("ERROR (%v) => %v", *r, err)
+	renderJSON(w, r, http.StatusInternalServerError, map[string]any{"error": "500"})
 }
 
 func renderJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
