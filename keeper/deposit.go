@@ -161,7 +161,15 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit) (bool, error) {
-	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, node.conf.BitcoinRPC, deposit.Hash)
+	rpc := node.conf.BitcoinRPC
+	switch deposit.Chain {
+	case SafeChainBitcoin:
+	case SafeChainLitecoin:
+		rpc = node.conf.LitecoinRPC
+	default:
+		panic(deposit.Chain)
+	}
+	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)
 	if err != nil {
 		return false, err
 	}
