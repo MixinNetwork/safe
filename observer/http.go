@@ -213,7 +213,7 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 
-	renderJSON(w, r, http.StatusOK, viewDeposits(deposits, sent))
+	renderJSON(w, r, http.StatusOK, node.viewDeposits(r.Context(), deposits, sent))
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -538,7 +538,7 @@ func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder strin
 	return node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
 }
 
-func viewDeposits(deposits []*Deposit, sent map[string]string) []map[string]any {
+func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent map[string]string) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, d := range deposits {
 		dm := map[string]any{
@@ -550,10 +550,24 @@ func viewDeposits(deposits []*Deposit, sent map[string]string) []map[string]any 
 			"receiver":         d.Receiver,
 			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
+			"change":           false,
 			"updated_at":       d.UpdatedAt,
 		}
 		if dm["sent_hash"] == "" {
-			dm["sent_hash"] = dm["transaction_hash"]
+			dm["sent_hash"] = d.TransactionHash
+		} else {
+			tx, err := node.keeperStore.ReadTransaction(ctx, sent[d.TransactionHash])
+			if err != nil || tx == nil {
+				panic(fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", d.TransactionHash, tx, err))
+			}
+			var recipients []map[string]string
+			err = json.Unmarshal([]byte(tx.Data), &recipients)
+			if err != nil || len(recipients) == 0 {
+				panic(fmt.Errorf("store.ReadTransaction(%s) => %s", d.TransactionHash, tx.Data))
+			}
+			if d.OutputIndex >= int64(len(recipients)) {
+				dm["change"] = true
+			}
 		}
 		view = append(view, dm)
 	}
