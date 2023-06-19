@@ -103,14 +103,7 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
-	rpc := node.conf.BitcoinRPC
-	switch info.Chain {
-	case SafeChainBitcoin:
-	case SafeChainLitecoin:
-		rpc = node.conf.LitecoinRPC
-	default:
-		panic(info.Chain)
-	}
+	rpc, _ := node.bitcoinParams(info.Chain)
 	block, err := bitcoin.RPCGetBlock(rpc, info.Hash)
 	if err != nil || block == nil {
 		return false, fmt.Errorf("malicious bitcoin block or node not in sync? %s %v", info.Hash, err)
@@ -122,6 +115,17 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 		return false, nil
 	}
 	return true, nil
+}
+
+func (node *Node) bitcoinParams(chain byte) (string, string) {
+	switch chain {
+	case SafeChainBitcoin:
+		return node.conf.BitcoinRPC, SafeBitcoinChainId
+	case SafeChainLitecoin:
+		return node.conf.LitecoinRPC, SafeLitecoinChainId
+	default:
+		panic(chain)
+	}
 }
 
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, error) {

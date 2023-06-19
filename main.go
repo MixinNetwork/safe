@@ -16,7 +16,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "safe",
 		Usage:                "Mixin Safe",
-		Version:              "0.7.1",
+		Version:              "0.7.2",
 		EnableBashCompletion: true,
 		Metadata:             map[string]any{"README": README},
 		Commands: []*cli.Command{
