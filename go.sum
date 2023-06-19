@@ -10,8 +10,8 @@ github.com/MixinNetwork/mixin v0.15.1 h1:yvK62JvLjcm1zeTFh0l27ec6bt67p7tTfy/6hEw
 github.com/MixinNetwork/mixin v0.15.1/go.mod h1:dL5LazIujdc9M0EzSSA/tShjtWfUYNKtiJVOfZOqrcY=
 github.com/MixinNetwork/mobilecoin-account v0.0.3 h1:EtEMjwm8YaYu/urGBEf0wjyB7IEtjbTEWrn+2J44MMs=
 github.com/MixinNetwork/mobilecoin-account v0.0.3/go.mod h1:53/Dnb+RQttRjnSEK0RKD28A1326P8lpw8Ydl50lk1g=
-github.com/MixinNetwork/multi-party-sig v0.3.0 h1:zgIvpV+xeo/Pz9U28SNDwHKVt3JBRnO25BucvG+jYaQ=
-github.com/MixinNetwork/multi-party-sig v0.3.0/go.mod h1:TxT0h7GKATIxT6QIaA6F+QhTZf95BEGzL9/swaOFF4Q=
+github.com/MixinNetwork/multi-party-sig v0.3.1 h1:A8PYbKKDFC+k0Y/x8PSZDZsjFVN+AfY2C6YFYh8tznY=
+github.com/MixinNetwork/multi-party-sig v0.3.1/go.mod h1:e4e2LfJ0VQxzoXB6yujB+4mQvz7fUzzB9zyPSuZDcjY=
 github.com/MixinNetwork/nfo v0.3.4 h1:6VcM24v2kRtmq1oHXIcCzR3KVvjatNjGTWa/QWoF5CY=
 github.com/MixinNetwork/nfo v0.3.4/go.mod h1:LRvUs87wXIC1acFS3vjdJs7xXcNldMhTeIMsomWYYIo=
 github.com/MixinNetwork/tip v0.2.2 h1:49/8Lk6DyC4m3pBOmGTKllWqUiZpP7e67hFpDTev0SY=
@@ -67,6 +67,7 @@ github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGX
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
+github.com/cpuguy83/go-md2man v1.0.10 h1:BSKMNlYxDvnunlTymqtgONjNnaRV1sTpcovwwjF22jk=
 github.com/cpuguy83/go-md2man v1.0.10/go.mod h1:SmD6nW6nTyfqj6ABTjUi3V3JVMnlJmwcJI5acqYI6dE=
 github.com/cpuguy83/go-md2man/v2 v2.0.2 h1:p1EgwI/C7NhT0JmVkwCD2ZBK8j4aeHQX2pMHHBfMQ6w=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

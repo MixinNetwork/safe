@@ -546,6 +546,7 @@ func viewDeposits(deposits []*Deposit, sent map[string]string) []map[string]any 
 			"output_index":     d.OutputIndex,
 			"asset_id":         d.AssetId,
 			"amount":           d.Amount,
+			"sender":           d.Sender,
 			"receiver":         d.Receiver,
 			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
