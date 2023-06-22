@@ -556,18 +556,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 		if dm["sent_hash"] == "" {
 			dm["sent_hash"] = d.TransactionHash
 		} else {
-			tx, err := node.keeperStore.ReadTransaction(ctx, sent[d.TransactionHash])
-			if err != nil || tx == nil {
-				panic(fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", d.TransactionHash, tx, err))
-			}
-			var recipients []map[string]string
-			err = json.Unmarshal([]byte(tx.Data), &recipients)
-			if err != nil || len(recipients) == 0 {
-				panic(fmt.Errorf("store.ReadTransaction(%s) => %s", d.TransactionHash, tx.Data))
-			}
-			if d.OutputIndex >= int64(len(recipients)) {
-				dm["change"] = true
-			}
+			dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
 		}
 		view = append(view, dm)
 	}

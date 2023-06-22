@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -170,18 +171,37 @@ func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx
 	return nil
 }
 
+func (node *Node) bitcoinCheckDepositChange(ctx context.Context, transactionHash string, outputIndex int64, sentHash string) bool {
+	if sentHash == "" {
+		return false
+	}
+	tx, err := node.keeperStore.ReadTransaction(ctx, sentHash)
+	if err != nil || tx == nil {
+		panic(fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", transactionHash, tx, err))
+	}
+	var recipients []map[string]string
+	err = json.Unmarshal([]byte(tx.Data), &recipients)
+	if err != nil || len(recipients) == 0 {
+		panic(fmt.Errorf("store.ReadTransaction(%s) => %s", transactionHash, tx.Data))
+	}
+	return outputIndex >= int64(len(recipients))
+}
+
 func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver string, tx *bitcoin.RPCTransaction, index int64, value float64, chain byte) error {
 	_, assetId := node.bitcoinParams(chain)
 	amount := decimal.NewFromFloat(value)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
-	change, err := node.store.ReadTransactionApproval(ctx, tx.TxId)
-	logger.Printf("store.ReadTransactionApproval(%s) => %v %v", tx.TxId, change, err)
+
+	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: tx.TxId}})
+	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", tx.TxId, sent, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadTransactionApproval(%s) => %v", tx.TxId, err)
+		return fmt.Errorf("store.QueryDepositSentHashes(%s) => %v", tx.TxId, err)
 	}
-	if amount.Cmp(minimum) < 0 && change == nil {
+	change := node.bitcoinCheckDepositChange(ctx, tx.TxId, index, sent[tx.TxId])
+	if amount.Cmp(minimum) < 0 && !change {
 		return nil
 	}
+
 	old, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.TxId, int(index))
 	logger.Printf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
 	if err != nil {
