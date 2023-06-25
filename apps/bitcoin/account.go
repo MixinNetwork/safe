@@ -49,6 +49,17 @@ func UnmarshalWitnessScriptAccount(extra []byte) (*WitnessScriptAccount, error) 
 	}, nil
 }
 
+func ExtractPkScriptAddr(pkScript []byte, chain byte) (string, error) {
+	cls, addrs, threshold, err := txscript.ExtractPkScriptAddrs(pkScript, netConfig(chain))
+	if err != nil {
+		return "", err
+	}
+	if threshold != 1 || len(addrs) != 1 || cls == txscript.NonStandardTy {
+		return "", fmt.Errorf("unsupported pkscript %d %v %d", cls, addrs, threshold)
+	}
+	return addrs[0].EncodeAddress(), nil
+}
+
 func EncodeAddress(script []byte, chain byte) (string, error) {
 	typ := checkScriptType(script)
 	switch typ {

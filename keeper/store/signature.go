@@ -25,6 +25,29 @@ type SignatureRequest struct {
 
 var signatureCols = []string{"request_id", "transaction_hash", "input_index", "signer", "curve", "message", "signature", "state", "created_at", "updated_at"}
 
+func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash string, req *common.Request) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
+		common.RequestStateFailed, req.CreatedAt, req.Holder, common.RequestStateDone)
+	if err != nil {
+		return fmt.Errorf("UPDATE safes %v", err)
+	}
+
+	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash string, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -35,7 +58,15 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) writeSignatureRequestsWithRequest(ctx context.Context, tx *sql.Tx, requests []*SignatureRequest, transactionHash string, req *common.Request) error {
+	err := s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
@@ -64,7 +95,7 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.Request) error {

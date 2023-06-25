@@ -29,6 +29,9 @@ const (
 	SafeNetworkInfoTimeout = 3 * time.Minute
 	SafeSignatureTimeout   = 10 * time.Minute
 	SafeKeyBackupMaturity  = 24 * time.Hour
+
+	SafeStateApproved = common.RequestStateDone
+	SafeStateClosed   = common.RequestStateFailed
 )
 
 func bitcoinDefaultDerivationPath() []byte {

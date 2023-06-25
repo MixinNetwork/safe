@@ -38,16 +38,17 @@ type Safe struct {
 	Receivers []string
 	Threshold byte
 	RequestId string
+	State     byte
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "created_at", "updated_at"}
+var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "state", "created_at", "updated_at"}
 
 var safeProposalCols = []string{"request_id", "chain", "holder", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "created_at", "updated_at"}
 
 func (s *Safe) values() []any {
-	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.CreatedAt, s.UpdatedAt}
+	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.State, s.CreatedAt, s.UpdatedAt}
 }
 
 func (s *SafeProposal) values() []any {
@@ -57,7 +58,7 @@ func (s *SafeProposal) values() []any {
 func safeFromRow(row *sql.Row) (*Safe, error) {
 	var s Safe
 	var receivers string
-	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.CreatedAt, &s.UpdatedAt)
+	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.State, &s.CreatedAt, &s.UpdatedAt)
 	s.Receivers = strings.Split(receivers, ";")
 	return &s, err
 }
@@ -122,6 +123,9 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) err
 	}
 	defer tx.Rollback()
 
+	if safe.State != common.RequestStateDone {
+		panic(safe.State)
+	}
 	err = s.execOne(ctx, tx, buildInsertionSQL("safes", safeCols), safe.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT safes %v", err)

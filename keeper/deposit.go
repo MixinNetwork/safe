@@ -73,6 +73,9 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if safe == nil || safe.Chain != deposit.Chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	if safe.State != SafeStateApproved {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	bondId, bondChain, err := node.getBondAsset(ctx, deposit.Asset, req.Holder)
 	if err != nil {

@@ -37,6 +37,7 @@ const (
 	ActionBitcoinSafeProposeTransaction = 112
 	ActionBitcoinSafeApproveTransaction = 113
 	ActionBitcoinSafeRevokeTransaction  = 114
+	ActionBitcoinSafeCloseAccount       = 115
 
 	// For Mixin Kernel mainnet
 	ActionMixinSafeProposeAccount     = 120
