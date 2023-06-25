@@ -283,6 +283,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 
 func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
+		Action    string `json:"action"`
 		Address   string `json:"address"`
 		Signature string `json:"signature"`
 	}

@@ -82,7 +82,9 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if rid.String() == uuid.Nil.String() {
-		return node.closeBitcoinAccountWithHolder(ctx, req, safe, raw, mainInputs, receiver)
+		err = node.closeBitcoinAccountWithHolder(ctx, req, safe, raw, mainInputs, receiver)
+		logger.Printf("node.closeBitcoinAccountWithHolder(%v, %s) => %v", req, receiver, err)
+		return err
 	}
 
 	if len(mainInputs) != 0 {
@@ -113,11 +115,18 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	}
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
+	var total int64
 	var requests []*store.SignatureRequest
-	for idx, o := range msgTx.TxIn {
-		oh, oi := o.PreviousOutPoint.Hash.String(), int64(o.PreviousOutPoint.Index)
-		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, oh, oi)
-		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", oh, oi, bo, err)
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
+		logger.Printf("node.checkBitcoinUTXOSignatureRequired(%s, %d) => %t", pop.Hash.String(), pop.Index, required)
+		if !required {
+			continue
+		}
+
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
 		if err != nil {
 			return err
 		}
@@ -127,18 +136,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if bo.Height+sequence+100 > info.Height {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-
-		hash := opsbt.SigHash(idx)
-		pop := msgTx.TxIn[idx].PreviousOutPoint
-		if !bytes.Equal(hash, opsbt.SigHash(idx)) {
-			continue
-		}
-
-		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
-		logger.Printf("node.checkBitcoinUTXOSignatureRequired(%s, %d) => %t", pop.Hash.String(), pop.Index, required)
-		if !required {
-			continue
-		}
+		total = total + bo.Satoshi
 
 		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, txHash, idx, req)
 		logger.Printf("node.checkBitcoinUTXOSignaturePending(%s, %d) => %t %v", txHash, idx, pending, err)
@@ -153,13 +151,16 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 			InputIndex:      idx,
 			Signer:          safe.Signer,
 			Curve:           req.Curve,
-			Message:         hex.EncodeToString(hash),
+			Message:         hex.EncodeToString(opsbt.SigHash(idx)),
 			State:           common.RequestStateInitial,
 			CreatedAt:       req.CreatedAt,
 			UpdatedAt:       req.CreatedAt,
 		}
 		sr.RequestId = mixin.UniqueConversationID(req.Id, sr.Message)
 		requests = append(requests, sr)
+	}
+	if total != msgTx.TxOut[0].Value {
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, requests, txHash, req)
 	logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %d, %v) => %v", txHash, len(requests), req, err)
@@ -193,6 +194,9 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), safe.Holder)
 	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, safe.Holder, signedByHolder)
 	if !signedByHolder {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if ps := msgTx.TxOut[1].PkScript; len(ps) != 18 || uuid.FromBytesOrNil(ps[2:]).String() != req.Id {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
