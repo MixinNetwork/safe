@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -46,6 +48,16 @@ func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration)
 	}
 
 	return nil
+}
+
+func DecodeMixinObjectExtra(extra []byte) []byte {
+	var mep struct {
+		T uuid.UUID
+		M string
+	}
+	mtg.MsgpackUnmarshal(extra, &mep)
+	b, _ := base64.RawURLEncoding.DecodeString(mep.M)
+	return b
 }
 
 func CheckMixinDomainAddress(rpc string, chainId, address string) (bool, error) {
