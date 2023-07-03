@@ -590,32 +590,9 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	b, _ := hex.DecodeString(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	msgTx = psbt.UnsignedTx
-	// logger.Println("msgTx.TxIn")
-	// for idx := range msgTx.TxIn {
-	// 	// pop := msgTx.TxIn[idx].PreviousOutPoint
-	// 	// hash := psbt.SigHash(idx)
-	// 	// utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
-	// 	// msig := signed[idx]
-	// 	// if msig == nil {
-	// 	// 	continue
-	// 	// }
-
-	// 	// msig = append(msig, byte(bitcoin.SigHashType))
-	// 	// der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
-	// 	// pub, _ := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
-	// 	// signer, _ := btcutil.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
-	// 	logger.Println(msgTx.TxIn[idx].Witness)
-	// 	// msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-	// 	// msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
-
-	// 	// signature := ecdsa.Sign(observer, hash)
-	// 	// sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
-	// 	// msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-	// 	// msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
-	// }
-
 	signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 	signedRaw := hex.EncodeToString(signedBuffer)
+
 	return signedRaw
 }
 
