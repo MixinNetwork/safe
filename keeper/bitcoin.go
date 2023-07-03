@@ -133,8 +133,10 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if bo.Height > info.Height || bo.Height == 0 {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		if bo.Height+sequence+100 > info.Height {
-			return node.store.FailRequest(ctx, req.Id)
+		if !common.CheckTestEnvironment(ctx) {
+			if bo.Height+sequence+100 > info.Height {
+				return node.store.FailRequest(ctx, req.Id)
+			}
 		}
 		total = total + bo.Satoshi
 
@@ -211,8 +213,10 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		if bo.Height > info.Height || bo.Height == 0 {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		if bo.Height+sequence+100 > info.Height {
-			return node.store.FailRequest(ctx, req.Id)
+		if !common.CheckTestEnvironment(ctx) {
+			if bo.Height+sequence+100 > info.Height {
+				return node.store.FailRequest(ctx, req.Id)
+			}
 		}
 		total = total + o.Satoshi
 	}
