@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
@@ -27,6 +28,9 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, sp.Address)
 	if err != nil || safe == nil {
 		return "proposed", err
+	}
+	if int(safe.State) == common.RequestStateFailed {
+		return "failed", err
 	}
 	return "approved", nil
 }
@@ -103,6 +107,94 @@ func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeApproveAccount
 	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
+}
+
+func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpCloseBitcoinAccount(%s, %s, %s)", addr, raw, hash)
+	proposed, err := node.store.CheckAccountProposed(ctx, addr)
+	if err != nil || !proposed {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
+	if err != nil {
+		return err
+	}
+	status, err := node.getSafeStatus(ctx, safe.RequestId)
+	if err != nil {
+		return err
+	}
+	if status != "approved" {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	if raw != "" && hash != "" {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	var extra []byte
+	action := common.ActionBitcoinSafeCloseAccount
+	id := uuid.Must(uuid.NewV4()).String()
+
+	ob := common.DecodeHexOrPanic(node.conf.PrivateKey)
+	observer, _ := btcec.PrivKeyFromBytes(ob)
+
+	// Close account without holder key
+	if hash != "" {
+		approval, err := node.store.ReadTransactionApproval(ctx, hash)
+		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+		if err != nil || approval == nil {
+			return err
+		}
+		if approval.State != common.RequestStateInitial {
+			return nil
+		}
+		if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+			return nil
+		}
+
+		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
+		if err != nil || tx == nil {
+			return err
+		}
+
+		rb := common.DecodeHexOrPanic(tx.RawTransaction)
+		psTx := bitcoin.SignPartiallySignedTransaction(rb, observer)
+		signedRaw := psTx.Marshal()
+
+		ref := crypto.NewHash(signedRaw)
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+		extra = append(extra, ref[:]...)
+		id = uuid.Must(uuid.NewV4()).String()
+	}
+
+	// Close account with holder key
+	if raw != "" {
+		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+			return nil
+		}
+
+		rb := common.DecodeHexOrPanic(raw)
+		psTx := bitcoin.SignPartiallySignedTransaction(rb, observer)
+		msgTx := psTx.UnsignedTx
+		signedRaw := psTx.Marshal()
+
+		ref := crypto.NewHash(signedRaw)
+		extra = uuid.Nil.Bytes()
+		extra = append(extra, ref[:]...)
+		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
+	}
+
+	err = node.sendBitcoinKeeperResponse(ctx, safe.Holder, byte(action), safe.Chain, id, extra)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string) error {

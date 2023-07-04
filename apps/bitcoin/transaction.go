@@ -16,6 +16,7 @@ import (
 	"github.com/btcsuite/btcd/mempool"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
 type Input struct {
@@ -414,4 +415,20 @@ func addOutput(tx *wire.MsgTx, address string, satoshi int64, chain byte) (bool,
 	}
 	tx.AddTxOut(out)
 	return true, nil
+}
+
+func SignPartiallySignedTransaction(raw []byte, signer *secp256k1.PrivateKey) *PartiallySignedTransaction {
+	psTx, _ := UnmarshalPartiallySignedTransaction(raw)
+	for idx := range psTx.UnsignedTx.TxIn {
+		hash := psTx.SigHash(idx)
+		sig := ecdsa.Sign(signer, hash).Serialize()
+
+		osig := &psbt.PartialSig{
+			PubKey:    signer.PubKey().SerializeCompressed(),
+			Signature: sig,
+		}
+		psTx.Inputs[idx].PartialSigs = append(psTx.Inputs[idx].PartialSigs, osig)
+	}
+
+	return psTx
 }

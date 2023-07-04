@@ -286,6 +286,8 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		Action    string `json:"action"`
 		Address   string `json:"address"`
 		Signature string `json:"signature"`
+		Raw       string `json:"raw"`
+		Hash      string `json:"hash"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -305,20 +307,32 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "address"})
 		return
 	}
-	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
-	if err != nil {
-		renderError(w, r, err)
-		return
+
+	switch body.Action {
+	case "approve":
+		proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
+		if err != nil {
+			renderError(w, r, err)
+			return
+		}
+		if !proposed {
+			renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+			return
+		}
+		err = node.httpApproveBitcoinAccount(r.Context(), body.Address, body.Signature)
+		if err != nil {
+			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	case "close":
+		err = node.httpCloseBitcoinAccount(r.Context(), body.Address, body.Raw, body.Hash)
+		if err != nil {
+			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	default:
 	}
-	if !proposed {
-		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
-		return
-	}
-	err = node.httpApproveBitcoinAccount(r.Context(), body.Address, body.Signature)
-	if err != nil {
-		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
-		return
-	}
+
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
 		renderError(w, r, err)
