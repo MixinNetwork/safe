@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/gofrs/uuid"
 )
 
 func (node *Node) parseRequest(out *mtg.Output) (*common.Request, error) {
@@ -86,18 +85,7 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 		panic(ref.String())
 	}
 
-	var msp struct {
-		T uuid.UUID
-		M string `msgpack:",omitempty"`
-	}
-	err = mtg.MsgpackUnmarshal(ver.Extra, &msp)
-	if err != nil {
-		panic(ref.String())
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(msp.M)
-	if err != nil {
-		panic(ref.String())
-	}
+	raw := common.DecodeMixinObjectExtra(ver.Extra)
 	raw = common.AESDecrypt(node.observerAESKey[:], raw)
 	return raw[16:]
 }
