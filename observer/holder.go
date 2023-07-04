@@ -126,7 +126,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	if status != "approved" {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-	if raw != "" && hash != "" {
+	if (raw != "" && hash != "") || (raw == "" && hash == "") {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	switch safe.Chain {
@@ -170,7 +170,6 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		ref := crypto.NewHash(signedRaw)
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 		extra = append(extra, ref[:]...)
-		id = uuid.Must(uuid.NewV4()).String()
 	}
 
 	// Close account with holder key
