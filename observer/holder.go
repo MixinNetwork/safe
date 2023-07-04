@@ -30,7 +30,7 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 		return "proposed", err
 	}
 	if int(safe.State) == common.RequestStateFailed {
-		return "failed", err
+		return "failed", nil
 	}
 	return "approved", nil
 }
