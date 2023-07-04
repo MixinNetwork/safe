@@ -35,7 +35,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.Nil(err)
 
 	conf.Keeper.StoreDir = root
-	if !strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") {
+	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
 		panic(root)
 	}
 	kd, err := keeper.OpenSQLite3Store(conf.Keeper.StoreDir + "/keeper.sqlite3")
@@ -48,7 +48,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.Nil(err)
 
 	conf.Observer.StoreDir = root
-	if !strings.HasPrefix(conf.Observer.StoreDir, "/tmp/") {
+	if !(strings.HasPrefix(conf.Observer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Observer.StoreDir, "/var/folders")) {
 		panic(root)
 	}
 	db, err := OpenSQLite3Store(conf.Observer.StoreDir + "/observer.sqlite3")

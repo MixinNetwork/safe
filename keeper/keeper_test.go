@@ -835,7 +835,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.Nil(err)
 
 	conf.Keeper.StoreDir = root
-	if !strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") {
+	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
 		panic(root)
 	}
 	kd, err := OpenSQLite3Store(conf.Keeper.StoreDir + "/safe.sqlite3")
