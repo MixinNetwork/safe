@@ -16,7 +16,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
-	BadgerStore "github.com/MixinNetwork/nfo/store"
+	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
@@ -190,7 +190,7 @@ func testPrepare(t *testing.T) (context.Context, *require.Assertions, *Node, str
 	testSafeApproveAccount(ctx, require, node, mpc, observer, rid, publicKey)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 	for i := 0; i < 10; i++ {
-		testUpdateNetworkStatus(ctx, require, node)
+		testUpdateNetworkStatus(ctx, require, node, 793574, "00000000000000000002a4f5cd899ea457314c808897c5c5f1f1cd6ffe2b266a")
 	}
 
 	return ctx, require, node, mpc, signers
@@ -214,10 +214,10 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
-func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node) {
+func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node, blockHeight int, blockHash string) {
 	id := uuid.Must(uuid.NewV4()).String()
-	fee, height := bitcoinMinimumFeeRate, uint64(793574)
-	hash, _ := crypto.HashFromString("00000000000000000002a4f5cd899ea457314c808897c5c5f1f1cd6ffe2b266a")
+	fee, height := bitcoinMinimumFeeRate, uint64(blockHeight)
+	hash, _ := crypto.HashFromString(blockHash)
 
 	extra := []byte{SafeChainBitcoin}
 	extra = binary.BigEndian.AppendUint64(extra, uint64(fee))
@@ -465,6 +465,10 @@ func testHolderApproveTransaction(rawTransaction string) string {
 }
 
 func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHashOrRaw string, hasKey bool, signers []*signer.Node) string {
+	for i := 0; i < 10; i++ {
+		testUpdateNetworkStatus(ctx, require, node, 797082, "00000000000000000004f8a108a06a9f61389c7340d8a3fa431a534ff339402a")
+	}
+
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	ob := common.DecodeHexOrPanic(testBitcoinKeyObserverPrivate)
 	observer, _ := btcec.PrivKeyFromBytes(ob)
@@ -837,7 +841,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	kd, err := OpenSQLite3Store(conf.Keeper.StoreDir + "/safe.sqlite3")
 	require.Nil(err)
 
-	db, err := BadgerStore.OpenBadger(ctx, conf.Keeper.StoreDir+"/mtg")
+	db, err := store.OpenBadger(ctx, conf.Keeper.StoreDir+"/mtg")
 	require.Nil(err)
 	group, err := mtg.BuildGroup(ctx, db, conf.Keeper.MTG)
 	require.NotNil(err)
