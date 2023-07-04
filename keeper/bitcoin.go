@@ -3,7 +3,6 @@ package keeper
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
@@ -253,8 +251,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
 	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.Extra {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-		msp := mtg.DecodeMixinExtra(string(stx.Extra))
-		rce, _ = base64.RawURLEncoding.DecodeString(msp.M)
+		rce = common.DecodeMixinObjectExtra(stx.Extra)
 	}
 	timelock, receivers, threshold, err := req.ParseMixinRecipient(rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
@@ -498,8 +495,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
 	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-		msp := mtg.DecodeMixinExtra(string(stx.Extra))
-		extra, _ := base64.RawURLEncoding.DecodeString(msp.M)
+		extra := common.DecodeMixinObjectExtra(stx.Extra)
 		var recipients [][2]string // TODO better encoding
 		err = json.Unmarshal(extra, &recipients)
 		if err != nil {
