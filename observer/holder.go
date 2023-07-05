@@ -126,9 +126,6 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	if status != "approved" {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-	if (raw != "" && hash != "") || (raw == "" && hash == "") {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
 	switch safe.Chain {
 	case keeper.SafeChainBitcoin:
 	case keeper.SafeChainLitecoin:
@@ -144,8 +141,8 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	ob := common.DecodeHexOrPanic(node.conf.PrivateKey)
 	observer, _ := btcec.PrivKeyFromBytes(ob)
 
-	// Close account without holder key
-	if hash != "" {
+	switch {
+	case hash != "" && raw == "": // Close account with safeBTC
 		approval, err := node.store.ReadTransactionApproval(ctx, hash)
 		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 		if err != nil || approval == nil {
@@ -169,10 +166,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 
 		signedRaw = psTx.Marshal()
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
-	}
-
-	// Close account with holder key
-	if raw != "" {
+	case hash == "" && raw != "": // Close account with holder key
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return nil
 		}
@@ -184,6 +178,8 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		signedRaw = psTx.Marshal()
 		extra = uuid.Nil.Bytes()
 		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
 	hexRaw := hex.EncodeToString(signedRaw)
