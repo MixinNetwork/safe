@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
-	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
@@ -126,6 +125,9 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	if status != "approved" {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
+	if safe.Address == addr {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 	switch safe.Chain {
 	case keeper.SafeChainBitcoin:
 	case keeper.SafeChainLitecoin:
@@ -133,14 +135,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	var extra []byte
-	var signedRaw []byte
-	action := common.ActionBitcoinSafeCloseAccount
-	id := uuid.Must(uuid.NewV4()).String()
-
-	ob := common.DecodeHexOrPanic(node.conf.PrivateKey)
-	observer, _ := btcec.PrivKeyFromBytes(ob)
-
+	var rawTransaction string
 	switch {
 	case hash != "" && raw == "": // Close account with safeBTC
 		approval, err := node.store.ReadTransactionApproval(ctx, hash)
@@ -160,55 +155,60 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		if err != nil || tx == nil {
 			return err
 		}
-
-		rb := common.DecodeHexOrPanic(tx.RawTransaction)
-		psTx := bitcoin.SignPartiallySignedTransaction(rb, observer)
-
-		signedRaw = psTx.Marshal()
-		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+		rawTransaction = tx.RawTransaction
 	case hash == "" && raw != "": // Close account with holder key
-		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
-			return nil
-		}
-
-		rb := common.DecodeHexOrPanic(raw)
-		psTx := bitcoin.SignPartiallySignedTransaction(rb, observer)
-		msgTx := psTx.UnsignedTx
-
-		signedRaw = psTx.Marshal()
-		extra = uuid.Nil.Bytes()
-		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
+		rawTransaction = raw
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	hexRaw := hex.EncodeToString(signedRaw)
-	rawId := mixin.UniqueConversationID(hexRaw, hexRaw)
-	objectRaw := signedRaw
-	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
-	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
-	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
-	fee := bot.EstimateObjectFee(msg)
-	in := &bot.ObjectInput{
-		TraceId: mixin.UniqueConversationID(msg, msg),
-		Amount:  fee,
-		Memo:    msg,
-	}
-	conf := node.conf.App
-	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	rb := common.DecodeHexOrPanic(rawTransaction)
+	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	msgTx := psTx.UnsignedTx
+
+	var balance int64
+	mainInputs, err := node.listAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	if err != nil {
 		return err
+	}
+	for _, i := range mainInputs {
+		balance += i.Satoshi
+	}
+	if msgTx.TxOut[0].Value != balance {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	extra = append(extra, ref[:]...)
-	err = node.sendBitcoinKeeperResponse(ctx, safe.Holder, byte(action), safe.Chain, id, extra)
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
 		return err
 	}
+	if info == nil {
+		return nil
+	}
+	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
+
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			return err
+		}
+		if bo.Height > info.Height || bo.Height == 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		if bo.Height+sequence+100 > info.Height {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+	}
+
+	// todo: save pending recovery
+
 	return nil
 }
 
