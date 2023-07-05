@@ -79,7 +79,7 @@ func TestKeeper(t *testing.T) {
 	testAccountantSpentTransaction(ctx, require, signedRaw, false)
 }
 
-func TestKeepCloseAccountWithOutKey(t *testing.T) {
+func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
 
@@ -94,6 +94,12 @@ func TestKeepCloseAccountWithOutKey(t *testing.T) {
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
 
 	public := testPublicKey(testBitcoinKeyHolderPrivate)
+	safe, _ := node.store.ReadSafe(ctx, public)
+	require.Equal(common.RequestStateDone, int(safe.State))
+	utxos, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 1)
+
 	transactionHash := testSafeProposeRecoveryTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "8daa1f708f90e157c532780444c566d4efdbca710ae270ee051dd977328fa1b5", "70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff02a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, false, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
@@ -101,11 +107,14 @@ func TestKeepCloseAccountWithOutKey(t *testing.T) {
 	testAccountantSpentTransaction(ctx, require, signedRaw, true)
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
-	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
+	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
 	require.Equal(common.RequestStateFailed, int(safe.State))
+	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 0)
 }
 
-func TestKeepCloseAccountWithKey(t *testing.T) {
+func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
 
@@ -120,14 +129,23 @@ func TestKeepCloseAccountWithKey(t *testing.T) {
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
 
 	public := testPublicKey(testBitcoinKeyHolderPrivate)
+	safe, _ := node.store.ReadSafe(ctx, public)
+	require.Equal(common.RequestStateDone, int(safe.State))
+	utxos, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 1)
+
 	holderSignedRaw := testHolderApproveTransaction("70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff02a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, holderSignedRaw, true, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
 	testAccountantSpentTransaction(ctx, require, signedRaw, true)
 
-	safe, _ := node.store.ReadSafe(ctx, public)
+	safe, _ = node.store.ReadSafe(ctx, public)
 	require.Equal(common.RequestStateFailed, int(safe.State))
+	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 0)
 }
 
 func testPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
