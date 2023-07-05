@@ -52,7 +52,8 @@ const (
 )
 
 func TestKeeper(t *testing.T) {
-	ctx, require, node, mpc, signers := testPrepare(t)
+	require := require.New(t)
+	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
@@ -79,7 +80,8 @@ func TestKeeper(t *testing.T) {
 }
 
 func TestKeepCloseAccountWithOutKey(t *testing.T) {
-	ctx, require, node, mpc, signers := testPrepare(t)
+	require := require.New(t)
+	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
@@ -104,7 +106,8 @@ func TestKeepCloseAccountWithOutKey(t *testing.T) {
 }
 
 func TestKeepCloseAccountWithKey(t *testing.T) {
-	ctx, require, node, mpc, signers := testPrepare(t)
+	require := require.New(t)
+	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
@@ -127,9 +130,8 @@ func TestKeepCloseAccountWithKey(t *testing.T) {
 	require.Equal(common.RequestStateFailed, int(safe.State))
 }
 
-func testPrepare(t *testing.T) (context.Context, *require.Assertions, *Node, string, []*signer.Node) {
+func testPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
 	logger.SetLevel(logger.VERBOSE)
-	require := require.New(t)
 	ctx, signers := signer.TestPrepare(require)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSABitcoin)
 	chainCode := common.DecodeHexOrPanic(cc)
@@ -193,7 +195,7 @@ func testPrepare(t *testing.T) (context.Context, *require.Assertions, *Node, str
 		testUpdateNetworkStatus(ctx, require, node, 793574, "00000000000000000002a4f5cd899ea457314c808897c5c5f1f1cd6ffe2b266a")
 	}
 
-	return ctx, require, node, mpc, signers
+	return ctx, node, mpc, signers
 }
 
 func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
