@@ -137,6 +137,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	}
 
 	var extra []byte
+	var signedRaw []byte
 	action := common.ActionBitcoinSafeCloseAccount
 	id := uuid.Must(uuid.NewV4()).String()
 
@@ -165,11 +166,9 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 
 		rb := common.DecodeHexOrPanic(tx.RawTransaction)
 		psTx := bitcoin.SignPartiallySignedTransaction(rb, observer)
-		signedRaw := psTx.Marshal()
 
-		ref := crypto.NewHash(signedRaw)
+		signedRaw = psTx.Marshal()
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
-		extra = append(extra, ref[:]...)
 	}
 
 	// Close account with holder key
@@ -181,14 +180,35 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		rb := common.DecodeHexOrPanic(raw)
 		psTx := bitcoin.SignPartiallySignedTransaction(rb, observer)
 		msgTx := psTx.UnsignedTx
-		signedRaw := psTx.Marshal()
 
-		ref := crypto.NewHash(signedRaw)
+		signedRaw = psTx.Marshal()
 		extra = uuid.Nil.Bytes()
-		extra = append(extra, ref[:]...)
 		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
 	}
 
+	hexRaw := hex.EncodeToString(signedRaw)
+	rawId := mixin.UniqueConversationID(hexRaw, hexRaw)
+	objectRaw := signedRaw
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	fee := bot.EstimateObjectFee(msg)
+	in := &bot.ObjectInput{
+		TraceId: mixin.UniqueConversationID(msg, msg),
+		Amount:  fee,
+		Memo:    msg,
+	}
+	conf := node.conf.App
+	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+
+	extra = append(extra, ref[:]...)
 	err = node.sendBitcoinKeeperResponse(ctx, safe.Holder, byte(action), safe.Chain, id, extra)
 	if err != nil {
 		return err
