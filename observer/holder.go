@@ -114,15 +114,15 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	if err != nil || !proposed {
 		return err
 	}
-	safe, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
+	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
 	if err != nil {
 		return err
 	}
-	status, err := node.getSafeStatus(ctx, safe.RequestId)
+	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
 	if err != nil {
 		return err
 	}
-	if status != "approved" {
+	if safe == nil || safe.State != common.RequestStateDone {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	if safe.Address == addr {
@@ -169,18 +169,6 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	}
 	msgTx := psTx.UnsignedTx
 
-	var balance int64
-	mainInputs, err := node.listAllBitcoinUTXOsForHolder(ctx, safe.Holder)
-	if err != nil {
-		return err
-	}
-	for _, i := range mainInputs {
-		balance += i.Satoshi
-	}
-	if msgTx.TxOut[0].Value != balance {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
-
 	rpc, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
@@ -192,6 +180,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	}
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
+	var balance int64
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
@@ -205,6 +194,10 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		if bo.Height+sequence+100 > info.Height {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
+		balance = balance + bo.Satoshi
+	}
+	if msgTx.TxOut[0].Value != balance {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
 	// todo: save pending recovery
