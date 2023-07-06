@@ -110,6 +110,7 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
 	router.GET("/deposits", node.httpListDeposits)
+	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
@@ -214,6 +215,16 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 	}
 
 	renderJSON(w, r, http.StatusOK, node.viewDeposits(r.Context(), deposits, sent))
+}
+
+func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	rs, err := node.store.ListPendingRecoveries(r.Context())
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+
+	renderJSON(w, r, http.StatusOK, node.viewRecoveries(r.Context(), rs))
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -580,6 +591,25 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
 		}
 		view = append(view, dm)
+	}
+	return view
+}
+
+func (node *Node) viewRecoveries(ctx context.Context, recoveries []*Recovery) []map[string]any {
+	view := make([]map[string]any, 0)
+	for _, r := range recoveries {
+		rm := map[string]any{
+			"address":    r.Address,
+			"chain":      r.Chain,
+			"public_key": r.PublicKey,
+			"observer":   r.Observer,
+			"raw":        r.RawTransaction,
+			"hash":       r.TransactionHash,
+			"state":      r.getState(),
+			"created_at": r.CreatedAt,
+			"updated_at": r.UpdatedAt,
+		}
+		view = append(view, rm)
 	}
 	return view
 }

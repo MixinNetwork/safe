@@ -211,7 +211,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	err = node.store.WritePendingRecovery(ctx, r)
+	err = node.store.WriteInitialRecovery(ctx, r)
 	if err != nil {
 		return err
 	}
@@ -346,6 +346,11 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 	extra = append(extra, ref[:]...)
 	action := common.ActionBitcoinSafeCloseAccount
 	err = node.sendBitcoinKeeperResponse(ctx, safe.Holder, byte(action), safe.Chain, id, extra)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.MarkRecoveryPending(ctx, addr)
 	return err
 }
 

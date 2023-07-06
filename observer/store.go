@@ -100,6 +100,20 @@ func (r *Recovery) values() []any {
 	return []any{r.Address, r.Chain, r.PublicKey, r.Observer, r.RawTransaction, r.TransactionHash, r.State, r.CreatedAt, r.UpdatedAt}
 }
 
+func (r *Recovery) getState() string {
+	switch r.State {
+	case common.RequestStateInitial:
+		return "initial"
+	case common.RequestStatePending:
+		return "pending"
+	case common.RequestStateDone:
+		return "done"
+	case common.RequestStateFailed:
+		return "failed"
+	}
+	panic(r.State)
+}
+
 func (t *Transaction) Signers() []string {
 	switch t.State {
 	case common.RequestStateInitial:
@@ -505,7 +519,7 @@ func (s *SQLite3Store) WriteAssetMeta(ctx context.Context, asset *Asset) error {
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WritePendingRecovery(ctx context.Context, recovery *Recovery) error {
+func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recovery) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -523,7 +537,7 @@ func (s *SQLite3Store) WritePendingRecovery(ctx context.Context, recovery *Recov
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkRecoveryProcessed(ctx context.Context, address string) error {
+func (s *SQLite3Store) MarkRecoveryPending(ctx context.Context, address string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -534,7 +548,7 @@ func (s *SQLite3Store) MarkRecoveryProcessed(ctx context.Context, address string
 	defer tx.Rollback()
 
 	err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
-		common.RequestStateDone, time.Now().UTC(), address, common.RequestStateInitial)
+		common.RequestStatePending, time.Now().UTC(), address, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE recoveries %v", err)
 	}
