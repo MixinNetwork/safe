@@ -200,7 +200,21 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	// todo: save pending recovery
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		PublicKey:       safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  raw,
+		TransactionHash: hash,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	err = node.store.WritePendingRecovery(ctx, r)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
