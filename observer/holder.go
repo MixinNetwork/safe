@@ -205,7 +205,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		Chain:           safe.Chain,
 		PublicKey:       safe.Holder,
 		Observer:        safe.Observer,
-		RawTransaction:  raw,
+		RawTransaction:  rawTransaction,
 		TransactionHash: hash,
 		State:           common.RequestStateInitial,
 		CreatedAt:       time.Now().UTC(),

@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS recoveries (
   chain              INTEGER NOT NULL,
   public_key         VARCHAR NOT NULL,
   observer           VARCHAR NOT NULL,
-  raw_transaction    VARCHAR,
+  raw_transaction    VARCHAR NOT NULL,
   transaction_hash   VARCHAR,
   state              INTEGER NOT NULL,
   created_at         TIMESTAMP NOT NULL,
