@@ -330,6 +330,12 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 			return
 		}
+	case "recovery":
+		err = node.httpRecoveryBitcoinAccount(r.Context(), body.Address, body.Raw, body.Hash)
+		if err != nil {
+			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
 	default:
 	}
 
