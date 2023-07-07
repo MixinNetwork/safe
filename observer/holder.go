@@ -157,6 +157,14 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		}
 		rawTransaction = tx.RawTransaction
 	case hash == "" && raw != "": // Close account with holder key
+		count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+		if err != nil {
+			return err
+		}
+		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
 		rawTransaction = raw
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -316,6 +324,14 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 		}
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
 			return nil
+		}
+
+		count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+		if err != nil {
+			return err
+		}
+		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 
 		extra = uuid.Nil.Bytes()

@@ -309,6 +309,18 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 	return approvals, nil
 }
 
+func (s *SQLite3Store) CountUnfinishedTransactionApprovalsForHolder(ctx context.Context, holder string) (int, error) {
+	query := "SELECT COUNT(*) FROM transactions WHERE holder=? AND state IN (?, ?) ORDER BY created_at ASC"
+	row := s.db.QueryRowContext(ctx, query, holder, common.RequestStateInitial, common.RequestStatePending)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}
+
 func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, approval *Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
