@@ -125,9 +125,6 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	if safe == nil || safe.State != common.RequestStateDone {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-	if safe.Address == addr {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
 	switch safe.Chain {
 	case keeper.SafeChainBitcoin:
 	case keeper.SafeChainLitecoin:
@@ -135,9 +132,18 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	if err != nil {
+		return err
+	}
+
 	var rawTransaction string
 	switch {
 	case hash != "" && raw == "": // Close account with safeBTC
+		if count != 1 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
 		approval, err := node.store.ReadTransactionApproval(ctx, hash)
 		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 		if err != nil || approval == nil {
@@ -157,10 +163,6 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		}
 		rawTransaction = tx.RawTransaction
 	case hash == "" && raw != "": // Close account with holder key
-		count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
-		if err != nil {
-			return err
-		}
 		if count != 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
@@ -208,6 +210,18 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return err
+	}
+	if receiver == safe.Address {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
 	r := &Recovery{
 		Address:         safe.Address,
 		Chain:           safe.Chain,
@@ -242,9 +256,6 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 		return err
 	}
 	if safe == nil || safe.State != common.RequestStateDone {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
-	if safe.Address == addr {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	switch safe.Chain {
@@ -293,10 +304,31 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return err
+	}
+	if receiver == safe.Address {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	if err != nil {
+		return err
+	}
+
 	var extra []byte
 	id := uuid.Must(uuid.NewV4()).String()
 	switch {
 	case hash != "": // Close account with safeBTC
+		if count != 1 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
 		approval, err := node.store.ReadTransactionApproval(ctx, hash)
 		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 		if err != nil || approval == nil {
@@ -319,19 +351,15 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 		}
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	case hash == "": // Close account with holder key
+		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return nil
 		}
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
 			return nil
-		}
-
-		count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
-		if err != nil {
-			return err
-		}
-		if count != 0 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 
 		extra = uuid.Nil.Bytes()
