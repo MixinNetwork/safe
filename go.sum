@@ -16,8 +16,8 @@ github.com/MixinNetwork/multi-party-sig v0.3.1 h1:A8PYbKKDFC+k0Y/x8PSZDZsjFVN+Af
 github.com/MixinNetwork/multi-party-sig v0.3.1/go.mod h1:e4e2LfJ0VQxzoXB6yujB+4mQvz7fUzzB9zyPSuZDcjY=
 github.com/MixinNetwork/nfo v0.3.4 h1:6VcM24v2kRtmq1oHXIcCzR3KVvjatNjGTWa/QWoF5CY=
 github.com/MixinNetwork/nfo v0.3.4/go.mod h1:LRvUs87wXIC1acFS3vjdJs7xXcNldMhTeIMsomWYYIo=
-github.com/MixinNetwork/tip v0.2.4 h1:bWz8Ia36x6CI1qn+BUzUO+ySIfNfmYtbE4nKeCEkans=
-github.com/MixinNetwork/tip v0.2.4/go.mod h1:gZXtOGWD3EVTp0QYWzTF+J+RRPBdZOKAuoSKx2fW7mY=
+github.com/MixinNetwork/tip v0.2.5 h1:8Q080tMV24cWP6XSY5K7sGuhay/xJAgm9yQ42pGVmG8=
+github.com/MixinNetwork/tip v0.2.5/go.mod h1:gZXtOGWD3EVTp0QYWzTF+J+RRPBdZOKAuoSKx2fW7mY=
 github.com/MixinNetwork/trusted-group v0.5.0 h1:v9fg8aPn3NIW0s9G8669+C8VhRDucRB0M5zcC19ZPLU=
 github.com/MixinNetwork/trusted-group v0.5.0/go.mod h1:70GijZ8/FbfYWZiTSVqtTdxUhJRM5jjLDVeiZGe4fEg=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
