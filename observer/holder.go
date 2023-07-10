@@ -108,8 +108,8 @@ func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64
 	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 }
 
-func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash string) error {
-	logger.Printf("node.httpCloseBitcoinAccount(%s, %s, %s)", addr, raw, hash)
+func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpCreateBitcoinAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -233,16 +233,11 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	err = node.store.WriteInitialRecovery(ctx, r)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return node.store.WriteInitialRecovery(ctx, r)
 }
 
-func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, hash string) error {
-	logger.Printf("node.httpCloseBitcoinAccount(%s, %s, %s)", addr, raw, hash)
+func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpSignBitcoinAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err

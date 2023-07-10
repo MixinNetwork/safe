@@ -112,7 +112,7 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/recoveries/:id", node.httpGetRecovery)
-	router.POST("/recoveries/:id", node.httpRecovery)
+	router.POST("/recoveries/:id", node.httpSignRecovery)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
@@ -384,7 +384,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 			return
 		}
 	case "close":
-		err = node.httpCloseBitcoinAccount(r.Context(), body.Address, body.Raw, body.Hash)
+		err = node.httpCreateBitcoinAccountRecoveryRequest(r.Context(), body.Address, body.Raw, body.Hash)
 		if err != nil {
 			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 			return
@@ -431,7 +431,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 	})
 }
 
-func (node *Node) httpRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
+func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
 		Raw  string `json:"raw"`
 		Hash string `json:"hash"`
@@ -451,7 +451,7 @@ func (node *Node) httpRecovery(w http.ResponseWriter, r *http.Request, params ma
 		return
 	}
 
-	err = node.httpRecoveryBitcoinAccount(r.Context(), safe.Address, body.Raw, body.Hash)
+	err = node.httpSignBitcoinAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
 	if err != nil {
 		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
