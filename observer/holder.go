@@ -389,7 +389,8 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 
 	extra = append(extra, ref[:]...)
 	action := common.ActionBitcoinSafeCloseAccount
-	err = node.sendBitcoinKeeperResponse(ctx, safe.Holder, byte(action), safe.Chain, id, extra)
+	references := []crypto.Hash{ref}
+	err = node.sendBitcoinKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	if err != nil {
 		return err
 	}
