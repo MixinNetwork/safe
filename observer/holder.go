@@ -225,7 +225,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 	r := &Recovery{
 		Address:         safe.Address,
 		Chain:           safe.Chain,
-		PublicKey:       safe.Holder,
+		Holder:          safe.Holder,
 		Observer:        safe.Observer,
 		RawTransaction:  rawTransaction,
 		TransactionHash: hash,

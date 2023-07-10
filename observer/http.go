@@ -111,6 +111,7 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/chains", node.httpListChains)
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
+	router.POST("/recoveries/:id", node.httpRecovery)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
@@ -341,13 +342,72 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 			return
 		}
-	case "recovery":
-		err = node.httpRecoveryBitcoinAccount(r.Context(), body.Address, body.Raw, body.Hash)
-		if err != nil {
-			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
-			return
-		}
 	default:
+	}
+
+	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if wsa.Address != safe.Address {
+		renderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
+		return
+	}
+	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
+	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	renderJSON(w, r, http.StatusOK, map[string]any{
+		"chain":   safe.Chain,
+		"id":      safe.RequestId,
+		"address": safe.Address,
+		"outputs": viewOutputs(mainInputs),
+		"script":  hex.EncodeToString(wsa.Script),
+		"keys":    node.viewSafeXPubs(r.Context(), safe),
+		"bond": map[string]any{
+			"id": bondId,
+		},
+		"state": status,
+	})
+}
+
+func (node *Node) httpRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	var body struct {
+		Raw  string `json:"raw"`
+		Hash string `json:"hash"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+
+	err = node.httpRecoveryBitcoinAccount(r.Context(), safe.Address, body.Raw, body.Hash)
+	if err != nil {
+		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+		return
 	}
 
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
@@ -601,7 +661,7 @@ func (node *Node) viewRecoveries(ctx context.Context, recoveries []*Recovery) []
 		rm := map[string]any{
 			"address":    r.Address,
 			"chain":      r.Chain,
-			"public_key": r.PublicKey,
+			"public_key": r.Holder,
 			"observer":   r.Observer,
 			"raw":        r.RawTransaction,
 			"hash":       r.TransactionHash,

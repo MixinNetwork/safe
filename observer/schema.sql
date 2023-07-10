@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS bitcoin_outputs (
 CREATE TABLE IF NOT EXISTS recoveries (
   address            VARCHAR NOT NULL,
   chain              INTEGER NOT NULL,
-  public_key         VARCHAR NOT NULL,
+  holder             VARCHAR NOT NULL,
   observer           VARCHAR NOT NULL,
   raw_transaction    VARCHAR NOT NULL,
   transaction_hash   VARCHAR,
