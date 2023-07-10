@@ -101,3 +101,14 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	}
 	return tx.Commit()
 }
+
+func (s *SQLite3Store) WriteTerminate(ctx context.Context) error {
+	k := "node-state-terminate"
+	return s.WriteProperty(ctx, k, "1")
+}
+
+func (s *SQLite3Store) ReadTerminate(ctx context.Context) (bool, error) {
+	k := "node-state-terminate"
+	v, err := s.ReadProperty(ctx, k)
+	return v == "1", err
+}

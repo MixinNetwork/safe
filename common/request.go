@@ -23,6 +23,7 @@ const (
 	RequestStateDone    = 3
 	RequestStateFailed  = 4
 
+	// Observer can terminate all signer and keeper nodes
 	ActionTerminate = 100
 
 	ActionObserverAddKey              = 101

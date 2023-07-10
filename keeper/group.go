@@ -29,6 +29,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	switch req.Action {
 	case common.OperationTypeKeygenOutput:
 	case common.OperationTypeSignOutput:
+	case common.ActionTerminate:
 	case common.ActionObserverAddKey:
 	case common.ActionObserverRequestSignerKeys:
 	case common.ActionObserverUpdateNetworkStatus:
@@ -65,6 +66,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleSigner
 	case common.OperationTypeSignOutput:
 		return common.RequestRoleSigner
+	case common.ActionTerminate:
+		return common.RequestRoleObserver
 	case common.ActionObserverAddKey:
 		return common.RequestRoleObserver
 	case common.ActionObserverRequestSignerKeys:
@@ -193,6 +196,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processKeyAdd(ctx, req)
 	case common.OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)
+	case common.ActionTerminate:
+		return node.Terminate(ctx)
 	case common.ActionObserverAddKey:
 		return node.processKeyAdd(ctx, req)
 	case common.ActionObserverRequestSignerKeys:

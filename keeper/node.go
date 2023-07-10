@@ -37,7 +37,16 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, conf *Configuration, s
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	terminated, err := node.store.ReadTerminate(ctx)
+	if err != nil || terminated {
+		panic(err)
+	}
 	go node.loopProcessRequests(ctx)
+}
+
+func (node *Node) Terminate(ctx context.Context) error {
+	err := node.store.WriteTerminate(ctx)
+	panic(err)
 }
 
 func (node *Node) Index() int {
