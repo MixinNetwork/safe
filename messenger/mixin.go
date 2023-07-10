@@ -110,7 +110,7 @@ func (mm *MixinMessenger) loopReceive(ctx context.Context) {
 	for {
 		blaze := bot.NewBlazeClient(mm.conf.UserId, mm.conf.SessionId, mm.conf.Key)
 		err := blaze.Loop(context.Background(), mm)
-		logger.Errorf("blaze.Loop %v\n", err)
+		logger.Printf("blaze.Loop %v\n", err)
 		if ctx.Err() != nil {
 			break
 		}
@@ -135,7 +135,7 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 			if len(batch) > size {
 				err := mm.sendMessagesWithoutTimeout(ctx, batch)
 				if err != nil {
-					logger.Errorf("sendMessagesWithoutTimeout %s\n", err)
+					logger.Printf("sendMessagesWithoutTimeout %s\n", err)
 				}
 				filter = make(map[string]bool)
 				batch = nil
@@ -144,7 +144,7 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 			if len(batch) > 0 {
 				err := mm.sendMessagesWithoutTimeout(ctx, batch)
 				if err != nil {
-					logger.Errorf("sendMessagesWithoutTimeout %s\n", err)
+					logger.Printf("sendMessagesWithoutTimeout %s\n", err)
 				}
 				filter = make(map[string]bool)
 				batch = nil
