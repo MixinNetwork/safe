@@ -108,3 +108,19 @@ CREATE TABLE IF NOT EXISTS bitcoin_outputs (
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash', 'output_index')
 );
+
+
+
+
+CREATE TABLE IF NOT EXISTS recoveries (
+  address            VARCHAR NOT NULL,
+  chain              INTEGER NOT NULL,
+  holder             VARCHAR NOT NULL,
+  observer           VARCHAR NOT NULL,
+  raw_transaction    VARCHAR NOT NULL,
+  transaction_hash   VARCHAR,
+  state              INTEGER NOT NULL,
+  created_at         TIMESTAMP NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('address')
+);

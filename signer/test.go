@@ -158,7 +158,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Signer.StoreDir = root
 	conf.Signer.MTG.App.ClientId = conf.Signer.MTG.Genesis.Members[i]
 
-	if !strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") {
+	if !(strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Signer.StoreDir, "/var/folders")) {
 		panic(root)
 	}
 	kd, err := OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")

@@ -62,6 +62,18 @@ type Output struct {
 	UpdatedAt       time.Time
 }
 
+type Recovery struct {
+	Address         string
+	Chain           byte
+	Holder          string
+	Observer        string
+	RawTransaction  string
+	TransactionHash string
+	State           int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
 var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "amount", "receiver", "sender", "state", "chain", "holder", "category", "created_at", "updated_at"}
@@ -80,6 +92,26 @@ var outputCols = []string{"transaction_hash", "output_index", "address", "satosh
 
 func (o *Output) values() []any {
 	return []any{o.TransactionHash, o.Index, o.Address, o.Satoshi, o.Chain, o.State, o.SpentBy, o.RawTransaction, o.CreatedAt, o.UpdatedAt}
+}
+
+var recoveryCols = []string{"address", "chain", "holder", "observer", "raw_transaction", "transaction_hash", "state", "created_at", "updated_at"}
+
+func (r *Recovery) values() []any {
+	return []any{r.Address, r.Chain, r.Holder, r.Observer, r.RawTransaction, r.TransactionHash, r.State, r.CreatedAt, r.UpdatedAt}
+}
+
+func (r *Recovery) getState() string {
+	switch r.State {
+	case common.RequestStateInitial:
+		return "initial"
+	case common.RequestStatePending:
+		return "pending"
+	case common.RequestStateDone:
+		return "done"
+	case common.RequestStateFailed:
+		return "failed"
+	}
+	panic(r.State)
 }
 
 func (t *Transaction) Signers() []string {
@@ -275,6 +307,18 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 		approvals = append(approvals, &t)
 	}
 	return approvals, nil
+}
+
+func (s *SQLite3Store) CountUnfinishedTransactionApprovalsForHolder(ctx context.Context, holder string) (int, error) {
+	query := "SELECT COUNT(*) FROM transactions WHERE holder=? AND state IN (?, ?) ORDER BY created_at ASC"
+	row := s.db.QueryRowContext(ctx, query, holder, common.RequestStateInitial, common.RequestStatePending)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
 }
 
 func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, approval *Transaction) error {
@@ -485,4 +529,81 @@ func (s *SQLite3Store) WriteAssetMeta(ctx context.Context, asset *Asset) error {
 		return fmt.Errorf("INSERT assets %v", err)
 	}
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recovery) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	vals := recovery.values()
+	err = s.execOne(ctx, tx, buildInsertionSQL("recoveries", recoveryCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT recoveries %v", err)
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw string, state int) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	switch state {
+	case common.RequestStatePending:
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state=?",
+			state, raw, time.Now().UTC(), address, common.RequestStateInitial)
+	case common.RequestStateDone:
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
+			state, time.Now().UTC(), address, common.RequestStatePending)
+	default:
+		return fmt.Errorf("Invalid recovery: %d", state)
+	}
+	if err != nil {
+		return fmt.Errorf("UPDATE recoveries %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ReadRecovery(ctx context.Context, address string) (*Recovery, error) {
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=?", strings.Join(recoveryCols, ","))
+	row := s.db.QueryRowContext(ctx, query, address)
+
+	var r Recovery
+	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.CreatedAt, &r.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &r, err
+}
+
+func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context) ([]*Recovery, error) {
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE state=? ORDER BY created_at ASC", strings.Join(recoveryCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, common.RequestStateInitial)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var recoveries []*Recovery
+	for rows.Next() {
+		var r Recovery
+		err = rows.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.CreatedAt, &r.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		recoveries = append(recoveries, &r)
+	}
+	return recoveries, nil
 }

@@ -28,6 +28,9 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 	if err != nil || safe == nil {
 		return "proposed", err
 	}
+	if int(safe.State) == common.RequestStateFailed {
+		return "failed", nil
+	}
 	return "approved", nil
 }
 
@@ -103,6 +106,300 @@ func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeApproveAccount
 	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
+}
+
+func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpCreateBitcoinAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
+	proposed, err := node.store.CheckAccountProposed(ctx, addr)
+	if err != nil || !proposed {
+		return err
+	}
+	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
+	if err != nil {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	if err != nil {
+		return err
+	}
+	if safe == nil || safe.State != common.RequestStateDone {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	if err != nil {
+		return err
+	}
+
+	var rawTransaction string
+	switch {
+	case hash != "" && raw == "": // Close account with safeBTC
+		if count != 1 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
+		approval, err := node.store.ReadTransactionApproval(ctx, hash)
+		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+		if err != nil || approval == nil {
+			return err
+		}
+		if approval.State != common.RequestStateInitial {
+			return nil
+		}
+		if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+			return nil
+		}
+
+		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
+		if err != nil || tx == nil {
+			return err
+		}
+		rawTransaction = tx.RawTransaction
+	case hash == "" && raw != "": // Close account with holder key
+		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
+		rawTransaction = raw
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	rb := common.DecodeHexOrPanic(rawTransaction)
+	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	if err != nil {
+		return err
+	}
+	msgTx := psTx.UnsignedTx
+
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return nil
+	}
+	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
+
+	var balance int64
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			return err
+		}
+		if bo.Height > info.Height || bo.Height == 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		if bo.Height+sequence+100 > info.Height {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		balance = balance + bo.Satoshi
+	}
+	if msgTx.TxOut[0].Value != balance {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return err
+	}
+	if receiver == safe.Address {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  rawTransaction,
+		TransactionHash: hash,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	return node.store.WriteInitialRecovery(ctx, r)
+}
+
+func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpSignBitcoinAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
+	proposed, err := node.store.CheckAccountProposed(ctx, addr)
+	if err != nil || !proposed {
+		return err
+	}
+	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
+	if err != nil {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	if err != nil {
+		return err
+	}
+	if safe == nil || safe.State != common.RequestStateDone {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	rb := common.DecodeHexOrPanic(raw)
+	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	if err != nil {
+		return err
+	}
+	signedRaw := psTx.Marshal()
+	msgTx := psTx.UnsignedTx
+
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return nil
+	}
+	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
+
+	var balance int64
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			return err
+		}
+		if bo.Height > info.Height || bo.Height == 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		if bo.Height+sequence+100 > info.Height {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		balance = balance + bo.Satoshi
+	}
+	if msgTx.TxOut[0].Value != balance {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return err
+	}
+	if receiver == safe.Address {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	if err != nil {
+		return err
+	}
+
+	var extra []byte
+	id := mixin.UniqueConversationID(safe.Address, receiver)
+	switch {
+	case hash != "": // Close account with safeBTC
+		if count != 1 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
+		approval, err := node.store.ReadTransactionApproval(ctx, hash)
+		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+		if err != nil || approval == nil {
+			return err
+		}
+		if approval.State != common.RequestStateInitial {
+			return nil
+		}
+		if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+			return nil
+		}
+		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+			return nil
+		}
+
+		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
+		if err != nil || tx == nil {
+			return err
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	case hash == "": // Close account with holder key
+		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
+		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+			return nil
+		}
+		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+			return nil
+		}
+
+		extra = uuid.Nil.Bytes()
+		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
+	}
+
+	r, err := node.store.ReadRecovery(ctx, safe.Address)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	rawId := mixin.UniqueConversationID(raw, raw)
+	objectRaw := signedRaw
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	fee := bot.EstimateObjectFee(msg)
+	in := &bot.ObjectInput{
+		TraceId: mixin.UniqueConversationID(msg, msg),
+		Amount:  fee,
+		Memo:    msg,
+	}
+	conf := node.conf.App
+	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+
+	extra = append(extra, ref[:]...)
+	action := common.ActionBitcoinSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendBitcoinKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
+	return err
 }
 
 func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string) error {

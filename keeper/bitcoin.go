@@ -71,6 +71,12 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
 	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
@@ -80,11 +86,17 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if rid.String() == uuid.Nil.String() {
+		if count != 0 {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 		err = node.closeBitcoinAccountWithHolder(ctx, req, safe, raw, mainInputs, receiver)
 		logger.Printf("node.closeBitcoinAccountWithHolder(%v, %s) => %v", req, receiver, err)
 		return err
 	}
 
+	if count != 1 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 	if len(mainInputs) != 0 {
 		return node.store.FailRequest(ctx, req.Id)
 	}

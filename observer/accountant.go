@@ -89,6 +89,9 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	raw := hex.EncodeToString(hpsbt.Marshal())
 	err = node.store.FinishTransactionSignatures(ctx, hpsbt.Hash(), raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", hpsbt.Hash(), err)
+
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
+	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
 	return err
 }
 

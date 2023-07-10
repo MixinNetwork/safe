@@ -110,6 +110,9 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
 	router.GET("/deposits", node.httpListDeposits)
+	router.GET("/recoveries", node.httpListRecoveries)
+	router.GET("/recoveries/:id", node.httpGetRecovery)
+	router.POST("/recoveries/:id", node.httpSignRecovery)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
@@ -216,6 +219,62 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 	renderJSON(w, r, http.StatusOK, node.viewDeposits(r.Context(), deposits, sent))
 }
 
+func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	rs, err := node.store.ListInitialRecoveries(r.Context())
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+
+	renderJSON(w, r, http.StatusOK, node.viewRecoveries(r.Context(), rs))
+}
+
+func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	safe, _, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+	recovery, err := node.store.ReadRecovery(r.Context(), safe.Address)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+
+	resp := map[string]any{
+		"address":    recovery.Address,
+		"chain":      recovery.Chain,
+		"public_key": recovery.Holder,
+		"observer":   recovery.Observer,
+		"raw":        recovery.RawTransaction,
+		"hash":       recovery.TransactionHash,
+		"state":      recovery.getState(),
+		"created_at": recovery.CreatedAt,
+		"updated_at": recovery.UpdatedAt,
+	}
+
+	approval, err := node.store.ReadTransactionApproval(r.Context(), recovery.TransactionHash)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if approval != nil && approval.SpentRaw.Valid {
+		resp["hash"] = approval.SpentHash.String
+		resp["raw"] = approval.SpentRaw.String
+		resp["state"] = "spent"
+	}
+
+	renderJSON(w, r, http.StatusOK, resp)
+}
+
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	safe, req, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
 	if err != nil {
@@ -286,6 +345,8 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		Action    string `json:"action"`
 		Address   string `json:"address"`
 		Signature string `json:"signature"`
+		Raw       string `json:"raw"`
+		Hash      string `json:"hash"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -305,20 +366,97 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "address"})
 		return
 	}
-	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
+
+	switch body.Action {
+	case "approve":
+		proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
+		if err != nil {
+			renderError(w, r, err)
+			return
+		}
+		if !proposed {
+			renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+			return
+		}
+		err = node.httpApproveBitcoinAccount(r.Context(), body.Address, body.Signature)
+		if err != nil {
+			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	case "close":
+		err = node.httpCreateBitcoinAccountRecoveryRequest(r.Context(), body.Address, body.Raw, body.Hash)
+		if err != nil {
+			renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	default:
+	}
+
+	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
 		renderError(w, r, err)
 		return
 	}
-	if !proposed {
+	if wsa.Address != safe.Address {
+		renderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
+		return
+	}
+	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
+	_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	renderJSON(w, r, http.StatusOK, map[string]any{
+		"chain":   safe.Chain,
+		"id":      safe.RequestId,
+		"address": safe.Address,
+		"outputs": viewOutputs(mainInputs),
+		"script":  hex.EncodeToString(wsa.Script),
+		"keys":    node.viewSafeXPubs(r.Context(), safe),
+		"bond": map[string]any{
+			"id": bondId,
+		},
+		"state": status,
+	})
+}
+
+func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	var body struct {
+		Raw  string `json:"raw"`
+		Hash string `json:"hash"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	err = node.httpApproveBitcoinAccount(r.Context(), body.Address, body.Signature)
+
+	err = node.httpSignBitcoinAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
 	if err != nil {
 		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 		return
 	}
+
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
 	if err != nil {
 		renderError(w, r, err)
@@ -560,6 +698,25 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
 		}
 		view = append(view, dm)
+	}
+	return view
+}
+
+func (node *Node) viewRecoveries(ctx context.Context, recoveries []*Recovery) []map[string]any {
+	view := make([]map[string]any, 0)
+	for _, r := range recoveries {
+		rm := map[string]any{
+			"address":    r.Address,
+			"chain":      r.Chain,
+			"public_key": r.Holder,
+			"observer":   r.Observer,
+			"raw":        r.RawTransaction,
+			"hash":       r.TransactionHash,
+			"state":      r.getState(),
+			"created_at": r.CreatedAt,
+			"updated_at": r.UpdatedAt,
+		}
+		view = append(view, rm)
 	}
 	return view
 }
