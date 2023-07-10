@@ -111,6 +111,7 @@ func (node *Node) StartHTTP(readme string) {
 	router.GET("/chains", node.httpListChains)
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
+	router.GET("/recoveries/:id", node.httpGetRecovery)
 	router.POST("/recoveries/:id", node.httpRecovery)
 	router.GET("/accounts/:id", node.httpGetAccount)
 	router.POST("/accounts/:id", node.httpApproveAccount)
@@ -219,13 +220,59 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 }
 
 func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	rs, err := node.store.ListPendingRecoveries(r.Context())
+	rs, err := node.store.ListInitialRecoveries(r.Context())
 	if err != nil {
 		renderError(w, r, err)
 		return
 	}
 
 	renderJSON(w, r, http.StatusOK, node.viewRecoveries(r.Context(), rs))
+}
+
+func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	safe, _, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+	recovery, err := node.store.ReadRecovery(r.Context(), safe.Address)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+
+	resp := map[string]any{
+		"address":    recovery.Address,
+		"chain":      recovery.Chain,
+		"public_key": recovery.Holder,
+		"observer":   recovery.Observer,
+		"raw":        recovery.RawTransaction,
+		"hash":       recovery.TransactionHash,
+		"state":      recovery.getState(),
+		"created_at": recovery.CreatedAt,
+		"updated_at": recovery.UpdatedAt,
+	}
+
+	approval, err := node.store.ReadTransactionApproval(r.Context(), recovery.TransactionHash)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if approval != nil && approval.SpentRaw.Valid {
+		resp["hash"] = approval.SpentHash.String
+		resp["raw"] = approval.SpentRaw.String
+		resp["state"] = "spent"
+	}
+
+	renderJSON(w, r, http.StatusOK, resp)
 }
 
 func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {

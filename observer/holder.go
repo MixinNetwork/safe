@@ -322,7 +322,7 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 	}
 
 	var extra []byte
-	id := uuid.Must(uuid.NewV4()).String()
+	id := mixin.UniqueConversationID(safe.Address, receiver)
 	switch {
 	case hash != "": // Close account with safeBTC
 		if count != 1 {
@@ -366,6 +366,14 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
 	}
 
+	r, err := node.store.ReadRecovery(ctx, safe.Address)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
 	rawId := mixin.UniqueConversationID(raw, raw)
 	objectRaw := signedRaw
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
@@ -395,7 +403,7 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 		return err
 	}
 
-	err = node.store.MarkRecoveryPending(ctx, addr)
+	err = node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
 	return err
 }
 

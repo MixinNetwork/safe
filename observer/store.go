@@ -549,7 +549,7 @@ func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recov
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkRecoveryPending(ctx context.Context, address string) error {
+func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw string, state int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -559,8 +559,16 @@ func (s *SQLite3Store) MarkRecoveryPending(ctx context.Context, address string) 
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
-		common.RequestStatePending, time.Now().UTC(), address, common.RequestStateInitial)
+	switch state {
+	case common.RequestStatePending:
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state=?",
+			state, raw, time.Now().UTC(), address, common.RequestStateInitial)
+	case common.RequestStateDone:
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
+			state, time.Now().UTC(), address, common.RequestStatePending)
+	default:
+		return fmt.Errorf("Invalid recovery: %d", state)
+	}
 	if err != nil {
 		return fmt.Errorf("UPDATE recoveries %v", err)
 	}
@@ -568,7 +576,19 @@ func (s *SQLite3Store) MarkRecoveryPending(ctx context.Context, address string) 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListPendingRecoveries(ctx context.Context) ([]*Recovery, error) {
+func (s *SQLite3Store) ReadRecovery(ctx context.Context, address string) (*Recovery, error) {
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=?", strings.Join(recoveryCols, ","))
+	row := s.db.QueryRowContext(ctx, query, address)
+
+	var r Recovery
+	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.CreatedAt, &r.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &r, err
+}
+
+func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context) ([]*Recovery, error) {
 	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE state=? ORDER BY created_at ASC", strings.Join(recoveryCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, common.RequestStateInitial)
 	if err != nil {
