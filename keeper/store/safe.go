@@ -158,6 +158,25 @@ func (s *SQLite3Store) ReadSafeByAddress(ctx context.Context, addr string) (*Saf
 	return safe, err
 }
 
+func (s *SQLite3Store) CloseSafe(ctx context.Context, holder string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
+		common.RequestStateFailed, time.Now().UTC(), holder, common.RequestStateDone)
+	if err != nil {
+		return fmt.Errorf("UPDATE safes %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) readSafe(ctx context.Context, tx *sql.Tx, holder string) (*Safe, error) {
 	query := fmt.Sprintf("SELECT %s FROM safes WHERE holder=?", strings.Join(safeCols, ","))
 	row := tx.QueryRowContext(ctx, query, holder)

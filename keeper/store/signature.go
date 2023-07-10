@@ -35,12 +35,6 @@ func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Co
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
-		common.RequestStateFailed, req.CreatedAt, req.Holder, common.RequestStateDone)
-	if err != nil {
-		return fmt.Errorf("UPDATE safes %v", err)
-	}
-
 	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
 	if err != nil {
 		return err
