@@ -390,6 +390,8 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 			return
 		}
 	default:
+		renderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": "action"})
+		return
 	}
 
 	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
