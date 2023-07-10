@@ -71,8 +71,8 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	count, err := node.store.CountHolderTransactions(ctx, safe.Holder)
-	logger.Printf("store.CountHolderTransactions(%s) => %d %v", safe.Holder, count, err)
+	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
