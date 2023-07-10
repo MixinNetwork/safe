@@ -3,7 +3,7 @@ package signer
 import (
 	"context"
 
-	"github.com/MixinNetwork/tip/messenger"
+	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
