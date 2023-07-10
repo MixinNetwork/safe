@@ -39,7 +39,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	if safe == nil || safe.Chain != chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if safe.State != SafeStateClosed {
+	if safe.State != SafeStateApproved {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 

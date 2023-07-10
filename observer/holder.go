@@ -238,8 +238,7 @@ func (node *Node) httpCloseBitcoinAccount(ctx context.Context, addr, raw, hash s
 		return err
 	}
 
-	err = node.keeperStore.CloseSafe(ctx, safe.Holder)
-	return err
+	return nil
 }
 
 func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, hash string) error {
@@ -256,7 +255,7 @@ func (node *Node) httpRecoveryBitcoinAccount(ctx context.Context, addr, raw, has
 	if err != nil {
 		return err
 	}
-	if safe == nil || safe.State != common.RequestStateFailed {
+	if safe == nil || safe.State != common.RequestStateDone {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	switch safe.Chain {
