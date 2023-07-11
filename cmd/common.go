@@ -43,11 +43,16 @@ func GenerateTestObserverKeys(c *cli.Context) error {
 		return fmt.Errorf("invalid chain %d", chain)
 	}
 
-	f, err := os.Create(c.String("list"))
+	pubF, err := os.Create(c.String("list") + ".pub")
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer pubF.Close()
+	privF, err := os.Create(c.String("list") + ".priv")
+	if err != nil {
+		return err
+	}
+	defer privF.Close()
 
 	for i := 0; i < 1024; i++ {
 		seed := make([]byte, 64)
@@ -55,14 +60,18 @@ func GenerateTestObserverKeys(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		_, publicKey := btcec.PrivKeyFromBytes(seed[:32])
+		priv, publicKey := btcec.PrivKeyFromBytes(seed[:32])
 		pub := hex.EncodeToString(publicKey.SerializeCompressed())
 		code := hex.EncodeToString(seed[32:])
 		err = bitcoin.CheckDerivation(pub, seed[32:], 1000)
 		if err != nil {
 			panic(err)
 		}
-		_, err = f.WriteString(pub + ":" + code + "\n")
+		_, err = pubF.WriteString(pub + ":" + code + "\n")
+		if err != nil {
+			return err
+		}
+		_, err = privF.WriteString(pub + ":" + code + ":" + hex.EncodeToString(priv.Serialize()) + "\n")
 		if err != nil {
 			return err
 		}
