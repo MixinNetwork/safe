@@ -564,10 +564,14 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw str
 		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state=?",
 			state, raw, time.Now().UTC(), address, common.RequestStateInitial)
 	case common.RequestStateDone:
+		existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=?", address)
+		if err != nil || !existed {
+			return err
+		}
 		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
 			state, time.Now().UTC(), address, common.RequestStatePending)
 	default:
-		return fmt.Errorf("Invalid recovery: %d", state)
+		panic(state)
 	}
 	if err != nil {
 		return fmt.Errorf("UPDATE recoveries %v", err)
