@@ -13,7 +13,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 )
 
@@ -86,7 +85,7 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, references []crypto.Hash) error {
 	for {
 		err := node.sendTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, references)
-		if mixin.IsErrorCodes(err, 30103) {
+		if err != nil && strings.Contains(err.Error(), "Insufficient") {
 			time.Sleep(7 * time.Second)
 			continue
 		}
