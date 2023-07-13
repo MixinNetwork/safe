@@ -24,7 +24,7 @@ require (
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.3.1
-	github.com/test-go/testify v1.1.4
+	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.7
 )
 
@@ -32,7 +32,6 @@ require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/MixinNetwork/mobilecoin-account v0.0.4 // indirect
 	github.com/MixinNetwork/msgpack/v4 v4.4.0 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
@@ -71,7 +70,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect

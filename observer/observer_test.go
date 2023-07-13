@@ -10,7 +10,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/pelletier/go-toml"
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestObserver(t *testing.T) {

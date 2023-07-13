@@ -33,7 +33,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 const (

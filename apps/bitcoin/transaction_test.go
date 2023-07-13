@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransaction(t *testing.T) {
