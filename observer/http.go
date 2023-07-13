@@ -731,6 +731,8 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 			"transaction_hash": out.TransactionHash,
 			"output_index":     out.Index,
 			"satoshi":          out.Satoshi,
+			"script":           hex.EncodeToString(out.Script),
+			"sequence":         out.Sequence,
 		})
 	}
 	return view
