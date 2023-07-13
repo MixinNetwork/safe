@@ -135,13 +135,7 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 		return nil, err
 	}
 
-	isRecoveryTx := true
-	for idx := range psbt.UnsignedTx.TxIn {
-		if psbt.UnsignedTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			isRecoveryTx = false
-		}
-	}
-	msgTx, err := psbt.SignedTransaction(tx.Holder, tx.Signer, safe.Observer, isRecoveryTx)
+	msgTx, err := psbt.SignedTransaction(tx.Holder, tx.Signer, safe.Observer)
 	if err != nil {
 		return nil, err
 	}

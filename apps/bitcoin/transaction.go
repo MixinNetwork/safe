@@ -80,7 +80,7 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
-func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observer string, isObserverSigner bool) (*wire.MsgTx, error) {
+func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observer string) (*wire.MsgTx, error) {
 	msgTx := psbt.UnsignedTx.Copy()
 	for idx := range msgTx.TxIn {
 		pin := psbt.Inputs[idx]
@@ -92,6 +92,11 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observ
 				return nil, err
 			}
 			sigs[pub] = sig
+		}
+
+		isObserverSigner := true
+		if psbt.UnsignedTx.TxIn[idx].Sequence == MaxTransactionSequence {
+			isObserverSigner = false
 		}
 
 		if isObserverSigner {
