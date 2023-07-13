@@ -220,7 +220,8 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 }
 
 func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	rs, err := node.store.ListInitialRecoveries(r.Context())
+	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
+	rs, err := node.store.ListInitialRecoveries(r.Context(), offset)
 	if err != nil {
 		renderError(w, r, err)
 		return

@@ -592,9 +592,9 @@ func (s *SQLite3Store) ReadRecovery(ctx context.Context, address string) (*Recov
 	return &r, err
 }
 
-func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context) ([]*Recovery, error) {
-	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE state=? ORDER BY created_at ASC", strings.Join(recoveryCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, common.RequestStateInitial)
+func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context, offset int64) ([]*Recovery, error) {
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE state=? AND created_at>=? ORDER BY created_at ASC LIMIT 100", strings.Join(recoveryCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, common.RequestStateInitial, time.Unix(0, offset))
 	if err != nil {
 		return nil, err
 	}
