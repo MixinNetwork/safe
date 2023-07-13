@@ -59,6 +59,11 @@ func safeFromRow(row *sql.Row) (*Safe, error) {
 	var s Safe
 	var receivers string
 	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.State, &s.CreatedAt, &s.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
 	s.Receivers = strings.Split(receivers, ";")
 	return &s, err
 }
@@ -148,19 +153,11 @@ func (s *SQLite3Store) ReadSafe(ctx context.Context, holder string) (*Safe, erro
 func (s *SQLite3Store) ReadSafeByAddress(ctx context.Context, addr string) (*Safe, error) {
 	query := fmt.Sprintf("SELECT %s FROM safes WHERE address=?", strings.Join(safeCols, ","))
 	row := s.db.QueryRowContext(ctx, query, addr)
-	safe, err := safeFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return safe, err
+	return safeFromRow(row)
 }
 
 func (s *SQLite3Store) readSafe(ctx context.Context, tx *sql.Tx, holder string) (*Safe, error) {
 	query := fmt.Sprintf("SELECT %s FROM safes WHERE holder=?", strings.Join(safeCols, ","))
 	row := tx.QueryRowContext(ctx, query, holder)
-	safe, err := safeFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return safe, err
+	return safeFromRow(row)
 }

@@ -130,7 +130,12 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 
-	msgTx, err := psbt.SignedTransaction(tx.Holder, tx.Signer)
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return nil, err
+	}
+
+	msgTx, err := psbt.SignedTransaction(tx.Holder, tx.Signer, safe.Observer)
 	if err != nil {
 		return nil, err
 	}

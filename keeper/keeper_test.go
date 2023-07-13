@@ -49,6 +49,10 @@ const (
 	testTransactionReceiver          = "bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc"
 	testBitcoinDepositMainHash       = "8260f125afdb1a85b540f0066cd9db18d488a3891b5fa5595c73f40435502d09"
 	testTimelockDuration             = bitcoin.TimeLockMinimum
+
+	testHolderSigner   = 0
+	testSignerObserver = 1
+	testHolderObserver = 2
 )
 
 func TestKeeper(t *testing.T) {
@@ -76,7 +80,7 @@ func TestKeeper(t *testing.T) {
 	signedRaw := testSafeApproveTransaction(ctx, require, node, transactionHash, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
-	testAccountantSpentTransaction(ctx, require, signedRaw, false)
+	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderSigner)
 }
 
 func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
@@ -100,11 +104,11 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Nil(err)
 	require.Len(utxos, 1)
 
-	transactionHash := testSafeProposeRecoveryTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "8daa1f708f90e157c532780444c566d4efdbca710ae270ee051dd977328fa1b5", "70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff02a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
+	transactionHash := testSafeProposeRecoveryTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "cbddccdd13631eb68a1d65ace28abd547f62a0937d093d7ba4d0e97f6d86955e", "70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c8500000000000600000002a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, false, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
-	testAccountantSpentTransaction(ctx, require, signedRaw, true)
+	testAccountantSpentTransaction(ctx, require, signedRaw, testSignerObserver)
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
@@ -139,7 +143,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, holderSignedRaw, true, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
-	testAccountantSpentTransaction(ctx, require, signedRaw, true)
+	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderObserver)
 
 	safe, _ = node.store.ReadSafe(ctx, public)
 	require.Equal(common.RequestStateFailed, int(safe.State))
@@ -279,7 +283,7 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 	require.Equal(common.RequestStateFailed, tx.State)
 }
 
-func testAccountantSpentTransaction(ctx context.Context, require *require.Assertions, raw string, closeAccount bool) {
+func testAccountantSpentTransaction(ctx context.Context, require *require.Assertions, raw string, testType int) {
 	feeInputs := []*bitcoin.Input{{
 		TransactionHash: "9b76c7a3f60063c59d11d9fdf11467fdf56d496c1dfa559c78d06da756d6e204",
 		Index:           0,
@@ -289,10 +293,14 @@ func testAccountantSpentTransaction(ctx context.Context, require *require.Assert
 	require.Nil(err)
 	rb, err := bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 	require.Nil(err)
-	if closeAccount {
-		require.Equal("37e0aa70d40648eb4bf45c6a37d94abef733784a4ff944011f68424d19a1fa88", tx.TxHash().String())
-	} else {
+
+	switch testType {
+	case testHolderSigner:
 		require.Equal("fcc2dc6e90d454ec76cc48925096281735ed85ccd93a73b87cd303be9f28478e", tx.TxHash().String())
+	case testSignerObserver:
+		require.Equal("09f837325c7285c2e118942536677926221a2eb882457b0f6aecc52b197aa201", tx.TxHash().String())
+	case testHolderObserver:
+		require.Equal("37e0aa70d40648eb4bf45c6a37d94abef733784a4ff944011f68424d19a1fa88", tx.TxHash().String())
 	}
 	logger.Printf("%x", rb)
 }
@@ -403,7 +411,8 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
-	extra := uuid.Must(uuid.FromString(info.RequestId)).Bytes()
+	extra := []byte{0}
+	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.000123))
 	testStep(ctx, require, node, out)
@@ -439,7 +448,8 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
-	extra := uuid.Must(uuid.FromString(info.RequestId)).Bytes()
+	extra := []byte{1}
+	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.001))
 	testStep(ctx, require, node, out)

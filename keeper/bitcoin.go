@@ -146,6 +146,9 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if bo.Height+sequence+100 > info.Height {
 			return node.store.FailRequest(ctx, req.Id)
 		}
+		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 		total = total + bo.Satoshi
 
 		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, txHash, idx, req)
@@ -207,6 +210,12 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if ps := msgTx.TxOut[1].PkScript; len(ps) != 18 || uuid.FromBytesOrNil(ps[2:]).String() != req.Id {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	for idx := range msgTx.TxIn {
+		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
+			continue
+		}
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -487,9 +496,21 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) < 32 {
+	if len(extra) < 33 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+
+	var recover bool
+	switch int(extra[0]) {
+	case common.FlagProposeNormalTransaction:
+		recover = false
+	case common.FlagProposeRecoverTransaction:
+		recover = true
+	default:
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	extra = extra[1:]
+
 	iid, err := uuid.FromBytes(extra[:16])
 	if err != nil || iid.String() == uuid.Nil.String() {
 		return node.store.FailRequest(ctx, req.Id)
@@ -546,6 +567,11 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
+	}
+	if recover {
+		for _, input := range mainInputs {
+			input.RouteBackup = true
+		}
 	}
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, outputs, req.Operation().IdBytes(), safe.Chain)
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)

@@ -191,6 +191,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
+	isRecoveryTx := true
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
@@ -204,10 +205,24 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 		if bo.Height+sequence+100 > info.Height {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
+		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
+			isRecoveryTx = false
+		}
 		balance = balance + bo.Satoshi
 	}
 	if msgTx.TxOut[0].Value != balance {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	switch {
+	case hash != "" && raw == "": // Close account with safeBTC
+		if !isRecoveryTx {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+	case hash == "" && raw != "": // Close account with holder key
+		if isRecoveryTx {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+	default:
 	}
 
 	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
@@ -280,6 +295,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
+	isRecoveryTx := true
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
@@ -292,6 +308,9 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		}
 		if bo.Height+sequence+100 > info.Height {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
+			isRecoveryTx = false
 		}
 		balance = balance + bo.Satoshi
 	}
@@ -323,6 +342,9 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		if count != 1 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
+		if !isRecoveryTx {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
 
 		approval, err := node.store.ReadTransactionApproval(ctx, hash)
 		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
@@ -347,6 +369,9 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	case hash == "": // Close account with holder key
 		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		if isRecoveryTx {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 
