@@ -23,7 +23,7 @@ import (
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/pelletier/go-toml"
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrepare(require *require.Assertions) (context.Context, []*Node) {

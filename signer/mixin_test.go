@@ -8,7 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 const (

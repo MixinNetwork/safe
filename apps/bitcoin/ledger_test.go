@@ -10,7 +10,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLedgerBitcoin(t *testing.T) {

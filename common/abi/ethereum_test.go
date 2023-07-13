@@ -3,7 +3,7 @@ package abi
 import (
 	"testing"
 
-	"github.com/test-go/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAssetAddress(t *testing.T) {
