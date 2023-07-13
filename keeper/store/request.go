@@ -17,7 +17,9 @@ func requestFromRow(row *sql.Row) (*common.Request, error) {
 	var mh string
 	var r common.Request
 	err := row.Scan(&r.Id, &mh, &r.MixinIndex, &r.AssetId, &r.Amount, &r.Role, &r.Action, &r.Curve, &r.Holder, &r.Extra, &r.State, &r.CreatedAt, &time.Time{})
-	if err != nil {
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 	r.MixinHash, err = crypto.HashFromString(mh)
@@ -54,11 +56,7 @@ func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*common.Requ
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE request_id=?", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
 
-	r, err := requestFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return r, err
+	return requestFromRow(row)
 }
 
 func (s *SQLite3Store) FailRequest(ctx context.Context, id string) error {
@@ -83,20 +81,12 @@ func (s *SQLite3Store) ReadPendingRequest(ctx context.Context) (*common.Request,
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)
 
-	r, err := requestFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return r, err
+	return requestFromRow(row)
 }
 
 func (s *SQLite3Store) ReadLatestRequest(ctx context.Context) (*common.Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at DESC LIMIT 1", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
-	r, err := requestFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return r, err
+	return requestFromRow(row)
 }

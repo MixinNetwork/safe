@@ -67,6 +67,11 @@ func safeProposalFromRow(row *sql.Row) (*SafeProposal, error) {
 	var s SafeProposal
 	var receivers string
 	err := row.Scan(&s.RequestId, &s.Chain, &s.Holder, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.CreatedAt, &s.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
 	s.Receivers = strings.Split(receivers, ";")
 	return &s, err
 }
@@ -74,21 +79,13 @@ func safeProposalFromRow(row *sql.Row) (*SafeProposal, error) {
 func (s *SQLite3Store) ReadSafeProposal(ctx context.Context, requestId string) (*SafeProposal, error) {
 	query := fmt.Sprintf("SELECT %s FROM safe_proposals WHERE request_id=?", strings.Join(safeProposalCols, ","))
 	row := s.db.QueryRowContext(ctx, query, requestId)
-	sp, err := safeProposalFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return sp, err
+	return safeProposalFromRow(row)
 }
 
 func (s *SQLite3Store) ReadSafeProposalByAddress(ctx context.Context, addr string) (*SafeProposal, error) {
 	query := fmt.Sprintf("SELECT %s FROM safe_proposals WHERE address=?", strings.Join(safeProposalCols, ","))
 	row := s.db.QueryRowContext(ctx, query, addr)
-	sp, err := safeProposalFromRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return sp, err
+	return safeProposalFromRow(row)
 }
 
 func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *SafeProposal) error {
