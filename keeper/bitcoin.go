@@ -127,7 +127,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 
 	var total int64
 	var requests []*store.SignatureRequest
-	isRecoveryTx := true
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
@@ -148,7 +147,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			isRecoveryTx = false
+			return node.store.FailRequest(ctx, req.Id)
 		}
 		total = total + bo.Satoshi
 
@@ -174,9 +173,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		requests = append(requests, sr)
 	}
 	if total != msgTx.TxOut[0].Value {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	if !isRecoveryTx {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, requests, txHash, req)
@@ -216,13 +212,10 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	if ps := msgTx.TxOut[1].PkScript; len(ps) != 18 || uuid.FromBytesOrNil(ps[2:]).String() != req.Id {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	isRecoveryTx := true
 	for idx := range msgTx.TxIn {
 		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			isRecoveryTx = false
+			continue
 		}
-	}
-	if isRecoveryTx {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
