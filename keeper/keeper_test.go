@@ -50,9 +50,9 @@ const (
 	testBitcoinDepositMainHash       = "8260f125afdb1a85b540f0066cd9db18d488a3891b5fa5595c73f40435502d09"
 	testTimelockDuration             = bitcoin.TimeLockMinimum
 
-	testHolderSigner    = 0
-	tesstSignerObserver = 1
-	testHolderObserver  = 2
+	testHolderSigner   = 0
+	testSignerObserver = 1
+	testHolderObserver = 2
 )
 
 func TestKeeper(t *testing.T) {
@@ -108,7 +108,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, false, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
-	testAccountantSpentTransaction(ctx, require, signedRaw, tesstSignerObserver)
+	testAccountantSpentTransaction(ctx, require, signedRaw, testSignerObserver)
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
@@ -297,7 +297,7 @@ func testAccountantSpentTransaction(ctx context.Context, require *require.Assert
 	switch testType {
 	case testHolderSigner:
 		require.Equal("fcc2dc6e90d454ec76cc48925096281735ed85ccd93a73b87cd303be9f28478e", tx.TxHash().String())
-	case tesstSignerObserver:
+	case testSignerObserver:
 		require.Equal("09f837325c7285c2e118942536677926221a2eb882457b0f6aecc52b197aa201", tx.TxHash().String())
 	case testHolderObserver:
 		require.Equal("37e0aa70d40648eb4bf45c6a37d94abef733784a4ff944011f68424d19a1fa88", tx.TxHash().String())
