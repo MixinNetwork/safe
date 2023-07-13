@@ -98,7 +98,7 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observ
 			if sigs[observer] == nil {
 				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) observer", holder, signer, observer)
 			}
-			sig := append(sigs[signer], byte(pin.SighashType))
+			sig := append(sigs[observer], byte(pin.SighashType))
 			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 
 			if sigs[signer] == nil {
