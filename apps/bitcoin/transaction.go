@@ -80,7 +80,7 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 	return hash
 }
 
-func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer string) (*wire.MsgTx, error) {
+func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observer string, isObserverSigner bool) (*wire.MsgTx, error) {
 	msgTx := psbt.UnsignedTx.Copy()
 	for idx := range msgTx.TxIn {
 		pin := psbt.Inputs[idx]
@@ -94,19 +94,35 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer string)
 			sigs[pub] = sig
 		}
 
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+		if isObserverSigner {
+			if sigs[observer] == nil {
+				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) observer", holder, signer, observer)
+			}
+			sig := append(sigs[signer], byte(pin.SighashType))
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 
-		if sigs[signer] == nil {
-			return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s) signer", holder, signer)
-		}
-		sig := append(sigs[signer], byte(pin.SighashType))
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+			if sigs[signer] == nil {
+				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) signer", holder, signer, observer)
+			}
+			sig = append(sigs[signer], byte(pin.SighashType))
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 
-		if sigs[holder] == nil {
-			return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s) holder", holder, signer)
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+		} else {
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+
+			if sigs[signer] == nil {
+				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) signer", holder, signer, observer)
+			}
+			sig := append(sigs[signer], byte(pin.SighashType))
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+
+			if sigs[holder] == nil {
+				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) holder", holder, signer, observer)
+			}
+			sig = append(sigs[holder], byte(pin.SighashType))
+			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 		}
-		sig = append(sigs[holder], byte(pin.SighashType))
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
 
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, pin.WitnessScript)
 	}
