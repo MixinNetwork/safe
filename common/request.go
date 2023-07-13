@@ -50,6 +50,9 @@ const (
 	// For all Ethereum like chains
 	ActionEthereumSafeProposeAccount = 130
 	ActionEthereumSafeApproveAccount = 131
+
+	FlagProposeNormalTransaction  = 0
+	FlagProposeRecoverTransaction = 1
 )
 
 type Request struct {
