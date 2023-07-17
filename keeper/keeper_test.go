@@ -589,9 +589,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		}
 
 		signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
-		signedRaw := hex.EncodeToString(signedBuffer)
-		logger.Println(signedRaw)
-		return signedRaw
+		return hex.EncodeToString(signedBuffer)
 	}
 
 	psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(holderSignedRaw))
@@ -625,9 +623,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	msgTx = psbt.UnsignedTx
 	signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
-	signedRaw := hex.EncodeToString(signedBuffer)
-
-	return signedRaw
+	return hex.EncodeToString(signedBuffer)
 }
 
 func testObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer string, input *bitcoin.Input, t int) {
