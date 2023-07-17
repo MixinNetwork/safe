@@ -93,7 +93,8 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
-		Index:           0, Satoshi: 100000,
+		Index:           0,
+		Satoshi:         100000,
 	}
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
 
@@ -105,7 +106,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Len(utxos, 1)
 
 	transactionHash := testSafeProposeRecoveryTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "cbddccdd13631eb68a1d65ace28abd547f62a0937d093d7ba4d0e97f6d86955e", "70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c8500000000000600000002a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
-	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, false, signers)
+	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, "", signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
 	testAccountantSpentTransaction(ctx, require, signedRaw, testSignerObserver)
@@ -128,7 +129,8 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
-		Index:           0, Satoshi: 100000,
+		Index:           0,
+		Satoshi:         100000,
 	}
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
 
@@ -140,7 +142,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Len(utxos, 1)
 
 	holderSignedRaw := testHolderApproveTransaction("70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff02a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
-	signedRaw := testSafeCloseAccount(ctx, require, node, public, holderSignedRaw, true, signers)
+	signedRaw := testSafeCloseAccount(ctx, require, node, public, "", holderSignedRaw, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
 	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderObserver)
@@ -494,7 +496,7 @@ func testHolderApproveTransaction(rawTransaction string) string {
 	return hex.EncodeToString(raw)
 }
 
-func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHashOrRaw string, hasKey bool, signers []*signer.Node) string {
+func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHash, holderSignedRaw string, signers []*signer.Node) string {
 	for i := 0; i < 10; i++ {
 		testUpdateNetworkStatus(ctx, require, node, 797082, "00000000000000000004f8a108a06a9f61389c7340d8a3fa431a534ff339402a")
 	}
@@ -503,9 +505,8 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	ob := common.DecodeHexOrPanic(testBitcoinKeyObserverPrivate)
 	observer, _ := btcec.PrivKeyFromBytes(ob)
 
-	if !hasKey {
+	if transactionHash != "" {
 		id := uuid.Must(uuid.NewV4()).String()
-		transactionHash := transactionHashOrRaw
 		tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 		require.Equal(common.RequestStateInitial, tx.State)
 
@@ -588,13 +589,10 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		}
 
 		signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
-		signedRaw := hex.EncodeToString(signedBuffer)
-		logger.Println(signedRaw)
-		return signedRaw
+		return hex.EncodeToString(signedBuffer)
 	}
 
-	RawTransaction := transactionHashOrRaw
-	psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(RawTransaction))
+	psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(holderSignedRaw))
 	for idx := range psTx.UnsignedTx.TxIn {
 		hash := psTx.SigHash(idx)
 		sig := ecdsa.Sign(observer, hash).Serialize()
@@ -606,7 +604,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		psTx.Inputs[idx].PartialSigs = append(psTx.Inputs[idx].PartialSigs, osig)
 	}
 	msgTx := psTx.UnsignedTx
-	transactionHash := msgTx.TxHash().String()
+	transactionHash = msgTx.TxHash().String()
 	raw := psTx.Marshal()
 
 	ref := crypto.NewHash(raw)
@@ -625,9 +623,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	msgTx = psbt.UnsignedTx
 	signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
-	signedRaw := hex.EncodeToString(signedBuffer)
-
-	return signedRaw
+	return hex.EncodeToString(signedBuffer)
 }
 
 func testObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer string, input *bitcoin.Input, t int) {
