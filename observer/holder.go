@@ -131,15 +131,29 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
+	if hash == "" || raw == "" {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
 	if err != nil {
 		return err
 	}
 
-	var rawTransaction string
+	rb := common.DecodeHexOrPanic(raw)
+	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	if err != nil {
+		return err
+	}
+	msgTx := psTx.UnsignedTx
+	txHash := psTx.Hash()
+	if txHash != hash {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	isRecoveryTx := psTx.IsRecoveryTransaction()
+
 	switch {
-	case hash != "" && raw == "": // Close account with safeBTC
+	case isRecoveryTx: // Close account with safeBTC
 		if count != 1 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
@@ -152,6 +166,12 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 		if approval.State != common.RequestStateInitial {
 			return nil
 		}
+		if approval.TransactionHash != hash {
+			return nil
+		}
+		if approval.RawTransaction != raw {
+			return nil
+		}
 		if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 			return nil
 		}
@@ -161,23 +181,15 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 		if err != nil || tx == nil {
 			return err
 		}
-		rawTransaction = tx.RawTransaction
-	case hash == "" && raw != "": // Close account with holder key
+	case !isRecoveryTx: // Close account with holder key
 		if count != 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 
-		rawTransaction = raw
-	default:
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+			return nil
+		}
 	}
-
-	rb := common.DecodeHexOrPanic(rawTransaction)
-	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
-	if err != nil {
-		return err
-	}
-	msgTx := psTx.UnsignedTx
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
@@ -191,7 +203,6 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
-	isRecoveryTx := true
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
@@ -205,26 +216,11 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 		if bo.Height+sequence+100 > info.Height {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			isRecoveryTx = false
-		}
 		balance = balance + bo.Satoshi
 	}
 	if msgTx.TxOut[0].Value != balance {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-	switch {
-	case hash != "" && raw == "": // Close account with safeBTC
-		if !isRecoveryTx {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-	case hash == "" && raw != "": // Close account with holder key
-		if isRecoveryTx {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-	default:
-	}
-
 	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
@@ -237,12 +233,29 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	if !isRecoveryTx {
+		approval := &Transaction{
+			TransactionHash: hash,
+			RawTransaction:  raw,
+			Chain:           safe.Chain,
+			Holder:          safe.Holder,
+			Signer:          safe.Signer,
+			State:           common.RequestStateInitial,
+			CreatedAt:       time.Now().UTC(),
+			UpdatedAt:       time.Now().UTC(),
+		}
+		err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
+		if err != nil {
+			return err
+		}
+	}
+
 	r := &Recovery{
 		Address:         safe.Address,
 		Chain:           safe.Chain,
 		Holder:          safe.Holder,
 		Observer:        safe.Observer,
-		RawTransaction:  rawTransaction,
+		RawTransaction:  raw,
 		TransactionHash: hash,
 		State:           common.RequestStateInitial,
 		CreatedAt:       time.Now().UTC(),
@@ -283,13 +296,34 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+		return nil
+	}
+
 	rb := common.DecodeHexOrPanic(raw)
 	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
-	signedRaw := psTx.Marshal()
 	msgTx := psTx.UnsignedTx
+	signedRaw := psTx.Marshal()
+	txHash := psTx.Hash()
+	if txHash != hash {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	isRecoveryTx := psTx.IsRecoveryTransaction()
+
+	approval, err := node.store.ReadTransactionApproval(ctx, hash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.TransactionHash != hash {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
@@ -303,7 +337,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
-	isRecoveryTx := true
 	for idx := range msgTx.TxIn {
 		pop := msgTx.TxIn[idx].PreviousOutPoint
 		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
@@ -316,9 +349,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		}
 		if bo.Height+sequence+100 > info.Height {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			isRecoveryTx = false
 		}
 		balance = balance + bo.Satoshi
 	}
@@ -346,26 +376,11 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	var extra []byte
 	id := mixin.UniqueConversationID(safe.Address, receiver)
 	switch {
-	case hash != "": // Close account with safeBTC
+	case isRecoveryTx: // Close account with safeBTC
 		if count != 1 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		if !isRecoveryTx {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-
-		approval, err := node.store.ReadTransactionApproval(ctx, hash)
-		logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
-		if err != nil || approval == nil {
-			return err
-		}
-		if approval.State != common.RequestStateInitial {
-			return nil
-		}
 		if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-			return nil
-		}
-		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
 			return nil
 		}
 
@@ -375,18 +390,11 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 			return err
 		}
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
-	case hash == "": // Close account with holder key
+	case !isRecoveryTx: // Close account with holder key
 		if count != 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		if isRecoveryTx {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
-			return nil
-		}
-		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
 			return nil
 		}
 
@@ -423,12 +431,10 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return err
 	}
 
-	if hash != "" {
-		err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
-		logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
-		if err != nil {
-			return err
-		}
+	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
+	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	if err != nil {
+		return err
 	}
 
 	err = node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
