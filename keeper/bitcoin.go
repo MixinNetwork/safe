@@ -500,12 +500,16 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	var recover bool
-	switch int(extra[0]) {
+	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
+	if err != nil {
+		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
+	}
+	switch extra[0] {
 	case common.FlagProposeNormalTransaction:
-		recover = false
-	case common.FlagProposeRecoverTransaction:
-		recover = true
+	case common.FlagProposeRecoveryTransaction:
+		for _, input := range mainInputs {
+			input.RouteBackup = true
+		}
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -564,15 +568,6 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		}}
 	}
 
-	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err)
-	}
-	if recover {
-		for _, input := range mainInputs {
-			input.RouteBackup = true
-		}
-	}
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, outputs, req.Operation().IdBytes(), safe.Chain)
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
 	if bitcoin.IsInsufficientInputError(err) {

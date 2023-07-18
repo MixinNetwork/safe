@@ -51,8 +51,8 @@ const (
 	ActionEthereumSafeProposeAccount = 130
 	ActionEthereumSafeApproveAccount = 131
 
-	FlagProposeNormalTransaction  = 0
-	FlagProposeRecoverTransaction = 1
+	FlagProposeNormalTransaction   = 0
+	FlagProposeRecoveryTransaction = 1
 )
 
 type Request struct {
