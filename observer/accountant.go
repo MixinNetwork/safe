@@ -62,8 +62,15 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 		}
 		hpin := hpsbt.Inputs[idx]
 		hsig := hpin.PartialSigs[0]
-		if hex.EncodeToString(hsig.PubKey) != tx.Holder {
-			panic(spsbt.Hash())
+		switch in.Sequence {
+		case bitcoin.MaxTransactionSequence:
+			if hex.EncodeToString(hsig.PubKey) != tx.Holder {
+				panic(spsbt.Hash())
+			}
+		default:
+			if hex.EncodeToString(hsig.PubKey) != safe.Observer {
+				panic(spsbt.Hash())
+			}
 		}
 
 		spin := spsbt.Inputs[idx]
