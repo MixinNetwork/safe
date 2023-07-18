@@ -444,7 +444,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
-	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
+	safe, err := node.keeperStore.ReadSafeProposalByAddress(r.Context(), params["id"])
 	if err != nil {
 		renderError(w, r, err)
 		return
