@@ -275,6 +275,14 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	r, err := node.store.ReadRecovery(ctx, safe.Address)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
 	rb := common.DecodeHexOrPanic(raw)
 	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
@@ -386,14 +394,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
 	}
 
-	r, err := node.store.ReadRecovery(ctx, safe.Address)
-	if err != nil {
-		return err
-	}
-	if r == nil {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
-
 	rawId := mixin.UniqueConversationID(raw, raw)
 	objectRaw := signedRaw
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
@@ -421,6 +421,14 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	err = node.sendBitcoinKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	if err != nil {
 		return err
+	}
+
+	if hash != "" {
+		err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
+		logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
