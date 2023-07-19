@@ -56,6 +56,9 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	opsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
+	if !opsbt.IsRecoveryTransaction() {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 	msgTx := opsbt.UnsignedTx
 	txHash := msgTx.TxHash().String()
 
@@ -146,9 +149,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if bo.Height+sequence+100 > info.Height {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			return node.store.FailRequest(ctx, req.Id)
-		}
 		total = total + bo.Satoshi
 
 		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, txHash, idx, req)
@@ -210,12 +210,6 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if ps := msgTx.TxOut[1].PkScript; len(ps) != 18 || uuid.FromBytesOrNil(ps[2:]).String() != req.Id {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	for idx := range msgTx.TxIn {
-		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			continue
-		}
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
