@@ -116,14 +116,21 @@ func (r *Recovery) getState() string {
 }
 
 func (t *Transaction) Signers(observer string) []string {
+	pubs := []string{t.Holder, t.Signer, observer}
+
 	var signers []string
-	switch {
-	case bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, t.Holder):
-		signers = append(signers, "holder")
-	case bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, t.Signer):
-		signers = append(signers, "signer")
-	case bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, observer):
-		signers = append(signers, "observer")
+	for idx, pub := range pubs {
+		isSigned := bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
+		if isSigned {
+			switch idx {
+			case 0:
+				signers = append(signers, "holder")
+			case 1:
+				signers = append(signers, "signer")
+			case 2:
+				signers = append(signers, "observer")
+			}
+		}
 	}
 
 	return signers
