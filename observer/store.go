@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -114,18 +115,18 @@ func (r *Recovery) getState() string {
 	panic(r.State)
 }
 
-func (t *Transaction) Signers() []string {
-	switch t.State {
-	case common.RequestStateInitial:
-		return []string{}
-	case common.RequestStatePending:
-		return []string{"holder"}
-	case common.RequestStateDone:
-		return []string{"holder", "signer"}
-	case common.RequestStateFailed:
-		return []string{}
+func (t *Transaction) Signers(observer string) []string {
+	var signers []string
+	switch {
+	case bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, t.Holder):
+		signers = append(signers, "holder")
+	case bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, t.Signer):
+		signers = append(signers, "signer")
+	case bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, observer):
+		signers = append(signers, "observer")
 	}
-	panic(t.State)
+
+	return signers
 }
 
 func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, address string, createdAt time.Time) error {

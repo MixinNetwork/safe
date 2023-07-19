@@ -525,12 +525,22 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
+	safe, err := node.keeperStore.ReadSafe(r.Context(), tx.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+
 	data := map[string]any{
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
-		"signers": approval.Signers(),
+		"signers": approval.Signers(safe.Observer),
 		"state":   common.StateName(tx.State),
 	}
 	if approval.SpentRaw.Valid {
@@ -582,6 +592,15 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "state"})
 		return
 	}
+	safe, err := node.keeperStore.ReadSafe(r.Context(), tx.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
 
 	switch body.Action {
 	case "approve":
@@ -604,7 +623,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
-		"signers": approval.Signers(),
+		"signers": approval.Signers(safe.Observer),
 		"state":   common.StateName(tx.State),
 	}
 	if approval.SpentRaw.Valid {
