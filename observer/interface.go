@@ -14,8 +14,6 @@ type Configuration struct {
 	MixinRPC           string `toml:"mixin-rpc"`
 	BitcoinRPC         string `toml:"bitcoin-rpc"`
 	LitecoinRPC        string `toml:"litecoin-rpc"`
-	EthereumRPC        string `toml:"ethereum-rpc"`
-	EthereumKey        string `toml:"ethereum-key"`
 	MVMRPC             string `toml:"mvm-rpc"`
 	MVMKey             string `toml:"mvm-key"`
 	App                struct {
