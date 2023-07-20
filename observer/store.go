@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper/store"
 )
 
 type Asset struct {
@@ -114,18 +116,33 @@ func (r *Recovery) getState() string {
 	panic(r.State)
 }
 
-func (t *Transaction) Signers() []string {
-	switch t.State {
-	case common.RequestStateInitial:
-		return []string{}
-	case common.RequestStatePending:
-		return []string{"holder"}
-	case common.RequestStateDone:
-		return []string{"holder", "signer"}
-	case common.RequestStateFailed:
-		return []string{}
+func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe) []string {
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		panic(err)
 	}
-	panic(t.State)
+	spk, err := node.deriveBIP32WithKeeperPath(ctx, t.Signer, safe.Path)
+	if err != nil {
+		panic(err)
+	}
+	pubs := []string{t.Holder, spk, opk}
+
+	var signers []string
+	for idx, pub := range pubs {
+		isSigned := bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
+		if isSigned {
+			switch idx {
+			case 0:
+				signers = append(signers, "holder")
+			case 1:
+				signers = append(signers, "signer")
+			case 2:
+				signers = append(signers, "observer")
+			}
+		}
+	}
+
+	return signers
 }
 
 func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, address string, createdAt time.Time) error {

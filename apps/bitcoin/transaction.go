@@ -87,7 +87,7 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 
 func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observer string) (*wire.MsgTx, error) {
 	msgTx := psbt.UnsignedTx.Copy()
-	isObserverSigner := psbt.IsRecoveryTransaction()
+	isRecoveryTransaction := psbt.IsRecoveryTransaction()
 	for idx := range msgTx.TxIn {
 		pin := psbt.Inputs[idx]
 		sigs := make(map[string][]byte, 2)
@@ -100,32 +100,38 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observ
 			sigs[pub] = sig
 		}
 
-		if isObserverSigner {
-			if sigs[observer] == nil {
+		holderSig := sigs[holder]
+		signerSig := sigs[signer]
+		observerSig := sigs[observer]
+		switch {
+		case isRecoveryTransaction:
+			if observerSig == nil {
 				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) observer", holder, signer, observer)
 			}
-			sig := append(sigs[observer], byte(pin.SighashType))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-		} else {
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-		}
-
-		if sigs[signer] == nil {
-			return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) signer", holder, signer, observer)
-		}
-		sig := append(sigs[signer], byte(pin.SighashType))
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-
-		if isObserverSigner {
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-		} else {
-			if sigs[holder] == nil {
+			if holderSig == nil && signerSig == nil {
+				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) holder&signer", holder, signer, observer)
+			}
+		case !isRecoveryTransaction:
+			if holderSig == nil {
 				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) holder", holder, signer, observer)
 			}
-			sig := append(sigs[holder], byte(pin.SighashType))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+			if signerSig == nil {
+				return nil, fmt.Errorf("psbt.SignedTransaction(%s, %s, %s) signer", holder, signer, observer)
+			}
 		}
 
+		if observerSig != nil {
+			observerSig = append(observerSig, byte(pin.SighashType))
+		}
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, observerSig)
+		if signerSig != nil {
+			signerSig = append(signerSig, byte(pin.SighashType))
+		}
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, signerSig)
+		if holderSig != nil {
+			holderSig = append(holderSig, byte(pin.SighashType))
+		}
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, holderSig)
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, pin.WitnessScript)
 	}
 	return msgTx, nil

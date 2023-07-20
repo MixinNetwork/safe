@@ -453,6 +453,14 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
+	if body.Hash == "" {
+		renderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "hash"})
+		return
+	}
+	if body.Raw == "" {
+		renderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
+		return
+	}
 
 	err = node.httpSignBitcoinAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
 	if err != nil {
@@ -525,12 +533,22 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
+	safe, err := node.keeperStore.ReadSafe(r.Context(), tx.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+
 	data := map[string]any{
 		"chain":   tx.Chain,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
-		"signers": approval.Signers(),
+		"signers": approval.Signers(r.Context(), node, safe),
 		"state":   common.StateName(tx.State),
 	}
 	if approval.SpentRaw.Valid {
@@ -582,6 +600,15 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		renderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "state"})
 		return
 	}
+	safe, err := node.keeperStore.ReadSafe(r.Context(), tx.Holder)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
 
 	switch body.Action {
 	case "approve":
@@ -604,7 +631,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"id":      tx.RequestId,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
-		"signers": approval.Signers(),
+		"signers": approval.Signers(r.Context(), node, safe),
 		"state":   common.StateName(tx.State),
 	}
 	if approval.SpentRaw.Valid {

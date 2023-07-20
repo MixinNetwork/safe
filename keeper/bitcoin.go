@@ -50,12 +50,20 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	var ref crypto.Hash
 	copy(ref[:], extra[16:])
 	raw := node.readStorageExtraFromObserver(ctx, ref)
-	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), safe.Observer)
-	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, safe.Observer, signedByObserver)
+
+	opk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), opk)
+	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, opk, signedByObserver)
 	if !signedByObserver {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	opsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
+	if !opsbt.IsRecoveryTransaction() {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 	msgTx := opsbt.UnsignedTx
 	txHash := msgTx.TxHash().String()
 
@@ -146,9 +154,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if bo.Height+sequence+100 > info.Height {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			return node.store.FailRequest(ctx, req.Id)
-		}
 		total = total + bo.Satoshi
 
 		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, txHash, idx, req)
@@ -210,12 +215,6 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if ps := msgTx.TxOut[1].PkScript; len(ps) != 18 || uuid.FromBytesOrNil(ps[2:]).String() != req.Id {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	for idx := range msgTx.TxIn {
-		if msgTx.TxIn[idx].Sequence == bitcoin.MaxTransactionSequence {
-			continue
-		}
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -820,9 +819,13 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	spk, err := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
+	if err != nil {
+		return fmt.Errorf("node.deriveBIP32WithPath(%s, %s) => %v", safe.Signer, safe.Path, err)
+	}
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = node.verifyBitcoinSignatureWithPath(ctx, safe.Signer, safe.Path, msg, sig)
+	err = bitcoin.VerifySignatureDER(spk, msg, sig)
 	logger.Printf("node.verifyBitcoinSignatureWithPath(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
@@ -861,12 +864,12 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		err = node.verifyBitcoinSignatureWithPath(ctx, safe.Signer, safe.Path, hash, sig)
+		err = bitcoin.VerifySignatureDER(spk, msg, sig)
 		if err != nil {
 			panic(sr.Signature.String)
 		}
 		spsbt.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
-			PubKey:    common.DecodeHexOrPanic(safe.Signer),
+			PubKey:    common.DecodeHexOrPanic(spk),
 			Signature: sig,
 		}}
 	}

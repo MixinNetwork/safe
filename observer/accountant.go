@@ -141,8 +141,16 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 	if err != nil {
 		return nil, err
 	}
+	spk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Signer, safe.Path)
+	if err != nil {
+		return nil, err
+	}
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		return nil, err
+	}
 
-	msgTx, err := psbt.SignedTransaction(tx.Holder, tx.Signer, safe.Observer)
+	msgTx, err := psbt.SignedTransaction(tx.Holder, spk, opk)
 	if err != nil {
 		return nil, err
 	}

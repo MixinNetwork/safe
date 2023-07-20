@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -25,6 +26,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
@@ -141,7 +143,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Nil(err)
 	require.Len(utxos, 1)
 
-	holderSignedRaw := testHolderApproveTransaction("70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff02a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
+	holderSignedRaw := testHolderApproveTransaction("70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c8500000000000600000002a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, "", holderSignedRaw, signers)
 	testSpareKeys(ctx, require, node, 0, 0, 0, 0)
 
@@ -299,10 +301,8 @@ func testAccountantSpentTransaction(ctx context.Context, require *require.Assert
 	switch testType {
 	case testHolderSigner:
 		require.Equal("fcc2dc6e90d454ec76cc48925096281735ed85ccd93a73b87cd303be9f28478e", tx.TxHash().String())
-	case testSignerObserver:
+	case testSignerObserver, testHolderObserver:
 		require.Equal("09f837325c7285c2e118942536677926221a2eb882457b0f6aecc52b197aa201", tx.TxHash().String())
-	case testHolderObserver:
-		require.Equal("37e0aa70d40648eb4bf45c6a37d94abef733784a4ff944011f68424d19a1fa88", tx.TxHash().String())
 	}
 	logger.Printf("%x", rb)
 }
@@ -502,16 +502,13 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	}
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
-	ob := common.DecodeHexOrPanic(testBitcoinKeyObserverPrivate)
-	observer, _ := btcec.PrivKeyFromBytes(ob)
+	observer := testGetDerivedObserverPrivate(require)
 
 	if transactionHash != "" {
 		id := uuid.Must(uuid.NewV4()).String()
 		tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 		require.Equal(common.RequestStateInitial, tx.State)
 
-		ob := common.DecodeHexOrPanic(testBitcoinKeyObserverPrivate)
-		observer, _ := btcec.PrivKeyFromBytes(ob)
 		psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
 		for idx := range psTx.UnsignedTx.TxIn {
 			hash := psTx.SigHash(idx)
@@ -888,4 +885,32 @@ func testPublicKey(pub string) string {
 	seed, _ := hex.DecodeString(pub)
 	_, dk := btcec.PrivKeyFromBytes(seed)
 	return hex.EncodeToString(dk.SerializeCompressed())
+}
+
+func testGetDerivedObserverPrivate(require *require.Assertions) *btcec.PrivateKey {
+	path8 := []byte{2, 0, 0, 0}
+	children := make([]uint32, path8[0])
+	for i := 0; i < int(path8[0]); i++ {
+		children[i] = uint32(path8[1+i])
+	}
+
+	key, err := hex.DecodeString(testBitcoinKeyObserverPrivate)
+	require.Nil(err)
+	chainCode, err := hex.DecodeString(testBitcoinKeyObserverChainCode)
+	require.Nil(err)
+
+	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+	version := []byte{0x04, 0x88, 0xb2, 0x1e}
+	extPub := hdkeychain.NewExtendedKey(version, key, chainCode, parentFP, 0, 0, true)
+	for _, i := range children {
+		extPub, err = extPub.Derive(i)
+		require.Nil(err)
+		if bytes.Equal(extPub.ChainCode(), chainCode) {
+			panic(i)
+		}
+	}
+
+	priv, err := extPub.ECPrivKey()
+	require.Nil(err)
+	return priv
 }
