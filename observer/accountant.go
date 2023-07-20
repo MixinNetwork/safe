@@ -43,6 +43,14 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	if err != nil {
 		return err
 	}
+	spk, err := node.deriveBIP32WithKeeperPath(ctx, tx.Signer, safe.Path)
+	if err != nil {
+		panic(err)
+	}
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		panic(err)
+	}
 
 	requests, err := node.keeperStore.ListAllSignaturesForTransaction(ctx, spsbt.Hash(), common.RequestStateDone)
 	if err != nil {
@@ -68,22 +76,18 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 				panic(spsbt.Hash())
 			}
 		default:
-			if hex.EncodeToString(hsig.PubKey) != safe.Observer {
+			if hex.EncodeToString(hsig.PubKey) != opk {
 				panic(spsbt.Hash())
 			}
 		}
 
 		spin := spsbt.Inputs[idx]
 		ssig := spin.PartialSigs[0]
-		if hex.EncodeToString(ssig.PubKey) != tx.Signer {
+		if hex.EncodeToString(ssig.PubKey) != spk {
 			panic(spsbt.Hash())
 		}
 		if !bytes.Equal(ssig.Signature, signed[idx]) {
 			panic(spsbt.Hash())
-		}
-		spk, err := node.deriveBIP32WithKeeperPath(ctx, tx.Signer, safe.Path)
-		if err != nil {
-			panic(err)
 		}
 		err = bitcoin.VerifySignatureDER(spk, hash, ssig.Signature)
 		if err != nil {
