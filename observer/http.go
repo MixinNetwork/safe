@@ -453,6 +453,14 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
+	if body.Hash == "" {
+		renderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "hash"})
+		return
+	}
+	if body.Raw == "" {
+		renderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
+		return
+	}
 
 	err = node.httpSignBitcoinAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
 	if err != nil {

@@ -300,9 +300,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	if hash == "" || raw == "" {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 	if err != nil || approval == nil {
