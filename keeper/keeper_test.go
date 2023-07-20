@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -25,6 +26,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
@@ -500,16 +502,13 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	}
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
-	ob := common.DecodeHexOrPanic(testBitcoinKeyObserverPrivate)
-	observer, _ := btcec.PrivKeyFromBytes(ob)
+	observer := testGetDerivedObserverPrivate(require)
 
 	if transactionHash != "" {
 		id := uuid.Must(uuid.NewV4()).String()
 		tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 		require.Equal(common.RequestStateInitial, tx.State)
 
-		ob := common.DecodeHexOrPanic(testBitcoinKeyObserverPrivate)
-		observer, _ := btcec.PrivKeyFromBytes(ob)
 		psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
 		for idx := range psTx.UnsignedTx.TxIn {
 			hash := psTx.SigHash(idx)
@@ -886,4 +885,32 @@ func testPublicKey(pub string) string {
 	seed, _ := hex.DecodeString(pub)
 	_, dk := btcec.PrivKeyFromBytes(seed)
 	return hex.EncodeToString(dk.SerializeCompressed())
+}
+
+func testGetDerivedObserverPrivate(require *require.Assertions) *btcec.PrivateKey {
+	path8 := []byte{2, 0, 0, 0}
+	children := make([]uint32, path8[0])
+	for i := 0; i < int(path8[0]); i++ {
+		children[i] = uint32(path8[1+i])
+	}
+
+	key, err := hex.DecodeString(testBitcoinKeyObserverPrivate)
+	require.Nil(err)
+	chainCode, err := hex.DecodeString(testBitcoinKeyObserverChainCode)
+	require.Nil(err)
+
+	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+	version := []byte{0x04, 0x88, 0xb2, 0x1e}
+	extPub := hdkeychain.NewExtendedKey(version, key, chainCode, parentFP, 0, 0, true)
+	for _, i := range children {
+		extPub, err = extPub.Derive(i)
+		require.Nil(err)
+		if bytes.Equal(extPub.ChainCode(), chainCode) {
+			panic(i)
+		}
+	}
+
+	priv, err := extPub.ECPrivKey()
+	require.Nil(err)
+	return priv
 }
