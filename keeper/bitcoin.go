@@ -824,9 +824,13 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	spk, err := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
+	if err != nil {
+		return fmt.Errorf("node.deriveBIP32WithPath(%s, %s) => %v", safe.Signer, safe.Path, err)
+	}
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = node.verifyBitcoinSignatureWithPath(ctx, safe.Signer, safe.Path, msg, sig)
+	err = bitcoin.VerifySignatureDER(spk, msg, sig)
 	logger.Printf("node.verifyBitcoinSignatureWithPath(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
@@ -865,10 +869,6 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 			panic(sr.Message)
 		}
 		sig := common.DecodeHexOrPanic(sr.Signature.String)
-		spk, err := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
-		if err != nil {
-			panic(safe.Signer)
-		}
 		err = bitcoin.VerifySignatureDER(spk, msg, sig)
 		if err != nil {
 			panic(sr.Signature.String)
