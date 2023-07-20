@@ -316,7 +316,11 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	}
 	isHolderSigned := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
 
-	if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		return err
+	}
+	if !bitcoin.CheckTransactionPartiallySignedBy(raw, opk) {
 		return nil
 	}
 	rb := common.DecodeHexOrPanic(raw)

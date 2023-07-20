@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper/store"
 )
 
 type Asset struct {
@@ -115,8 +116,16 @@ func (r *Recovery) getState() string {
 	panic(r.State)
 }
 
-func (t *Transaction) Signers(observer string) []string {
-	pubs := []string{t.Holder, t.Signer, observer}
+func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe) []string {
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		panic(err)
+	}
+	spk, err := node.deriveBIP32WithKeeperPath(ctx, t.Signer, safe.Path)
+	if err != nil {
+		panic(err)
+	}
+	pubs := []string{t.Holder, spk, opk}
 
 	var signers []string
 	for idx, pub := range pubs {
