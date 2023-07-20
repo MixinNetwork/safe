@@ -120,24 +120,18 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observ
 			}
 		}
 
-		var sig []byte
 		if observerSig != nil {
-			sig = append(observerSig, byte(pin.SighashType))
+			observerSig = append(observerSig, byte(pin.SighashType))
 		}
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-
-		sig = []byte{}
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, observerSig)
 		if signerSig != nil {
-			sig = append(signerSig, byte(pin.SighashType))
+			signerSig = append(signerSig, byte(pin.SighashType))
 		}
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-
-		sig = []byte{}
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, signerSig)
 		if holderSig != nil {
-			sig = append(holderSig, byte(pin.SighashType))
+			holderSig = append(holderSig, byte(pin.SighashType))
 		}
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, holderSig)
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, pin.WitnessScript)
 	}
 	return msgTx, nil
