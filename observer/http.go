@@ -253,7 +253,7 @@ func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params
 	resp := map[string]any{
 		"address":    recovery.Address,
 		"chain":      recovery.Chain,
-		"public_key": recovery.Holder,
+		"holder":     recovery.Holder,
 		"observer":   recovery.Observer,
 		"raw":        recovery.RawTransaction,
 		"hash":       recovery.TransactionHash,
@@ -738,7 +738,7 @@ func (node *Node) viewRecoveries(ctx context.Context, recoveries []*Recovery) []
 		rm := map[string]any{
 			"address":    r.Address,
 			"chain":      r.Chain,
-			"public_key": r.Holder,
+			"holder":     r.Holder,
 			"observer":   r.Observer,
 			"raw":        r.RawTransaction,
 			"hash":       r.TransactionHash,
