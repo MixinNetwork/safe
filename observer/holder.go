@@ -318,7 +318,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return err
 	}
 	if !bitcoin.CheckTransactionPartiallySignedBy(raw, opk) {
-		return nil
+		return fmt.Errorf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, opk)
 	}
 	rb := common.DecodeHexOrPanic(raw)
 	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
@@ -380,30 +380,30 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	}
 
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionApprovalsForHolder(%s) => %d %v", safe.Holder, count, err)
 	if err != nil {
 		return err
+	}
+	if count != 1 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
 	var extra []byte
 	id := mixin.UniqueConversationID(safe.Address, receiver)
 	switch {
 	case !isHolderSigned: // Close account with safeBTC
-		if count != 1 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-
 		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
 		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
-		if err != nil || tx == nil {
+		if err != nil {
 			return err
+		}
+		if tx == nil {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	case isHolderSigned: // Close account with holder key
-		if count != 0 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
-			return nil
+			return fmt.Errorf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) holder", raw, safe.Holder)
 		}
 
 		extra = uuid.Nil.Bytes()
@@ -423,6 +423,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	}
 	conf := node.conf.App
 	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	logger.Printf("bot.CreateObject(%v) => %v %v", in, rs, err)
 	if err != nil {
 		return err
 	}
@@ -435,6 +436,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	action := common.ActionBitcoinSafeCloseAccount
 	references := []crypto.Hash{ref}
 	err = node.sendBitcoinKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendBitcoinKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
 	if err != nil {
 		return err
 	}
