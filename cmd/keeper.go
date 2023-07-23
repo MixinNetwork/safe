@@ -6,6 +6,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/config"
+	"github.com/MixinNetwork/safe/custodian"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid"
@@ -34,15 +35,24 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 
+	cd, err := custodian.OpenSQLite3Store(mc.Keeper.StoreDir + "/custodian.sqlite3")
+	if err != nil {
+		return err
+	}
+	defer cd.Close()
+	custodian := custodian.NewWorker(cd)
+	custodian.Boot(ctx)
+
 	kd, err := keeper.OpenSQLite3Store(mc.Keeper.StoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err
 	}
 	defer kd.Close()
+	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG)
+	keeper.Boot(ctx)
 
-	node := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG)
-	node.Boot(ctx)
-	group.AddWorker(node)
+	group.AddWorker(custodian)
+	group.AddWorker(keeper)
 	group.Run(ctx)
 	return nil
 }
