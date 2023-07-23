@@ -273,8 +273,8 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
 		rce = common.DecodeMixinObjectExtra(stx.Extra)
 	}
-	timelock, receivers, threshold, err := req.ParseMixinRecipient(rce)
-	logger.Printf("req.ParseMixinRecipient(%v) => %v %d %v", req, receivers, threshold, err)
+	arp, err := req.ParseMixinRecipient(rce)
+	logger.Printf("req.ParseMixinRecipient(%v) => %v %v", req, arp, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -285,7 +285,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", chain, err)
 	} else if plan == nil || !plan.AccountPriceAmount.IsPositive() {
-		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
+		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
 	}
 	if req.AssetId != plan.AccountPriceAsset {
 		return node.store.FailRequest(ctx, req.Id)
@@ -306,20 +306,23 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	signer, observer, err := node.store.AssignSignerAndObserverToHolder(ctx, req, SafeKeyBackupMaturity)
+	signer, observer, err := node.store.AssignSignerAndObserverToHolder(ctx, req, SafeKeyBackupMaturity, arp.Observer)
 	logger.Printf("store.AssignSignerAndObserverToHolder(%s) => %s %s %v", req.Holder, signer, observer, err)
 	if err != nil {
 		return fmt.Errorf("store.AssignSignerAndObserverToHolder(%v) => %v", req, err)
 	}
 	if signer == "" || observer == "" {
-		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
+		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
+	}
+	if arp.Observer != "" && arp.Observer != observer {
+		return fmt.Errorf("store.AssignSignerAndObserverToHolder(%v) => %v %s", req, arp, observer)
 	}
 	if !common.CheckUnique(req.Holder, signer, observer) {
-		return node.refundAndFailRequest(ctx, req, receivers, int(threshold))
+		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
 	}
 	path := bitcoinDefaultDerivationPath()
 
-	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, req.Holder, signer, observer, path, timelock, chain)
+	wsa, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, req.Holder, signer, observer, path, arp.Timelock, chain)
 	logger.Verbosef("node.buildBitcoinWitnessAccountWithDerivation(%v) => %v %v", req, wsa, err)
 	if err != nil {
 		return err
@@ -346,12 +349,12 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		Holder:    req.Holder,
 		Signer:    signer,
 		Observer:  observer,
-		Timelock:  timelock,
+		Timelock:  arp.Timelock,
 		Path:      hex.EncodeToString(path),
 		Address:   wsa.Address,
 		Extra:     extra,
-		Receivers: receivers,
-		Threshold: threshold,
+		Receivers: arp.Receivers,
+		Threshold: arp.Threshold,
 		CreatedAt: req.CreatedAt,
 		UpdatedAt: req.CreatedAt,
 	}

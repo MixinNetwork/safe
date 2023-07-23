@@ -78,7 +78,7 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req *common.Request, maturity time.Duration) (string, string, error) {
+func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req *common.Request, maturity time.Duration, observerPref string) (string, string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -103,11 +103,11 @@ func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req 
 		panic(req.Holder)
 	}
 
-	signer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleSigner, common.NormalizeCurve(req.Curve), maturity)
+	signer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleSigner, common.NormalizeCurve(req.Curve), maturity, "")
 	if err != nil {
 		return "", "", err
 	}
-	observer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleObserver, common.NormalizeCurve(req.Curve), maturity)
+	observer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleObserver, common.NormalizeCurve(req.Curve), maturity, observerPref)
 	if err != nil {
 		return "", "", err
 	}
@@ -139,9 +139,15 @@ func readKeyWithRoleAndHolder(ctx context.Context, tx *sql.Tx, holder string, ro
 	return public, err
 }
 
-func readKeyWithRoleAndCurve(ctx context.Context, tx *sql.Tx, role int, crv byte, maturity time.Duration) (string, error) {
+func readKeyWithRoleAndCurve(ctx context.Context, tx *sql.Tx, role int, crv byte, maturity time.Duration, pref string) (string, error) {
 	var public string
-	row := tx.QueryRowContext(ctx, "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND created_at<? ORDER BY created_at ASC, public_key ASC LIMIT 1", role, crv, time.Now().Add(-maturity))
+	query := "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND created_at<? ORDER BY created_at ASC, public_key ASC LIMIT 1"
+	params := []any{role, crv, time.Now().Add(-maturity)}
+	if pref != "" {
+		query = "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND public_key=? LIMIT 1"
+		params = []any{role, crv, pref}
+	}
+	row := tx.QueryRowContext(ctx, query, params...)
 	err := row.Scan(&public)
 	if err == sql.ErrNoRows {
 		return "", nil

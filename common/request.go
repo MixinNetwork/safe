@@ -70,6 +70,13 @@ type Request struct {
 	CreatedAt  time.Time
 }
 
+type AccountProposal struct {
+	Receivers []string
+	Threshold byte
+	Timelock  time.Duration
+	Observer  string
+}
+
 func (req *Request) Operation() *Operation {
 	extra := DecodeHexOrPanic(req.Extra)
 	return &Operation{
@@ -103,7 +110,7 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 	return r, r.VerifyFormat()
 }
 
-func (req *Request) ParseMixinRecipient(extra []byte) (time.Duration, []string, byte, error) {
+func (req *Request) ParseMixinRecipient(extra []byte) (*AccountProposal, error) {
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
@@ -114,33 +121,51 @@ func (req *Request) ParseMixinRecipient(extra []byte) (time.Duration, []string, 
 	dec := common.NewDecoder(extra)
 	hours, err := dec.ReadUint16()
 	if err != nil {
-		return 0, nil, 0, err
+		return nil, err
 	}
 	timelock := time.Duration(hours) * time.Hour
 	if timelock < bitcoin.TimeLockMinimum || timelock > bitcoin.TimeLockMaximum {
-		return 0, nil, 0, fmt.Errorf("timelock %d hours", hours)
+		return nil, fmt.Errorf("timelock %d hours", hours)
 	}
 
 	threshold, err := dec.ReadByte()
 	if err != nil {
-		return 0, nil, 0, err
+		return nil, err
 	}
 	total, err := dec.ReadByte()
 	if err != nil {
-		return 0, nil, 0, err
+		return nil, err
 	}
 	var receivers []string
 	for i := byte(0); i < total; i++ {
 		uid, err := readUUID(dec)
 		if err != nil {
-			return 0, nil, 0, err
+			return nil, err
 		}
 		receivers = append(receivers, uid)
 	}
 	if byte(len(receivers)) != total || total < threshold {
-		return 0, nil, 0, fmt.Errorf("%d/%d", threshold, total)
+		return nil, fmt.Errorf("%d/%d", threshold, total)
 	}
-	return timelock, receivers, threshold, nil
+	arp := &AccountProposal{
+		Timelock:  timelock,
+		Receivers: receivers,
+		Threshold: threshold,
+	}
+	offset := 2 + 1 + 1 + int(total)*16
+	if offset == len(extra) {
+		return arp, nil
+	}
+
+	if len(extra) != offset+33 {
+		return nil, fmt.Errorf("extra size %x %v", extra, arp)
+	}
+	arp.Observer = hex.EncodeToString(extra[offset:])
+	err = bitcoin.VerifyHolderKey(arp.Observer)
+	if err != nil {
+		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
+	}
+	return arp, nil
 }
 
 func (r *Request) VerifyFormat() error {
