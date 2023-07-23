@@ -18,7 +18,6 @@ type Configuration struct {
 	BitcoinRPC        string             `toml:"bitcoin-rpc"`
 	LitecoinRPC       string             `toml:"litecoin-rpc"`
 	MVMRPC            string             `toml:"mvm-rpc"`
-	MVMKey            string             `toml:"mvm-key"`
 	MTG               *mtg.Configuration `toml:"mtg"`
 }
 
