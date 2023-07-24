@@ -441,10 +441,15 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return err
 	}
 
-	err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
-	logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
-	if err != nil {
-		return err
+	if isHolderSigned {
+		err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
+		logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
+		logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
 	}
 
 	err = node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
