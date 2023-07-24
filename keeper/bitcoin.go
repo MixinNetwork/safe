@@ -886,7 +886,9 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}
 	raw := hex.EncodeToString(spsbt.Marshal())
-	return node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
+	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
+	return err
 }
 
 func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, holder, signer, observer string, path []byte, timelock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {

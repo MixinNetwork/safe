@@ -296,7 +296,10 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	if err != nil {
 		return err
 	}
-	if r == nil {
+	if r == nil || r.State != common.RequestStateInitial {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	if r.TransactionHash != hash {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
@@ -405,7 +408,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return fmt.Errorf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) holder", raw, safe.Holder)
 		}
-
 		extra = uuid.Nil.Bytes()
 		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
 	}
@@ -447,13 +449,12 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		if err != nil {
 			return err
 		}
-	} else {
-		err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
-		logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+		return node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStateDone)
 	}
 
-	err = node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
-	return err
+	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
+	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	return node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
 }
 
 func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string) error {
