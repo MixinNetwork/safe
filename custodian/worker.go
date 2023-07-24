@@ -31,6 +31,13 @@ func (worker *Worker) Boot(ctx context.Context) {
 	go worker.loopKernelMintDistributions(ctx)
 }
 
+func (worker *Worker) handleRefreshKey() {
+	// domain signature verification
+	// send a request to signer keygen, ed25519 mixin
+	// receive keygen from signer and store the key
+	// custodian use public derivation of spend key
+}
+
 func (worker *Worker) loopKernelMintDistributions(ctx context.Context) {
 	//for {
 	// loop read mint distributions to the custodian key

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/MixinNetwork/safe/cmd"
+	"github.com/MixinNetwork/safe/config"
 	"github.com/urfave/cli/v2"
 )
 
@@ -16,7 +17,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "safe",
 		Usage:                "Mixin Safe",
-		Version:              "0.8.0",
+		Version:              config.AppVersion,
 		EnableBashCompletion: true,
 		Metadata:             map[string]any{"README": README},
 		Commands: []*cli.Command{

@@ -104,7 +104,7 @@ messenger-conversation-id = "d40eda10-ff3c-4a1d-929d-83a96b1e2137"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
 # a shared ed25519 private key to do ecdh with the keeper
-shared-key = "128106b2b9815f839d84f6e7cf63b403a2fd1aa0264af858be649873f47f8809"
+shared-key = "9057a91fb0492a10dc2041610c9eeb110859d86ffb97345e9f675f30df5e9a03"
 # the asset id that each signer node send result to signer mtg
 asset-id = "44d7de8f-5533-36f8-8b04-d3674baf5851"
 # the asset id that the keeper send operations to the signer mtg
@@ -112,7 +112,7 @@ asset-id = "44d7de8f-5533-36f8-8b04-d3674baf5851"
 keeper-asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
 # the keeper ed25519 public key to do ecdh with the shared key
 # and this key is used to verify the signature of all operations
-keeper-public-key = "5662c910613f3db30b3acd0092655d4fc301b1d0cc0d472ee03acf411d30d99c"
+keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
 mixin-rpc = ""
 
 [signer.mtg.genesis]
@@ -132,6 +132,22 @@ session-id = ""
 private-key = ""
 pin-token = ""
 pin = ""
+
+
+[keeper.mtg.genesis]
+# it is not necessary to include all signer mtg members here,
+# but it is recommended to do that, and the observer id must be
+# included in the keeper mtg members.
+members = [
+  "a6f3e429-c278-469f-ab3f-5a4e4ee7625f",
+  "ca9af3fc-f5f2-46a7-b6f7-fb8ba8534afc",
+  "1a635674-4abd-4735-b209-fac05f5a8ea2",
+  "f2aa91b7-01fc-4c42-85ef-a4dcda976615",
+  "1050c460-b483-4b1b-bf2f-ccdbe910f7a5",
+]
+# the mtg threshold is recommended to be 2/3 of the members count
+threshold = 4
+timestamp = 1676276828135856241
 ```
 
 Basically, the `store-dir`, `mixin-rpc` and `mtg.app` section need to be added accordingly, then boot the Mixin Safe Signer node.
@@ -154,10 +170,10 @@ The node needs a similar configuration file as the Signer node, just modify the 
 [keeper]
 store-dir = "/var/mixin/safe/keeper"
 # a shared ed25519 private key to do ecdh with signer and observer
-shared-key = "9b2b94d3259c564fd2bab8fc4ba648f0ccb4ce8c9f30e7bfadec29d387ccb10d"
+shared-key = "6a9529b56918123e973b4e8b19724908fe68123753660274b03ddb01d1854a09"
 # the signer ed25519 public key to do ecdh with the shared key
 # and this key is used to verify the signature of all responses
-signer-public-key = "60d222d5587e4f5024e782b4ad1b46b8afb152130ea0e244dffd31f8e9be8224"
+signer-public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b63756"
 # the asset id that the keeper send operations to the signer mtg
 # this asset must be fully controlled by the keeper mtg
 asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
@@ -166,7 +182,7 @@ asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
 observer-asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
 # the observer ed25519 public key to do ecdh with the shared key
 # and this key is used to verify the signature of all requests
-observer-public-key = "ff3fd39ef322445827794325bdf2202a7b5fb88d23b6572a710cd8eda558e7a5"
+observer-public-key = "b5f8cfaca5004b88bdb5173bde966b4b7ee19a5471d7d4f8027b3516fcef7e46"
 # the observer is good to be a single user
 observer-user-id = "1050c460-b483-4b1b-bf2f-ccdbe910f7a5"
 mixin-messenger-api="https://api.mixin.one"
@@ -196,6 +212,18 @@ session-id = ""
 private-key = ""
 pin-token = ""
 pin = ""
+
+
+[signer.mtg.genesis]
+members = [
+  "a6f3e429-c278-469f-ab3f-5a4e4ee7625f",
+  "ca9af3fc-f5f2-46a7-b6f7-fb8ba8534afc",
+  "1a635674-4abd-4735-b209-fac05f5a8ea2",
+  "f2aa91b7-01fc-4c42-85ef-a4dcda976615",
+]
+# the mtg threshold must not be smaller than the mpc threshold
+threshold = 4
+timestamp = 1676276828135856241
 ```
 
 Basically, the `store-dir`, `mtg.app` and all `rpc` section need to be added accordingly, then boot the Mixin Safe Keeper node.

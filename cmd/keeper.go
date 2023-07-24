@@ -51,6 +51,10 @@ func KeeperBootCmd(c *cli.Context) error {
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG)
 	keeper.Boot(ctx)
 
+	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
+		go MonitorKeeper(ctx, kd, mc.Keeper.MTG, mmc)
+	}
+
 	group.AddWorker(custodian)
 	group.AddWorker(keeper)
 	group.Run(ctx)
