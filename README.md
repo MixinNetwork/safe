@@ -181,7 +181,8 @@ Using the response we receive, we can determine that the Bitcoin transaction fee
 Furthermore, we need to generate another random session ID, for which we will use `36c2075c-5af0-4593-b156-e72f58f9f421` as an example. With the holder prepared in the first step, the operation value should be as follows:
 
 ```golang
-extra := uuid.FromStringOrNil("155e4f85-d4b8-33f7-82e6-542711f1f26e").Bytes()
+extra := []byte{0} // Start with 0 to propose a normal transaction
+extra = append(extra, uuid.FromStringOrNil("155e4f85-d4b8-33f7-82e6-542711f1f26e").Bytes()...)
 extra = append(extra, []byte("bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e")...)
 op := &Operation {
   Id: "36c2075c-5af0-4593-b156-e72f58f9f421",
