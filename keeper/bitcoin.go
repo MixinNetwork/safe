@@ -662,9 +662,17 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	msg := bitcoin.HashMessageForSignature(ms, safe.Chain)
 	err = bitcoin.VerifySignatureDER(req.Holder, msg, extra[16:])
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", req, err)
+	logger.Printf("holder: bitcoin.VerifySignatureDER(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		odk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		err = bitcoin.VerifySignatureDER(odk, msg, extra[16:])
+		logger.Printf("observer: bitcoin.VerifySignatureDER(%v) => %v", req, err)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 	}
 
 	bondId, _, err := node.getBondAsset(ctx, assetId, safe.Holder)

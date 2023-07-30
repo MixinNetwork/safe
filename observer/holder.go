@@ -518,9 +518,21 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
 	msg := bitcoin.HashMessageForSignature(ms, approval.Chain)
 	err = bitcoin.VerifySignatureDER(tx.Holder, msg, sig)
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", tx, err)
+	logger.Printf("holder: bitcoin.VerifySignatureDER(%v) => %v", tx, err)
 	if err != nil {
-		return err
+		safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+		if err != nil {
+			return err
+		}
+		odk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+		if err != nil {
+			return err
+		}
+		err = bitcoin.VerifySignatureDER(odk, msg, sig)
+		logger.Printf("observer: bitcoin.VerifySignatureDER(%v) => %v", tx, err)
+		if err != nil {
+			return err
+		}
 	}
 
 	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
