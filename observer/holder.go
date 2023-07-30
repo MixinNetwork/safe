@@ -471,10 +471,6 @@ func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string)
 	if err != nil || approval == nil {
 		return err
 	}
-	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
-	if err != nil || tx == nil {
-		return err
-	}
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
@@ -483,6 +479,11 @@ func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string)
 	}
 	if !bitcoin.CheckTransactionPartiallySignedBy(raw, approval.Holder) {
 		return nil
+	}
+	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+	if err != nil || tx == nil {
+		return err
 	}
 
 	raw = hex.EncodeToString(psbt.Marshal())
@@ -540,6 +541,7 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeRevokeTransaction
 	err = node.sendBitcoinKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
+	logger.Printf("node.sendBitcoinKeeperResponse(%s, %d, %s, %x)", tx.Holder, action, id, extra)
 	if err != nil {
 		return err
 	}
@@ -574,6 +576,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 		}
 		for _, approval := range approvals {
 			err := node.sendToKeeperBitcoinApproveTransaction(ctx, approval)
+			logger.Verbosef("node.sendToKeeperBitcoinApproveTransaction(%v) => %v", approval, err)
 			if err != nil {
 				panic(err)
 			}
@@ -583,6 +586,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 
 func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
 	signed, err := node.bitcoinCheckKeeperSignedTransaction(ctx, approval)
+	logger.Printf("node.bitcoinCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
 	if err != nil || signed {
 		return err
 	}
@@ -621,6 +625,7 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	references := []crypto.Hash{ref}
 	action := common.ActionBitcoinSafeApproveTransaction
 	err = node.sendBitcoinKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendBitcoinKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
 	if err != nil {
 		return err
 	}
@@ -630,6 +635,7 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	}
 	id = mixin.UniqueConversationID(id, approval.UpdatedAt.String())
 	err = node.sendBitcoinKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendBitcoinKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
 	if err != nil {
 		return err
 	}
