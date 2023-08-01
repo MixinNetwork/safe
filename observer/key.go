@@ -26,7 +26,7 @@ func (node *Node) bitcoinKeyLoop(ctx context.Context) {
 }
 
 func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
-	count, err := node.keeperStore.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestRoleObserver)
+	count, err := node.keeperStore.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleObserver)
 	if err != nil {
 		return err
 	}
@@ -40,6 +40,7 @@ func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
 		}
 		id := mixin.UniqueConversationID(observer, observer)
 		extra := append([]byte{common.RequestRoleObserver}, chainCode...)
+		extra = append(extra, common.RequestFlagNone)
 		err = node.sendBitcoinKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
 		if err != nil {
 			return err
@@ -54,7 +55,7 @@ func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
 }
 
 func (node *Node) bitcoinRequestSignerKeys(ctx context.Context) error {
-	count, err := node.keeperStore.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestRoleSigner)
+	count, err := node.keeperStore.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil || count > 1000 {
 		return err
 	}

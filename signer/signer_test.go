@@ -98,8 +98,9 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 		require.Equal(sid, op.Id)
 		require.Equal(crv, op.Curve)
 		require.Len(op.Public, 66)
-		require.Len(op.Extra, 33)
+		require.Len(op.Extra, 34)
 		require.Equal(op.Extra[0], byte(common.RequestRoleSigner))
+		require.Equal(op.Extra[33], byte(common.RequestFlagNone))
 		public = op.Public
 		chainCode = op.Extra[1:33]
 	}

@@ -235,7 +235,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) != 33 {
+	if len(extra) != 34 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	switch extra[0] {
@@ -250,16 +250,23 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	chainCode, flags := extra[1:33], extra[33]
+	switch flags {
+	case common.RequestFlagNone:
+	case common.RequestFlagCustomObserverKey:
+	default:
+		return node.store.FailRequest(ctx, req.Id)
+	}
 	switch req.Curve {
 	case common.CurveSecp256k1ECDSABitcoin:
-		err = bitcoin.CheckDerivation(req.Holder, extra[1:], 1000)
+		err = bitcoin.CheckDerivation(req.Holder, chainCode, 1000)
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
 	default:
 		panic(req.Curve)
 	}
-	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), extra[1:])
+	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), chainCode, flags)
 }
 
 func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) error {

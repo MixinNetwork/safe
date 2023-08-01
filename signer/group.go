@@ -134,6 +134,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		}
 		op.Type = common.OperationTypeKeygenOutput
 		op.Extra = append([]byte{common.RequestRoleSigner}, chainCode...)
+		op.Extra = append(op.Extra, common.RequestFlagNone)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
 		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {

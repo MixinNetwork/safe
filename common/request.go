@@ -18,6 +18,9 @@ const (
 	RequestRoleSigner   = 2
 	RequestRoleObserver = 3
 
+	RequestFlagNone              = 0
+	RequestFlagCustomObserverKey = 1
+
 	RequestStateInitial = 1
 	RequestStatePending = 2
 	RequestStateDone    = 3

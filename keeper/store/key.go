@@ -17,15 +17,16 @@ type Key struct {
 	RequestId string
 	Role      byte
 	Extra     string
+	Flags     byte
 	Holder    sql.NullString
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-var keyCols = []string{"public_key", "curve", "request_id", "role", "extra", "holder", "created_at", "updated_at"}
+var keyCols = []string{"public_key", "curve", "request_id", "role", "extra", "flags", "holder", "created_at", "updated_at"}
 
-func keyValsFromRequest(r *common.Request, role int, extra []byte) []any {
-	return []any{r.Holder, r.Curve, r.Id, role, hex.EncodeToString(extra), sql.NullString{}, r.CreatedAt, r.CreatedAt}
+func keyValsFromRequest(r *common.Request, role int, extra []byte, flags byte) []any {
+	return []any{r.Holder, r.Curve, r.Id, role, hex.EncodeToString(extra), flags, sql.NullString{}, r.CreatedAt, r.CreatedAt}
 }
 
 func (s *SQLite3Store) ReadKey(ctx context.Context, public string) (*Key, error) {
@@ -33,16 +34,16 @@ func (s *SQLite3Store) ReadKey(ctx context.Context, public string) (*Key, error)
 	row := s.db.QueryRowContext(ctx, query, public)
 
 	var k Key
-	err := row.Scan(&k.Public, &k.Curve, &k.RequestId, &k.Role, &k.Extra, &k.Holder, &k.CreatedAt, &k.UpdatedAt)
+	err := row.Scan(&k.Public, &k.Curve, &k.RequestId, &k.Role, &k.Extra, &k.Flags, &k.Holder, &k.CreatedAt, &k.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return &k, err
 }
 
-func (s *SQLite3Store) CountSpareKeys(ctx context.Context, curve byte, role int) (int, error) {
-	query := "SELECT COUNT(*) FROM keys WHERE role=? AND curve=? AND holder IS NULL"
-	row := s.db.QueryRowContext(ctx, query, role, curve)
+func (s *SQLite3Store) CountSpareKeys(ctx context.Context, curve, flags byte, role int) (int, error) {
+	query := "SELECT COUNT(*) FROM keys WHERE role=? AND curve=? AND flags=? AND holder IS NULL"
+	row := s.db.QueryRowContext(ctx, query, role, curve, flags)
 
 	var count int
 	err := row.Scan(&count)
@@ -52,7 +53,7 @@ func (s *SQLite3Store) CountSpareKeys(ctx context.Context, curve byte, role int)
 	return count, err
 }
 
-func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Request, role int, extra []byte) error {
+func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Request, role int, extra []byte, flags byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -66,7 +67,7 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 		panic(req.Curve)
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("keys", keyCols), keyValsFromRequest(req, role, extra)...)
+	err = s.execOne(ctx, tx, buildInsertionSQL("keys", keyCols), keyValsFromRequest(req, role, extra, flags)...)
 	if err != nil {
 		return fmt.Errorf("INSERT keys %v", err)
 	}
@@ -141,11 +142,11 @@ func readKeyWithRoleAndHolder(ctx context.Context, tx *sql.Tx, holder string, ro
 
 func readKeyWithRoleAndCurve(ctx context.Context, tx *sql.Tx, role int, crv byte, maturity time.Duration, pref string) (string, error) {
 	var public string
-	query := "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND created_at<? ORDER BY created_at ASC, public_key ASC LIMIT 1"
-	params := []any{role, crv, time.Now().Add(-maturity)}
+	query := "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND flags=? AND created_at<? ORDER BY created_at ASC, public_key ASC LIMIT 1"
+	params := []any{role, crv, common.RequestFlagNone, time.Now().Add(-maturity)}
 	if pref != "" {
-		query = "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND public_key=? LIMIT 1"
-		params = []any{role, crv, pref}
+		query = "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND flags=? AND public_key=? LIMIT 1"
+		params = []any{role, crv, common.RequestFlagCustomObserverKey, pref}
 	}
 	row := tx.QueryRowContext(ctx, query, params...)
 	err := row.Scan(&public)

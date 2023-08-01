@@ -2,7 +2,9 @@ package observer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -33,6 +35,10 @@ type Node struct {
 }
 
 func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
+	err := conf.Validate()
+	if err != nil {
+		panic(err)
+	}
 	node := &Node{
 		conf:        conf,
 		keeper:      keeper,
@@ -66,16 +72,16 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	_, bitcoinAssetId := node.bitcoinParams(chain)
-	asset, err := node.fetchAssetMeta(ctx, node.conf.PriceAssetId)
+	asset, err := node.fetchAssetMeta(ctx, node.conf.TransactionPriceAssetId)
 	if err != nil {
 		return err
 	}
-	amount := decimal.RequireFromString(node.conf.PriceAmount)
+	amount := decimal.RequireFromString(node.conf.TransactionPriceAmount)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 	logger.Printf("node.sendBitcoinPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
-		panic(node.conf.PriceAmount)
+		panic(node.conf.TransactionPriceAmount)
 	}
 	minimum = minimum.Mul(decimal.New(1, 8))
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
@@ -149,19 +155,61 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 		return err
 	}
 
+	handled, err = node.handleCustomObserverKeyRegistration(ctx, s)
+	if err != nil || handled {
+		return err
+	}
+
 	_, err = node.handleKeeperResponse(ctx, s)
 	return err
 }
 
+func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+	if s.AssetID != node.conf.ObserverKeyPriceAssetId {
+		return false, nil
+	}
+	extra, _ := base64.RawURLEncoding.DecodeString(s.Memo)
+	if len(extra) < 65 {
+		return false, nil
+	}
+	switch extra[0] {
+	case common.CurveSecp256k1ECDSABitcoin:
+	default:
+		return false, nil
+	}
+
+	if s.Amount.Cmp(decimal.RequireFromString(node.conf.ObserverKeyPriceAmount)) < 0 {
+		return true, nil
+	}
+
+	observer := hex.EncodeToString(extra[1:33])
+	key, err := node.keeperStore.ReadKey(ctx, observer)
+	if err != nil {
+		return false, err
+	} else if key != nil {
+		return true, nil
+	}
+
+	chainCode := extra[33:65]
+	id := mixin.UniqueConversationID(observer, observer)
+	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
+	extra = append(extra, common.RequestFlagCustomObserverKey)
+	err = node.sendBitcoinKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.PriceAssetId {
+	if s.AssetID != node.conf.TransactionPriceAssetId {
 		return false, nil
 	}
 	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
 	if err != nil || approval == nil {
 		return false, err
 	}
-	if s.Amount.Cmp(decimal.RequireFromString(node.conf.PriceAmount)) < 0 {
+	if s.Amount.Cmp(decimal.RequireFromString(node.conf.TransactionPriceAmount)) < 0 {
 		return true, nil
 	}
 	return true, node.holderPayTransactionApproval(ctx, s.Memo)

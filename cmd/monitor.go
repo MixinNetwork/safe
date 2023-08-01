@@ -67,12 +67,12 @@ func bundleKeeperState(ctx context.Context, store *store.SQLite3Store, startedAt
 		return "", err
 	}
 	state = state + fmt.Sprintf("🚴 Bitcoin height: %d\n", info.Height)
-	sc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestRoleSigner)
+	sc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil {
 		return "", err
 	}
 	state = state + fmt.Sprintf("🔑 Signer keys: %d\n", sc)
-	oc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestRoleObserver)
+	oc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleObserver)
 	if err != nil {
 		return "", err
 	}
