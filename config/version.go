@@ -1,3 +1,3 @@
 package config
 
-const AppVersion = "0.8.1"
+const AppVersion = "0.9.0"
