@@ -258,3 +258,18 @@ curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H
 Once the transaction approval has succeeded, we will need to transfer 1pUSD to the observer(71b72e67-3636-473a-9ee4-db7ba3094057), using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
 
 https://blockstream.info/tx/0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f?expand
+
+
+## Custom Observer Key
+
+It's possible to have your own observer key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your observer public key and a chain code according to Bitcoin extended public key specification. Then add this key to the observer(71b72e67-3636-473a-9ee4-db7ba3094057) by transferring 10pUSD, and the memo should be:
+
+```golang
+const CurveSecp256k1ECDSABitcoin = 1
+extra := []byte{CurveSecp256k1ECDSABitcoin}
+extra = append(extra, public...)
+extra = append(extra, chainCode...)
+memo := base64.RawURLEncoding.EncodeToString(extra)
+```
+
+After your own observer key successfully added to Safe Network, you can start proposing a safe account as before, the only modification is appending the observer public key bytes to the operation extra.
