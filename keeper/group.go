@@ -260,6 +260,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 	switch req.Curve {
 	case common.CurveSecp256k1ECDSABitcoin:
 		err = bitcoin.CheckDerivation(req.Holder, chainCode, 1000)
+		logger.Printf("bitcoin.CheckDerivation(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}

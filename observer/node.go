@@ -146,16 +146,19 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 	}
 
 	handled, err := node.handleBondAsset(ctx, s)
+	logger.Printf("node.handleBondAsset(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
 		return err
 	}
 
 	handled, err = node.handleTransactionApprovalPayment(ctx, s)
+	logger.Printf("node.handleTransactionApprovalPayment(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
 		return err
 	}
 
 	handled, err = node.handleCustomObserverKeyRegistration(ctx, s)
+	logger.Printf("node.handleCustomObserverKeyRegistration(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
 		return err
 	}
@@ -169,7 +172,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return false, nil
 	}
 	extra, _ := base64.RawURLEncoding.DecodeString(s.Memo)
-	if len(extra) < 65 {
+	if len(extra) != 66 {
 		return false, nil
 	}
 	switch extra[0] {
@@ -182,7 +185,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return true, nil
 	}
 
-	observer := hex.EncodeToString(extra[1:33])
+	observer := hex.EncodeToString(extra[1:34])
 	key, err := node.keeperStore.ReadKey(ctx, observer)
 	if err != nil {
 		return false, err
@@ -190,7 +193,13 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return true, nil
 	}
 
-	chainCode := extra[33:65]
+	chainCode := extra[34:66]
+	err = bitcoin.CheckDerivation(observer, chainCode, 1000)
+	logger.Printf("bitcoin.CheckDerivation(%s, %x) => %v", observer, chainCode, err)
+	if err != nil {
+		return true, nil
+	}
+
 	id := mixin.UniqueConversationID(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
