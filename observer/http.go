@@ -117,6 +117,7 @@ func (node *Node) StartHTTP(readme string) {
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
 	router.POST("/transactions/:id", node.httpApproveTransaction)
+	router.GET("/keys/:public", node.httpGetCustomKey)
 	handler := handleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7080), handler)
 	if err != nil {
@@ -638,6 +639,33 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		data["hash"] = approval.SpentHash.String
 		data["raw"] = approval.SpentRaw.String
 		data["state"] = "spent"
+	}
+	renderJSON(w, r, http.StatusOK, data)
+}
+
+func (node *Node) httpGetCustomKey(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	key, err := node.keeperStore.ReadKey(r.Context(), params["public"])
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	if key == nil || key.Role != common.RequestRoleObserver || key.Flags != common.RequestFlagCustomObserverKey {
+		renderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+	data := map[string]any{
+		"id":         key.RequestId,
+		"public":     key.Public,
+		"curve":      key.Curve,
+		"extra":      key.Extra,
+		"holder":     key.Holder.String,
+		"created_at": key.CreatedAt,
+	}
+	switch key.Role {
+	case common.RequestRoleObserver:
+		data["role"] = "observer"
+	default:
+		panic(key.Role)
 	}
 	renderJSON(w, r, http.StatusOK, data)
 }
