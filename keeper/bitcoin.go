@@ -54,7 +54,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 
 	opk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", safe.Observer, err)
 	}
 	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), opk)
 	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, opk, signedByObserver)
@@ -199,7 +199,7 @@ func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.C
 	for _, vin := range btx.Vin {
 		in, spentBy, err := node.store.ReadBitcoinUTXO(ctx, vin.TxId, int(vin.VOUT))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", vin.TxId, vin.VOUT, err)
 		}
 		if in == nil || spentBy != "" {
 			continue
@@ -210,7 +210,7 @@ func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.C
 		}
 		another, err := node.store.ReadSafeByAddress(ctx, addr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", addr, err)
 		}
 		if safe == nil {
 			safe = another
@@ -225,6 +225,20 @@ func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.C
 	}
 	if safe.State != SafeStateApproved { // TODO close multiple safes
 		return nil, nil
+	}
+	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(btx.Hex, safe.Holder)
+	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) => %t", btx.Hex, safe.Holder, signedByHolder)
+	if !signedByHolder {
+		return nil, fmt.Errorf("tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v)", btx)
+	}
+	opk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
+	if err != nil {
+		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", safe.Observer, err)
+	}
+	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(btx.Hex, opk)
+	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) => %t", btx.Hex, opk, signedByObserver)
+	if !signedByObserver {
+		return nil, fmt.Errorf("tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v)", btx)
 	}
 	rtx, err := btcutil.NewTxFromBytes(common.DecodeHexOrPanic(btx.Hex))
 	if err != nil {
