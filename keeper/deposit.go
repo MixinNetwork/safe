@@ -131,9 +131,20 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	rpc, _ := node.bitcoinParams(deposit.Chain)
+	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)
+	if err != nil {
+		return fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err)
+	}
+	closed, err := node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx, req, btx, safe.Chain)
+	logger.Printf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", btx, closed, err)
+	if err != nil || len(closed) > 0 {
+		return fmt.Errorf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", btx, closed, err)
+	}
+
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
-	change, err := node.checkBitcoinChange(ctx, deposit)
-	logger.Printf("node.checkBitcoinChange(%v) => %t %v", deposit, change, err)
+	change, err := node.checkBitcoinChange(ctx, deposit, btx)
+	logger.Printf("node.checkBitcoinChange(%v, %v) => %t %v", deposit, btx, change, err)
 	if err != nil {
 		return fmt.Errorf("node.checkBitcoinChange(%v) => %v", deposit, err)
 	}
@@ -163,12 +174,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
 }
 
-func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit) (bool, error) {
-	rpc, _ := node.bitcoinParams(deposit.Chain)
-	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)
-	if err != nil {
-		return false, err
-	}
+func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {
 	vin, spentBy, err := node.store.ReadBitcoinUTXO(ctx, btx.Vin[0].TxId, int(btx.Vin[0].VOUT))
 	if err != nil || vin == nil {
 		return false, err

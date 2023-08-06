@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
@@ -148,10 +149,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if err != nil {
 			return err
 		}
-		if bo.Height > info.Height || bo.Height == 0 {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-		if bo.Height+sequence+100 > info.Height {
+		if bo.Height == 0 || bo.Height+sequence+100 > info.Height {
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		total = total + bo.Satoshi
@@ -195,17 +193,73 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	return nil
 }
 
-func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, mainInputs []*bitcoin.Input, receiver string) error {
-	rpc, _ := node.bitcoinParams(safe.Chain)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain)
-	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.Context, req *common.Request, btx *bitcoin.RPCTransaction, chain byte) ([]string, error) {
+	var safe *store.Safe
+	var inputs []*bitcoin.Input
+	for _, vin := range btx.Vin {
+		in, spentBy, err := node.store.ReadBitcoinUTXO(ctx, vin.TxId, int(vin.VOUT))
+		if err != nil {
+			return nil, err
+		}
+		if in == nil || spentBy != "" {
+			continue
+		}
+		addr, err := bitcoin.EncodeAddress(in.Script, chain)
+		if err != nil {
+			panic(in.TransactionHash)
+		}
+		another, err := node.store.ReadSafeByAddress(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
+		if safe == nil {
+			safe = another
+		}
+		if safe.Holder != another.Holder {
+			return nil, fmt.Errorf("tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v)", btx)
+		}
+		inputs = append(inputs, in)
+	}
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+	if safe.State != SafeStateApproved { // TODO close multiple safes
+		return nil, nil
+	}
+	rtx, err := btcutil.NewTxFromBytes(common.DecodeHexOrPanic(btx.Hex))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if info == nil {
-		return node.store.FailRequest(ctx, req.Id)
+	out := rtx.MsgTx().TxOut[0]
+	amt := decimal.New(out.Value, -bitcoin.ValuePrecision)
+	receiver, err := bitcoin.ExtractPkScriptAddr(out.PkScript, chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", out.PkScript, receiver, err)
+	if err != nil {
+		panic(err)
 	}
+	data, err := json.Marshal([]map[string]string{{
+		"receiver": receiver,
+		"amount":   amt.String(),
+	}})
+	if err != nil {
+		panic(err)
+	}
+	tx := &store.Transaction{
+		TransactionHash: btx.TxId,
+		RawTransaction:  btx.Hex,
+		Holder:          req.Holder,
+		Chain:           chain,
+		State:           common.RequestStateDone,
+		Data:            string(data),
+		RequestId:       req.Id,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, inputs)
+	return []string{safe.Holder}, err
+}
 
+func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, mainInputs []*bitcoin.Input, receiver string) error {
 	opsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
 	msgTx := opsbt.UnsignedTx
 	txHash := msgTx.TxHash().String()
@@ -214,31 +268,8 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	if !signedByHolder {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if ps := msgTx.TxOut[1].PkScript; len(ps) != 18 || uuid.FromBytesOrNil(ps[2:]).String() != req.Id {
-		return node.store.FailRequest(ctx, req.Id)
-	}
 
-	var total int64
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
-	for _, o := range mainInputs {
-		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, o.TransactionHash, int64(o.Index))
-		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", o.TransactionHash, o.Index, bo, err)
-		if err != nil {
-			return err
-		}
-		if bo.Height > info.Height || bo.Height == 0 {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-		if bo.Height+sequence+100 > info.Height {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-		total = total + o.Satoshi
-	}
-	if total != msgTx.TxOut[0].Value {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	amt := decimal.New(total, -bitcoin.ValuePrecision)
+	amt := decimal.New(msgTx.TxOut[0].Value, -bitcoin.ValuePrecision)
 	data, err := json.Marshal([]map[string]string{{
 		"receiver": receiver,
 		"amount":   amt.String(),
