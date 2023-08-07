@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -25,9 +24,6 @@ import (
 
 //go:embed assets/favicon.ico
 var FAVICON []byte
-
-//go:embed assets/safe-flow.png
-var FLOW []byte
 
 var GUIDE = `
 <!DOCTYPE html>
@@ -87,10 +83,6 @@ var GUIDE = `
     <script>
       var article = document.getElementsByTagName('article')[0];
       article.innerHTML = marked.parse(article.childNodes[0].nodeValue);
-      var flow = document.createElement('img');
-      flow.src = "SAFE-FLOW-BASE64";
-      flow.alt = "Mixin Safe Flow";
-      article.insertBefore(flow, document.getElementById("prepare-holder-key"));
       article.style="display:block";
     </script>
   </body>
@@ -98,9 +90,7 @@ var GUIDE = `
 `
 
 func (node *Node) StartHTTP(readme string) {
-	flow := "data:image/png;base64," + base64.StdEncoding.EncodeToString(FLOW)
 	GUIDE = strings.TrimSpace(strings.Replace(GUIDE, "README", readme, -1))
-	GUIDE = strings.Replace(GUIDE, "SAFE-FLOW-BASE64", flow, -1)
 
 	router := httptreemux.New()
 	router.PanicHandler = handlePanic
