@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"runtime"
 	"sync"
 	"time"
@@ -35,8 +35,9 @@ type Node struct {
 	operations map[string]bool
 	store      *SQLite3Store
 
-	keeper *mtg.Configuration
-	mixin  *mixin.Client
+	keeper       *mtg.Configuration
+	mixin        *mixin.Client
+	backupClient *http.Client
 }
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
@@ -52,6 +53,9 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 		store:      store,
 		keeper:     keeper,
 		mixin:      mixin,
+		backupClient: &http.Client{
+			Timeout: 5 * time.Second,
+		},
 	}
 	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.KeeperPublicKey)
 
@@ -328,7 +332,7 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 	if common.CheckTestEnvironment(ctx) {
 		out := &mtg.Output{Sender: string(node.id), AssetID: node.conf.AssetId}
 		out.Memo = common.Base91Encode(memo)
-		data, _ := json.Marshal(out)
+		data := common.MarshalJSONOrPanic(out)
 		msg := common.MarshalPanic(&protocol.Message{Data: data})
 		extra := append([]byte{16}, uuid.Nil.Bytes()...)
 		extra = append(extra, msg...)

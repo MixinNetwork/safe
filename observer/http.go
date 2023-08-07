@@ -791,7 +791,7 @@ func renderError(w http.ResponseWriter, r *http.Request, err error) {
 func renderJSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(status)
-	b, _ := json.Marshal(data)
+	b := common.MarshalJSONOrPanic(data)
 	size, err := w.Write(b)
 	logger.Verbosef("ServeHTTP(%v) => %d %s %d %v", *r, status, string(b), size, err)
 }

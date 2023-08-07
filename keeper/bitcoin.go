@@ -251,13 +251,10 @@ func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.C
 	if err != nil {
 		panic(err)
 	}
-	data, err := json.Marshal([]map[string]string{{
+	data := common.MarshalJSONOrPanic([]map[string]string{{
 		"receiver": receiver,
 		"amount":   amt.String(),
 	}})
-	if err != nil {
-		panic(err)
-	}
 	tx := &store.Transaction{
 		TransactionHash: btx.TxId,
 		RawTransaction:  btx.Hex,
@@ -284,13 +281,10 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	}
 
 	amt := decimal.New(msgTx.TxOut[0].Value, -bitcoin.ValuePrecision)
-	data, err := json.Marshal([]map[string]string{{
+	data := common.MarshalJSONOrPanic([]map[string]string{{
 		"receiver": receiver,
 		"amount":   amt.String(),
 	}})
-	if err != nil {
-		panic(err)
-	}
 	tx := &store.Transaction{
 		TransactionHash: txHash,
 		RawTransaction:  hex.EncodeToString(raw),
@@ -645,10 +639,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if !total.Equal(req.Amount) {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	data, err := json.Marshal(recipients)
-	if err != nil {
-		panic(err)
-	}
+	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
 		TransactionHash: psbt.Hash(),
 		RawTransaction:  hex.EncodeToString(extra),

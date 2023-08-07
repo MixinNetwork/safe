@@ -133,7 +133,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 func TestCMPProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Output, sessionId string) *common.Operation {
 	network := nodes[0].network.(*testNetwork)
 	for i := 0; i < 4; i++ {
-		data, _ := json.Marshal(out)
+		data := common.MarshalJSONOrPanic(out)
 		network.mtgChannels[nodes[i].id] <- data
 	}
 

@@ -112,14 +112,11 @@ func (s *SQLite3Store) WriteAccountPlanFromRequest(ctx context.Context, chain by
 	defer tx.Rollback()
 
 	key := accountPricePropertyKey(chain)
-	value, err := json.Marshal(AccountPlan{
+	value := common.MarshalJSONOrPanic(AccountPlan{
 		AccountPriceAsset:  assetId,
 		AccountPriceAmount: amount,
 		TransactionMinimum: minimum,
 	})
-	if err != nil {
-		panic(err)
-	}
 	existed, err := s.checkExistence(ctx, tx, "SELECT value FROM properties WHERE key=?", key)
 	if err != nil {
 		return err

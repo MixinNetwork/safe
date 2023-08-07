@@ -3,7 +3,6 @@ package keeper
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -66,7 +65,7 @@ func (node *Node) buildTransaction(ctx context.Context, assetId string, receiver
 func (node *Node) buildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) error {
 	logger.Printf("node.buildTransactionWithReferences(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, tx)
 	if common.CheckTestEnvironment(ctx) {
-		v, _ := json.Marshal(map[string]any{
+		v := common.MarshalJSONOrPanic(map[string]any{
 			"asset_id":  assetId,
 			"amount":    amount,
 			"receivers": receivers,

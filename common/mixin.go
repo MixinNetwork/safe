@@ -125,14 +125,10 @@ func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransac
 func callMixinRPC(node, method string, params []any) ([]byte, error) {
 	client := &http.Client{Timeout: 20 * time.Second}
 
-	body, err := json.Marshal(map[string]any{
+	body := MarshalJSONOrPanic(map[string]any{
 		"method": method,
 		"params": params,
 	})
-	if err != nil {
-		panic(err)
-	}
-
 	req, err := http.NewRequest("POST", node, bytes.NewReader(body))
 	if err != nil {
 		return nil, err

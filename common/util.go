@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding"
 	"encoding/hex"
+	"encoding/json"
 )
 
 const (
@@ -13,6 +14,14 @@ const (
 
 func MarshalPanic(m encoding.BinaryMarshaler) []byte {
 	b, err := m.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func MarshalJSONOrPanic(v any) []byte {
+	b, err := json.Marshal(v)
 	if err != nil {
 		panic(err)
 	}

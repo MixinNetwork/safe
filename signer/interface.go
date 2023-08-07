@@ -15,6 +15,8 @@ type Configuration struct {
 	AssetId                 string             `toml:"asset-id"`
 	KeeperAssetId           string             `toml:"keeper-asset-id"`
 	KeeperPublicKey         string             `toml:"keeper-public-key"`
+	BackupAPI               string             `toml:"backup-api"`
+	BackupKey               string             `toml:"backup-key"`
 	MixinRPC                string             `toml:"mixin-rpc"`
 	MTG                     *mtg.Configuration `toml:"mtg"`
 }

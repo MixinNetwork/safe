@@ -3,7 +3,6 @@ package signer
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -44,7 +43,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 			TransactionHash: crypto.NewHash([]byte(op.Id)),
 		}
 
-		msg, _ := json.Marshal(out)
+		msg := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		network.mtgChannels[nodes[i].id] <- msg
 	}
@@ -83,7 +82,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 			TransactionHash: crypto.NewHash([]byte(sop.Id)),
 		}
 
-		msg, _ := json.Marshal(out)
+		msg := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		network.mtgChannels[nodes[i].id] <- msg
 	}

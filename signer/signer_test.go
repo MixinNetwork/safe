@@ -3,7 +3,6 @@ package signer
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -85,7 +84,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			TransactionHash: crypto.NewHash([]byte(op.Id)),
 		}
 
-		msg, _ := json.Marshal(out)
+		msg := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		network.mtgChannels[nodes[i].id] <- msg
 	}

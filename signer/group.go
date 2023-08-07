@@ -362,6 +362,11 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		return node.store.FailSession(ctx, op.Id)
 	}
 	op.Public = hex.EncodeToString(res.Public)
+	err = node.sendKeygenBackup(ctx, op, res.Share)
+	logger.Verbosef("node.sendKeygenBackup(%v, %d) => %v", op, len(res.Share), err)
+	if err != nil {
+		return node.store.FailSession(ctx, op.Id)
+	}
 	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share)
 }
 
