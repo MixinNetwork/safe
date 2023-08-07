@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
@@ -32,6 +33,7 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, conf *Configuration, s
 	}
 	node.signerAESKey = common.ECDHEd25519(conf.SharedKey, conf.SignerPublicKey)
 	node.observerAESKey = common.ECDHEd25519(conf.SharedKey, conf.ObserverPublicKey)
+	abi.InitFactoryContractAddress(conf.MVMFactoryAddress)
 	return node
 }
 

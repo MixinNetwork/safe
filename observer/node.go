@@ -47,6 +47,7 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 		mixin:       mixin,
 	}
 	node.aesKey = common.ECDHEd25519(conf.PrivateKey, conf.KeeperPublicKey)
+	abi.InitFactoryContractAddress(conf.MVMFactoryAddress)
 	return node
 }
 

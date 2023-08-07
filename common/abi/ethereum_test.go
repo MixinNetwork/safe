@@ -8,6 +8,7 @@ import (
 
 func TestAssetAddress(t *testing.T) {
 	require := require.New(t)
+	InitFactoryContractAddress("0x39490616B61302B7d0Af8993cB694a54064EBA17")
 	suffix := " XIN2SB4YVNyxv6sYmZfmggidFGx73VVjiqMnefVFRzwFAPQSgc5NyGxPeXP5D4hSeJSrioE117oke4TwT3DhN2VrdLr9q4Fv"
 
 	assetId := "c6d0c728-2624-429b-8e0d-d9d19b6592fa"

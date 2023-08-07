@@ -23,6 +23,7 @@ type Configuration struct {
 	BitcoinRPC              string `toml:"bitcoin-rpc"`
 	LitecoinRPC             string `toml:"litecoin-rpc"`
 	MVMRPC                  string `toml:"mvm-rpc"`
+	MVMFactoryAddress       string `toml:"mvm-factory-address"`
 	MVMKey                  string `toml:"mvm-key"`
 	App                     struct {
 		ClientId   string `toml:"client-id"`
