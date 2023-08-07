@@ -23,9 +23,8 @@ members = [
   "member-id-2",
   "member-id-3",
 ]
-# the mtg threshold is recommended to be the members count
-# and should must not be smaller than the mpc threshold
-threshold = 4
+# the mtg threshold must not be smaller than the mpc threshold
+threshold = 3
 timestamp = 1676276828135856241
 
 [signer.mtg.app]
@@ -75,7 +74,7 @@ members = [
   "observer-id",
 ]
 # the mtg threshold is recommended to be 2/3 of the members count
-threshold = 4
+threshold = 3
 timestamp = 1676276828135856241
 
 [keeper.mtg.app]

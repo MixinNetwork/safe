@@ -284,21 +284,23 @@ func (node *Node) verifySessionSigners(session *Session, sessionSigners map[stri
 	// TODO do more robust checks, allow some signer fails
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
+		var signed int
 		for _, id := range node.conf.MTG.Genesis.Members {
 			public, found := sessionSigners[id]
-			if !found || public != session.Public || public != sessionSigners[string(node.id)] {
-				return false
+			if found && public == session.Public && public == sessionSigners[string(node.id)] {
+				signed = signed + 1
 			}
 		}
-		return true
+		return signed >= len(node.conf.MTG.Genesis.Members)
 	case common.OperationTypeSignInput:
+		var signed int
 		for _, id := range node.conf.MTG.Genesis.Members {
 			extra, found := sessionSigners[id]
-			if !found || extra == "" || extra != sessionSigners[string(node.id)] {
-				return false
+			if found && extra != "" && extra == sessionSigners[string(node.id)] {
+				signed = signed + 1
 			}
 		}
-		return true
+		return signed >= node.conf.MTG.Genesis.Threshold && signed >= node.conf.Threshold
 	default:
 		panic(session.Id)
 	}

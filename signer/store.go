@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -297,11 +298,24 @@ func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, erro
 }
 
 func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
+	logger.Printf("SQLite3Store.WriteProperty(%s)", k)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+
+	var ov string
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
+	err = row.Scan(&ov)
+	if err == sql.ErrNoRows {
+	} else if err != nil {
+		return fmt.Errorf("SQLite3Store INSERT properties %v", err)
+	} else if ov != v {
+		return fmt.Errorf("SQLite3Store INSERT properties %s", k)
+	} else {
+		return nil
+	}
 
 	err = s.execOne(ctx, tx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", k, v, time.Now().UTC())
 	if err != nil {
