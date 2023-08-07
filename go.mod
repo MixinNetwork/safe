@@ -8,7 +8,7 @@ require (
 	github.com/MixinNetwork/mixin v0.16.0
 	github.com/MixinNetwork/multi-party-sig v0.3.1
 	github.com/MixinNetwork/nfo v0.3.4
-	github.com/MixinNetwork/trusted-group v0.5.1
+	github.com/MixinNetwork/trusted-group v0.5.2
 	github.com/btcsuite/btcd v0.23.4
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/btcsuite/btcd/btcutil v1.1.3
@@ -17,7 +17,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/ethereum/go-ethereum v1.12.0
-	github.com/fox-one/mixin-sdk-go v1.7.9
+	github.com/fox-one/mixin-sdk-go v1.7.10
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/mattn/go-sqlite3 v1.14.17
