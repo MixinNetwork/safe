@@ -3,6 +3,7 @@ package signer
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/MixinNetwork/safe/common"
@@ -26,13 +27,23 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 
 	public := common.AESEncrypt(key, op.Encode(), op.Id)
 	data := common.MarshalJSONOrPanic(map[string]any{
-		"public": common.Base91Encode(public),
-		"share":  common.Base91Encode(share),
+		"id":         sid.String(),
+		"node_id":    node.id,
+		"session_id": op.Id,
+		"public":     common.Base91Encode(public),
+		"share":      common.Base91Encode(share),
 	})
 
 	resp, err := node.backupClient.Post(node.conf.BackupAPI, "application/json", bytes.NewReader(data))
 	if err != nil || resp.StatusCode != 200 {
 		return fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.BackupAPI, op, resp, err)
+	}
+	defer resp.Body.Close()
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil || body["id"] != sid.String() {
+		return fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.BackupAPI, op, body, err)
 	}
 	return nil
 }

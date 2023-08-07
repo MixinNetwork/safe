@@ -318,6 +318,27 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "saver",
+				Usage:  "Run the saver for signer backup",
+				Action: cmd.SaverBootCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "store",
+						Value: "~/.mixin/safe/saver",
+						Usage: "The saver database directory",
+					},
+					&cli.StringFlag{
+						Name:  "key",
+						Usage: "The AES key to decrypt the item backup",
+					},
+					&cli.StringFlag{
+						Name:  "port",
+						Value: "99999",
+						Usage: "The saver HTTP port to listen",
+					},
+				},
+			},
 		},
 	}
 
