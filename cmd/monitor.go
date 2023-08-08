@@ -73,8 +73,9 @@ func bundleKeeperState(ctx context.Context, store *store.SQLite3Store, startedAt
 	info, err := store.ReadLatestNetworkInfo(ctx, keeper.SafeChainBitcoin)
 	if err != nil {
 		return "", err
+	} else if info != nil {
+		state = state + fmt.Sprintf("🚴 Bitcoin height: %d\n", info.Height)
 	}
-	state = state + fmt.Sprintf("🚴 Bitcoin height: %d\n", info.Height)
 	sc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil {
 		return "", err

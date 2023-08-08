@@ -49,9 +49,9 @@ func bitcoinDepositCheckpointKey(chain byte) string {
 func bitcoinDepositCheckpointDefault(chain byte) int64 {
 	switch chain {
 	case keeper.SafeChainBitcoin:
-		return 790000
+		return 802220
 	case keeper.SafeChainLitecoin:
-		return 2474717
+		return 2523300
 	default:
 		panic(chain)
 	}
@@ -468,11 +468,19 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 }
 
 func (node *Node) bitcoinReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
+	min := bitcoinDepositCheckpointDefault(chain)
 	ckt, err := node.store.ReadProperty(ctx, bitcoinDepositCheckpointKey(chain))
 	if err != nil || ckt == "" {
-		return bitcoinDepositCheckpointDefault(chain), err
+		return min, err
 	}
-	return strconv.ParseInt(ckt, 10, 64)
+	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
+	if err != nil {
+		panic(ckt)
+	}
+	if checkpoint < min {
+		checkpoint = min
+	}
+	return checkpoint, nil
 }
 
 func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
