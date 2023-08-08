@@ -40,7 +40,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 			continue
 		}
 		var messages []*bot.MessageRequest
-		for i := range conv.Participants {
+		for i := range conv.ParticipantSessions {
 			s := conv.ParticipantSessions[i]
 			if s.UserId == app.ClientId {
 				continue
@@ -123,7 +123,8 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 
 func fetchConversationUser(ctx context.Context, store *kstore.SQLite3Store, id string, conf *keeper.Configuration) (*bot.User, error) {
 	app := conf.MTG.App
-	val, err := store.ReadProperty(ctx, id)
+	key := fmt.Sprintf("MONITOR:USER:%s", id)
+	val, err := store.ReadProperty(ctx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func fetchConversationUser(ctx context.Context, store *kstore.SQLite3Store, id s
 		return nil, err
 	}
 	val = string(common.MarshalJSONOrPanic(u))
-	err = store.WriteProperty(ctx, id, val)
+	err = store.WriteProperty(ctx, key, val)
 	return u, err
 }
 
