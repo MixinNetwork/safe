@@ -12,5 +12,5 @@ func SaverBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	return saver.StartHTTP(store, c.String("key"), c.Int("port"))
+	return saver.StartHTTP(store, c.Int("port"))
 }

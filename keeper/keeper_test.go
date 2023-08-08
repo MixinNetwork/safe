@@ -164,7 +164,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSABitcoin)
 	chainCode := common.DecodeHexOrPanic(cc)
 
-	root, err := os.MkdirTemp("", "safe-keeper-test")
+	root, err := os.MkdirTemp("", "safe-keeper-test-")
 	require.Nil(err)
 	node := testBuildNode(ctx, require, root)
 	require.NotNil(node)

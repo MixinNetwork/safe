@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -32,12 +33,14 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 	ctx := context.Background()
 	ctx = common.EnableTestEnvironment(ctx)
 
+	saverStore := testStartSaver(require)
+
 	nodes := make([]*Node, 4)
 	for i := 0; i < 4; i++ {
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
-		nodes[i] = testBuildNode(ctx, require, root, i)
+		nodes[i] = testBuildNode(ctx, require, root, i, saverStore)
 	}
 
 	network := newTestNetwork(nodes[0].members)
@@ -146,7 +149,7 @@ func TestCMPProcessOutput(ctx context.Context, require *require.Assertions, node
 	return op
 }
 
-func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int) *Node {
+func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store) *Node {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Signer *Configuration `toml:"signer"`
@@ -159,6 +162,13 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 
 	conf.Signer.StoreDir = root
 	conf.Signer.MTG.App.ClientId = conf.Signer.MTG.Genesis.Members[i]
+	conf.Signer.SaverAPI = "http://localhost:9999"
+
+	seed := crypto.NewHash([]byte(conf.Signer.MTG.App.ClientId))
+	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
+	conf.Signer.SaverKey = priv.String()
+	err = saverStore.WriteNodePublicKey(ctx, conf.Signer.MTG.App.ClientId, priv.Public().String())
+	require.Nil(err)
 
 	if !(strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Signer.StoreDir, "/var/folders")) {
 		panic(root)
@@ -188,6 +198,15 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 		}
 	}
 	return nil
+}
+
+func testStartSaver(require *require.Assertions) *saver.SQLite3Store {
+	dir, err := os.MkdirTemp("", "safe-saver-test-")
+	require.Nil(err)
+	store, err := saver.OpenSQLite3Store(dir + "/data.sqlite3")
+	require.Nil(err)
+	go saver.StartHTTP(store, 9999)
+	return store
 }
 
 type testNetwork struct {

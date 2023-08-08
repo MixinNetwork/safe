@@ -15,9 +15,10 @@ keeper-asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
 # and this key is used to verify the signature of all operations
 keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
 # the http api to receive all keygen backup, must be private accessible
-backup-api = ""
-# the aes key hex to encrypt all the data to http backup api
-backup-key = ""
+saver-api = ""
+# the ed25519 private key hex to sign and encrypt all the data to saver
+saver-key = ""
+# the mixin kernel node rpc
 mixin-rpc = "https://rpc.mixin.dev"
 
 [signer.mtg.genesis]

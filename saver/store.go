@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -34,7 +35,47 @@ func (s *SQLite3Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, data string) error {
+func (s *SQLite3Store) ReadNodePublicKey(ctx context.Context, nodeId string) (*crypto.Key, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	row := tx.QueryRowContext(ctx, "SELECT public_key FROM tokens WHERE node_id=?", nodeId)
+	var publicKey string
+	err = row.Scan(&publicKey)
+	if err != nil {
+		return nil, err
+	}
+	key, err := crypto.KeyFromString(publicKey)
+	return &key, err
+}
+
+func (s *SQLite3Store) WriteNodePublicKey(ctx context.Context, nodeId, publicKey string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	timestamp := time.Now().UTC()
+	err = s.execOne(ctx, tx, "INSERT INTO tokens (node_id, public_key, created_at, updated_at) VALUES (?, ?, ?, ?)",
+		nodeId, publicKey, timestamp, timestamp)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store INSERT tokens %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, nodeId, data string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -49,8 +90,8 @@ func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, data string)
 	row := s.db.QueryRowContext(ctx, "SELECT data FROM items WHERE id=?", id)
 	err = row.Scan(&old)
 	if err == sql.ErrNoRows {
-		err = s.execOne(ctx, tx, "INSERT INTO items (id, data, created_at, updated_at) VALUES (?, ?, ?, ?)",
-			id, data, timestamp, timestamp)
+		err = s.execOne(ctx, tx, "INSERT INTO items (id, node_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			id, nodeId, data, timestamp, timestamp)
 		if err != nil {
 			return fmt.Errorf("SQLite3Store INSERT items %v", err)
 		}
@@ -58,12 +99,12 @@ func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, data string)
 		return err
 	} else if data != old {
 		panic(data)
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE items SET updated_at=? WHERE id=? AND data=? AND updated_at<?",
-		timestamp, id, data, timestamp)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE items %v", err)
+	} else {
+		err = s.execOne(ctx, tx, "UPDATE items SET updated_at=? WHERE id=? AND node_id=? AND updated_at<?",
+			timestamp, id, nodeId, timestamp)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store UPDATE items %v", err)
+		}
 	}
 	return tx.Commit()
 }

@@ -329,12 +329,8 @@ func main() {
 						Usage: "The saver database directory",
 					},
 					&cli.StringFlag{
-						Name:  "key",
-						Usage: "The AES key to decrypt the item backup",
-					},
-					&cli.StringFlag{
 						Name:  "port",
-						Value: "99999",
+						Value: "9999",
 						Usage: "The saver HTTP port to listen",
 					},
 				},
