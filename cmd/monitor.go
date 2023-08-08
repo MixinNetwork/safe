@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
@@ -39,6 +41,11 @@ func MonitorKeeper(ctx context.Context, store *store.SQLite3Store, conf *mtg.Con
 		for i := range conv.Participants {
 			s := conv.ParticipantSessions[i]
 			if s.UserId == conf.App.ClientId {
+				continue
+			}
+			u, err := fetchConversationUser(ctx, store, s.UserId, conf)
+			if err != nil || checkBot(u) {
+				logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
 				continue
 			}
 			messages = append(messages, &bot.MessageRequest{
@@ -79,4 +86,32 @@ func bundleKeeperState(ctx context.Context, store *store.SQLite3Store, startedAt
 	state = state + fmt.Sprintf("🔑 Observer keys: %d\n", oc)
 	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
 	return state, nil
+}
+
+func fetchConversationUser(ctx context.Context, store *store.SQLite3Store, id string, conf *mtg.Configuration) (*bot.User, error) {
+	val, err := store.ReadProperty(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if val != "" {
+		var u bot.User
+		err = json.Unmarshal([]byte(val), &u)
+		return &u, err
+	}
+
+	u, err := bot.GetUser(ctx, id, conf.App.ClientId, conf.App.SessionId, conf.App.PrivateKey)
+	if err != nil || u == nil {
+		return nil, err
+	}
+	val = string(common.MarshalJSONOrPanic(u))
+	err = store.WriteProperty(ctx, id, val)
+	return u, err
+}
+
+func checkBot(u *bot.User) bool {
+	id, err := strconv.ParseInt(u.IdentityNumber, 10, 64)
+	if err != nil {
+		panic(u.IdentityNumber)
+	}
+	return id > 7000000000
 }
