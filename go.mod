@@ -17,7 +17,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/ethereum/go-ethereum v1.12.0
-	github.com/fox-one/mixin-sdk-go v1.7.10
+	github.com/fox-one/mixin-sdk-go v1.7.11
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/mattn/go-sqlite3 v1.14.17
@@ -87,7 +87,7 @@ require (
 	golang.org/x/sys v0.11.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230803162519-f966b187b2e5 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230807174057-1744710a1577 // indirect
 	google.golang.org/grpc v1.57.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
