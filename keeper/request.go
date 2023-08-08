@@ -11,13 +11,20 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/shopspring/decimal"
 )
 
 func (node *Node) parseRequest(out *mtg.Output) (*common.Request, error) {
 	switch out.AssetID {
 	case node.conf.AssetId:
+		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			panic(out.TransactionHash)
+		}
 		return node.parseSignerResponse(out)
 	case node.conf.ObserverAssetId:
+		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			panic(out.TransactionHash)
+		}
 		return node.parseObserverRequest(out)
 	default:
 		return node.parseHolderRequest(out)

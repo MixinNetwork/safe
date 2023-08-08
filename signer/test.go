@@ -23,6 +23,7 @@ import (
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/pelletier/go-toml"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,6 +120,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	out := &mtg.Output{
 		AssetID:         node.conf.KeeperAssetId,
 		Memo:            memo,
+		Amount:          decimal.NewFromInt(1),
 		TransactionHash: crypto.NewHash([]byte(sop.Id)),
 	}
 	op := TestCMPProcessOutput(ctx, require, nodes, out, sid)

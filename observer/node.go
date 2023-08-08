@@ -229,6 +229,9 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	if s.AssetID != node.conf.AssetId {
 		return false, nil
 	}
+	if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+		panic(s.TransactionHash)
+	}
 	msp := mtg.DecodeMixinExtra(s.Memo)
 	if msp == nil {
 		return true, nil

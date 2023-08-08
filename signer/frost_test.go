@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,6 +41,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 		out := &mtg.Output{
 			AssetID:         node.conf.KeeperAssetId,
 			Memo:            memo,
+			Amount:          decimal.NewFromInt(1),
 			TransactionHash: crypto.NewHash([]byte(op.Id)),
 		}
 
@@ -79,6 +81,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		out := &mtg.Output{
 			AssetID:         node.conf.KeeperAssetId,
 			Memo:            memo,
+			Amount:          decimal.NewFromInt(1),
 			TransactionHash: crypto.NewHash([]byte(sop.Id)),
 		}
 

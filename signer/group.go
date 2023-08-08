@@ -18,6 +18,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -51,6 +52,9 @@ type SignResult struct {
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	switch {
 	case out.AssetID == node.conf.KeeperAssetId:
+		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			panic(out.TransactionHash)
+		}
 		op, err := node.parseOperation(ctx, out.Memo)
 		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
 		if err != nil {
