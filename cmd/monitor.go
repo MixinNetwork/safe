@@ -67,8 +67,9 @@ func bundleKeeperState(ctx context.Context, store *store.SQLite3Store, startedAt
 	req, err := store.ReadLatestRequest(ctx)
 	if err != nil {
 		return "", err
+	} else if req != nil {
+		state = state + fmt.Sprintf("🎆 Latest request: %s\n", req.MixinHash)
 	}
-	state = state + fmt.Sprintf("🎆 Latest request: %s\n", req.MixinHash)
 	info, err := store.ReadLatestNetworkInfo(ctx, keeper.SafeChainBitcoin)
 	if err != nil {
 		return "", err
