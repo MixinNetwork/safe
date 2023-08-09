@@ -31,7 +31,7 @@ type Node struct {
 	network    Network
 	aesKey     [32]byte
 	mutex      *sync.Mutex
-	sessions   map[string]chan *protocol.Message
+	sessions   map[string]*MultiPartySession
 	operations map[string]bool
 	store      *SQLite3Store
 
@@ -48,7 +48,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 		group:      group,
 		network:    network,
 		mutex:      new(sync.Mutex),
-		sessions:   make(map[string]chan *protocol.Message),
+		sessions:   make(map[string]*MultiPartySession),
 		operations: make(map[string]bool),
 		store:      store,
 		keeper:     keeper,
@@ -198,7 +198,7 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 		if !msg.IsFor(node.id) {
 			continue
 		}
-		node.getSession(sessionId) <- msg
+		node.getSession(sessionId).incoming <- msg
 		if msg.RoundNumber != MPCFirstMessageRound {
 			continue
 		}
@@ -247,37 +247,62 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 	if err != nil {
 		return nil, err
 	}
-	incoming := node.getSession(sessionId)
+	mps := node.getSession(sessionId)
 
+	res, err := node.loopMultiPartySession(ctx, mps, h, roundTimeout)
+	missing := make([]party.ID, len(node.members)-len(mps.accepted))
+	for _, id := range node.members {
+		if mps.accepted[id] == nil {
+			missing = append(missing, id)
+		}
+	}
+	logger.Printf("node.loopPendingSessions(%x, %d) => %v %v with %v missing", mps.id, mps.round, res, err, missing)
+	return res, err
+}
+
+func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySession, h protocol.Handler, roundTimeout time.Duration) (any, error) {
 	for {
 		select {
 		case msg, ok := <-h.Listen():
 			if !ok {
 				return h.Result()
 			}
-			msb := marshalSessionMessage(sessionId, msg)
+			msb := marshalSessionMessage(mps.id, msg)
 			for _, id := range node.members {
 				if !msg.IsFor(id) {
 					continue
 				}
 				err := node.network.QueueMessage(ctx, string(id), msb)
-				logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", sessionId, msg.RoundNumber, id, err)
+				logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", mps.id, msg.RoundNumber, id, err)
 			}
-		case msg := <-incoming:
-			logger.Verbosef("network.incoming %x %d %s", sessionId, msg.RoundNumber, msg.From)
-			if bytes.Equal(sessionId, msg.SSID) {
-				return nil, fmt.Errorf("node.handlerLoop(%x) expired from %s", sessionId, msg.From)
-			} else {
-				h.Accept(msg)
+		case msg := <-mps.incoming:
+			logger.Verbosef("network.incoming %x %d %s", mps.id, msg.RoundNumber, msg.From)
+			if bytes.Equal(mps.id, msg.SSID) {
+				return nil, fmt.Errorf("node.handlerLoop(%x) expired from %s", mps.id, msg.From)
+			} else if !h.CanAccept(msg) {
+				continue
 			}
-			logger.Verbosef("handler.Accept %x %d %s", sessionId, msg.RoundNumber, msg.From)
+			h.Accept(msg)
+			if mps.round < msg.RoundNumber {
+				mps.round = msg.RoundNumber
+				mps.accepted = make(map[party.ID]*protocol.Message)
+			}
+			mps.accepted[msg.From] = msg
+			logger.Verbosef("handler.Accept %x %d %s", mps.id, msg.RoundNumber, msg.From)
 		case <-time.After(roundTimeout):
-			return nil, fmt.Errorf("node.handlerLoop(%x) timeout", sessionId)
+			return nil, fmt.Errorf("node.handlerLoop(%x) timeout", mps.id)
 		}
 	}
 }
 
-func (node *Node) getSession(sessionId []byte) chan *protocol.Message {
+type MultiPartySession struct {
+	id       []byte
+	incoming chan *protocol.Message
+	accepted map[party.ID]*protocol.Message
+	round    round.Number
+}
+
+func (node *Node) getSession(sessionId []byte) *MultiPartySession {
 	node.mutex.Lock()
 	defer node.mutex.Unlock()
 
@@ -286,7 +311,10 @@ func (node *Node) getSession(sessionId []byte) chan *protocol.Message {
 
 	if session == nil {
 		size := len(node.members) * len(node.members)
-		session = make(chan *protocol.Message, size)
+		session = &MultiPartySession{
+			id:       sessionId,
+			incoming: make(chan *protocol.Message, size),
+		}
 		node.sessions[sid] = session
 	}
 	return session
