@@ -165,10 +165,6 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	err = node.verifyKernelTransaction(ctx, out)
-	if err != nil {
-		return err
-	}
 	return node.buildKeeperTransaction(ctx, op)
 }
 
