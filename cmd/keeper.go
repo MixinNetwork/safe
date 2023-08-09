@@ -52,7 +52,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	keeper.Boot(ctx)
 
 	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
-		go MonitorKeeper(ctx, db, kd, mc.Keeper, mmc)
+		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
 	}
 
 	group.AddWorker(custodian)

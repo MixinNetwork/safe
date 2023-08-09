@@ -107,6 +107,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	}
 
 	finished := node.verifySessionSigners(session, signers)
+	logger.Printf("node.verifySessionSigners(%v, %d) => %t", session, len(signers), finished)
 	if !finished {
 		return nil
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/fox-one/mixin-sdk-go"
 )
 
-func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, conversationId string) {
+func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, group *mtg.Group, conversationId string) {
 	startedAt := time.Now()
 
 	app := conf.MTG.App
@@ -34,14 +34,14 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 	}
 
 	for {
-		msg, err := bundleKeeperState(ctx, mdb, store, conf, startedAt)
+		msg, err := bundleKeeperState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
 			continue
 		}
 		var messages []*bot.MessageRequest
-		for i := range conv.ParticipantSessions {
-			s := conv.ParticipantSessions[i]
+		for i := range conv.Participants {
+			s := conv.Participants[i]
 			if s.UserId == app.ClientId {
 				continue
 			}
@@ -54,7 +54,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 				ConversationId: conversationId,
 				RecipientId:    s.UserId,
 				Category:       bot.MessageCategoryPlainText,
-				MessageId:      mixin.UniqueConversationID(msg, s.SessionId),
+				MessageId:      mixin.UniqueConversationID(msg, s.UserId),
 				Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
 			})
 		}
@@ -64,8 +64,10 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 	}
 }
 
-func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, startedAt time.Time) (string, error) {
+func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, grp *mtg.Group, startedAt time.Time) (string, error) {
 	state := fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
+	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixin.HashMembers(grp.GetMembers()), grp.GetThreshold())
+
 	req, err := store.ReadLatestRequest(ctx)
 	if err != nil {
 		return "", err
