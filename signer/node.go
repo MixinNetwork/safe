@@ -250,13 +250,13 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 	mps := node.getSession(sessionId)
 
 	res, err := node.loopMultiPartySession(ctx, mps, h, roundTimeout)
-	missing := make([]party.ID, len(node.members)-len(mps.accepted))
+	var missing []party.ID
 	for _, id := range node.members {
 		if mps.accepted[id] == nil {
 			missing = append(missing, id)
 		}
 	}
-	logger.Printf("node.loopPendingSessions(%x, %d) => %v %v with %v missing", mps.id, mps.round, res, err, missing)
+	logger.Printf("node.loopMultiPartySession(%x, %d) => %v %v with %v missing", mps.id, mps.round, res, err, missing)
 	return res, err
 }
 
@@ -275,6 +275,7 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 				err := node.network.QueueMessage(ctx, string(id), msb)
 				logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", mps.id, msg.RoundNumber, id, err)
 			}
+			mps.accept(msg)
 		case msg := <-mps.incoming:
 			logger.Verbosef("network.incoming %x %d %s", mps.id, msg.RoundNumber, msg.From)
 			if bytes.Equal(mps.id, msg.SSID) {
@@ -283,11 +284,7 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 				continue
 			}
 			h.Accept(msg)
-			if mps.round < msg.RoundNumber {
-				mps.round = msg.RoundNumber
-				mps.accepted = make(map[party.ID]*protocol.Message)
-			}
-			mps.accepted[msg.From] = msg
+			mps.accept(msg)
 			logger.Verbosef("handler.Accept %x %d %s", mps.id, msg.RoundNumber, msg.From)
 		case <-time.After(roundTimeout):
 			return nil, fmt.Errorf("node.handlerLoop(%x) timeout", mps.id)
@@ -300,6 +297,14 @@ type MultiPartySession struct {
 	incoming chan *protocol.Message
 	accepted map[party.ID]*protocol.Message
 	round    round.Number
+}
+
+func (mps *MultiPartySession) accept(msg *protocol.Message) {
+	if mps.round < msg.RoundNumber {
+		mps.round = msg.RoundNumber
+		mps.accepted = make(map[party.ID]*protocol.Message)
+	}
+	mps.accepted[msg.From] = msg
 }
 
 func (node *Node) getSession(sessionId []byte) *MultiPartySession {
