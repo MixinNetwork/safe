@@ -241,7 +241,7 @@ func (node *Node) queueOperation(ctx context.Context, op *common.Operation) <-ch
 	return res
 }
 
-func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionId []byte, timeout time.Duration) (any, error) {
+func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionId []byte, roundTimeout time.Duration) (any, error) {
 	logger.Printf("node.handlerLoop(%x) => %x", sessionId, start.SSID())
 	h, err := protocol.NewMultiHandler(start)
 	if err != nil {
@@ -271,7 +271,7 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 				h.Accept(msg)
 			}
 			logger.Verbosef("handler.Accept %x %d %s", sessionId, msg.RoundNumber, msg.From)
-		case <-time.After(timeout):
+		case <-time.After(roundTimeout):
 			return nil, fmt.Errorf("node.handlerLoop(%x) timeout", sessionId)
 		}
 	}

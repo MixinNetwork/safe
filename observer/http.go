@@ -690,12 +690,12 @@ func (node *Node) readChainAccountantBalance(ctx context.Context, chain int) (ui
 	query := "SELECT SUM(satoshi),COUNT(*) FROM bitcoin_outputs WHERE chain=? AND state=?"
 	row := node.store.db.QueryRowContext(ctx, query, chain, common.RequestStateInitial)
 
-	var count, satoshi uint64
+	var count, satoshi sql.NullInt64
 	err := row.Scan(&satoshi, &count)
 	if err == sql.ErrNoRows {
 		return 0, 0, nil
 	}
-	return count, satoshi, err
+	return uint64(count.Int64), uint64(satoshi.Int64), err
 }
 
 func (node *Node) readSafeProposalOrRequest(ctx context.Context, id string) (*store.SafeProposal, *common.Request, error) {
