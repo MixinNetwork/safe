@@ -300,6 +300,9 @@ type MultiPartySession struct {
 }
 
 func (mps *MultiPartySession) accept(msg *protocol.Message) {
+	if mps.round > msg.RoundNumber {
+		return
+	}
 	if mps.round < msg.RoundNumber {
 		mps.round = msg.RoundNumber
 		mps.accepted = make(map[party.ID]*protocol.Message)
