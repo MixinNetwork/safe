@@ -256,7 +256,7 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 			missing = append(missing, id)
 		}
 	}
-	logger.Printf("node.loopMultiPartySession(%x, %d) => %v %v with %v missing", mps.id, mps.round, res, err, missing)
+	logger.Printf("node.loopMultiPartySession(%x, %d) => %v with %v missing", mps.id, mps.round, err, missing)
 	return res, err
 }
 
