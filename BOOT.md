@@ -2,6 +2,14 @@
 
 Mixin Safe is composed of two networks, Mixin Safe Signer and Mixin Safe Keeper, both are MTG of existing Mixin Kernel nodes.
 
+## Requirements
+
+Mixin Safe Signer is a computation intensive software, and utilizes parallelization a lot. It's recommended to use a CPU of at least 8 cores, and the RAM must be 8GB+.
+
+Mixin Safe Keeper consumes much less computation resources, thus a 2 cores CPU is well enough.
+
+For software environment, both Mixin Safe Signer and Safe Keeper are tested on Ubuntu 22.04 and Go 1.20+.
+
 ## Preparation
 
 Both Signer and Keeper MTG rely on some external blockchain RPC nodes to operate:
@@ -94,7 +102,7 @@ Mixin Safe Signer is the MPC network that does all DKG and signature aggregation
 - The node data must have hourly backup enabled, because private key share loss may cause punishment to the corresponding Mixin Kernel node pledge.
 - The node should enable secure disk encryption if it's in a cloud environment.
 
-With requirements above satisfied, it's easy to boot the signer node. Prepare a place for the data, i.e. `/var/mixin/safe/signer`, then modify the config.toml below according to the node app.
+With requirements above satisfied, it's easy to boot the signer node. Prepare a place for the data, i.e. `/var/mixin/safe/signer`, then modify the `config.toml` below according to the node app.
 
 ```toml
 [signer]

@@ -294,6 +294,7 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 			} else if !h.CanAccept(msg) {
 				continue
 			}
+			logger.Verbosef("network.CanAccept %x %d %s", mps.id, msg.RoundNumber, msg.From)
 			h.Accept(msg)
 			mps.accept(msg)
 			logger.Verbosef("handler.Accept %x %d %s", mps.id, msg.RoundNumber, msg.From)
