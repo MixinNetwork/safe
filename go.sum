@@ -16,8 +16,8 @@ github.com/MixinNetwork/multi-party-sig v0.3.1 h1:A8PYbKKDFC+k0Y/x8PSZDZsjFVN+Af
 github.com/MixinNetwork/multi-party-sig v0.3.1/go.mod h1:e4e2LfJ0VQxzoXB6yujB+4mQvz7fUzzB9zyPSuZDcjY=
 github.com/MixinNetwork/nfo v0.3.4 h1:6VcM24v2kRtmq1oHXIcCzR3KVvjatNjGTWa/QWoF5CY=
 github.com/MixinNetwork/nfo v0.3.4/go.mod h1:LRvUs87wXIC1acFS3vjdJs7xXcNldMhTeIMsomWYYIo=
-github.com/MixinNetwork/trusted-group v0.5.2 h1:EN4ZURqTLMYJRrIryBvd3PfpUi36ttxoVAllzrEM8z0=
-github.com/MixinNetwork/trusted-group v0.5.2/go.mod h1:yEY5Z7tmg1xlWge/Sp2wqtQWzBcM27FIuxG2qs9tZzU=
+github.com/MixinNetwork/trusted-group v0.5.3 h1:2QM/bBI14RCuyjKZF48YC2L9M6yWjkzU6HMYtDLP+fM=
+github.com/MixinNetwork/trusted-group v0.5.3/go.mod h1:VICFkb0Y01RLm3E3mvP/H8MbM4KVeRYw6Vt+aU7tgpE=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
