@@ -191,20 +191,20 @@ func (node *Node) synced(ctx context.Context) (bool, error) {
 
 func (node *Node) acceptIncomingMessages(ctx context.Context) {
 	for {
-		peer, msb, err := node.network.ReceiveMessage(ctx)
-		logger.Debugf("network.ReceiveMessage() => %s %x %v", peer, msb, err)
+		mm, err := node.network.ReceiveMessage(ctx)
+		logger.Debugf("network.ReceiveMessage() => %s %x %s %v", mm.Peer, mm.Data, mm.CreatedAt, err)
 		if err != nil {
 			panic(err)
 		}
-		sessionId, msg, err := unmarshalSessionMessage(msb)
-		logger.Verbosef("node.acceptIncomingMessages(%x, %d) => %s %x", sessionId, msg.RoundNumber, peer, msg.SSID)
+		sessionId, msg, err := unmarshalSessionMessage(mm.Data)
+		logger.Verbosef("node.acceptIncomingMessages(%x, %d) => %s %s %x", sessionId, msg.RoundNumber, mm.Peer, mm.CreatedAt, msg.SSID)
 		if err != nil {
 			continue
 		}
 		if msg.SSID == nil {
 			continue
 		}
-		if msg.From != party.ID(peer) {
+		if msg.From != party.ID(mm.Peer) {
 			continue
 		}
 		if !msg.IsFor(node.id) {
@@ -232,9 +232,9 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 				Extra:  common.DecodeHexOrPanic(r.Extra),
 			})
 		} else {
-			rm := &protocol.Message{SSID: sessionId, From: node.id, To: party.ID(peer)}
+			rm := &protocol.Message{SSID: sessionId, From: node.id, To: party.ID(mm.Peer)}
 			rmb := marshalSessionMessage(sessionId, rm)
-			node.network.QueueMessage(ctx, peer, rmb)
+			node.network.QueueMessage(ctx, mm.Peer, rmb)
 		}
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -245,12 +246,14 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 	}
 }
 
-func (n *testNetwork) ReceiveMessage(ctx context.Context) (string, []byte, error) {
+func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessage, error) {
 	id := ctx.Value("party").(string)
 	msb := <-n.listen(party.ID(id))
 	_, msg, _ := unmarshalSessionMessage(msb)
-	peer := string(msg.From)
-	return peer, msb, nil
+	return &messenger.MixinMessage{
+		Peer: string(msg.From),
+		Data: msb,
+	}, nil
 }
 
 func (n *testNetwork) QueueMessage(ctx context.Context, receiver string, b []byte) error {

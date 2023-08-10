@@ -3,6 +3,7 @@ package messenger
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -28,6 +29,12 @@ type MixinMessenger struct {
 	conversationId string
 	recv           chan []byte
 	send           chan *mixin.MessageRequest
+}
+
+type MixinMessage struct {
+	Peer      string
+	Data      []byte
+	CreatedAt time.Time
 }
 
 func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMessenger, error) {
@@ -58,16 +65,22 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMes
 	return mm, nil
 }
 
-func (mm *MixinMessenger) ReceiveMessage(ctx context.Context) (string, []byte, error) {
+func (mm *MixinMessenger) ReceiveMessage(ctx context.Context) (*MixinMessage, error) {
 	select {
 	case b := <-mm.recv:
 		sender, err := uuid.FromBytes(b[:16])
 		if err != nil {
 			panic(err)
 		}
-		return sender.String(), b[16:], nil
+		msg := &MixinMessage{
+			Peer: sender.String(),
+			Data: b[24:],
+		}
+		ts := binary.BigEndian.Uint64(b[16:24])
+		msg.CreatedAt = time.Unix(0, int64(ts))
+		return msg, nil
 	case <-ctx.Done():
-		return "", nil, ErrorDone
+		return nil, ErrorDone
 	}
 }
 
@@ -178,7 +191,9 @@ func (mm *MixinMessenger) OnMessage(ctx context.Context, msg bot.MessageView, us
 	if err != nil {
 		return nil
 	}
-	data = append(sender.Bytes(), data...)
+	now := uint64(msg.CreatedAt.UnixNano())
+	header := binary.BigEndian.AppendUint64(sender.Bytes(), now)
+	data = append(header, data...)
 	select {
 	case mm.recv <- data:
 	case <-ctx.Done():
