@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/common/round"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
@@ -38,6 +39,7 @@ type Node struct {
 	keeper       *mtg.Configuration
 	mixin        *mixin.Client
 	backupClient *http.Client
+	saverKey     *crypto.Key
 }
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
@@ -58,6 +60,15 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 		},
 	}
 	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.KeeperPublicKey)
+
+	if conf.SaverAPI != "" {
+		priv, err := crypto.KeyFromString(conf.SaverKey)
+		if err != nil {
+			panic(conf.SaverKey)
+		}
+		logger.Printf("node.saverKey %s", priv.Public())
+		node.saverKey = &priv
+	}
 
 	for _, id := range conf.MTG.Genesis.Members {
 		node.members = append(node.members, party.ID(id))

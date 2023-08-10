@@ -16,13 +16,9 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 	if node.conf.SaverAPI == "" {
 		return nil
 	}
-	priv, err := crypto.KeyFromString(node.conf.SaverKey)
-	if err != nil {
-		panic(node.conf.SaverKey)
-	}
 
 	sid := uuid.Must(uuid.NewV4())
-	secret := crypto.NewHash([]byte(priv.String() + sid.String()))
+	secret := crypto.NewHash([]byte(node.saverKey.String() + sid.String()))
 	secret = crypto.NewHash(secret[:])
 
 	share = append(sid.Bytes(), share...)
@@ -38,7 +34,7 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 
 	msg := data["id"] + data["node_id"] + data["session_id"]
 	msg = msg + data["public"] + data["share"]
-	data["signature"] = priv.Sign([]byte(msg)).String()
+	data["signature"] = node.saverKey.Sign([]byte(msg)).String()
 
 	msg = string(common.MarshalJSONOrPanic(data))
 	reader := strings.NewReader(msg)
