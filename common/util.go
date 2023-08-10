@@ -6,6 +6,8 @@ import (
 	"encoding"
 	"encoding/hex"
 	"encoding/json"
+	"os"
+	"strings"
 )
 
 const (
@@ -60,4 +62,16 @@ func CheckUnique(args ...any) bool {
 		filter[k] = struct{}{}
 	}
 	return len(filter) == len(args)
+}
+
+func ExpandTilde(path string) string {
+	if !strings.HasPrefix(path, "~/") {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	path = strings.Replace(path, "~", home, 1)
+	return path
 }

@@ -8,7 +8,7 @@ import (
 
 func SaverBootCmd(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
-	store, err := saver.OpenSQLite3Store(c.String("store"))
+	store, err := saver.OpenSQLite3Store(c.String("store") + "/safe.sqlite3")
 	if err != nil {
 		return err
 	}

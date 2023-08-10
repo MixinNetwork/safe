@@ -8,6 +8,7 @@ import (
 )
 
 func OpenSQLite3Store(path, schema string) (*sql.DB, error) {
+	path = ExpandTilde(path)
 	dsn := fmt.Sprintf("file:%s?mode=rwc&_journal_mode=WAL&cache=private", path)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
@@ -21,6 +22,7 @@ func OpenSQLite3Store(path, schema string) (*sql.DB, error) {
 }
 
 func OpenSQLite3ReadOnlyStore(path string) (*sql.DB, error) {
+	path = ExpandTilde(path)
 	dsn := fmt.Sprintf("file:%s?mode=ro", path)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
