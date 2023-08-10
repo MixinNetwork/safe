@@ -20,6 +20,7 @@ import (
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
+	"golang.org/x/exp/slices"
 )
 
 type Node struct {
@@ -261,12 +262,7 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 	mps := node.getSession(sessionId)
 
 	res, err := node.loopMultiPartySession(ctx, mps, h, roundTimeout)
-	var missing []party.ID
-	for _, id := range node.members {
-		if mps.accepted[id] == nil {
-			missing = append(missing, id)
-		}
-	}
+	missing := mps.missing(node.members)
 	logger.Printf("node.loopMultiPartySession(%x, %d) => %v with %v missing", mps.id, mps.round, err, missing)
 	return res, err
 }
@@ -286,18 +282,14 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 				err := node.network.QueueMessage(ctx, string(id), msb)
 				logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", mps.id, msg.RoundNumber, id, err)
 			}
-			mps.accept(msg)
+			mps.advance(msg)
 		case msg := <-mps.incoming:
 			logger.Verbosef("network.incoming %x %d %s", mps.id, msg.RoundNumber, msg.From)
 			if bytes.Equal(mps.id, msg.SSID) {
 				return nil, fmt.Errorf("node.handlerLoop(%x) expired from %s", mps.id, msg.From)
-			} else if !h.CanAccept(msg) {
-				continue
 			}
-			logger.Verbosef("network.CanAccept %x %d %s", mps.id, msg.RoundNumber, msg.From)
-			h.Accept(msg)
-			mps.accept(msg)
-			logger.Verbosef("handler.Accept %x %d %s", mps.id, msg.RoundNumber, msg.From)
+			mps.receive(msg)
+			mps.process(h)
 		case <-time.After(roundTimeout):
 			return nil, fmt.Errorf("node.handlerLoop(%x) timeout", mps.id)
 		}
@@ -307,19 +299,45 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 type MultiPartySession struct {
 	id       []byte
 	incoming chan *protocol.Message
-	accepted map[party.ID]*protocol.Message
+	received map[round.Number][]*protocol.Message
+	accepted map[round.Number][]*protocol.Message
 	round    round.Number
 }
 
-func (mps *MultiPartySession) accept(msg *protocol.Message) {
-	if mps.round > msg.RoundNumber {
-		return
+func (mps *MultiPartySession) missing(members []party.ID) []party.ID {
+	var missing []party.ID
+	accepted := mps.accepted[mps.round]
+	for _, id := range members {
+		if !slices.ContainsFunc(accepted, func(m *protocol.Message) bool {
+			return m.From == id
+		}) {
+			missing = append(missing, id)
+		}
 	}
+	return missing
+}
+
+func (mps *MultiPartySession) advance(msg *protocol.Message) {
 	if mps.round < msg.RoundNumber {
 		mps.round = msg.RoundNumber
-		mps.accepted = make(map[party.ID]*protocol.Message)
 	}
-	mps.accepted[msg.From] = msg
+}
+
+func (mps *MultiPartySession) receive(msg *protocol.Message) {
+	mps.received[msg.RoundNumber] = append(mps.received[msg.RoundNumber], msg)
+}
+
+func (mps *MultiPartySession) process(h protocol.Handler) {
+	for i, msg := range mps.received[mps.round] {
+		if msg == nil || !h.CanAccept(msg) {
+			continue
+		}
+		logger.Verbosef("network.CanAccept %x %d %s", mps.id, msg.RoundNumber, msg.From)
+		h.Accept(msg)
+		logger.Verbosef("handler.Accept %x %d %s", mps.id, msg.RoundNumber, msg.From)
+		mps.accepted[msg.RoundNumber] = append(mps.accepted[msg.RoundNumber], msg)
+		mps.received[mps.round][i] = nil
+	}
 }
 
 func (node *Node) getSession(sessionId []byte) *MultiPartySession {
@@ -334,6 +352,8 @@ func (node *Node) getSession(sessionId []byte) *MultiPartySession {
 		session = &MultiPartySession{
 			id:       sessionId,
 			incoming: make(chan *protocol.Message, size),
+			received: make(map[round.Number][]*protocol.Message),
+			accepted: make(map[round.Number][]*protocol.Message),
 		}
 		node.sessions[sid] = session
 	}
