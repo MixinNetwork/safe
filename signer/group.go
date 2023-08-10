@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -142,9 +141,6 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Extra = append(op.Extra, common.RequestFlagNone)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
-		if sig := signers[string(node.id)]; sig == "" || !strings.HasSuffix(session.Extra, sig) {
-			panic(session.Extra)
-		}
 		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
