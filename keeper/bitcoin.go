@@ -851,7 +851,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	if err != nil {
 		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
 	}
-	if old == nil || old.State == common.RequestStateDone || old.CreatedAt.Add(SafeSignatureTimeout).Before(req.CreatedAt) {
+	if old == nil || old.State == common.RequestStateDone {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)

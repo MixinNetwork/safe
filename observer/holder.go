@@ -630,7 +630,7 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout * 2).After(time.Now()) {
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
 		return nil
 	}
 	id = mixin.UniqueConversationID(id, approval.UpdatedAt.String())
