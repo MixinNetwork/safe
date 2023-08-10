@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
@@ -16,7 +17,8 @@ type MixinConfiguration struct {
 	UserId         string `toml:"user"`
 	SessionId      string `toml:"session"`
 	Key            string `toml:"key"`
-	Buffer         int    `toml:"buffer"`
+	SendBuffer     int    `toml:"send-buffer"`
+	ReceiveBuffer  int    `toml:"receive-buffer"`
 	ConversationId string `toml:"conversation"`
 }
 
@@ -29,6 +31,10 @@ type MixinMessenger struct {
 }
 
 func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMessenger, error) {
+	if conf.SendBuffer >= 100 || conf.SendBuffer == 0 {
+		panic(fmt.Errorf("messenger messages limit %d", conf.SendBuffer))
+	}
+
 	s := &mixin.Keystore{
 		ClientID:   conf.UserId,
 		SessionID:  conf.SessionId,
@@ -43,11 +49,11 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMes
 		client:         client,
 		conf:           conf,
 		conversationId: conf.ConversationId,
-		recv:           make(chan []byte, conf.Buffer),
-		send:           make(chan *mixin.MessageRequest, conf.Buffer),
+		recv:           make(chan []byte, conf.ReceiveBuffer),
+		send:           make(chan *mixin.MessageRequest, conf.SendBuffer),
 	}
 	go mm.loopReceive(ctx)
-	go mm.loopSend(ctx, time.Second, conf.Buffer)
+	go mm.loopSend(ctx, time.Second, conf.SendBuffer)
 
 	return mm, nil
 }
@@ -132,10 +138,10 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 			}
 			filter[msg.MessageID] = true
 			batch = append(batch, msg)
-			if len(batch) > size {
+			if len(batch) >= size {
 				err := mm.sendMessagesWithoutTimeout(ctx, batch)
 				if err != nil {
-					logger.Printf("sendMessagesWithoutTimeout %s\n", err)
+					logger.Printf("sendMessagesWithoutTimeout(%d) => %v\n", len(batch), err)
 				}
 				filter = make(map[string]bool)
 				batch = nil
@@ -144,7 +150,7 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 			if len(batch) > 0 {
 				err := mm.sendMessagesWithoutTimeout(ctx, batch)
 				if err != nil {
-					logger.Printf("sendMessagesWithoutTimeout %s\n", err)
+					logger.Printf("sendMessagesWithoutTimeout(%d) => %v\n", len(batch), err)
 				}
 				filter = make(map[string]bool)
 				batch = nil

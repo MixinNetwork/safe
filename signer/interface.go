@@ -27,7 +27,8 @@ func (c *Configuration) Messenger() *messenger.MixinConfiguration {
 		SessionId:      c.MTG.App.SessionId,
 		Key:            c.MTG.App.PrivateKey,
 		ConversationId: c.MessengerConversationId,
-		Buffer:         128,
+		ReceiveBuffer:  128,
+		SendBuffer:     64,
 	}
 }
 
