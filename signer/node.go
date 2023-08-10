@@ -262,7 +262,7 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 	mps := node.getSession(sessionId)
 
 	res, err := node.loopMultiPartySession(ctx, mps, h, roundTimeout)
-	missing := mps.missing(node.members)
+	missing := mps.missing(node.members, node.id)
 	logger.Printf("node.loopMultiPartySession(%x, %d) => %v with %v missing", mps.id, mps.round, err, missing)
 	return res, err
 }
@@ -283,8 +283,9 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 				logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", mps.id, msg.RoundNumber, id, err)
 			}
 			mps.advance(msg)
+			mps.process(h)
 		case msg := <-mps.incoming:
-			logger.Verbosef("network.incoming %x %d %s", mps.id, msg.RoundNumber, msg.From)
+			logger.Verbosef("network.incoming(%x, %d) %s", mps.id, msg.RoundNumber, msg.From)
 			if bytes.Equal(mps.id, msg.SSID) {
 				return nil, fmt.Errorf("node.handlerLoop(%x) expired from %s", mps.id, msg.From)
 			}
@@ -304,10 +305,13 @@ type MultiPartySession struct {
 	round    round.Number
 }
 
-func (mps *MultiPartySession) missing(members []party.ID) []party.ID {
+func (mps *MultiPartySession) missing(members []party.ID, self party.ID) []party.ID {
 	var missing []party.ID
 	accepted := mps.accepted[mps.round]
 	for _, id := range members {
+		if id == self {
+			continue
+		}
 		if !slices.ContainsFunc(accepted, func(m *protocol.Message) bool {
 			return m.From == id
 		}) {
@@ -318,6 +322,7 @@ func (mps *MultiPartySession) missing(members []party.ID) []party.ID {
 }
 
 func (mps *MultiPartySession) advance(msg *protocol.Message) {
+	logger.Printf("MultiPartySession.advance(%x, %d) => %d", mps.id, mps.round, msg.RoundNumber)
 	if mps.round < msg.RoundNumber {
 		mps.round = msg.RoundNumber
 	}
@@ -332,9 +337,9 @@ func (mps *MultiPartySession) process(h protocol.Handler) {
 		if msg == nil || !h.CanAccept(msg) {
 			continue
 		}
-		logger.Verbosef("network.CanAccept %x %d %s", mps.id, msg.RoundNumber, msg.From)
+		logger.Verbosef("handler.CanAccept(%x, %d) => %s", mps.id, msg.RoundNumber, msg.From)
 		h.Accept(msg)
-		logger.Verbosef("handler.Accept %x %d %s", mps.id, msg.RoundNumber, msg.From)
+		logger.Verbosef("handler.Accept(%x, %d) => %s", mps.id, msg.RoundNumber, msg.From)
 		mps.accepted[msg.RoundNumber] = append(mps.accepted[msg.RoundNumber], msg)
 		mps.received[mps.round][i] = nil
 	}
@@ -351,6 +356,7 @@ func (node *Node) getSession(sessionId []byte) *MultiPartySession {
 		size := len(node.members) * len(node.members)
 		session = &MultiPartySession{
 			id:       sessionId,
+			round:    MPCFirstMessageRound,
 			incoming: make(chan *protocol.Message, size),
 			received: make(map[round.Number][]*protocol.Message),
 			accepted: make(map[round.Number][]*protocol.Message),
