@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	cmpKeygenRoundTimeout = time.Minute
-	cmpSignRoundTimeout   = time.Minute
+	cmpKeygenRoundTimeout = 5 * time.Minute
+	cmpSignRoundTimeout   = 5 * time.Minute
 )
 
 func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*KeygenResult, error) {

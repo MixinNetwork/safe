@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	frostKeygenRoundTimeout = time.Minute
-	frostSignRoundTimeout   = time.Minute
+	frostKeygenRoundTimeout = 5 * time.Minute
+	frostSignRoundTimeout   = 5 * time.Minute
 )
 
 func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve.Curve) (*KeygenResult, error) {
