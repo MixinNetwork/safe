@@ -97,7 +97,7 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		sessions, err := node.store.ListSessions(ctx, common.RequestStateInitial, runtime.NumCPU())
+		sessions, err := node.store.ListInitialSessions(ctx, runtime.NumCPU())
 		if err != nil {
 			panic(err)
 		}
@@ -126,7 +126,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		sessions, err := node.store.ListSessions(ctx, common.RequestStatePending, 64)
+		sessions, err := node.store.ListPendingSessions(ctx, 64)
 		if err != nil {
 			panic(err)
 		}

@@ -237,11 +237,23 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListSessions(ctx context.Context, state, limit int) ([]*common.Operation, error) {
+func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*common.Operation, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT session_id, operation, curve, public, extra FROM sessions WHERE state=? ORDER BY operation DESC, created_at ASC LIMIT %d", limit)
+	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
+}
+
+func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*common.Operation, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	sql := fmt.Sprintf("SELECT session_id, operation, curve, public, extra FROM sessions WHERE state=? ORDER BY created_at ASC LIMIT %d", limit)
+	return s.listSessionsByQuery(ctx, sql, common.RequestStatePending)
+}
+
+func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, state int) ([]*common.Operation, error) {
 	rows, err := s.db.QueryContext(ctx, sql, state)
 	if err != nil {
 		return nil, err
