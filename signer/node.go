@@ -97,7 +97,8 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		sessions, err := node.store.ListInitialSessions(ctx, runtime.NumCPU())
+		parallelization := runtime.NumCPU() * (len(node.members)/16 + 1)
+		sessions, err := node.store.ListInitialSessions(ctx, parallelization)
 		if err != nil {
 			panic(err)
 		}
