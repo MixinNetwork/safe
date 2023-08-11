@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
@@ -129,7 +130,7 @@ func (mm *MixinMessenger) loopReceive(ctx context.Context) {
 	for {
 		blaze := bot.NewBlazeClient(mm.conf.UserId, mm.conf.SessionId, mm.conf.Key)
 		err := blaze.Loop(context.Background(), mm)
-		logger.Printf("blaze.Loop %v\n", err)
+		logger.Printf("messenger.loopReceive %v\n", err)
 		if ctx.Err() != nil {
 			break
 		}
@@ -155,7 +156,7 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 				continue
 			}
 			err := mm.sendMessagesWithoutTimeout(ctx, batch)
-			logger.Verbosef("sendMessagesWithoutTimeout(batch, %d) => %v\n", len(batch), err)
+			logger.Verbosef("messenger.sendMessagesWithoutTimeout(batch, %d) => %v\n", len(batch), err)
 			filter = make(map[string]bool)
 			batch = nil
 		case <-ticker.C:
@@ -163,7 +164,7 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 				continue
 			}
 			err := mm.sendMessagesWithoutTimeout(ctx, batch)
-			logger.Verbosef("sendMessagesWithoutTimeout(ticker, %d) => %v\n", len(batch), err)
+			logger.Verbosef("messenger.sendMessagesWithoutTimeout(ticker, %d) => %v\n", len(batch), err)
 			filter = make(map[string]bool)
 			batch = nil
 		}
@@ -211,8 +212,19 @@ func (mm *MixinMessenger) sendMessagesWithoutTimeout(ctx context.Context, batch 
 	for {
 		err := mm.client.SendMessages(ctx, batch)
 		if err != nil && checkRetryableError(err) {
+			logger.Printf("messenger.sendMessagesWithoutTimeout(retry, %d) => %v", len(batch), err)
 			time.Sleep(3 * time.Second)
 			continue
+		}
+		if err != nil && strings.Contains(err.Error(), "413 Request Entity Too Large") && len(batch) >= 2 {
+			logger.Printf("messenger.sendMessagesWithoutTimeout(large, %d) => %v", len(batch), err)
+			first := batch[:len(batch)/2]
+			err = mm.sendMessagesWithoutTimeout(ctx, first)
+			if err != nil {
+				return err
+			}
+			second := batch[len(batch)/2:]
+			return mm.sendMessagesWithoutTimeout(ctx, second)
 		}
 		return err
 	}
