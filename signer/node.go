@@ -97,15 +97,10 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		parallelization := runtime.NumCPU() * (len(node.members)/16 + 1)
-		sessions, err := node.store.ListInitialSessions(ctx, parallelization)
-		if err != nil {
-			panic(err)
-		}
-
+		sessions := node.listInitialSessions(ctx)
 		results := make([]<-chan error, len(sessions))
-		for i, op := range sessions {
-			results[i] = node.queueOperation(ctx, op)
+		for i, s := range sessions {
+			results[i] = node.queueOperation(ctx, s.asOperation())
 		}
 		for _, res := range results {
 			if res == nil {
@@ -113,6 +108,34 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 			}
 			if err := <-res; err != nil {
 				panic(err)
+			}
+		}
+	}
+}
+
+func (node *Node) listInitialSessions(ctx context.Context) []*Session {
+	parallelization := runtime.NumCPU() * (len(node.members)/16 + 1)
+
+	var sessions []*Session
+	for {
+		initial, err := node.store.ListInitialSessions(ctx, parallelization)
+		if err != nil {
+			panic(err)
+		}
+		if len(initial) == 0 {
+			return sessions
+		}
+		for _, s := range initial {
+			if s.CreatedAt.Add(SessionTimeout).Before(time.Now()) {
+				err = node.store.FailSession(ctx, s.Id)
+				if err != nil {
+					panic(err)
+				}
+				continue
+			}
+			sessions = append(sessions, s)
+			if len(sessions) == parallelization {
+				return sessions
 			}
 		}
 	}
@@ -132,7 +155,8 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			panic(err)
 		}
 
-		for _, op := range sessions {
+		for _, s := range sessions {
+			op := s.asOperation()
 			switch op.Type {
 			case common.OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)

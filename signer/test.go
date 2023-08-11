@@ -126,6 +126,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 		Memo:            memo,
 		Amount:          decimal.NewFromInt(1),
 		TransactionHash: crypto.NewHash([]byte(sop.Id)),
+		CreatedAt:       time.Now(),
 	}
 	op := TestCMPProcessOutput(ctx, require, nodes, out, sid)
 

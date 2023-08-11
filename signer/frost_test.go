@@ -43,6 +43,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 			Memo:            memo,
 			Amount:          decimal.NewFromInt(1),
 			TransactionHash: crypto.NewHash([]byte(op.Id)),
+			CreatedAt:       time.Now(),
 		}
 
 		msg := common.MarshalJSONOrPanic(out)
@@ -83,6 +84,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 			Memo:            memo,
 			Amount:          decimal.NewFromInt(1),
 			TransactionHash: crypto.NewHash([]byte(sop.Id)),
+			CreatedAt:       time.Now(),
 		}
 
 		msg := common.MarshalJSONOrPanic(out)

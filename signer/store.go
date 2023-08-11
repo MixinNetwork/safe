@@ -237,45 +237,41 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*common.Operation, error) {
+func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*Session, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT session_id, operation, curve, public, extra FROM sessions WHERE state=? ORDER BY operation DESC, created_at ASC LIMIT %d", limit)
+	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY operation DESC, created_at ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
 }
 
-func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*common.Operation, error) {
+func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*Session, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT session_id, operation, curve, public, extra FROM sessions WHERE state=? ORDER BY created_at ASC LIMIT %d", limit)
+	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY created_at ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStatePending)
 }
 
-func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, state int) ([]*common.Operation, error) {
+func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, state int) ([]*Session, error) {
 	rows, err := s.db.QueryContext(ctx, sql, state)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var operations []*common.Operation
+	var sessions []*Session
 	for rows.Next() {
 		var r Session
-		err := rows.Scan(&r.Id, &r.Operation, &r.Curve, &r.Public, &r.Extra)
+		err := rows.Scan(&r.Id, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Curve, &r.Public, &r.Extra, &r.State, &r.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
-		operations = append(operations, &common.Operation{
-			Id:     r.Id,
-			Type:   r.Operation,
-			Curve:  r.Curve,
-			Public: r.Public,
-			Extra:  common.DecodeHexOrPanic(r.Extra),
-		})
+		sessions = append(sessions, &r)
 	}
-	return operations, nil
+	return sessions, nil
 }
 
 type State struct {

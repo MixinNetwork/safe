@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
@@ -84,6 +85,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			Memo:            memo,
 			Amount:          decimal.NewFromInt(1),
 			TransactionHash: crypto.NewHash([]byte(op.Id)),
+			CreatedAt:       time.Now(),
 		}
 
 		msg := common.MarshalJSONOrPanic(out)

@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	SessionTimeout       = time.Hour
 	OperationExtraLimit  = 128
 	MPCFirstMessageRound = 2
 )
@@ -46,6 +47,16 @@ type KeygenResult struct {
 type SignResult struct {
 	Signature []byte
 	SSID      []byte
+}
+
+func (r *Session) asOperation() *common.Operation {
+	return &common.Operation{
+		Id:     r.Id,
+		Type:   r.Operation,
+		Curve:  r.Curve,
+		Public: r.Public,
+		Extra:  common.DecodeHexOrPanic(r.Extra),
+	}
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
