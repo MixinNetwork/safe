@@ -8,7 +8,7 @@ require (
 	github.com/MixinNetwork/mixin v0.16.1
 	github.com/MixinNetwork/multi-party-sig v0.3.1
 	github.com/MixinNetwork/nfo v0.3.5
-	github.com/MixinNetwork/trusted-group v0.5.5
+	github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad
 	github.com/btcsuite/btcd v0.23.4
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/btcsuite/btcd/btcutil v1.1.3
