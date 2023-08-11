@@ -28,7 +28,7 @@ func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration)
 	logger.Printf("common.readKernelTransaction(%s) => %v %v", out.TransactionHash, signed, err)
 
 	if (err != nil || signed == nil) && out.CreatedAt.Add(timeout).After(time.Now()) {
-		time.Sleep(time.Second)
+		time.Sleep(5 * time.Second)
 		return VerifyKernelTransaction(rpc, out, timeout)
 	} else if err != nil || signed == nil {
 		return fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)

@@ -22,6 +22,7 @@ import (
 
 const (
 	SessionTimeout       = time.Hour
+	KernelTimeout        = 3 * time.Minute
 	OperationExtraLimit  = 128
 	MPCFirstMessageRound = 2
 )
@@ -459,7 +460,7 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Output) 
 		return nil
 	}
 
-	return common.VerifyKernelTransaction(node.conf.MixinRPC, out, time.Minute)
+	return common.VerifyKernelTransaction(node.conf.MixinRPC, out, KernelTimeout)
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
