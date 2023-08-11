@@ -70,6 +70,11 @@ func SignerBootCmd(c *cli.Context) error {
 
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
 	node.Boot(ctx)
+
+	if mmc := mc.Signer.MonitorConversaionId; mmc != "" {
+		go MonitorSigner(ctx, db, kd, mc.Signer, group, mmc)
+	}
+
 	group.AddWorker(node)
 	group.Run(ctx)
 	return nil

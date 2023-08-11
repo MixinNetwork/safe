@@ -15,9 +15,94 @@ import (
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	kstore "github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
 )
+
+type UserStore interface {
+	ReadProperty(ctx context.Context, k string) (string, error)
+	WriteProperty(ctx context.Context, k, v string) error
+}
+
+func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.SQLite3Store, conf *signer.Configuration, group *mtg.Group, conversationId string) {
+	startedAt := time.Now()
+
+	app := conf.MTG.App
+	path := fmt.Sprintf("/conversations/%s", conversationId)
+	accessToken, err := bot.SignAuthenticationToken(app.ClientId, app.SessionId, app.PrivateKey, "GET", path, "")
+	if err != nil {
+		panic(err)
+	}
+	conv, err := bot.ConversationShow(ctx, conversationId, accessToken)
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt)
+		if err != nil {
+			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
+			continue
+		}
+		var messages []*bot.MessageRequest
+		for i := range conv.Participants {
+			s := conv.Participants[i]
+			if s.UserId == app.ClientId {
+				continue
+			}
+			u, err := fetchConversationUser(ctx, store, s.UserId, conf.MTG)
+			if err != nil || checkBot(u) {
+				logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
+				continue
+			}
+			messages = append(messages, &bot.MessageRequest{
+				ConversationId: conversationId,
+				RecipientId:    s.UserId,
+				Category:       bot.MessageCategoryPlainText,
+				MessageId:      mixin.UniqueConversationID(msg, s.UserId),
+				Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
+			})
+		}
+		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
+		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
+		time.Sleep(30 * time.Minute)
+	}
+}
+
+func bundleSignerState(ctx context.Context, mdb *nstore.BadgerStore, store *signer.SQLite3Store, conf *signer.Configuration, grp *mtg.Group, startedAt time.Time) (string, error) {
+	state := "👩‍⚖️ 🧑‍⚖️ 👨‍⚖️ Signer 👩‍⚖️ 🧑‍⚖️ 👨‍⚖️\n"
+	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
+	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixin.HashMembers(grp.GetMembers()), grp.GetThreshold())
+
+	tl, err := mdb.ListTransactions(mtg.TransactionStateInitial, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Initial Transactions: %d\n", len(tl))
+	tl, err = mdb.ListTransactions(mtg.TransactionStateSigning, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Signing Transactions: %d\n", len(tl))
+	tl, err = mdb.ListTransactions(mtg.TransactionStateSigned, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Signed Transactions: %d\n", len(tl))
+
+	ss, err := store.SessionsState(ctx)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🔑 Initial sessions: %d\n", ss.Initial)
+	state = state + fmt.Sprintf("🔑 Pending sessions: %d\n", ss.Pending)
+	state = state + fmt.Sprintf("🔑 Final sessions: %d\n", ss.Done)
+	state = state + fmt.Sprintf("🔑 Generated keys: %d\n", ss.Keys)
+
+	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
+	return state, nil
+}
 
 func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, group *mtg.Group, conversationId string) {
 	startedAt := time.Now()
@@ -45,7 +130,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 			if s.UserId == app.ClientId {
 				continue
 			}
-			u, err := fetchConversationUser(ctx, store, s.UserId, conf)
+			u, err := fetchConversationUser(ctx, store, s.UserId, conf.MTG)
 			if err != nil || checkBot(u) {
 				logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
 				continue
@@ -65,7 +150,8 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 }
 
 func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, grp *mtg.Group, startedAt time.Time) (string, error) {
-	state := fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
+	state := "👮‍♀️ 👮 👮‍♂️ Keeper 👮‍♀️ 👮 👮‍♂️\n"
+	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixin.HashMembers(grp.GetMembers()), grp.GetThreshold())
 
 	req, err := store.ReadLatestRequest(ctx)
@@ -123,8 +209,8 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 	return state, nil
 }
 
-func fetchConversationUser(ctx context.Context, store *kstore.SQLite3Store, id string, conf *keeper.Configuration) (*bot.User, error) {
-	app := conf.MTG.App
+func fetchConversationUser(ctx context.Context, store UserStore, id string, conf *mtg.Configuration) (*bot.User, error) {
+	app := conf.App
 	key := fmt.Sprintf("MONITOR:USER:%s", id)
 	val, err := store.ReadProperty(ctx, key)
 	if err != nil {

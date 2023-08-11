@@ -266,6 +266,51 @@ func (s *SQLite3Store) ListSessions(ctx context.Context, state, limit int) ([]*c
 	return operations, nil
 }
 
+type State struct {
+	Initial int
+	Pending int
+	Done    int
+	Keys    int
+}
+
+func (s *SQLite3Store) SessionsState(ctx context.Context) (*State, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var state State
+	row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStateInitial)
+	err = row.Scan(&state.Initial)
+	if err != nil {
+		return nil, err
+	}
+
+	row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStatePending)
+	err = row.Scan(&state.Pending)
+	if err != nil {
+		return nil, err
+	}
+
+	row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStateDone)
+	err = row.Scan(&state.Done)
+	if err != nil {
+		return nil, err
+	}
+
+	row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys")
+	err = row.Scan(&state.Keys)
+	if err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}
+
 func (s *SQLite3Store) execOne(ctx context.Context, tx *sql.Tx, sql string, params ...any) error {
 	res, err := tx.ExecContext(ctx, sql, params...)
 	if err != nil {
