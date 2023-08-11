@@ -18,6 +18,7 @@ import (
 	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/shopspring/decimal"
 )
 
 type UserStore interface {
@@ -90,6 +91,19 @@ func bundleSignerState(ctx context.Context, mdb *nstore.BadgerStore, store *sign
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Signed Transactions: %d\n", len(tl))
+
+	ol, err := mdb.ListOutputsForAsset("", mixin.UTXOStateUnspent, conf.KeeperAssetId, 10)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
+	sa, err := fetchAsset(ctx, conf.MTG, conf.AssetId)
+	if err != nil {
+		return "", err
+	}
+	tTredecillion := decimal.New(10, 12+42)
+	amount := decimal.RequireFromString(sa.Balance).Div(tTredecillion).IntPart()
+	state = state + fmt.Sprintf("💍 MSST Balance: %d TT\n", amount)
 
 	ss, err := store.SessionsState(ctx)
 	if err != nil {
@@ -207,6 +221,15 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
 	return state, nil
+}
+
+func fetchAsset(ctx context.Context, conf *mtg.Configuration, assetId string) (*bot.Asset, error) {
+	app := conf.App
+	token, err := bot.SignAuthenticationToken(app.ClientId, app.SessionId, app.PrivateKey, "GET", "/assets/"+assetId, "")
+	if err != nil {
+		return nil, err
+	}
+	return bot.AssetShow(ctx, assetId, token)
 }
 
 func fetchConversationUser(ctx context.Context, store UserStore, id string, conf *mtg.Configuration) (*bot.User, error) {
