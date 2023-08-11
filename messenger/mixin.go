@@ -151,23 +151,21 @@ func (mm *MixinMessenger) loopSend(ctx context.Context, period time.Duration, si
 			}
 			filter[msg.MessageID] = true
 			batch = append(batch, msg)
-			if len(batch) >= size {
-				err := mm.sendMessagesWithoutTimeout(ctx, batch)
-				if err != nil {
-					logger.Printf("sendMessagesWithoutTimeout(%d) => %v\n", len(batch), err)
-				}
-				filter = make(map[string]bool)
-				batch = nil
+			if len(batch) < size {
+				continue
 			}
+			err := mm.sendMessagesWithoutTimeout(ctx, batch)
+			logger.Verbosef("sendMessagesWithoutTimeout(batch, %d) => %v\n", len(batch), err)
+			filter = make(map[string]bool)
+			batch = nil
 		case <-ticker.C:
-			if len(batch) > 0 {
-				err := mm.sendMessagesWithoutTimeout(ctx, batch)
-				if err != nil {
-					logger.Printf("sendMessagesWithoutTimeout(%d) => %v\n", len(batch), err)
-				}
-				filter = make(map[string]bool)
-				batch = nil
+			if len(batch) == 0 {
+				continue
 			}
+			err := mm.sendMessagesWithoutTimeout(ctx, batch)
+			logger.Verbosef("sendMessagesWithoutTimeout(ticker, %d) => %v\n", len(batch), err)
+			filter = make(map[string]bool)
+			batch = nil
 		}
 	}
 }
