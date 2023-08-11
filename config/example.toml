@@ -2,6 +2,8 @@
 store-dir = "/tmp/safe/signer"
 # the mixin messenger group conversation id for signer communication
 messenger-conversation-id = ""
+# the mixin messenger group for monitor messages
+monitor-conversation-id = ""
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
 # a shared ed25519 private key to do ecdh with the keeper
