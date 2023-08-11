@@ -89,7 +89,7 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 			time.Sleep(7 * time.Second)
 			continue
 		}
-		if err != nil && strings.Contains(err.Error(), "Client.Timeout exceeded") {
+		if err != nil && common.CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
 		}

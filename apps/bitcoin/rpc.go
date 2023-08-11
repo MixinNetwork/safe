@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -136,7 +137,7 @@ func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string
 }
 
 func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
-	res, err := callBitcoinRPC(rpc, "getrawtransaction", []any{hash, 1})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawtransaction", []any{hash, 1})
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +151,7 @@ func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
 }
 
 func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
-	res, err := callBitcoinRPC(rpc, "getrawmempool", []any{})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawmempool", []any{})
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +174,7 @@ func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
 }
 
 func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTransactions, error) {
-	res, err := callBitcoinRPC(rpc, "getblock", []any{hash, 2})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getblock", []any{hash, 2})
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,7 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 }
 
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
-	res, err := callBitcoinRPC(rpc, "getblock", []any{hash, 1})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getblock", []any{hash, 1})
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +201,7 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 }
 
 func RPCGetBlockHash(rpc string, num int64) (string, error) {
-	res, err := callBitcoinRPC(rpc, "getblockhash", []any{num})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getblockhash", []any{num})
 	if err != nil {
 		return "", err
 	}
@@ -210,7 +211,7 @@ func RPCGetBlockHash(rpc string, num int64) (string, error) {
 }
 
 func RPCGetBlockHeight(rpc string) (int64, error) {
-	res, err := callBitcoinRPC(rpc, "getblockchaininfo", []any{})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getblockchaininfo", []any{})
 	if err != nil {
 		return 0, err
 	}
@@ -222,7 +223,7 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 }
 
 func RPCEstimateSmartFee(chain byte, rpc string) (int64, error) {
-	res, err := callBitcoinRPC(rpc, "estimatesmartfee", []any{1})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "estimatesmartfee", []any{1})
 	if err != nil {
 		return 0, err
 	}
@@ -241,7 +242,7 @@ func RPCEstimateSmartFee(chain byte, rpc string) (int64, error) {
 }
 
 func RPCSendRawTransaction(rpc, raw string) (string, error) {
-	res, err := callBitcoinRPC(rpc, "sendrawtransaction", []any{raw})
+	res, err := callBitcoinRPCUntilSufficient(rpc, "sendrawtransaction", []any{raw})
 	if err != nil {
 		return "", err
 	}
@@ -260,6 +261,17 @@ func fixLitecoinLegacyScriptPubKeyRPC(chain byte, tx *RPCTransaction) {
 			}
 			o.ScriptPubKey.Address = o.ScriptPubKey.LegacyAddresses[0]
 		}
+	}
+}
+
+func callBitcoinRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {
+	for {
+		res, err := callBitcoinRPC(rpc, method, params)
+		if err != nil && strings.Contains(err.Error(), "Client.Timeout") {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		return res, err
 	}
 }
 

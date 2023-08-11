@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/common"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 )
@@ -211,7 +212,7 @@ func (mm *MixinMessenger) SyncAck() bool {
 func (mm *MixinMessenger) sendMessagesWithoutTimeout(ctx context.Context, batch []*mixin.MessageRequest) error {
 	for {
 		err := mm.client.SendMessages(ctx, batch)
-		if err != nil && checkRetryableError(err) {
+		if err != nil && common.CheckRetryableError(err) {
 			logger.Printf("messenger.sendMessagesWithoutTimeout(retry, %d) => %v", len(batch), err)
 			time.Sleep(3 * time.Second)
 			continue

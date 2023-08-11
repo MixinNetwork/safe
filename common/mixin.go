@@ -75,7 +75,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, a
 			time.Sleep(7 * time.Second)
 			continue
 		}
-		if err != nil && strings.Contains(err.Error(), "Client.Timeout exceeded") {
+		if err != nil && CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
 		}
