@@ -10,10 +10,22 @@ const (
 	// domain do the first key, next should be from the first key
 	CustodianActionRefreshKey = 1
 	CustodianActionDistribute = 2
+
+	// observer send this to request works from signer
+	// each signer node send works to the signer mtg
+	// then at some point, a random output will cause
+	// all signer nodes to finalize the works
+	CustodianActionRequestWorks = 3
+	// then the signer mtg send this action to keeper mtg
+	// the custodian will process this then
+	CustodianActionFinalizeWorks = 4
 )
 
 type Worker struct {
-	store *SQLite3Store
+	store           *SQLite3Store
+	signerAssetId   string
+	keeperAssetId   string
+	observerAssetId string
 }
 
 func NewWorker(s *SQLite3Store) *Worker {
@@ -23,6 +35,12 @@ func NewWorker(s *SQLite3Store) *Worker {
 }
 
 func (worker *Worker) ProcessOutput(ctx context.Context, out *mtg.Output) {
+	switch out.AssetID {
+	case worker.signerAssetId:
+	case worker.keeperAssetId:
+	case worker.observerAssetId:
+	default:
+	}
 }
 
 func (worker *Worker) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {}

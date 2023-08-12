@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -74,6 +75,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 	for _, id := range conf.MTG.Genesis.Members {
 		node.members = append(node.members, party.ID(id))
 	}
+	sort.Sort(node.members)
 	if mgt := conf.MTG.Genesis.Threshold; mgt < conf.Threshold || mgt < len(node.members)*2/3+1 {
 		panic(fmt.Errorf("%d/%d/%d", conf.Threshold, mgt, len(node.members)))
 	}
