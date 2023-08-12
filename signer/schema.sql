@@ -41,3 +41,13 @@ CREATE TABLE IF NOT EXISTS session_signers (
 	created_at  TIMESTAMP NOT NULL,
 	PRIMARY KEY ('session_id', 'signer_id')
 );
+
+
+CREATE TABLE IF NOT EXISTS session_works (
+	session_id  VARCHAR NOT NULL,
+	signer_id   VARCHAR NOT NULL,
+	round       INTEGER NOT NULL,
+	extra       VARCHAR NOT NULL,
+	created_at  TIMESTAMP NOT NULL,
+	PRIMARY KEY ('session_id', 'signer_id', 'round')
+);

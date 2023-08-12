@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,8 +54,9 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	}
 
 	timestamp := time.Now().UTC()
-	err = s.execOne(ctx, tx, "INSERT INTO keys (public, fingerprint, curve, share, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		public, hex.EncodeToString(common.Fingerprint(public)), curve, hex.EncodeToString(conf), sessionId, timestamp)
+	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at"}
+	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), public,
+		hex.EncodeToString(common.Fingerprint(public)), curve, common.Base91Encode(conf), sessionId, timestamp)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT keys %v", err)
 	}
@@ -81,7 +83,10 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 	} else if err != nil {
 		return "", 0, nil, err
 	}
-	conf := common.DecodeHexOrPanic(share)
+	conf, err := common.Base91Decode(share)
+	if err != nil { // FIXME remove this legacy hex encoding
+		conf = common.DecodeHexOrPanic(share)
+	}
 	return public, curve, conf, err
 }
 
@@ -96,6 +101,31 @@ func (s *SQLite3Store) ReadSession(ctx context.Context, sessionId string) (*Sess
 		return nil, nil
 	}
 	return &r, err
+}
+
+func (s *SQLite3Store) WriteSessionWorkIfNotExist(ctx context.Context, sessionId, signerId string, round int, extra []byte) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT created_at FROM session_works WHERE session_id=? AND signer_id=? AND round=?", sessionId, signerId, round)
+	if err != nil || existed {
+		return err
+	}
+
+	cols := []string{"session_id", "signer_id", "round", "extra", "created_at"}
+	err = s.execOne(ctx, tx, buildInsertionSQL("session_works", cols),
+		sessionId, signerId, round, common.Base91Encode(extra), time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("SQLite3Store INSERT session_works %v", err)
+	}
+
+	return tx.Commit()
 }
 
 func (s *SQLite3Store) WriteSessionSignerIfNotExist(ctx context.Context, sessionId, signerId string, extra []byte, createdAt time.Time, self bool) error {
@@ -113,7 +143,8 @@ func (s *SQLite3Store) WriteSessionSignerIfNotExist(ctx context.Context, session
 		return err
 	}
 
-	err = s.execOne(ctx, tx, "INSERT INTO session_signers (session_id, signer_id, extra, created_at) VALUES (?, ?, ?, ?)",
+	cols := []string{"session_id", "signer_id", "extra", "created_at"}
+	err = s.execOne(ctx, tx, buildInsertionSQL("session_signers", cols),
 		sessionId, signerId, hex.EncodeToString(extra), createdAt)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT session_signers %v", err)
@@ -171,8 +202,10 @@ func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Op
 		return err
 	}
 
-	err = s.execOne(ctx, tx, "INSERT INTO sessions (session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		op.Id, transaction.String(), outputIndex, op.Type, op.Curve, op.Public, hex.EncodeToString(op.Extra), common.RequestStateInitial, createdAt, createdAt)
+	cols := []string{"session_id", "mixin_hash", "mixin_index", "operation", "curve", "public",
+		"extra", "state", "created_at", "updated_at"}
+	err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), op.Id, transaction.String(), outputIndex,
+		op.Type, op.Curve, op.Public, hex.EncodeToString(op.Extra), common.RequestStateInitial, createdAt, createdAt)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 	}
@@ -317,6 +350,11 @@ func (s *SQLite3Store) SessionsState(ctx context.Context) (*State, error) {
 	}
 
 	return &state, nil
+}
+
+func buildInsertionSQL(table string, cols []string) string {
+	vals := strings.Repeat("?, ", len(cols))
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, strings.Join(cols, ","), vals[:len(vals)-2])
 }
 
 func (s *SQLite3Store) execOne(ctx context.Context, tx *sql.Tx, sql string, params ...any) error {

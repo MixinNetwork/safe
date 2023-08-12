@@ -308,14 +308,14 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 				logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", mps.id, msg.RoundNumber, id, err)
 			}
 			mps.advance(msg)
-			mps.process(h)
+			mps.process(ctx, h, node.store)
 		case msg := <-mps.incoming:
 			logger.Verbosef("network.incoming(%x, %d) %s", mps.id, msg.RoundNumber, msg.From)
 			if bytes.Equal(mps.id, msg.SSID) {
 				return nil, fmt.Errorf("node.handlerLoop(%x) expired from %s", mps.id, msg.From)
 			}
 			mps.receive(msg)
-			mps.process(h)
+			mps.process(ctx, h, node.store)
 		case <-time.After(roundTimeout):
 			return nil, fmt.Errorf("node.handlerLoop(%x) timeout", mps.id)
 		}
@@ -357,14 +357,24 @@ func (mps *MultiPartySession) receive(msg *protocol.Message) {
 	mps.received[msg.RoundNumber] = append(mps.received[msg.RoundNumber], msg)
 }
 
-func (mps *MultiPartySession) process(h protocol.Handler) {
+func (mps *MultiPartySession) process(ctx context.Context, h protocol.Handler, store *SQLite3Store) {
 	for i, msg := range mps.received[mps.round] {
 		if msg == nil || !h.CanAccept(msg) {
 			continue
 		}
 		logger.Verbosef("handler.CanAccept(%x, %d) => %s", mps.id, msg.RoundNumber, msg.From)
-		h.Accept(msg)
-		logger.Verbosef("handler.Accept(%x, %d) => %s", mps.id, msg.RoundNumber, msg.From)
+		accepted := h.Accept(msg)
+		logger.Verbosef("handler.Accept(%x, %d) => %s %t", mps.id, msg.RoundNumber, msg.From, accepted)
+		if !accepted {
+			continue
+		}
+		sid := uuid.Must(uuid.FromBytes(mps.id)).String()
+		extra := common.MarshalPanic(msg)
+		err := store.WriteSessionWorkIfNotExist(ctx, sid, string(msg.From), int(msg.RoundNumber), extra)
+		logger.Verbosef("store.WriteSessionWorkIfNotExist(%s, %s, %d) => %v", sid, msg.From, msg.RoundNumber, err)
+		if err != nil {
+			panic(err)
+		}
 		mps.accepted[msg.RoundNumber] = append(mps.accepted[msg.RoundNumber], msg)
 		mps.received[mps.round][i] = nil
 	}

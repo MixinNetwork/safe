@@ -23,7 +23,7 @@ type Handler interface {
 	// CanAccept checks whether or not a message can be accepted at the current point in the protocol.
 	CanAccept(msg *Message) bool
 	// Accept advances the protocol execution after receiving a message.
-	Accept(msg *Message)
+	Accept(msg *Message) bool
 }
 
 // MultiHandler represents an execution of a given protocol.
@@ -121,39 +121,40 @@ func (h *MultiHandler) CanAccept(msg *Message) bool {
 // and an error is returned by Result().
 //
 // This function may be called concurrently from different threads but may block until all previous calls have finished.
-func (h *MultiHandler) Accept(msg *Message) {
+func (h *MultiHandler) Accept(msg *Message) bool {
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
 
 	// exit early if the message is bad, or if we are already done
 	if !h.CanAccept(msg) || h.err != nil || h.result != nil || h.duplicate(msg) {
-		return
+		return false
 	}
 
 	// a msg with roundNumber 0 is considered an abort from another party
 	if msg.RoundNumber == 0 {
 		h.abort(fmt.Errorf("aborted by other party with error: \"%s\"", msg.Data), msg.From)
-		return
+		return false
 	}
 
 	h.store(msg)
 	if h.currentRound.Number() != msg.RoundNumber {
-		return
+		return false
 	}
 
 	if msg.Broadcast {
 		if err := h.verifyBroadcastMessage(msg); err != nil {
 			h.abort(err, msg.From)
-			return
+			return false
 		}
 	} else {
 		if err := h.verifyMessage(msg); err != nil {
 			h.abort(err, msg.From)
-			return
+			return false
 		}
 	}
 
 	h.finalize()
+	return true
 }
 
 func (h *MultiHandler) verifyBroadcastMessage(msg *Message) error {
