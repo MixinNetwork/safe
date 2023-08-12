@@ -6,8 +6,8 @@ github.com/MixinNetwork/bot-api-go-client v1.8.0 h1:eFVQuBkbDydRqtkw+nKrCUdFQtIl
 github.com/MixinNetwork/bot-api-go-client v1.8.0/go.mod h1:O6Emz2HsYTk23URCdvrOKvX8sElGcG+CX1RIT6tKnR0=
 github.com/MixinNetwork/go-number v0.1.0 h1:rxXG00MFa6w+1dyduacZQsbmHPR3duZNSgAXgXtkMBw=
 github.com/MixinNetwork/go-number v0.1.0/go.mod h1:TASJGXNi4CK9bh2AOQFpVe7r3//CBuZJTNlJYzTXRUk=
-github.com/MixinNetwork/mixin v0.16.1 h1:IcWxoonYhSW6NS/Zc5DIYypSiWUOYNLm3cdUyLUi4cs=
-github.com/MixinNetwork/mixin v0.16.1/go.mod h1:WdIANr1OGQpSvD37mL0LFc24QREkWhYOvQaXZWSKRGo=
+github.com/MixinNetwork/mixin v0.16.3 h1:rVTNzZWM7Cf1SJgEb3rkhlwIMMAP60kgJaOcXq/7aeQ=
+github.com/MixinNetwork/mixin v0.16.3/go.mod h1:YkWy4cTF3PFzsFrhGR2iBSRZHNXKAGr4IfIEx4f+aAM=
 github.com/MixinNetwork/mobilecoin-account v0.0.4 h1:6fLWejLmECGCO21i+XNY9M6NPZnj1zhphltaD8Pt7EI=
 github.com/MixinNetwork/mobilecoin-account v0.0.4/go.mod h1:JHoiRZrhE0hHSHMh5s4ReGPHXfsQHpPGO4bcL4CXy4k=
 github.com/MixinNetwork/msgpack/v4 v4.4.0 h1:IsMyKqr5sSRqifQXQCJ9z5StjY4ubVA8scbVqpAzoR8=
@@ -18,6 +18,7 @@ github.com/MixinNetwork/nfo v0.3.5 h1:2c48HTnCMBiOyjw1/4uxh2UpVHBN6k0WEVbjU5Ualx
 github.com/MixinNetwork/nfo v0.3.5/go.mod h1:zbWp8mtOjiVahGQBu0qa8t9/ndfob5R6E29JG8Ml26M=
 github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad h1:LupTS7yKYM9rjbLf/7XROeicIYj9lZzMPdIpAvuwQC4=
 github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad/go.mod h1:bna6Ytlh7EJ7XDL1TXJJNyrChPiVdGXSS4nzdr2FRgQ=
+github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
@@ -95,8 +96,8 @@ github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymF
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
-github.com/ethereum/go-ethereum v1.12.0 h1:bdnhLPtqETd4m3mS8BGMNvBTf36bO5bx/hxE2zljOa0=
-github.com/ethereum/go-ethereum v1.12.0/go.mod h1:/oo2X/dZLJjf2mJ6YT9wcWxa4nNJDBKDBU6sFIpx1Gs=
+github.com/ethereum/go-ethereum v1.12.2 h1:eGHJ4ij7oyVqUQn48LBz3B7pvQ8sV0wGJiIE6gDq/6Y=
+github.com/ethereum/go-ethereum v1.12.2/go.mod h1:1cRAEV+rp/xX0zraSCBnu9Py3HQ+geRMj3HdR+k0wfI=
 github.com/fox-one/mixin-sdk-go v1.7.11 h1:S7P7xOqSkpJHYxWaXQsi6R/iAEMsEG4f5oMfa22gDk4=
 github.com/fox-one/mixin-sdk-go v1.7.11/go.mod h1:5eYOGYrcvZVC4dqtVDL4eKSat77M/g1Du3PMKTJClzE=
 github.com/fox-one/msgpack v1.0.0 h1:atr4La29WdMPCoddlRAPK2e1yhBJ2cEFF+2X93KY5Vs=
