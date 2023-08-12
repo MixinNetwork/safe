@@ -41,6 +41,7 @@ func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.S
 	}
 
 	for {
+		time.Sleep(30 * time.Minute)
 		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
@@ -67,7 +68,6 @@ func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.S
 		}
 		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
 		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
-		time.Sleep(30 * time.Minute)
 	}
 }
 
@@ -133,6 +133,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 	}
 
 	for {
+		time.Sleep(30 * time.Minute)
 		msg, err := bundleKeeperState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
@@ -159,7 +160,6 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 		}
 		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
 		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
-		time.Sleep(30 * time.Minute)
 	}
 }
 
