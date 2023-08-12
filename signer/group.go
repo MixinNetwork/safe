@@ -61,8 +61,8 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
-	switch {
-	case out.AssetID == node.conf.KeeperAssetId:
+	switch out.AssetID {
+	case node.conf.KeeperAssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			panic(out.TransactionHash)
 		}
@@ -82,7 +82,10 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		if err != nil {
 			panic(err)
 		}
-	case node.findMember(out.Sender) >= 0:
+	case node.conf.AssetId:
+		if node.findMember(out.Sender) < 0 {
+			return
+		}
 		req, err := node.parseSignerResult(out)
 		logger.Printf("node.parseSignerResult(%v) => %v %v", out, req, err)
 		if err != nil {
