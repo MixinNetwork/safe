@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/MixinNetwork/bot-api-go-client v1.8.0
 	github.com/MixinNetwork/go-number v0.1.0
-	github.com/MixinNetwork/mixin v0.16.3
+	github.com/MixinNetwork/mixin v0.16.4
 	github.com/MixinNetwork/multi-party-sig v0.3.1
 	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad
@@ -15,10 +15,10 @@ require (
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
-	github.com/dimfeld/httptreemux v5.0.1+incompatible
+	github.com/dimfeld/httptreemux/v5 v5.5.0
 	github.com/ethereum/go-ethereum v1.12.2
 	github.com/fox-one/mixin-sdk-go v1.7.11
-	github.com/fxamacker/cbor/v2 v2.4.0
+	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mdp/qrterminal v1.0.1

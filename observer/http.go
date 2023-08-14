@@ -18,7 +18,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/dimfeld/httptreemux"
+	"github.com/dimfeld/httptreemux/v5"
 )
 
 //go:embed assets/favicon.ico

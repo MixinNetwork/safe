@@ -11,11 +11,11 @@ const (
 	CustodianActionRefreshKey = 1
 	CustodianActionDistribute = 2
 
-	// observer send this to request works from signer
-	// each signer node send works to the signer mtg
+	// every signer node will send this to the mtg
+	// everyday at a specific time
 	// then at some point, a random output will cause
 	// all signer nodes to finalize the works
-	CustodianActionRequestWorks = 3
+	CustodianActionVoteWorks = 3
 	// then the signer mtg send this action to keeper mtg
 	// the custodian will process this then
 	CustodianActionFinalizeWorks = 4

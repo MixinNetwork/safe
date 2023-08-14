@@ -6,8 +6,8 @@ github.com/MixinNetwork/bot-api-go-client v1.8.0 h1:eFVQuBkbDydRqtkw+nKrCUdFQtIl
 github.com/MixinNetwork/bot-api-go-client v1.8.0/go.mod h1:O6Emz2HsYTk23URCdvrOKvX8sElGcG+CX1RIT6tKnR0=
 github.com/MixinNetwork/go-number v0.1.0 h1:rxXG00MFa6w+1dyduacZQsbmHPR3duZNSgAXgXtkMBw=
 github.com/MixinNetwork/go-number v0.1.0/go.mod h1:TASJGXNi4CK9bh2AOQFpVe7r3//CBuZJTNlJYzTXRUk=
-github.com/MixinNetwork/mixin v0.16.3 h1:rVTNzZWM7Cf1SJgEb3rkhlwIMMAP60kgJaOcXq/7aeQ=
-github.com/MixinNetwork/mixin v0.16.3/go.mod h1:YkWy4cTF3PFzsFrhGR2iBSRZHNXKAGr4IfIEx4f+aAM=
+github.com/MixinNetwork/mixin v0.16.4 h1:n3CwLMAkQZaqATVCzfFxgVfGFrj5Qnpo1S3g5H46Los=
+github.com/MixinNetwork/mixin v0.16.4/go.mod h1:YkWy4cTF3PFzsFrhGR2iBSRZHNXKAGr4IfIEx4f+aAM=
 github.com/MixinNetwork/mobilecoin-account v0.0.4 h1:6fLWejLmECGCO21i+XNY9M6NPZnj1zhphltaD8Pt7EI=
 github.com/MixinNetwork/mobilecoin-account v0.0.4/go.mod h1:JHoiRZrhE0hHSHMh5s4ReGPHXfsQHpPGO4bcL4CXy4k=
 github.com/MixinNetwork/msgpack/v4 v4.4.0 h1:IsMyKqr5sSRqifQXQCJ9z5StjY4ubVA8scbVqpAzoR8=
@@ -89,6 +89,8 @@ github.com/dgraph-io/ristretto v0.1.1/go.mod h1:S1GPSBCYCIhmVNfcth17y2zZtQT6wzkz
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
 github.com/dimfeld/httptreemux v5.0.1+incompatible h1:Qj3gVcDNoOthBAqftuD596rm4wg/adLLz5xh5CmpiCA=
 github.com/dimfeld/httptreemux v5.0.1+incompatible/go.mod h1:rbUlSV+CCpv/SuqUTP/8Bk2O3LyUV436/yaRGkhP6Z0=
+github.com/dimfeld/httptreemux/v5 v5.5.0 h1:p8jkiMrCuZ0CmhwYLcbNbl7DDo21fozhKHQ2PccwOFQ=
+github.com/dimfeld/httptreemux/v5 v5.5.0/go.mod h1:QeEylH57C0v3VO0tkKraVz9oD3Uu93CKPnTLbsidvSw=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
@@ -106,8 +108,8 @@ github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMo
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4HY=
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
-github.com/fxamacker/cbor/v2 v2.4.0 h1:ri0ArlOR+5XunOP8CRUowT0pSJOwhW098ZCUyskZD88=
-github.com/fxamacker/cbor/v2 v2.4.0/go.mod h1:TA1xS00nchWmaBnEIxPSE5oHLuJBAVvqrtAnWBwBCVo=
+github.com/fxamacker/cbor/v2 v2.5.0 h1:oHsG0V/Q6E/wqTS2O1Cozzsy69nqCiguo5Q1a1ADivE=
+github.com/fxamacker/cbor/v2 v2.5.0/go.mod h1:TA1xS00nchWmaBnEIxPSE5oHLuJBAVvqrtAnWBwBCVo=
 github.com/go-ole/go-ole v1.2.5/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.2.6 h1:/Fpf6oFPoeFik9ty7siob0G6Ke8QvQEuVcuChpwXzpY=
 github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
