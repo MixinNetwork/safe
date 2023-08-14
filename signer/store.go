@@ -84,9 +84,6 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 		return "", 0, nil, err
 	}
 	conf, err := common.Base91Decode(share)
-	if err != nil { // FIXME remove this legacy hex encoding
-		conf = common.DecodeHexOrPanic(share)
-	}
 	return public, curve, conf, err
 }
 
