@@ -12,8 +12,8 @@ github.com/MixinNetwork/mobilecoin-account v0.0.4 h1:6fLWejLmECGCO21i+XNY9M6NPZn
 github.com/MixinNetwork/mobilecoin-account v0.0.4/go.mod h1:JHoiRZrhE0hHSHMh5s4ReGPHXfsQHpPGO4bcL4CXy4k=
 github.com/MixinNetwork/msgpack/v4 v4.4.0 h1:IsMyKqr5sSRqifQXQCJ9z5StjY4ubVA8scbVqpAzoR8=
 github.com/MixinNetwork/msgpack/v4 v4.4.0/go.mod h1:j8CftTJX2BhZ5fbe8JS2htA8Ei3wPf6w/VIjVx34ORQ=
-github.com/MixinNetwork/multi-party-sig v0.3.1 h1:A8PYbKKDFC+k0Y/x8PSZDZsjFVN+AfY2C6YFYh8tznY=
-github.com/MixinNetwork/multi-party-sig v0.3.1/go.mod h1:e4e2LfJ0VQxzoXB6yujB+4mQvz7fUzzB9zyPSuZDcjY=
+github.com/MixinNetwork/multi-party-sig v0.3.2 h1:10cgPGvgZrAHPnyQEgF6B2M/D3KINcuhU49arzA4JZM=
+github.com/MixinNetwork/multi-party-sig v0.3.2/go.mod h1:cQMY7v0MmcOFHgjnTznhHVQy1QkTW3yrk5qD10jXLZA=
 github.com/MixinNetwork/nfo v0.3.5 h1:2c48HTnCMBiOyjw1/4uxh2UpVHBN6k0WEVbjU5Ualxw=
 github.com/MixinNetwork/nfo v0.3.5/go.mod h1:zbWp8mtOjiVahGQBu0qa8t9/ndfob5R6E29JG8Ml26M=
 github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad h1:LupTS7yKYM9rjbLf/7XROeicIYj9lZzMPdIpAvuwQC4=

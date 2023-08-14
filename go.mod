@@ -6,7 +6,7 @@ require (
 	github.com/MixinNetwork/bot-api-go-client v1.8.0
 	github.com/MixinNetwork/go-number v0.1.0
 	github.com/MixinNetwork/mixin v0.16.4
-	github.com/MixinNetwork/multi-party-sig v0.3.1
+	github.com/MixinNetwork/multi-party-sig v0.3.2
 	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad
 	github.com/btcsuite/btcd v0.23.4
