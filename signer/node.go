@@ -84,6 +84,10 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.fixKeyShareHEX(ctx)
+	if err != nil {
+		panic(err)
+	}
 	go node.loopInitialSessions(ctx)
 	go node.loopPendingSessions(ctx)
 	go node.acceptIncomingMessages(ctx)
