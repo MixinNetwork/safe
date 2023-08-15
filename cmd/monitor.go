@@ -27,6 +27,7 @@ type UserStore interface {
 }
 
 func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.SQLite3Store, conf *signer.Configuration, group *mtg.Group, conversationId string) {
+	logger.Printf("MonitorSigner(%s, %s)", group.GenesisId(), conversationId)
 	startedAt := time.Now()
 
 	app := conf.MTG.App
@@ -41,7 +42,7 @@ func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.S
 	}
 
 	for {
-		time.Sleep(30 * time.Minute)
+		time.Sleep(3 * time.Minute)
 		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
@@ -68,6 +69,7 @@ func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.S
 		}
 		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
 		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
+		time.Sleep(30 * time.Minute)
 	}
 }
 
@@ -119,6 +121,7 @@ func bundleSignerState(ctx context.Context, mdb *nstore.BadgerStore, store *sign
 }
 
 func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.SQLite3Store, conf *keeper.Configuration, group *mtg.Group, conversationId string) {
+	logger.Printf("MonitorKeeper(%s, %s)", group.GenesisId(), conversationId)
 	startedAt := time.Now()
 
 	app := conf.MTG.App
@@ -133,7 +136,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 	}
 
 	for {
-		time.Sleep(30 * time.Minute)
+		time.Sleep(3 * time.Minute)
 		msg, err := bundleKeeperState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
@@ -160,6 +163,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 		}
 		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
 		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
+		time.Sleep(30 * time.Minute)
 	}
 }
 

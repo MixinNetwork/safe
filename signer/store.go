@@ -54,9 +54,10 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	}
 
 	timestamp := time.Now().UTC()
+	share := common.Base91Encode(conf)
+	fingerprint := hex.EncodeToString(common.Fingerprint(public))
 	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at"}
-	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), public,
-		hex.EncodeToString(common.Fingerprint(public)), curve, common.Base91Encode(conf), sessionId, timestamp)
+	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), public, fingerprint, curve, share, sessionId, timestamp)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT keys %v", err)
 	}
@@ -92,7 +93,8 @@ func (s *SQLite3Store) ReadSession(ctx context.Context, sessionId string) (*Sess
 	defer s.mutex.Unlock()
 
 	var r Session
-	row := s.db.QueryRowContext(ctx, "SELECT session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at FROM sessions WHERE session_id=?", sessionId)
+	query := "SELECT session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at FROM sessions WHERE session_id=?"
+	row := s.db.QueryRowContext(ctx, query, sessionId)
 	err := row.Scan(&r.Id, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Curve, &r.Public, &r.Extra, &r.State, &r.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -110,7 +112,8 @@ func (s *SQLite3Store) WriteSessionWorkIfNotExist(ctx context.Context, sessionId
 	}
 	defer tx.Rollback()
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT created_at FROM session_works WHERE session_id=? AND signer_id=? AND round=?", sessionId, signerId, round)
+	query := "SELECT created_at FROM session_works WHERE session_id=? AND signer_id=? AND round=?"
+	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId, round)
 	if err != nil || existed {
 		return err
 	}
