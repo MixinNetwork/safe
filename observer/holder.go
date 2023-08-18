@@ -454,6 +454,8 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
 	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	err = node.store.MarkTransactionApprovalPaid(ctx, hash)
+	logger.Printf("store.MarkTransactionApprovalPaid(%s) => %v", hash, err)
 	return node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
 }
 
@@ -590,9 +592,6 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	if err != nil || signed {
 		return err
 	}
-	if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-		panic(approval.RawTransaction)
-	}
 
 	rawId := mixin.UniqueConversationID(approval.RawTransaction, approval.RawTransaction)
 	raw := common.DecodeHexOrPanic(approval.RawTransaction)
@@ -614,20 +613,54 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	if err != nil {
 		return err
 	}
+	references := []crypto.Hash{ref}
 
-	tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Verbosef("keeperStore.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
 	if err != nil {
 		return err
 	}
-	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
-	rid := uuid.Must(uuid.FromString(tx.RequestId))
-	extra := append(rid.Bytes(), ref[:]...)
-	references := []crypto.Hash{ref}
-	action := common.ActionBitcoinSafeApproveTransaction
-	err = node.sendBitcoinKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
-	logger.Printf("node.sendBitcoinKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	logger.Verbosef("deriveBIP32WithKeeperPath(%s, %s) => %s %v", safe.Observer, safe.Path, opk, err)
 	if err != nil {
 		return err
+	}
+	tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
+	if err != nil || tx == nil {
+		return err
+	}
+
+	var id string
+	var extra []byte
+	var action int
+	switch {
+	case bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder):
+		id = mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
+		rid := uuid.Must(uuid.FromString(tx.RequestId))
+		extra = append(rid.Bytes(), ref[:]...)
+		action := common.ActionBitcoinSafeApproveTransaction
+		err = node.sendBitcoinKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
+		logger.Printf("node.sendBitcoinKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+		if err != nil {
+			return err
+		}
+	case bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, opk):
+		rb := common.DecodeHexOrPanic(approval.RawTransaction)
+		psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+		if err != nil {
+			return err
+		}
+		msgTx := psTx.UnsignedTx
+		receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+		logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+		if err != nil {
+			return err
+		}
+		id = mixin.UniqueConversationID(safe.Address, receiver)
+		rid := uuid.Must(uuid.FromString(tx.RequestId))
+		extra = append(rid.Bytes(), ref[:]...)
+		action = common.ActionBitcoinSafeCloseAccount
 	}
 
 	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
