@@ -3,9 +3,9 @@ module github.com/MixinNetwork/safe
 go 1.21
 
 require (
-	github.com/MixinNetwork/bot-api-go-client v1.8.0
+	github.com/MixinNetwork/bot-api-go-client v1.8.1
 	github.com/MixinNetwork/go-number v0.1.0
-	github.com/MixinNetwork/mixin v0.16.4
+	github.com/MixinNetwork/mixin v0.16.5
 	github.com/MixinNetwork/multi-party-sig v0.3.2
 	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/trusted-group v0.5.6-0.20230811075235-ddd55c9300ad
@@ -26,7 +26,7 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.7
-	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
+	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 )
 
 require (
@@ -50,7 +50,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fox-one/msgpack v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -86,7 +86,7 @@ require (
 	golang.org/x/sys v0.11.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230814215434-ca7cfce7776a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230815205213-6bfd019c3878 // indirect
 	google.golang.org/grpc v1.57.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
