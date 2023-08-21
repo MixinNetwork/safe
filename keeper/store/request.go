@@ -78,14 +78,14 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, id string) error {
 }
 
 func (s *SQLite3Store) ReadPendingRequest(ctx context.Context) (*common.Request, error) {
-	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC", strings.Join(requestCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC, request_id ASC", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)
 
 	return requestFromRow(row)
 }
 
 func (s *SQLite3Store) ReadLatestRequest(ctx context.Context) (*common.Request, error) {
-	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at DESC LIMIT 1", strings.Join(requestCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
 	return requestFromRow(row)

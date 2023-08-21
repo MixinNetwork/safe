@@ -68,7 +68,7 @@ func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder 
 
 func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiver string, chain byte) ([]*bitcoin.Input, error) {
 	cols := strings.Join([]string{"transaction_hash", "output_index", "satoshi", "script", "sequence"}, ",")
-	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE address=? AND state=? ORDER BY created_at ASC", cols)
+	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE address=? AND state=? ORDER BY created_at ASC, request_id ASC", cols)
 	rows, err := s.db.QueryContext(ctx, query, receiver, common.RequestStateInitial)
 	if err != nil {
 		return nil, err

@@ -54,7 +54,7 @@ func (s *SQLite3Store) ReadNetworkInfo(ctx context.Context, id string) (*Network
 }
 
 func (s *SQLite3Store) ReadLatestNetworkInfo(ctx context.Context, chain byte) (*NetworkInfo, error) {
-	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE chain=? ORDER BY created_at DESC LIMIT 1", strings.Join(infoCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE chain=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(infoCols, ","))
 	row := s.db.QueryRowContext(ctx, query, chain)
 
 	var n NetworkInfo
