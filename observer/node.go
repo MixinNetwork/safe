@@ -73,16 +73,16 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	_, bitcoinAssetId := node.bitcoinParams(chain)
-	asset, err := node.fetchAssetMeta(ctx, node.conf.TransactionPriceAssetId)
+	asset, err := node.fetchAssetMeta(ctx, node.conf.OperationPriceAssetId)
 	if err != nil {
 		return err
 	}
-	amount := decimal.RequireFromString(node.conf.TransactionPriceAmount)
+	amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 	logger.Printf("node.sendBitcoinPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
-		panic(node.conf.TransactionPriceAmount)
+		panic(node.conf.OperationPriceAmount)
 	}
 	minimum = minimum.Mul(decimal.New(1, 8))
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
@@ -169,7 +169,7 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 }
 
 func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.ObserverKeyPriceAssetId {
+	if s.AssetID != node.conf.CustomKeyPriceAssetId {
 		return false, nil
 	}
 	extra, _ := base64.RawURLEncoding.DecodeString(s.Memo)
@@ -182,7 +182,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return false, nil
 	}
 
-	if s.Amount.Cmp(decimal.RequireFromString(node.conf.ObserverKeyPriceAmount)) < 0 {
+	if s.Amount.Cmp(decimal.RequireFromString(node.conf.CustomKeyPriceAmount)) < 0 {
 		return true, nil
 	}
 
@@ -212,14 +212,14 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 }
 
 func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.TransactionPriceAssetId {
+	if s.AssetID != node.conf.OperationPriceAssetId {
 		return false, nil
 	}
 	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
 	if err != nil || approval == nil {
 		return false, err
 	}
-	if s.Amount.Cmp(decimal.RequireFromString(node.conf.TransactionPriceAmount)) < 0 {
+	if s.Amount.Cmp(decimal.RequireFromString(node.conf.OperationPriceAmount)) < 0 {
 		return true, nil
 	}
 	return true, node.holderPayTransactionApproval(ctx, s.Memo)
