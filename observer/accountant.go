@@ -305,18 +305,6 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 	}, node.store.WriteBitcoinFeeOutput(ctx, msgTx, receiver, tx)
 }
 
-func (s *SQLite3Store) ReadAccountantPrivateKey(ctx context.Context, address string) (string, error) {
-	query := "SELECT private_key FROM accountants WHERE address=?"
-	row := s.db.QueryRowContext(ctx, query, address)
-
-	var key string
-	err := row.Scan(&key)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return key, err
-}
-
 func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

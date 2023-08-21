@@ -3,6 +3,7 @@ package observer
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/btcsuite/btcd/btcec/v2"
 )
 
 type Asset struct {
@@ -466,6 +468,41 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 		return nil, nil
 	}
 	return &t, err
+}
+
+func (s *SQLite3Store) WriteAccountantKeys(ctx context.Context, crv byte, keys map[string]*btcec.PrivateKey) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for addr, priv := range keys {
+		pub := hex.EncodeToString(priv.PubKey().SerializeCompressed())
+		cols := []string{"public_key", "private_key", "address", "curve", "created_at"}
+		vals := []any{pub, hex.EncodeToString(priv.Serialize()), addr, crv, time.Now().UTC()}
+		err = s.execOne(ctx, tx, buildInsertionSQL("accountants", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT accountants %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ReadAccountantPrivateKey(ctx context.Context, address string) (string, error) {
+	query := "SELECT private_key FROM accountants WHERE address=?"
+	row := s.db.QueryRowContext(ctx, query, address)
+
+	var key string
+	err := row.Scan(&key)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return key, err
 }
 
 func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics map[string]string) error {
