@@ -380,6 +380,9 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	row := s.db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
 	err := row.Scan(&k)
 	if err == sql.ErrNoRows {
@@ -389,6 +392,9 @@ func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, erro
 }
 
 func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	logger.Printf("SQLite3Store.WriteProperty(%s)", k)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
