@@ -266,7 +266,7 @@ func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.C
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, inputs)
+	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, inputs, common.RequestStatePending)
 	return []string{safe.Holder}, err
 }
 
@@ -296,7 +296,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, mainInputs)
+	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, mainInputs, common.RequestStateDone)
 }
 
 func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *common.Request) error {

@@ -317,13 +317,19 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		common.RenderError(w, r, err)
 		return
 	}
+	pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"chain":   safe.Chain,
-		"id":      safe.RequestId,
-		"address": safe.Address,
-		"outputs": viewOutputs(mainInputs),
-		"script":  hex.EncodeToString(wsa.Script),
-		"keys":    node.viewSafeXPubs(r.Context(), safe),
+		"chain":    safe.Chain,
+		"id":       safe.RequestId,
+		"address":  safe.Address,
+		"outputs":  viewOutputs(mainInputs),
+		"pendings": viewOutputs(pendings),
+		"script":   hex.EncodeToString(wsa.Script),
+		"keys":     node.viewSafeXPubs(r.Context(), safe),
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -410,13 +416,19 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		common.RenderError(w, r, err)
 		return
 	}
+	pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"chain":   safe.Chain,
-		"id":      safe.RequestId,
-		"address": safe.Address,
-		"outputs": viewOutputs(mainInputs),
-		"script":  hex.EncodeToString(wsa.Script),
-		"keys":    node.viewSafeXPubs(r.Context(), safe),
+		"chain":    safe.Chain,
+		"id":       safe.RequestId,
+		"address":  safe.Address,
+		"outputs":  viewOutputs(mainInputs),
+		"pendings": viewOutputs(pendings),
+		"script":   hex.EncodeToString(wsa.Script),
+		"keys":     node.viewSafeXPubs(r.Context(), safe),
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -483,13 +495,19 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		common.RenderError(w, r, err)
 		return
 	}
+	pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), safe.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"chain":   safe.Chain,
-		"id":      safe.RequestId,
-		"address": safe.Address,
-		"outputs": viewOutputs(mainInputs),
-		"script":  hex.EncodeToString(wsa.Script),
-		"keys":    node.viewSafeXPubs(r.Context(), safe),
+		"chain":    safe.Chain,
+		"id":       safe.RequestId,
+		"address":  safe.Address,
+		"outputs":  viewOutputs(mainInputs),
+		"pendings": viewOutputs(pendings),
+		"script":   hex.EncodeToString(wsa.Script),
+		"keys":     node.viewSafeXPubs(r.Context(), safe),
 		"bond": map[string]any{
 			"id": bondId,
 		},
@@ -722,6 +740,14 @@ func (node *Node) listAllBitcoinUTXOsForHolder(ctx context.Context, holder strin
 		return nil, err
 	}
 	return node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
+}
+
+func (node *Node) listPendingBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, error) {
+	safe, err := node.keeperStore.ReadSafe(ctx, holder)
+	if err != nil || safe == nil {
+		return nil, err
+	}
+	return node.keeperStore.ListPendingBitcoinUTXOsForHolder(ctx, holder)
 }
 
 func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent map[string]string) []map[string]any {
