@@ -226,22 +226,36 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.AssetId {
-		return false, nil
-	}
-	if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
-		panic(s.TransactionHash)
-	}
 	msp := mtg.DecodeMixinExtra(s.Memo)
 	if msp == nil {
-		return true, nil
+		return false, nil
 	}
 	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
 	if err != nil || len(op.Extra) != 32 {
-		return true, err
+		return false, err
 	}
+
+	switch s.AssetID {
+	case node.conf.AssetId:
+		if op.Type == common.ActionBitcoinSafeApproveAccount {
+			return false, nil
+		}
+		if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			return false, nil
+		}
+	case node.conf.OperationPriceAssetId:
+		if op.Type != common.ActionBitcoinSafeApproveAccount {
+			return false, nil
+		}
+		if s.Amount.Cmp(decimal.RequireFromString(node.conf.OperationPriceAmount)) < 0 {
+			return false, nil
+		}
+	default:
+		return false, nil
+	}
+
 	var stx crypto.Hash
 	copy(stx[:], op.Extra)
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
