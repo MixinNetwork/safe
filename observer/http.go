@@ -115,14 +115,30 @@ func (node *Node) StartHTTP(readme string) {
 }
 
 func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	if r.Host != "safe.mixin.dev" {
-		common.RenderJSON(w, r, http.StatusOK, map[string]string{"version": "0.9.14"})
+	if r.Host == "safe.mixin.dev" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(GUIDE))
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(GUIDE))
+	plan, err := node.keeperStore.ReadAccountPlan(r.Context(), keeper.SafeChainBitcoin)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"version":  "0.9.14",
+		"observer": node.conf.App.ClientId,
+		"keeper": map[string]any{
+			"members":   node.keeper.Genesis.Members,
+			"threshold": node.keeper.Genesis.Threshold,
+		},
+		"plan": map[string]any{
+			"asset": plan.AccountPriceAsset,
+			"price": plan.AccountPriceAmount.String(),
+		},
+	})
 }
 
 func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map[string]string) {
