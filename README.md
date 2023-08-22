@@ -40,7 +40,7 @@ After generating the key pair, you will need to create a random UUID as the sess
 
 ## Propose Safe Account
 
-To ensure the efficiency of the network, every Mixin Safe account proposal costs 1USD. To propose an account, one simply needs to send 1pUSD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
+To ensure the efficiency of the network, every Mixin Safe account proposal costs 1USD. To propose an account, one simply needs to send 20pUSD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
 
 ```golang
 type Operation struct {
@@ -102,13 +102,36 @@ input := mixin.TransferInput{
   Memo:    memo,
 }
 input.OpponentMultisig.Receivers = []{
-  "71b72e67-3636-473a-9ee4-db7ba3094057",
-  "148e696f-f1db-4472-a907-ceea50c5cfde",
-  "c9a9a719-4679-4057-bcf0-98945ed95a81",
-  "b45dcee0-23d7-4ad1-b51e-c681a257c13e",
-  "fcb87491-4fa0-4c2f-b387-262b63cbc112",
+  "a4930d3e-4783-4ccd-ae3e-f6651b5583c7",
+  "2cf5645b-5c52-42e4-8c67-ed5164cfe8eb",
+  "335654a7-986d-4600-ab89-b624e9998f36",
+  "3d963e3c-2dd3-4902-b340-e8394d62ad0f",
+  "ed3d5824-87e4-4060-b347-90b3a3aa16fb",
+  "a8327607-724d-45d4-afca-339d33219d1a",
+  "9ad6076e-c79d-4571-b29a-4671262c2538",
+  "b1081493-d702-43e1-8051-cec283e9898f",
+  "f5a9bf39-2e3d-49d9-bbfc-144aaf209157",
+  "bfe8c7b9-58a3-4d2d-92b4-ba5b67eb1a42",
+  "da9bdc94-a446-422c-ab90-8ab9c5bb8bc7",
+  "9fcdea14-03d1-49f1-af97-4079c9551777",
+  "8cf9b500-0bc8-408e-890b-41873e162345",
+  "72b336e4-1e05-477a-8254-2f02a6249ffd",
+  "5ae7f5cf-26b8-4ea6-b031-2bf3af09da57",
+  "18f2c8ad-ac9b-4a6f-a074-240bfacbe58b",
+  "21da6e56-f335-45c4-a838-9a0139fe7269",
+  "83170828-5bd8-491d-9bb0-f1af072c305b",
+  "40032eda-126b-44f2-bfb9-76da965cf0c2",
+  "fb264547-198d-4877-9ef9-66f6b3f4e3d7",
+  "a3a68c12-2407-4c3b-ad5d-5c37a3d29b1a",
+  "77a3a6fe-fc4c-4035-8409-0f4b5daba51d",
+  "1e3c4323-207d-4d7b-bcd6-21b35d02bdb7",
+  "fca01bd7-3e87-4d9e-bf88-cbd8f642cc16",
+  "7552beb9-4a7b-4cbb-a026-f4db1d86cbf9",
+  "575ede5a-4802-42e8-81b1-6b2e2ef187d8",
+  "07775ff6-bb41-4fbd-9f81-8e600898ee6e",
+  "c91eb626-eb89-4fbd-ae21-76f0bd763da5",
 }
-input.OpponentMultisig.Threshold = 4
+input.OpponentMultisig.Threshold = 19
 ```
 
 
@@ -117,7 +140,7 @@ input.OpponentMultisig.Threshold = 4
 After the account proposal transaction sent to the safe network MTG, you can monitor the Mixin Network transactions to decode your account details. But to make it easy, it's possible to just fetch it from the Safe HTTP API with the proposal UUID:
 
 ```
-curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
+curl https://observer.mixin.one/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe
 
 🔜
 {
@@ -148,7 +171,7 @@ MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKS
 With the signature we send the request to safe network to prove that we own the holder key exactly:
 
 ```
-curl https://safe.mixin.dev/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe -H 'Content-Type:application/json' \
+curl https://observer.mixin.one/accounts/2e78d04a-e61a-442d-a014-dec19bd61cfe -H 'Content-Type:application/json' \
   -d '{"address":"bc1qzccxhrlm4p5l5rpgnns58862ckmsat7uxucqjfcfmg7ef6yltf3quhr94a","signature":"MEUCIQCY3Gl1uocJR-qa2wVUuvK_gc-pOxzk8Zq_x_Hqv8iJbAIgXPbMuk-GiGsM3MJKmQ3haRzfDEKSBHArkgRF2NtxDOk"}'
 ```
 
@@ -160,7 +183,7 @@ Now we can deposit BTC to the address above, and you will receive safeBTC to the
 After depositing some BTC to both the safe address, we now want to send 0.000123 BTC to `bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e`. To initiate the transaction, we require the latest Bitcoin chain head ID from the Safe network, which can be obtained by running the following command:
 
 ```
-curl https://safe.mixin.dev/chains
+curl https://observer.mixin.one/chains
 
 🔜
 [
@@ -205,19 +228,42 @@ input := mixin.TransferInput{
   Memo:    memo,
 }
 input.OpponentMultisig.Receivers = []{
-  "71b72e67-3636-473a-9ee4-db7ba3094057",
-  "148e696f-f1db-4472-a907-ceea50c5cfde",
-  "c9a9a719-4679-4057-bcf0-98945ed95a81",
-  "b45dcee0-23d7-4ad1-b51e-c681a257c13e",
-  "fcb87491-4fa0-4c2f-b387-262b63cbc112",
+  "a4930d3e-4783-4ccd-ae3e-f6651b5583c7",
+  "2cf5645b-5c52-42e4-8c67-ed5164cfe8eb",
+  "335654a7-986d-4600-ab89-b624e9998f36",
+  "3d963e3c-2dd3-4902-b340-e8394d62ad0f",
+  "ed3d5824-87e4-4060-b347-90b3a3aa16fb",
+  "a8327607-724d-45d4-afca-339d33219d1a",
+  "9ad6076e-c79d-4571-b29a-4671262c2538",
+  "b1081493-d702-43e1-8051-cec283e9898f",
+  "f5a9bf39-2e3d-49d9-bbfc-144aaf209157",
+  "bfe8c7b9-58a3-4d2d-92b4-ba5b67eb1a42",
+  "da9bdc94-a446-422c-ab90-8ab9c5bb8bc7",
+  "9fcdea14-03d1-49f1-af97-4079c9551777",
+  "8cf9b500-0bc8-408e-890b-41873e162345",
+  "72b336e4-1e05-477a-8254-2f02a6249ffd",
+  "5ae7f5cf-26b8-4ea6-b031-2bf3af09da57",
+  "18f2c8ad-ac9b-4a6f-a074-240bfacbe58b",
+  "21da6e56-f335-45c4-a838-9a0139fe7269",
+  "83170828-5bd8-491d-9bb0-f1af072c305b",
+  "40032eda-126b-44f2-bfb9-76da965cf0c2",
+  "fb264547-198d-4877-9ef9-66f6b3f4e3d7",
+  "a3a68c12-2407-4c3b-ad5d-5c37a3d29b1a",
+  "77a3a6fe-fc4c-4035-8409-0f4b5daba51d",
+  "1e3c4323-207d-4d7b-bcd6-21b35d02bdb7",
+  "fca01bd7-3e87-4d9e-bf88-cbd8f642cc16",
+  "7552beb9-4a7b-4cbb-a026-f4db1d86cbf9",
+  "575ede5a-4802-42e8-81b1-6b2e2ef187d8",
+  "07775ff6-bb41-4fbd-9f81-8e600898ee6e",
+  "c91eb626-eb89-4fbd-ae21-76f0bd763da5",
 }
-input.OpponentMultisig.Threshold = 4
+input.OpponentMultisig.Threshold = 19
 ```
 
 Once the transaction is successfully sent to the Safe Network MTG, we can query the safe API to obtain the proposed raw transaction using the following command:
 
 ```
-curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421
+curl https://observer.mixin.one/transactions/36c2075c-5af0-4593-b156-e72f58f9f421
 
 🔜
 {
@@ -252,18 +298,18 @@ fmt.Printf("raw: %x\n", raw)
 After we have the PSBT signed by holder private key, then we can send them to safe API:
 
 ```
-curl https://safe.mixin.dev/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H 'Content-Type:application/json' \
+curl https://observer.mixin.one/transactions/36c2075c-5af0-4593-b156-e72f58f9f421 -H 'Content-Type:application/json' \
   -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5"}'
 ```
 
-Once the transaction approval has succeeded, we will need to transfer 1pUSD to the observer(71b72e67-3636-473a-9ee4-db7ba3094057), using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
+Once the transaction approval has succeeded, we will need to transfer 20pUSD to the observer(c91eb626-eb89-4fbd-ae21-76f0bd763da5), using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
 
 https://blockstream.info/tx/0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f?expand
 
 
 ## Custom Observer Key
 
-It's possible to have your own observer key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your observer public key and a chain code according to Bitcoin extended public key specification. Then add this key to the observer(71b72e67-3636-473a-9ee4-db7ba3094057) by transferring 10pUSD, and the memo should be:
+It's possible to have your own observer key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your observer public key and a chain code according to Bitcoin extended public key specification. Then add this key to the observer(c91eb626-eb89-4fbd-ae21-76f0bd763da5) by transferring 100pUSD, and the memo should be:
 
 ```golang
 const CurveSecp256k1ECDSABitcoin = 1

@@ -115,6 +115,11 @@ func (node *Node) StartHTTP(readme string) {
 }
 
 func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	if r.Host != "safe.mixin.dev" {
+		common.RenderJSON(w, r, http.StatusOK, map[string]string{"version": "0.9.14"})
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(GUIDE))
