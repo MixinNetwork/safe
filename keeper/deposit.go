@@ -100,10 +100,10 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		panic(asset.AssetId)
 	}
 
-	plan, err := node.store.ReadAccountPlan(ctx, deposit.Chain)
-	logger.Printf("store.ReadAccountPlan(%d) => %v %v", deposit.Chain, plan, err)
+	plan, err := node.store.ReadOperationParams(ctx, deposit.Chain)
+	logger.Printf("store.ReadOperationParams(%d) => %v %v", deposit.Chain, plan, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", deposit.Chain, err)
+		return fmt.Errorf("store.ReadOperationParams(%d) => %v", deposit.Chain, err)
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
 		return node.store.FailRequest(ctx, req.Id)
 	}

@@ -69,8 +69,8 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	return node.store.WriteNetworkInfoFromRequest(ctx, info)
 }
 
-func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) error {
-	logger.Printf("node.writeAccountPlan(%v)", req)
+func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) error {
+	logger.Printf("node.writeOperationParams(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -96,7 +96,7 @@ func (node *Node) writeAccountPlan(ctx context.Context, req *common.Request) err
 	amount := decimal.NewFromBigInt(abu, -8)
 	mbu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[25:33]))
 	minimum := decimal.NewFromBigInt(mbu, -8)
-	return node.store.WriteAccountPlanFromRequest(ctx, chain, assetId.String(), amount, minimum, req)
+	return node.store.WriteOperationParamsFromRequest(ctx, chain, assetId.String(), amount, minimum, req)
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {

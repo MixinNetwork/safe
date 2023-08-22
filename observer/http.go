@@ -122,7 +122,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 
-	plan, err := node.keeperStore.ReadAccountPlan(r.Context(), keeper.SafeChainBitcoin)
+	plan, err := node.keeperStore.ReadOperationParams(r.Context(), keeper.SafeChainBitcoin)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -134,9 +134,14 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 			"members":   node.keeper.Genesis.Members,
 			"threshold": node.keeper.Genesis.Threshold,
 		},
-		"plan": map[string]any{
-			"asset": plan.AccountPriceAsset,
-			"price": plan.AccountPriceAmount.String(),
+		"params": map[string]any{
+			"operation": map[string]any{
+				"asset": plan.OperationPriceAsset,
+				"price": plan.OperationPriceAmount.String(),
+			},
+			"transaction": map[string]any{
+				"minimum": plan.TransactionMinimum.String(),
+			},
 		},
 	})
 }

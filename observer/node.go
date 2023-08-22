@@ -92,7 +92,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID("ActionObserverSetAccountPlan", dummy)
+	id := mixin.UniqueConversationID("ActionObserverSetOperationParams", dummy)
 	id = mixin.UniqueConversationID(id, bitcoinAssetId)
 	id = mixin.UniqueConversationID(id, asset.AssetId)
 	id = mixin.UniqueConversationID(id, amount.String())
@@ -101,7 +101,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
-	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetAccountPlan, chain, id, extra)
+	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {

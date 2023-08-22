@@ -236,13 +236,13 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	extra = binary.BigEndian.AppendUint64(extra, 100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
-	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetAccountPlan, extra)
+	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra)
 	testStep(ctx, require, node, out)
 
-	plan, err := node.store.ReadAccountPlan(ctx, SafeChainBitcoin)
+	plan, err := node.store.ReadOperationParams(ctx, SafeChainBitcoin)
 	require.Nil(err)
-	require.Equal(testAccountPriceAssetId, plan.AccountPriceAsset)
-	require.Equal("1", plan.AccountPriceAmount.String())
+	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
+	require.Equal("1", plan.OperationPriceAmount.String())
 	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 

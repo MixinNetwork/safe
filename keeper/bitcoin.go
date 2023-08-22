@@ -319,17 +319,17 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 	chain := bitcoinCurveChain(req.Curve)
 
-	plan, err := node.store.ReadAccountPlan(ctx, chain)
-	logger.Printf("store.ReadAccountPlan(%d) => %v %v", chain, plan, err)
+	plan, err := node.store.ReadOperationParams(ctx, chain)
+	logger.Printf("store.ReadOperationParams(%d) => %v %v", chain, plan, err)
 	if err != nil {
-		return fmt.Errorf("node.ReadAccountPrice(%d) => %v", chain, err)
-	} else if plan == nil || !plan.AccountPriceAmount.IsPositive() {
+		return fmt.Errorf("node.ReadOperationParams(%d) => %v", chain, err)
+	} else if plan == nil || !plan.OperationPriceAmount.IsPositive() {
 		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
 	}
-	if req.AssetId != plan.AccountPriceAsset {
+	if req.AssetId != plan.OperationPriceAsset {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if req.Amount.Cmp(plan.AccountPriceAmount) < 0 {
+	if req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
@@ -516,10 +516,10 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	plan, err := node.store.ReadAccountPlan(ctx, safe.Chain)
-	logger.Printf("store.ReadAccountPlan(%d) => %v %v", safe.Chain, plan, err)
+	plan, err := node.store.ReadOperationParams(ctx, safe.Chain)
+	logger.Printf("store.ReadOperationParams(%d) => %v %v", safe.Chain, plan, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", safe.Chain, err)
+		return fmt.Errorf("store.ReadOperationParams(%d) => %v", safe.Chain, err)
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
 		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}

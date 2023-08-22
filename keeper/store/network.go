@@ -32,10 +32,10 @@ type NetworkInfo struct {
 	CreatedAt time.Time
 }
 
-type AccountPlan struct {
-	AccountPriceAsset  string
-	AccountPriceAmount decimal.Decimal
-	TransactionMinimum decimal.Decimal
+type OperationParams struct {
+	OperationPriceAsset  string
+	OperationPriceAmount decimal.Decimal
+	TransactionMinimum   decimal.Decimal
 }
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
@@ -88,34 +88,34 @@ func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *Ne
 	return tx.Commit()
 }
 
-func accountPricePropertyKey(chain byte) string {
-	return fmt.Sprintf("safe-account-price-%d", chain)
+func operationParamsPropertyKey(chain byte) string {
+	return fmt.Sprintf("operation-params-%d", chain)
 }
 
-func (s *SQLite3Store) ReadAccountPlan(ctx context.Context, chain byte) (*AccountPlan, error) {
-	key := accountPricePropertyKey(chain)
+func (s *SQLite3Store) ReadOperationParams(ctx context.Context, chain byte) (*OperationParams, error) {
+	key := operationParamsPropertyKey(chain)
 	value, err := s.ReadProperty(ctx, key)
 	if err != nil || value == "" {
 		return nil, err
 	}
 
-	var plan AccountPlan
+	var plan OperationParams
 	err = json.Unmarshal([]byte(value), &plan)
 	return &plan, err
 }
 
-func (s *SQLite3Store) WriteAccountPlanFromRequest(ctx context.Context, chain byte, assetId string, amount, minimum decimal.Decimal, req *common.Request) error {
+func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, chain byte, assetId string, amount, minimum decimal.Decimal, req *common.Request) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	key := accountPricePropertyKey(chain)
-	value := common.MarshalJSONOrPanic(AccountPlan{
-		AccountPriceAsset:  assetId,
-		AccountPriceAmount: amount,
-		TransactionMinimum: minimum,
+	key := operationParamsPropertyKey(chain)
+	value := common.MarshalJSONOrPanic(&OperationParams{
+		OperationPriceAsset:  assetId,
+		OperationPriceAmount: amount,
+		TransactionMinimum:   minimum,
 	})
 	existed, err := s.checkExistence(ctx, tx, "SELECT value FROM properties WHERE key=?", key)
 	if err != nil {
