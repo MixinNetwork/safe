@@ -128,8 +128,12 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"version":  "0.9.14",
+		"version":  "0.9.15",
 		"observer": node.conf.App.ClientId,
+		"bond": map[string]any{
+			"chain":    73927,
+			"contract": node.conf.MVMFactoryAddress,
+		},
 		"keeper": map[string]any{
 			"members":   node.keeper.Genesis.Members,
 			"threshold": node.keeper.Genesis.Threshold,
