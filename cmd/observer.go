@@ -11,14 +11,12 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
@@ -151,7 +149,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = db.WriteAccountantKeys(ctx, bitcoinChainCurve(chain), keys)
+	err = db.WriteAccountantKeys(ctx, keeper.BitcoinChainCurve(chain), keys)
 	if err != nil {
 		return err
 	}
@@ -224,42 +222,9 @@ func generateAccountantKey(chain byte) (*btcec.PrivateKey, string, error) {
 		return nil, "", err
 	}
 	pub := priv.PubKey().SerializeCompressed()
-	awpkh, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub), netConfig(chain))
+	awpkh, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub), bitcoin.NetConfig(chain))
 	if err != nil {
 		return nil, "", err
 	}
 	return priv, awpkh.EncodeAddress(), nil
-}
-
-func netConfig(chain byte) *chaincfg.Params {
-	switch chain {
-	case bitcoin.ChainBitcoin:
-		return &chaincfg.MainNetParams
-	case bitcoin.ChainLitecoin:
-		return &chaincfg.Params{
-			Net:             0xdbb6c0fb,
-			Bech32HRPSegwit: "ltc",
-
-			PubKeyHashAddrID:        0x30,
-			ScriptHashAddrID:        0x32,
-			WitnessPubKeyHashAddrID: 0x06,
-			WitnessScriptHashAddrID: 0x0A,
-
-			HDPublicKeyID:  [4]byte{0x01, 0x9d, 0xa4, 0x64},
-			HDPrivateKeyID: [4]byte{0x01, 0x9d, 0x9c, 0xfe},
-		}
-	default:
-		panic(chain)
-	}
-}
-
-func bitcoinChainCurve(chain byte) byte {
-	switch chain {
-	case bitcoin.ChainBitcoin:
-		return common.CurveSecp256k1ECDSABitcoin
-	case bitcoin.ChainLitecoin:
-		return common.CurveSecp256k1ECDSALitecoin
-	default:
-		panic(chain)
-	}
 }

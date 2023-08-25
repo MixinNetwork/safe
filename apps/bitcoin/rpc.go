@@ -114,7 +114,7 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	if err != nil {
 		return nil, nil, err
 	}
-	addr, err := script.Address(netConfig(chain))
+	addr, err := script.Address(NetConfig(chain))
 	if err != nil {
 		return nil, nil, err
 	}

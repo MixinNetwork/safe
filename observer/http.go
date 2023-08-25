@@ -123,7 +123,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 
-	plan, err := node.keeperStore.ReadOperationParams(r.Context(), keeper.SafeChainBitcoin)
+	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), keeper.SafeChainBitcoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return

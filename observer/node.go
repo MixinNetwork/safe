@@ -212,14 +212,18 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 }
 
 func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.OperationPriceAssetId {
-		return false, nil
-	}
 	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
 	if err != nil || approval == nil {
 		return false, err
 	}
-	if s.Amount.Cmp(decimal.RequireFromString(node.conf.OperationPriceAmount)) < 0 {
+	params, err := node.keeperStore.ReadLatestOperationParams(ctx, approval.Chain, s.CreatedAt)
+	if err != nil || params == nil {
+		return false, err
+	}
+	if s.AssetID != params.OperationPriceAsset {
+		return false, nil
+	}
+	if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
 		return true, nil
 	}
 	return true, node.holderPayTransactionApproval(ctx, s.Memo)
@@ -236,6 +240,11 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	if err != nil || len(op.Extra) != 32 {
 		return false, err
 	}
+	chain := keeper.BitcoinCurveChain(op.Curve)
+	params, err := node.keeperStore.ReadLatestOperationParams(ctx, chain, s.CreatedAt)
+	if err != nil || params == nil {
+		return false, err
+	}
 
 	switch s.AssetID {
 	case node.conf.AssetId:
@@ -245,11 +254,11 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 		if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			return false, nil
 		}
-	case node.conf.OperationPriceAssetId:
+	case params.OperationPriceAsset:
 		if op.Type != common.ActionBitcoinSafeApproveAccount {
 			return false, nil
 		}
-		if s.Amount.Cmp(decimal.RequireFromString(node.conf.OperationPriceAmount)) < 0 {
+		if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
 			return false, nil
 		}
 	default:

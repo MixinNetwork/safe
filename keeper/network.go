@@ -87,7 +87,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if chain != bitcoinCurveChain(req.Curve) {
+	if chain != BitcoinCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 
@@ -96,7 +96,15 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	amount := decimal.NewFromBigInt(abu, -8)
 	mbu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[25:33]))
 	minimum := decimal.NewFromBigInt(mbu, -8)
-	return node.store.WriteOperationParamsFromRequest(ctx, chain, assetId.String(), amount, minimum, req)
+	params := &store.OperationParams{
+		RequestId:            req.Id,
+		Chain:                chain,
+		OperationPriceAsset:  assetId.String(),
+		OperationPriceAmount: amount,
+		TransactionMinimum:   minimum,
+		CreatedAt:            req.CreatedAt,
+	}
+	return node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {

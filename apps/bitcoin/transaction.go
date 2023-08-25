@@ -192,7 +192,7 @@ func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, c
 		return nil, err
 	}
 	privateKey, publicKey := btcec.PrivKeyFromBytes(b)
-	apk, err := btcutil.NewAddressPubKey(publicKey.SerializeCompressed(), netConfig(chain))
+	apk, err := btcutil.NewAddressPubKey(publicKey.SerializeCompressed(), NetConfig(chain))
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 	}
 	for i, in := range mainInputs {
 		address := mainAddress
-		addr, err := btcutil.DecodeAddress(address, netConfig(chain))
+		addr, err := btcutil.DecodeAddress(address, NetConfig(chain))
 		if err != nil {
 			panic(address)
 		}
@@ -384,7 +384,7 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 	switch typ {
 	case InputTypeP2WPKHAccoutant:
 		in.Script = btcutil.Hash160(in.Script)
-		wpkh, err := btcutil.NewAddressWitnessPubKeyHash(in.Script, netConfig(chain))
+		wpkh, err := btcutil.NewAddressWitnessPubKeyHash(in.Script, NetConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -400,7 +400,7 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 		txIn.Sequence = MaxTransactionSequence
 	case InputTypeP2WSHMultisigHolderSigner:
 		msh := sha256.Sum256(in.Script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
+		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -408,7 +408,7 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 		txIn.Sequence = MaxTransactionSequence
 	case InputTypeP2WSHMultisigObserverSigner:
 		msh := sha256.Sum256(in.Script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
+		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -425,7 +425,7 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 }
 
 func addOutput(tx *wire.MsgTx, address string, satoshi int64, chain byte) (bool, error) {
-	addr, err := btcutil.DecodeAddress(address, netConfig(chain))
+	addr, err := btcutil.DecodeAddress(address, NetConfig(chain))
 	if err != nil {
 		return false, err
 	}

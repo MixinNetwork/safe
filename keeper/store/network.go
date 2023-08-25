@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -33,13 +32,17 @@ type NetworkInfo struct {
 }
 
 type OperationParams struct {
+	RequestId            string
+	Chain                byte
 	OperationPriceAsset  string
 	OperationPriceAmount decimal.Decimal
 	TransactionMinimum   decimal.Decimal
+	CreatedAt            time.Time
 }
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 var infoCols = []string{"request_id", "chain", "fee", "height", "hash", "created_at"}
+var paramsCols = []string{"request_id", "chain", "price_asset", "price_amount", "transaction_minimum", "created_at"}
 
 func (s *SQLite3Store) ReadNetworkInfo(ctx context.Context, id string) (*NetworkInfo, error) {
 	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE request_id=?", strings.Join(infoCols, ","))
@@ -92,51 +95,42 @@ func operationParamsPropertyKey(chain byte) string {
 	return fmt.Sprintf("operation-params-%d", chain)
 }
 
-func (s *SQLite3Store) ReadOperationParams(ctx context.Context, chain byte) (*OperationParams, error) {
-	key := operationParamsPropertyKey(chain)
-	value, err := s.ReadProperty(ctx, key)
-	if err != nil || value == "" {
+func (s *SQLite3Store) ReadLatestOperationParams(ctx context.Context, chain byte, offset time.Time) (*OperationParams, error) {
+	query := fmt.Sprintf("SELECT %s FROM operation_params WHERE chain=? AND created_at<=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(paramsCols, ","))
+	row := s.db.QueryRowContext(ctx, query, chain, offset)
+
+	var p OperationParams
+	var price, minimum string
+	err := row.Scan(&p.RequestId, &p.Chain, &p.OperationPriceAsset, &price, &minimum, &p.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
-
-	var plan OperationParams
-	err = json.Unmarshal([]byte(value), &plan)
-	return &plan, err
+	p.OperationPriceAmount = decimal.RequireFromString(price)
+	p.TransactionMinimum = decimal.RequireFromString(minimum)
+	return &p, nil
 }
 
-func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, chain byte, assetId string, amount, minimum decimal.Decimal, req *common.Request) error {
+func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, params *OperationParams) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	key := operationParamsPropertyKey(chain)
-	value := common.MarshalJSONOrPanic(&OperationParams{
-		OperationPriceAsset:  assetId,
-		OperationPriceAmount: amount,
-		TransactionMinimum:   minimum,
-	})
-	existed, err := s.checkExistence(ctx, tx, "SELECT value FROM properties WHERE key=?", key)
+	amount := params.OperationPriceAmount.String()
+	minimum := params.TransactionMinimum.String()
+	vals := []any{params.RequestId, params.Chain, params.OperationPriceAsset, amount, minimum, params.CreatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("operation_params", paramsCols), vals...)
 	if err != nil {
-		return err
+		return fmt.Errorf("INSERT operation_params %v", err)
 	}
-
-	if existed {
-		err = s.execOne(ctx, tx, "UPDATE properties SET value=?, created_at=? WHERE key=?", value, req.CreatedAt, key)
-		if err != nil {
-			return fmt.Errorf("UPDATE properties %v", err)
-		}
-	} else {
-		cols := []string{"key", "value", "created_at"}
-		err = s.execOne(ctx, tx, buildInsertionSQL("properties", cols), key, value, req.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("INSERT properties %v", err)
-		}
-	}
-
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-		common.RequestStateDone, time.Now().UTC(), req.Id)
+		common.RequestStateDone, time.Now().UTC(), params.RequestId)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}

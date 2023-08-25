@@ -240,7 +240,7 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra)
 	testStep(ctx, require, node, out)
 
-	plan, err := node.store.ReadOperationParams(ctx, SafeChainBitcoin)
+	plan, err := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
 	require.Equal(fmt.Sprint(testAccountPriceAmount), plan.OperationPriceAmount.String())
@@ -757,7 +757,7 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	json.Unmarshal([]byte(v), &om)
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
 	if typ == common.ActionBitcoinSafeApproveAccount {
-		params, _ := node.store.ReadOperationParams(ctx, SafeChainBitcoin)
+		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	} else {

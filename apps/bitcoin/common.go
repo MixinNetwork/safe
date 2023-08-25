@@ -73,7 +73,7 @@ func ParseAddress(addr string, chain byte) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
 	}
-	bda, err := btcutil.DecodeAddress(addr, netConfig(chain))
+	bda, err := btcutil.DecodeAddress(addr, NetConfig(chain))
 	if err != nil {
 		return nil, fmt.Errorf("btcutil.DecodeAddress(%s, %d) => %v", addr, chain, err)
 	}
