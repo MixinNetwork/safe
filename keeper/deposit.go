@@ -221,7 +221,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		panic(typ)
 	}
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil || info == nil {
 		return nil, err

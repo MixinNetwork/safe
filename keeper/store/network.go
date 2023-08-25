@@ -53,9 +53,9 @@ func (s *SQLite3Store) ReadNetworkInfo(ctx context.Context, id string) (*Network
 	return &n, err
 }
 
-func (s *SQLite3Store) ReadLatestNetworkInfo(ctx context.Context, chain byte) (*NetworkInfo, error) {
-	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE chain=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(infoCols, ","))
-	row := s.db.QueryRowContext(ctx, query, chain)
+func (s *SQLite3Store) ReadLatestNetworkInfo(ctx context.Context, chain byte, offset time.Time) (*NetworkInfo, error) {
+	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE chain=? AND created_at<=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(infoCols, ","))
+	row := s.db.QueryRowContext(ctx, query, chain, offset)
 
 	var n NetworkInfo
 	err := row.Scan(&n.RequestId, &n.Chain, &n.Fee, &n.Height, &n.Hash, &n.CreatedAt)

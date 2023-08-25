@@ -165,7 +165,7 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 
 	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
 	virtualSize := (weight + 300) / 4
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, tx.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, tx.Chain, time.Now())
 	if err != nil {
 		return nil, err
 	}

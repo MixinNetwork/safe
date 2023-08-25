@@ -260,7 +260,7 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra)
 	testStep(ctx, require, node, out)
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.NotNil(info)
 	require.Equal(byte(SafeChainBitcoin), info.Chain)
@@ -423,7 +423,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -460,7 +460,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)

@@ -178,7 +178,7 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 	} else if req != nil {
 		state = state + fmt.Sprintf("🎆 Latest request: %s\n", req.MixinHash)
 	}
-	info, err := store.ReadLatestNetworkInfo(ctx, keeper.SafeChainBitcoin)
+	info, err := store.ReadLatestNetworkInfo(ctx, keeper.SafeChainBitcoin, time.Now())
 	if err != nil {
 		return "", err
 	} else if info != nil {

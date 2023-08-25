@@ -42,7 +42,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	info.Fee = binary.BigEndian.Uint64(extra[1:9])
 	info.Height = binary.BigEndian.Uint64(extra[9:17])
 
-	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain)
+	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain, req.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
 	} else if old != nil && old.RequestId == req.Id {

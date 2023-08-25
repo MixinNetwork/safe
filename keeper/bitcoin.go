@@ -124,7 +124,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
 		return err

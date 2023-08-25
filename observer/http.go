@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
@@ -157,7 +158,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 }
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
+	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -166,7 +167,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin)
+	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return

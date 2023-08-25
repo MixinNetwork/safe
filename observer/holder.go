@@ -196,7 +196,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
 		return err
@@ -340,15 +340,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
-	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
-	if err != nil {
-		return err
-	}
-	if info == nil {
-		return nil
-	}
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
 	for idx := range msgTx.TxIn {
@@ -357,12 +348,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
 		if err != nil {
 			return err
-		}
-		if bo.Height > info.Height || bo.Height == 0 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-		if bo.Height+sequence+100 > info.Height {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		balance = balance + bo.Satoshi
 	}
