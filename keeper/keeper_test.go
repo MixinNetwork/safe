@@ -754,8 +754,14 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	var om map[string]any
 	json.Unmarshal([]byte(v), &om)
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
-	require.Equal(node.conf.ObserverAssetId, om["asset_id"])
-	require.Equal("1", om["amount"])
+	if typ == common.ActionBitcoinSafeApproveAccount {
+		params, _ := node.store.ReadOperationParams(ctx, SafeChainBitcoin)
+		require.Equal(params.OperationPriceAsset, om["asset_id"])
+		require.Equal(params.OperationPriceAmount.String(), om["amount"])
+	} else {
+		require.Equal(node.conf.ObserverAssetId, om["asset_id"])
+		require.Equal("1", om["amount"])
+	}
 	b, _ := hex.DecodeString(om["memo"].(string))
 	b = common.AESDecrypt(node.observerAESKey[:], b)
 	op, err := common.DecodeOperation(b)

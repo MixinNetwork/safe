@@ -379,7 +379,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	crv := bitcoinChainCurve(chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
 	if err != nil {
-		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 	}
 
 	sp := &store.SafeProposal{
@@ -448,7 +448,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	crv := bitcoinChainCurve(sp.Chain)
 	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 	if err != nil {
-		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 	}
 
 	safe := &store.Safe{
@@ -624,7 +624,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	crv := bitcoinChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
 	if err != nil {
-		return fmt.Errorf("node.sendObserverRespons(%s, %x) => %v", req.Id, exk, err)
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 	}
 
 	total := decimal.Zero
