@@ -110,6 +110,8 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 }
 
 func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
+	rpc, _ := node.bitcoinParams(chain)
+
 	for {
 		time.Sleep(3 * time.Second)
 		txs, err := node.store.ListFullySignedTransactionApprovals(ctx, chain)
@@ -129,6 +131,14 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 			spentHash := msgTx.TxHash().String()
 			spentRaw := hex.EncodeToString(signedBuffer)
 			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw)
+			if err != nil {
+				panic(err)
+			}
+			tx, err := bitcoin.RPCGetTransaction(chain, rpc, spentHash)
+			if err != nil || tx == nil {
+				panic(fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", spentHash, tx, err))
+			}
+			err = node.bitcoinProcessTransaction(ctx, tx, chain)
 			if err != nil {
 				panic(err)
 			}
