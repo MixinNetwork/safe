@@ -37,6 +37,11 @@ func (s *SQLite3Store) FixOldOperationParams(ctx context.Context, chain byte) er
 	}
 	defer tx.Rollback()
 
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM operation_params WHERE request_id=?", params.RequestId)
+	if err != nil || existed {
+		return err
+	}
+
 	amount := params.OperationPriceAmount.String()
 	minimum := params.TransactionMinimum.String()
 	vals := []any{params.RequestId, params.Chain, params.OperationPriceAsset, amount, minimum, params.CreatedAt}

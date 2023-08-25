@@ -129,7 +129,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"version":  "0.9.16",
+		"version":  "0.9.17",
 		"observer": node.conf.App.ClientId,
 		"bond": map[string]any{
 			"chain":    73927,
