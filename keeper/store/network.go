@@ -78,11 +78,6 @@ func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *Ne
 	}
 	defer tx.Rollback()
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM network_infos WHERE request_id=?", info.RequestId)
-	if err != nil || existed {
-		return err
-	}
-
 	vals := []any{info.RequestId, info.Chain, info.Fee, info.Height, info.Hash, info.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("network_infos", infoCols), vals...)
 	if err != nil {
@@ -122,11 +117,6 @@ func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, para
 		return err
 	}
 	defer tx.Rollback()
-
-	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM operation_params WHERE request_id=?", params.RequestId)
-	if err != nil || existed {
-		return err
-	}
 
 	amount := params.OperationPriceAmount.String()
 	minimum := params.TransactionMinimum.String()
