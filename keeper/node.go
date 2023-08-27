@@ -42,14 +42,6 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil || terminated {
 		panic(err)
 	}
-	err = node.store.FixOldOperationParams(ctx, SafeChainBitcoin)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.FixOldOperationParams(ctx, SafeChainLitecoin)
-	if err != nil {
-		panic(err)
-	}
 	go node.loopProcessRequests(ctx)
 }
 
