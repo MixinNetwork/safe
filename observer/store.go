@@ -119,6 +119,11 @@ func (r *Recovery) getState() string {
 }
 
 func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe) []string {
+	signers := make([]string, 0)
+	if t.State == common.RequestStateFailed {
+		return signers
+	}
+
 	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
 	if err != nil {
 		panic(err)
@@ -129,7 +134,6 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 	}
 	pubs := []string{t.Holder, spk, opk}
 
-	var signers []string
 	for idx, pub := range pubs {
 		isSigned := bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
 		if isSigned {
