@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/ecdsa"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
 )
@@ -38,8 +39,8 @@ func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*K
 	}, nil
 }
 
-func (node *Node) cmpSign(ctx context.Context, public string, share []byte, m []byte, sessionId []byte, crv byte, path []byte) (*SignResult, error) {
-	logger.Printf("node.cmpSign(%x, %s, %x, %d, %x)", sessionId, public, m, crv, path)
+func (node *Node) cmpSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, crv byte, path []byte) (*SignResult, error) {
+	logger.Printf("node.cmpSign(%x, %s, %x, %d, %x, %v)", sessionId, public, m, crv, path, members)
 	conf := cmp.EmptyConfig(curve.Secp256k1{})
 	err := conf.UnmarshalBinary(share)
 	if err != nil {
@@ -60,7 +61,7 @@ func (node *Node) cmpSign(ctx context.Context, public string, share []byte, m []
 		}
 	}
 
-	start, err := cmp.Sign(conf, node.members, m, nil)(sessionId)
+	start, err := cmp.Sign(conf, members, m, nil)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("cmp.Sign(%x, %x) => %v", sessionId, m, err)
 	}

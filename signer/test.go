@@ -226,8 +226,8 @@ func newTestNetwork(parties party.IDSlice) *testNetwork {
 	}
 	N := len(n.parties)
 	for _, id := range n.parties {
-		n.listenChannels[id] = make(chan []byte, N*N)
-		n.mtgChannels[id] = make(chan []byte, N*N)
+		n.listenChannels[id] = make(chan []byte, N*N*10)
+		n.mtgChannels[id] = make(chan []byte, N*N*10)
 	}
 	return n
 }

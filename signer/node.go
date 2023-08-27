@@ -237,7 +237,8 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 		if !msg.IsFor(node.id) {
 			continue
 		}
-		node.getSession(sessionId).incoming <- msg
+		mps := node.getSession(sessionId)
+		mps.incoming <- msg
 		if msg.RoundNumber != MPCFirstMessageRound {
 			continue
 		}
@@ -287,9 +288,10 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 		return nil, err
 	}
 	mps := node.getSession(sessionId)
+	mps.members = start.PartyIDs()
 
 	res, err := node.loopMultiPartySession(ctx, mps, h, roundTimeout)
-	missing := mps.missing(node.members, node.id)
+	missing := mps.missing(node.id)
 	logger.Printf("node.loopMultiPartySession(%x, %d) => %v with %v missing", mps.id, mps.round, err, missing)
 	return res, err
 }
@@ -302,7 +304,7 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 				return h.Result()
 			}
 			msb := marshalSessionMessage(mps.id, msg)
-			for _, id := range node.members {
+			for _, id := range mps.members {
 				if !msg.IsFor(id) {
 					continue
 				}
@@ -313,6 +315,9 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 			mps.process(ctx, h, node.store)
 		case msg := <-mps.incoming:
 			logger.Verbosef("network.incoming(%x, %d) %s", mps.id, msg.RoundNumber, msg.From)
+			if !mps.findMember(msg.From) {
+				continue
+			}
 			if bytes.Equal(mps.id, msg.SSID) {
 				return nil, fmt.Errorf("node.handlerLoop(%x) expired from %s", mps.id, msg.From)
 			}
@@ -326,16 +331,26 @@ func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySess
 
 type MultiPartySession struct {
 	id       []byte
+	members  []party.ID
 	incoming chan *protocol.Message
 	received map[round.Number][]*protocol.Message
 	accepted map[round.Number][]*protocol.Message
 	round    round.Number
 }
 
-func (mps *MultiPartySession) missing(members []party.ID, self party.ID) []party.ID {
+func (mps *MultiPartySession) findMember(id party.ID) bool {
+	for _, m := range mps.members {
+		if m == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (mps *MultiPartySession) missing(self party.ID) []party.ID {
 	var missing []party.ID
 	accepted := mps.accepted[mps.round]
-	for _, id := range members {
+	for _, id := range mps.members {
 		if id == self {
 			continue
 		}

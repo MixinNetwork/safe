@@ -8,6 +8,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
 	"github.com/MixinNetwork/safe/common"
@@ -38,8 +39,8 @@ func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve
 	}, nil
 }
 
-func (node *Node) frostSign(ctx context.Context, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*SignResult, error) {
-	logger.Printf("node.frostSign(%x, %s, %x)", sessionId, public, m)
+func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*SignResult, error) {
+	logger.Printf("node.frostSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	conf := frost.EmptyConfig(group)
 	err := conf.UnmarshalBinary(share)
 	if err != nil {
@@ -63,7 +64,7 @@ func (node *Node) frostSign(ctx context.Context, public string, share []byte, m 
 		P = r.ActOnBase().Add(P)
 	}
 
-	start, err := frost.Sign(conf, node.members, m, variant)(sessionId)
+	start, err := frost.Sign(conf, members, m, variant)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("frost.Sign(%x, %x) => %v", sessionId, m, err)
 	}
