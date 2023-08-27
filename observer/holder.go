@@ -43,6 +43,12 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, extra []byte, c
 	if err != nil {
 		return err
 	}
+	_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
+	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, sp.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, sp.Holder, err)
+	if err != nil {
+		return err
+	}
 	return node.store.WriteAccountProposalIfNotExists(ctx, sp.Address, createdAt)
 }
 
