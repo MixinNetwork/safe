@@ -110,6 +110,8 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 }
 
 func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
+	rpc, _ := node.bitcoinParams(chain)
+
 	for {
 		time.Sleep(3 * time.Second)
 		txs, err := node.store.ListFullySignedTransactionApprovals(ctx, chain)
@@ -129,6 +131,14 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 			spentHash := msgTx.TxHash().String()
 			spentRaw := hex.EncodeToString(signedBuffer)
 			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw)
+			if err != nil {
+				panic(err)
+			}
+			tx, err := bitcoin.RPCGetTransaction(chain, rpc, spentHash)
+			if err != nil || tx == nil {
+				panic(fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", spentHash, tx, err))
+			}
+			err = node.bitcoinProcessTransaction(ctx, tx, chain)
 			if err != nil {
 				panic(err)
 			}
@@ -165,7 +175,7 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 
 	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
 	virtualSize := (weight + 300) / 4
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, tx.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, tx.Chain, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -303,18 +313,6 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 		Satoshi:         msgTx.TxOut[0].Value,
 		RawTransaction:  sql.NullString{Valid: true, String: hex.EncodeToString(raw)},
 	}, node.store.WriteBitcoinFeeOutput(ctx, msgTx, receiver, tx)
-}
-
-func (s *SQLite3Store) ReadAccountantPrivateKey(ctx context.Context, address string) (string, error) {
-	query := "SELECT private_key FROM accountants WHERE address=?"
-	row := s.db.QueryRowContext(ctx, query, address)
-
-	var key string
-	err := row.Scan(&key)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return key, err
 }
 
 func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {

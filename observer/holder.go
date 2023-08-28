@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -41,6 +40,12 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, extra []byte, c
 		return err
 	}
 	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, wsa.Address)
+	if err != nil {
+		return err
+	}
+	_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
+	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, sp.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, sp.Holder, err)
 	if err != nil {
 		return err
 	}
@@ -196,7 +201,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
 		return err
@@ -340,15 +345,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain)
-	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
-	if err != nil {
-		return err
-	}
-	if info == nil {
-		return nil
-	}
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
 	for idx := range msgTx.TxIn {
@@ -357,12 +353,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
 		if err != nil {
 			return err
-		}
-		if bo.Height > info.Height || bo.Height == 0 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-		if bo.Height+sequence+100 > info.Height {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		balance = balance + bo.Satoshi
 	}
@@ -412,20 +402,15 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
 	}
 
-	rawId := mixin.UniqueConversationID(raw, raw)
 	objectRaw := signedRaw
+	rawId := mixin.UniqueConversationID(raw, raw)
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
 	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
-	fee := bot.EstimateObjectFee(msg)
-	in := &bot.ObjectInput{
-		TraceId: mixin.UniqueConversationID(msg, msg),
-		Amount:  fee,
-		Memo:    msg,
-	}
+	traceId := mixin.UniqueConversationID(msg, msg)
 	conf := node.conf.App
-	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	logger.Printf("bot.CreateObject(%v) => %v %v", in, rs, err)
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
 	if err != nil {
 		return err
 	}
@@ -598,14 +583,9 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	raw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), raw...)
 	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
-	fee := bot.EstimateObjectFee(msg)
-	in := &bot.ObjectInput{
-		TraceId: mixin.UniqueConversationID(msg, msg),
-		Amount:  fee,
-		Memo:    msg,
-	}
+	traceId := mixin.UniqueConversationID(msg, msg)
 	conf := node.conf.App
-	rs, err := bot.CreateObject(ctx, in, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
 	if err != nil {
 		return err
 	}

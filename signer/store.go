@@ -275,7 +275,7 @@ func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*S
 	defer s.mutex.Unlock()
 
 	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
-	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY operation DESC, created_at ASC LIMIT %d", cols, limit)
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
 }
 
@@ -284,7 +284,7 @@ func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*S
 	defer s.mutex.Unlock()
 
 	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
-	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY created_at ASC LIMIT %d", cols, limit)
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY created_at ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStatePending)
 }
 
@@ -380,6 +380,9 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	row := s.db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
 	err := row.Scan(&k)
 	if err == sql.ErrNoRows {
@@ -389,6 +392,9 @@ func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, erro
 }
 
 func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	logger.Printf("SQLite3Store.WriteProperty(%s)", k)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

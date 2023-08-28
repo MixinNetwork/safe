@@ -33,6 +33,18 @@ CREATE TABLE IF NOT EXISTS network_infos (
 
 
 
+CREATE TABLE IF NOT EXISTS operation_params (
+  request_id           VARCHAR NOT NULL,
+  chain                INTEGER NOT NULL,
+  price_asset          VARCHAR NOT NULL,
+  price_amount         VARCHAR NOT NULL,
+  transaction_minimum  VARCHAR NOT NULL,
+  created_at           TIMESTAMP NOT NULL,
+  PRIMARY KEY ('request_id')
+);
+
+
+
 
 CREATE TABLE IF NOT EXISTS assets (
   asset_id      VARCHAR NOT NULL,

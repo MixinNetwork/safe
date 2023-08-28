@@ -38,7 +38,7 @@ func bitcoinDefaultDerivationPath() []byte {
 	return []byte{2, 0, 0, 0}
 }
 
-func bitcoinCurveChain(crv byte) byte {
+func BitcoinCurveChain(crv byte) byte {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		return SafeChainBitcoin
@@ -49,7 +49,7 @@ func bitcoinCurveChain(crv byte) byte {
 	}
 }
 
-func bitcoinChainCurve(chain byte) byte {
+func BitcoinChainCurve(chain byte) byte {
 	switch chain {
 	case SafeChainBitcoin:
 		return common.CurveSecp256k1ECDSABitcoin

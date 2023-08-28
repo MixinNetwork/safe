@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
@@ -115,9 +116,39 @@ func (node *Node) StartHTTP(readme string) {
 }
 
 func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(GUIDE))
+	if r.Host == "safe.mixin.dev" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(GUIDE))
+		return
+	}
+
+	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), keeper.SafeChainBitcoin, time.Now())
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"version":  "0.9.17",
+		"observer": node.conf.App.ClientId,
+		"bond": map[string]any{
+			"chain":    73927,
+			"contract": node.conf.MVMFactoryAddress,
+		},
+		"keeper": map[string]any{
+			"members":   node.keeper.Genesis.Members,
+			"threshold": node.keeper.Genesis.Threshold,
+		},
+		"params": map[string]any{
+			"operation": map[string]any{
+				"asset": plan.OperationPriceAsset,
+				"price": plan.OperationPriceAmount.String(),
+			},
+			"transaction": map[string]any{
+				"minimum": plan.TransactionMinimum.String(),
+			},
+		},
+	})
 }
 
 func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -127,7 +158,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 }
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin)
+	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -136,7 +167,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
 		return
 	}
-	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin)
+	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return

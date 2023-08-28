@@ -68,6 +68,28 @@ func CheckMixinDomainAddress(rpc string, chainId, address string) (bool, error) 
 	return inAddress != nil && inAddress.Fee == "0", nil
 }
 
+func CreateObjectUntilSufficient(ctx context.Context, memo, traceId string, uid, sid, priv, pin, pinToken string) (*bot.Snapshot, error) {
+	fee := bot.EstimateObjectFee(memo)
+	in := &bot.ObjectInput{
+		TraceId: traceId,
+		Amount:  fee,
+		Memo:    memo,
+	}
+	for {
+		rs, err := bot.CreateObject(ctx, in, uid, sid, priv, pin, pinToken)
+		logger.Printf("bot.CreateObject(%v) => %v %v", in, rs, err)
+		if mixin.IsErrorCodes(err, 30103) {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		return rs, err
+	}
+}
+
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, pin string) error {
 	for {
 		err := SendTransaction(ctx, client, assetId, receivers, threshold, amount, memo, traceId, pin)

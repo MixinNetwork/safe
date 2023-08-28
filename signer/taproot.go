@@ -8,6 +8,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/pkg/taproot"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/safe/common"
@@ -38,8 +39,8 @@ func (node *Node) taprootKeygen(ctx context.Context, sessionId []byte) (*KeygenR
 	}, nil
 }
 
-func (node *Node) taprootSign(ctx context.Context, public string, share []byte, m []byte, sessionId []byte) (*SignResult, error) {
-	logger.Printf("node.taprootSign(%x, %s, %x)", sessionId, public, m)
+func (node *Node) taprootSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte) (*SignResult, error) {
+	logger.Printf("node.taprootSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	group := curve.Secp256k1{}
 	conf := &frost.TaprootConfig{PrivateShare: group.NewScalar()}
 	err := conf.UnmarshalBinary(share)
@@ -50,7 +51,7 @@ func (node *Node) taprootSign(ctx context.Context, public string, share []byte, 
 		panic(public)
 	}
 
-	start, err := frost.SignTaproot(conf, node.members, m)(sessionId)
+	start, err := frost.SignTaproot(conf, members, m)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("frost.SignTaproot(%x, %x) => %v", sessionId, m, err)
 	}

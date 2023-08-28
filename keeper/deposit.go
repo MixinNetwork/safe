@@ -33,7 +33,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		Chain: extra[0],
 		Asset: uuid.Must(uuid.FromBytes(extra[1:17])).String(),
 	}
-	if deposit.Chain != bitcoinCurveChain(req.Curve) {
+	if deposit.Chain != BitcoinCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	extra = extra[17:]
@@ -100,10 +100,10 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		panic(asset.AssetId)
 	}
 
-	plan, err := node.store.ReadAccountPlan(ctx, deposit.Chain)
-	logger.Printf("store.ReadAccountPlan(%d) => %v %v", deposit.Chain, plan, err)
+	plan, err := node.store.ReadLatestOperationParams(ctx, deposit.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", deposit.Chain, plan, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadAccountPlan(%d) => %v", deposit.Chain, err)
+		return fmt.Errorf("store.ReadLatestOperationParams(%d) => %v", deposit.Chain, err)
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -221,7 +221,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		panic(typ)
 	}
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil || info == nil {
 		return nil, err

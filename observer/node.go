@@ -73,16 +73,16 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	_, bitcoinAssetId := node.bitcoinParams(chain)
-	asset, err := node.fetchAssetMeta(ctx, node.conf.TransactionPriceAssetId)
+	asset, err := node.fetchAssetMeta(ctx, node.conf.OperationPriceAssetId)
 	if err != nil {
 		return err
 	}
-	amount := decimal.RequireFromString(node.conf.TransactionPriceAmount)
+	amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 	logger.Printf("node.sendBitcoinPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
-		panic(node.conf.TransactionPriceAmount)
+		panic(node.conf.OperationPriceAmount)
 	}
 	minimum = minimum.Mul(decimal.New(1, 8))
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
@@ -92,7 +92,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID("ActionObserverSetAccountPlan", dummy)
+	id := mixin.UniqueConversationID("ActionObserverSetOperationParams", dummy)
 	id = mixin.UniqueConversationID(id, bitcoinAssetId)
 	id = mixin.UniqueConversationID(id, asset.AssetId)
 	id = mixin.UniqueConversationID(id, amount.String())
@@ -101,7 +101,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
-	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetAccountPlan, chain, id, extra)
+	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {
@@ -169,7 +169,7 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 }
 
 func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.ObserverKeyPriceAssetId {
+	if s.AssetID != node.conf.CustomKeyPriceAssetId {
 		return false, nil
 	}
 	extra, _ := base64.RawURLEncoding.DecodeString(s.Memo)
@@ -182,7 +182,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return false, nil
 	}
 
-	if s.Amount.Cmp(decimal.RequireFromString(node.conf.ObserverKeyPriceAmount)) < 0 {
+	if s.Amount.Cmp(decimal.RequireFromString(node.conf.CustomKeyPriceAmount)) < 0 {
 		return true, nil
 	}
 
@@ -212,36 +212,59 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 }
 
 func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.TransactionPriceAssetId {
-		return false, nil
-	}
 	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
 	if err != nil || approval == nil {
 		return false, err
 	}
-	if s.Amount.Cmp(decimal.RequireFromString(node.conf.TransactionPriceAmount)) < 0 {
+	params, err := node.keeperStore.ReadLatestOperationParams(ctx, approval.Chain, s.CreatedAt)
+	if err != nil || params == nil {
+		return false, err
+	}
+	if s.AssetID != params.OperationPriceAsset {
+		return false, nil
+	}
+	if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
 		return true, nil
 	}
 	return true, node.holderPayTransactionApproval(ctx, s.Memo)
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	if s.AssetID != node.conf.AssetId {
-		return false, nil
-	}
-	if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
-		panic(s.TransactionHash)
-	}
 	msp := mtg.DecodeMixinExtra(s.Memo)
 	if msp == nil {
-		return true, nil
+		return false, nil
 	}
 	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
 	if err != nil || len(op.Extra) != 32 {
-		return true, err
+		return false, err
 	}
+	chain := keeper.BitcoinCurveChain(op.Curve)
+	params, err := node.keeperStore.ReadLatestOperationParams(ctx, chain, s.CreatedAt)
+	if err != nil || params == nil {
+		return false, err
+	}
+
+	switch s.AssetID {
+	case node.conf.AssetId:
+		if op.Type == common.ActionBitcoinSafeApproveAccount {
+			return false, nil
+		}
+		if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			return false, nil
+		}
+	case params.OperationPriceAsset:
+		if op.Type != common.ActionBitcoinSafeApproveAccount {
+			return false, nil
+		}
+		if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
+			return false, nil
+		}
+	default:
+		return false, nil
+	}
+
 	var stx crypto.Hash
 	copy(stx[:], op.Extra)
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)

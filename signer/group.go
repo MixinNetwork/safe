@@ -105,6 +105,8 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
 		return fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err)
+	} else if session == nil {
+		return nil
 	}
 	if op.Curve != session.Curve || op.Type != session.Operation {
 		panic(session.Id)
@@ -403,16 +405,16 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	var res *SignResult
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		res, err = node.cmpSign(ctx, public, share, op.Extra, op.IdBytes(), op.Curve, path)
+		res, err = node.cmpSign(ctx, node.members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
 		logger.Verbosef("node.cmpSign(%v) => %v %v", op, res, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
-		res, err = node.taprootSign(ctx, public, share, op.Extra, op.IdBytes())
+		res, err = node.taprootSign(ctx, node.members, public, share, op.Extra, op.IdBytes())
 		logger.Verbosef("node.taprootSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Default:
-		res, err = node.frostSign(ctx, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
+		res, err = node.frostSign(ctx, node.members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
 		logger.Verbosef("node.frostSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Mixin:
-		res, err = node.frostSign(ctx, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
+		res, err = node.frostSign(ctx, node.members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
 		logger.Verbosef("node.frostSign(%v) => %v %v", op, res, err)
 	default:
 		panic(op.Id)

@@ -123,7 +123,7 @@ func main() {
 				},
 			},
 			{
-				Name:   "import",
+				Name:   "importobserverkeys",
 				Usage:  "Import observer public keys",
 				Action: cmd.ObserverImportKeys,
 				Flags: []cli.Flag{
@@ -140,6 +140,43 @@ func main() {
 					&cli.IntFlag{
 						Name:  "chain",
 						Usage: "The chain type of public keys",
+					},
+				},
+			},
+			{
+				Name:   "fillobserveraccountants",
+				Usage:  "Fill more observer accountant outputs",
+				Action: cmd.ObserverFillAccountants,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Value:   "~/.mixin/safe/config.toml",
+						Usage:   "The configuration file path",
+					},
+					&cli.IntFlag{
+						Name:  "chain",
+						Usage: "The chain type of public keys",
+					},
+					&cli.StringFlag{
+						Name:  "input",
+						Usage: "The only UTXO to spend to fill new outputs",
+					},
+					&cli.StringFlag{
+						Name:  "key",
+						Usage: "The private key of the input",
+					},
+					&cli.Int64Flag{
+						Name:  "satoshi",
+						Usage: "The input satoshi amount",
+					},
+					&cli.Int64Flag{
+						Name:  "count",
+						Usage: "The total outputs count",
+					},
+					&cli.Int64Flag{
+						Name:  "fee",
+						Usage: "The fee rate in sat/vB",
 					},
 				},
 			},

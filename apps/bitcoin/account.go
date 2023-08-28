@@ -50,7 +50,7 @@ func UnmarshalWitnessScriptAccount(extra []byte) (*WitnessScriptAccount, error) 
 }
 
 func ExtractPkScriptAddr(pkScript []byte, chain byte) (string, error) {
-	cls, addrs, threshold, err := txscript.ExtractPkScriptAddrs(pkScript, netConfig(chain))
+	cls, addrs, threshold, err := txscript.ExtractPkScriptAddrs(pkScript, NetConfig(chain))
 	if err != nil {
 		return "", err
 	}
@@ -65,7 +65,7 @@ func EncodeAddress(script []byte, chain byte) (string, error) {
 	switch typ {
 	case InputTypeP2WSHMultisigHolderSigner:
 		msh := sha256.Sum256(script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
+		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -152,7 +152,7 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 		return nil, fmt.Errorf("build.Script() => %v", err)
 	}
 	msh := sha256.Sum256(script)
-	mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], netConfig(chain))
+	mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
 	if err != nil {
 		return nil, fmt.Errorf("btcutil.NewAddressWitnessScriptHash(%x) => %v", msh[:], err)
 	}
@@ -173,7 +173,7 @@ func parseBitcoinCompressedPublicKey(public string) (*btcutil.AddressPubKey, err
 	if err != nil {
 		return nil, err
 	}
-	return btcutil.NewAddressPubKey(pub, netConfig(ChainBitcoin))
+	return btcutil.NewAddressPubKey(pub, NetConfig(ChainBitcoin))
 }
 
 func ValueDust(chain byte) int64 {
@@ -199,14 +199,14 @@ func protocolVersion(chain byte) uint32 {
 }
 
 func init() {
-	ltcParams := netConfig(ChainLitecoin)
+	ltcParams := NetConfig(ChainLitecoin)
 	err := chaincfg.Register(ltcParams)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func netConfig(chain byte) *chaincfg.Params {
+func NetConfig(chain byte) *chaincfg.Params {
 	switch chain {
 	case ChainBitcoin:
 		return &chaincfg.MainNetParams

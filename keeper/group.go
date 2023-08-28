@@ -34,7 +34,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	case common.ActionObserverRequestSignerKeys:
 	case common.ActionObserverUpdateNetworkStatus:
 	case common.ActionObserverHolderDeposit:
-	case common.ActionObserverSetAccountPlan:
+	case common.ActionObserverSetOperationParams:
 	case common.ActionBitcoinSafeProposeAccount:
 	case common.ActionBitcoinSafeApproveAccount:
 	case common.ActionBitcoinSafeProposeTransaction:
@@ -76,7 +76,7 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionObserverHolderDeposit:
 		return common.RequestRoleObserver
-	case common.ActionObserverSetAccountPlan:
+	case common.ActionObserverSetOperationParams:
 		return common.RequestRoleObserver
 	case common.ActionBitcoinSafeProposeAccount:
 		return common.RequestRoleHolder
@@ -206,8 +206,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.writeNetworkInfo(ctx, req)
 	case common.ActionObserverHolderDeposit:
 		return node.CreateHolderDeposit(ctx, req)
-	case common.ActionObserverSetAccountPlan:
-		return node.writeAccountPlan(ctx, req)
+	case common.ActionObserverSetOperationParams:
+		return node.writeOperationParams(ctx, req)
 	case common.ActionBitcoinSafeProposeAccount:
 		return node.processBitcoinSafeProposeAccount(ctx, req)
 	case common.ActionBitcoinSafeApproveAccount:

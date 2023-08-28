@@ -33,7 +33,7 @@ const (
 	ActionObserverRequestSignerKeys   = 102
 	ActionObserverUpdateNetworkStatus = 103
 	ActionObserverHolderDeposit       = 104
-	ActionObserverSetAccountPlan      = 106
+	ActionObserverSetOperationParams  = 106
 
 	// For all Bitcoin like chains
 	ActionBitcoinSafeProposeAccount     = 110

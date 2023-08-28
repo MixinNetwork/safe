@@ -40,6 +40,7 @@ import (
 
 const (
 	testAccountPriceAssetId          = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
+	testAccountPriceAmount           = 3.0123
 	testBondAssetId                  = "8e85c732-3bc6-3f50-939a-be89a67a6db6"
 	testSafeBondReceiverId           = "e459de8b-4edd-44ff-a119-b1d707f8521a"
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
@@ -311,16 +312,16 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 
 	extra := []byte{SafeChainBitcoin}
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
-	extra = binary.BigEndian.AppendUint64(extra, 100000000)
+	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
-	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetAccountPlan, extra)
+	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra)
 	testStep(ctx, require, node, out)
 
-	plan, err := node.store.ReadAccountPlan(ctx, SafeChainBitcoin)
+	plan, err := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
 	require.Nil(err)
-	require.Equal(testAccountPriceAssetId, plan.AccountPriceAsset)
-	require.Equal("1", plan.AccountPriceAmount.String())
+	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
+	require.Equal(fmt.Sprint(testAccountPriceAmount), plan.OperationPriceAmount.String())
 	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
@@ -337,7 +338,7 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra)
 	testStep(ctx, require, node, out)
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.NotNil(info)
 	require.Equal(byte(SafeChainBitcoin), info.Chain)
@@ -500,7 +501,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -537,7 +538,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin)
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -758,7 +759,8 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	id := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	extra := testRecipient()
-	out := testBuildHolderRequest(node, id, holder, common.ActionBitcoinSafeProposeAccount, testAccountPriceAssetId, extra, decimal.NewFromInt(1))
+	price := decimal.NewFromFloat(testAccountPriceAmount)
+	out := testBuildHolderRequest(node, id, holder, common.ActionBitcoinSafeProposeAccount, testAccountPriceAssetId, extra, price)
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, id, common.ActionBitcoinSafeProposeAccount)
 	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(b)
@@ -848,8 +850,14 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	var om map[string]any
 	json.Unmarshal([]byte(v), &om)
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
-	require.Equal(node.conf.ObserverAssetId, om["asset_id"])
-	require.Equal("1", om["amount"])
+	if typ == common.ActionBitcoinSafeApproveAccount {
+		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
+		require.Equal(params.OperationPriceAsset, om["asset_id"])
+		require.Equal(params.OperationPriceAmount.String(), om["amount"])
+	} else {
+		require.Equal(node.conf.ObserverAssetId, om["asset_id"])
+		require.Equal("1", om["amount"])
+	}
 	b, _ := hex.DecodeString(om["memo"].(string))
 	b = common.AESDecrypt(node.observerAESKey[:], b)
 	op, err := common.DecodeOperation(b)
