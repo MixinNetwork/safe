@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -21,7 +22,6 @@ import (
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
-	"golang.org/x/exp/slices"
 )
 
 type Node struct {

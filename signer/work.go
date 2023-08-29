@@ -2,10 +2,10 @@ package signer
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	"golang.org/x/exp/slices"
 )
 
 // TODO put all works query to the custodian module
