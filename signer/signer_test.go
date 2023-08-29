@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
@@ -25,28 +26,37 @@ func TestCMPSigner(t *testing.T) {
 
 	public, chainCode := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 	sig := testCMPSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin)
+	t.Logf("testCMPSign(%s) => %x\n", public, sig)
 	err := bitcoin.VerifySignatureDER(public, []byte("mixin"), sig)
 	require.Nil(err)
 
-	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{1, 0, 0, 0})
+	path := []byte{1, 0, 0, 0}
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, path)
+	t.Logf("testCMPSignWithPath(%s, %v) => %x\n", public, path, sig)
 	_, cp, err := bitcoin.DeriveBIP32(public, chainCode, 0)
 	require.Nil(err)
 	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 
-	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{1, 123, 0, 0})
+	path = []byte{1, 123, 0, 0}
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, path)
+	t.Logf("testCMPSignWithPath(%s, %v) => %x\n", public, path, sig)
 	_, cp, err = bitcoin.DeriveBIP32(public, chainCode, 123)
 	require.Nil(err)
 	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 
-	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{2, 123, 220, 255})
+	path = []byte{2, 123, 220, 255}
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, path)
+	t.Logf("testCMPSignWithPath(%s, %v) => %x\n", public, path, sig)
 	_, cp, err = bitcoin.DeriveBIP32(public, chainCode, 123, 220)
 	require.Nil(err)
 	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
 	require.Nil(err)
 
-	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, []byte{3, 123, 220, 255})
+	path = []byte{3, 123, 220, 255}
+	sig = testCMPSignWithPath(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin, path)
+	t.Logf("testCMPSignWithPath(%s, %v) => %x\n", public, path, sig)
 	_, cp, err = bitcoin.DeriveBIP32(public, chainCode, 123, 220, 255)
 	require.Nil(err)
 	err = bitcoin.VerifySignatureDER(cp, []byte("mixin"), sig)
@@ -90,13 +100,14 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 
 		msg := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
-		network.mtgChannels[nodes[i].id] <- msg
+		network.mtgChannel(nodes[i].id) <- msg
 	}
 
 	var public string
 	var chainCode []byte
 	for _, node := range nodes {
 		op := testWaitOperation(ctx, node, sid)
+		logger.Verbosef("testWaitOperation(%s, %s) => %v\n", node.id, sid, op)
 		require.Equal(common.OperationTypeKeygenOutput, int(op.Type))
 		require.Equal(sid, op.Id)
 		require.Equal(crv, op.Curve)

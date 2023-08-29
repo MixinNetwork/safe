@@ -36,5 +36,4 @@ func (c *Configuration) Messenger() *messenger.MixinConfiguration {
 type Network interface {
 	ReceiveMessage(context.Context) (*messenger.MixinMessage, error)
 	QueueMessage(ctx context.Context, receiver string, b []byte) error
-	BroadcastMessage(ctx context.Context, b []byte) error
 }

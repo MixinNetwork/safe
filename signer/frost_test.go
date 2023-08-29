@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -48,12 +49,13 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 
 		msg := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
-		network.mtgChannels[nodes[i].id] <- msg
+		network.mtgChannel(nodes[i].id) <- msg
 	}
 
 	var public string
 	for _, node := range nodes {
 		op := testWaitOperation(ctx, node, sid)
+		logger.Verbosef("testWaitOperation(%s, %s) => %v\n", node.id, sid, op)
 		require.Equal(common.OperationTypeKeygenOutput, int(op.Type))
 		require.Equal(sid, op.Id)
 		require.Equal(curve, op.Curve)
@@ -69,6 +71,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, curve uint8) []byte {
 	sid := mixin.UniqueConversationID("sign", fmt.Sprintf("%d:%x", curve, msg))
 	fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
+	network := nodes[0].network.(*testNetwork)
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
 		sop := &common.Operation{
@@ -88,13 +91,13 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		}
 
 		msg := common.MarshalJSONOrPanic(out)
-		network := node.network.(*testNetwork)
-		network.mtgChannels[nodes[i].id] <- msg
+		network.mtgChannel(nodes[i].id) <- msg
 	}
 
 	var extra []byte
 	for _, node := range nodes {
 		op := testWaitOperation(ctx, node, sid)
+		logger.Verbosef("testWaitOperation(%s, %s) => %v\n", node.id, sid, op)
 		require.Equal(common.OperationTypeSignOutput, int(op.Type))
 		require.Equal(sid, op.Id)
 		require.Equal(curve, op.Curve)
@@ -115,7 +118,7 @@ func testFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: curve, Type: common.OperationTypeKeygenInput}
-		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now())
+		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now(), false)
 		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf)
 		require.Nil(err)

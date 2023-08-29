@@ -2,13 +2,16 @@ package signer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
@@ -25,6 +28,7 @@ const (
 	KernelTimeout        = 3 * time.Minute
 	OperationExtraLimit  = 128
 	MPCFirstMessageRound = 2
+	PrepareExtra         = "PREPARE"
 )
 
 type Session struct {
@@ -37,6 +41,7 @@ type Session struct {
 	Extra      string
 	State      byte
 	CreatedAt  time.Time
+	PreparedAt sql.NullTime
 }
 
 type KeygenResult struct {
@@ -78,7 +83,8 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		if len(op.Extra) == 32 && op.Curve == common.CurveEdwards25519Mixin && op.Type == common.OperationTypeSignInput {
 			op.Extra = node.readKernelStorageOrPanic(ctx, op)
 		}
-		err = node.store.WriteSessionIfNotExist(ctx, op, out.TransactionHash, out.OutputIndex, out.CreatedAt)
+		needsCommittment := op.Type == common.OperationTypeSignInput
+		err = node.store.WriteSessionIfNotExist(ctx, op, out.TransactionHash, out.OutputIndex, out.CreatedAt, needsCommittment)
 		if err != nil {
 			panic(err)
 		}
@@ -86,48 +92,91 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		if node.findMember(out.Sender) < 0 {
 			return
 		}
-		req, err := node.parseSignerResult(out)
-		logger.Printf("node.parseSignerResult(%v) => %v %v", out, req, err)
+		req, err := node.parseSignerMessage(out)
+		logger.Printf("node.parseSignerMessage(%v) => %v %v", out, req, err)
 		if err != nil {
 			return
 		}
-		err = node.processSignerResult(ctx, req, out)
-		logger.Printf("node.processSignerResult(%v, %v) => %v", req, out, err)
-		if err != nil {
-			panic(err)
+		if string(req.Extra) == PrepareExtra {
+			err = node.processSignerPrepare(ctx, req, out)
+			logger.Printf("node.processSignerPrepare(%v, %v) => %v", req, out, err)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			err = node.processSignerResult(ctx, req, out)
+			logger.Printf("node.processSignerResult(%v, %v) => %v", req, out, err)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }
 
 func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {}
 
+func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Output) error {
+	if op.Type != common.OperationTypeSignInput {
+		return fmt.Errorf("node.processSignerPrepare(%v) type", op)
+	}
+	if string(op.Extra) != PrepareExtra {
+		panic(string(op.Extra))
+	}
+	s, err := node.store.ReadSession(ctx, op.Id)
+	if err != nil {
+		return fmt.Errorf("store.ReadSession(%s) => %v", op.Id, err)
+	} else if s.PreparedAt.Valid {
+		return nil
+	}
+	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Sender, out.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", op, err)
+	}
+	signers, err := node.store.ListSessionSigners(ctx, op.Id)
+	if err != nil {
+		return fmt.Errorf("store.ListSessionSigners(%s) => %d %v", op.Id, len(signers), err)
+	}
+	if len(signers) <= node.threshold || len(signers) < node.conf.MTG.Genesis.Threshold {
+		return nil
+	}
+	err = node.store.MarkSessionPrepared(ctx, op.Id, out.CreatedAt)
+	logger.Printf("node.MarkSessionPrepared(%v) => %v", op, err)
+	return err
+}
+
 func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Output) error {
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
 		return fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err)
-	} else if session == nil {
-		return nil
 	}
 	if op.Curve != session.Curve || op.Type != session.Operation {
 		panic(session.Id)
 	}
 
 	self := out.Sender == string(node.id)
-	err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Sender, op.Extra, out.CreatedAt, self)
-	if err != nil {
-		return fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
+	switch session.Operation {
+	case common.OperationTypeKeygenInput:
+		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Sender, op.Extra, out.CreatedAt, self)
+		if err != nil {
+			return fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
+		}
+	case common.OperationTypeSignInput:
+		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Sender, op.Extra, out.CreatedAt, self)
+		if err != nil {
+			return fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err)
+		}
 	}
+
 	signers, err := node.store.ListSessionSigners(ctx, op.Id)
 	if err != nil {
 		return fmt.Errorf("store.ListSessionSigners(%s) => %d %v", op.Id, len(signers), err)
 	}
-
-	finished := node.verifySessionSigners(session, signers)
+	finished := node.verifySessionSigners(ctx, session, signers)
 	logger.Printf("node.verifySessionSigners(%v, %d) => %t", session, len(signers), finished)
 	if !finished {
 		return nil
 	}
-	if l := len(signers); l < node.threshold || l < node.conf.MTG.Genesis.Threshold {
+	if l := len(signers); l <= node.threshold || l < node.conf.MTG.Genesis.Threshold {
 		panic(session.Id)
 	}
 
@@ -294,8 +343,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	}
 }
 
-func (node *Node) verifySessionSigners(session *Session, sessionSigners map[string]string) bool {
-	// TODO do more robust checks, allow some signer fails
+func (node *Node) verifySessionSigners(ctx context.Context, session *Session, sessionSigners map[string]string) bool {
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		var signed int
@@ -308,19 +356,38 @@ func (node *Node) verifySessionSigners(session *Session, sessionSigners map[stri
 		return signed >= len(node.conf.MTG.Genesis.Members)
 	case common.OperationTypeSignInput:
 		var signed int
+		var sig []byte
 		for _, id := range node.conf.MTG.Genesis.Members {
 			extra, found := sessionSigners[id]
-			if found && extra != "" && extra == sessionSigners[string(node.id)] {
+			if sig == nil && found {
+				sig = common.DecodeHexOrPanic(extra)
+			}
+			if found && extra != "" && hex.EncodeToString(sig) == extra {
 				signed = signed + 1
 			}
 		}
-		return signed >= node.conf.MTG.Genesis.Threshold && signed >= node.conf.Threshold
+		if signed < node.conf.MTG.Genesis.Threshold || signed <= node.threshold {
+			return false
+		}
+		if session.State != common.RequestStateInitial || !session.PreparedAt.Valid {
+			return true
+		}
+		op := session.asOperation()
+		extra := []byte{byte(len(op.Extra))}
+		extra = append(extra, op.Extra...)
+		extra = append(extra, sig...)
+		err := node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
+		logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
+		if err != nil {
+			panic(err)
+		}
+		return true
 	default:
 		panic(session.Id)
 	}
 }
 
-func (node *Node) parseSignerResult(out *mtg.Output) (*common.Operation, error) {
+func (node *Node) parseSignerMessage(out *mtg.Output) (*common.Operation, error) {
 	b, err := common.Base91Decode(out.Memo)
 	if err != nil {
 		return nil, fmt.Errorf("common.Base91Decode(%s) => %v", out.Memo, err)
@@ -341,14 +408,14 @@ func (node *Node) parseSignerResult(out *mtg.Output) (*common.Operation, error) 
 	return req, nil
 }
 
-func (node *Node) startOperation(ctx context.Context, op *common.Operation) error {
+func (node *Node) startOperation(ctx context.Context, op *common.Operation, members []party.ID) error {
 	logger.Printf("node.startOperation(%v)", op)
 
 	switch op.Type {
 	case common.OperationTypeKeygenInput:
 		return node.startKeygen(ctx, op)
 	case common.OperationTypeSignInput:
-		return node.startSign(ctx, op)
+		return node.startSign(ctx, op, members)
 	default:
 		panic(op.Id)
 	}
@@ -384,8 +451,12 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share)
 }
 
-func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
-	logger.Printf("node.startSign(%v)", op)
+func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {
+	logger.Printf("node.startSign(%v, %v)\n", op, members)
+	if !slices.Contains(members, node.id) {
+		logger.Printf("node.startSign(%v, %v) exit without committement\n", op, members)
+		return nil
+	}
 	public, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
 	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
 	if err != nil {
@@ -405,16 +476,16 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	var res *SignResult
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		res, err = node.cmpSign(ctx, node.members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
+		res, err = node.cmpSign(ctx, members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
 		logger.Verbosef("node.cmpSign(%v) => %v %v", op, res, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
-		res, err = node.taprootSign(ctx, node.members, public, share, op.Extra, op.IdBytes())
+		res, err = node.taprootSign(ctx, members, public, share, op.Extra, op.IdBytes())
 		logger.Verbosef("node.taprootSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Default:
-		res, err = node.frostSign(ctx, node.members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
+		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
 		logger.Verbosef("node.frostSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Mixin:
-		res, err = node.frostSign(ctx, node.members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
+		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
 		logger.Verbosef("node.frostSign(%v) => %v %v", op, res, err)
 	default:
 		panic(op.Id)
@@ -426,7 +497,9 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation) error {
 	extra := []byte{byte(len(op.Extra))}
 	extra = append(extra, op.Extra...)
 	extra = append(extra, res.Signature...)
-	return node.store.FinishSignSession(ctx, op.Id, op.Curve, op.Public, extra)
+	err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
+	logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
+	return err
 }
 
 func (node *Node) readKernelStorageOrPanic(ctx context.Context, op *common.Operation) []byte {

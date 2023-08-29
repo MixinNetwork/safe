@@ -85,6 +85,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 
 func (node *Node) Boot(ctx context.Context) {
 	go node.loopInitialSessions(ctx)
+	go node.loopPreparedSessions(ctx)
 	go node.loopPendingSessions(ctx)
 	go node.acceptIncomingMessages(ctx)
 	logger.Printf("node.Boot(%s, %d)", node.id, node.Index())
@@ -92,17 +93,53 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) loopInitialSessions(ctx context.Context) {
 	for {
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(3 * time.Second)
 		synced, err := node.synced(ctx)
 		if err != nil || !synced {
 			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
-			time.Sleep(3 * time.Second)
 			continue
 		}
-		sessions := node.listInitialSessions(ctx)
+		sessions, err := node.store.ListInitialSessions(ctx, 64)
+		if err != nil {
+			panic(err)
+		}
+
+		for _, s := range sessions {
+			op := s.asOperation()
+			err := node.sendSignerPrepareTransaction(ctx, op)
+			logger.Printf("node.sendSignerPrepareTransaction(%v) => %v", op, err)
+			if err != nil {
+				break
+			}
+			err = node.store.MarkSessionCommitted(ctx, op.Id)
+			logger.Printf("node.MarkSessionCommitted(%v) => %v", op, err)
+			if err != nil {
+				break
+			}
+		}
+	}
+}
+
+func (node *Node) loopPreparedSessions(ctx context.Context) {
+	for {
+		time.Sleep(3 * time.Second)
+		synced, err := node.synced(ctx)
+		if err != nil || !synced {
+			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+			continue
+		}
+		sessions := node.listPreparedSessions(ctx)
 		results := make([]<-chan error, len(sessions))
 		for i, s := range sessions {
-			results[i] = node.queueOperation(ctx, s.asOperation())
+			threshold := node.threshold + 1
+			signers, err := node.store.ListSessionPreparedMembers(ctx, s.Id, threshold)
+			if err != nil {
+				panic(err)
+			}
+			if len(signers) != threshold && s.Operation != common.OperationTypeKeygenInput {
+				panic(fmt.Sprintf("ListSessionPreparedMember(%s, %d) => %d", s.Id, threshold, len(signers)))
+			}
+			results[i] = node.queueOperation(ctx, s.asOperation(), signers)
 		}
 		for _, res := range results {
 			if res == nil {
@@ -115,41 +152,36 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 	}
 }
 
-func (node *Node) listInitialSessions(ctx context.Context) []*Session {
+func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
 	parallelization := runtime.NumCPU() * (len(node.members)/16 + 1)
 
 	var sessions []*Session
-	for {
-		initial, err := node.store.ListInitialSessions(ctx, parallelization)
-		if err != nil {
-			panic(err)
-		}
-		if len(initial) == 0 {
-			return sessions
-		}
-		for _, s := range initial {
-			if s.CreatedAt.Add(SessionTimeout).Before(time.Now()) {
-				err = node.store.FailSession(ctx, s.Id)
-				if err != nil {
-					panic(err)
-				}
-				continue
+	prepared, err := node.store.ListPreparedSessions(ctx, parallelization*4)
+	if err != nil {
+		panic(err)
+	}
+	for _, s := range prepared {
+		if s.CreatedAt.Add(SessionTimeout).Before(time.Now()) {
+			err = node.store.FailSession(ctx, s.Id)
+			if err != nil {
+				panic(err)
 			}
-			sessions = append(sessions, s)
-			if len(sessions) == parallelization {
-				return sessions
-			}
+			continue
+		}
+		sessions = append(sessions, s)
+		if len(sessions) == parallelization {
+			break
 		}
 	}
+	return sessions
 }
 
 func (node *Node) loopPendingSessions(ctx context.Context) {
 	for {
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(3 * time.Second)
 		synced, err := node.synced(ctx)
 		if err != nil || !synced {
 			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
-			time.Sleep(3 * time.Second)
 			continue
 		}
 		sessions, err := node.store.ListPendingSessions(ctx, 64)
@@ -251,6 +283,14 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 		if r == nil {
 			continue
 		}
+		threshold := node.threshold + 1
+		signers, err := node.store.ListSessionPreparedMembers(ctx, r.Id, threshold)
+		if err != nil {
+			panic(err)
+		}
+		if len(signers) < threshold {
+			continue
+		}
 		if r.State == common.RequestStateInitial {
 			node.queueOperation(ctx, &common.Operation{
 				Id:     r.Id,
@@ -258,7 +298,7 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 				Curve:  r.Curve,
 				Public: r.Public,
 				Extra:  common.DecodeHexOrPanic(r.Extra),
-			})
+			}, signers)
 		} else {
 			rm := &protocol.Message{SSID: sessionId, From: node.id, To: party.ID(mm.Peer)}
 			rmb := marshalSessionMessage(sessionId, rm)
@@ -267,7 +307,7 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 	}
 }
 
-func (node *Node) queueOperation(ctx context.Context, op *common.Operation) <-chan error {
+func (node *Node) queueOperation(ctx context.Context, op *common.Operation, members []party.ID) <-chan error {
 	node.mutex.Lock()
 	defer node.mutex.Unlock()
 
@@ -277,7 +317,7 @@ func (node *Node) queueOperation(ctx context.Context, op *common.Operation) <-ch
 	node.operations[op.Id] = true
 
 	res := make(chan error)
-	go func() { res <- node.startOperation(ctx, op) }()
+	go func() { res <- node.startOperation(ctx, op, members) }()
 	return res
 }
 
@@ -440,6 +480,24 @@ func unmarshalSessionMessage(b []byte) ([]byte, *protocol.Message, error) {
 	return sessionId, &msg, err
 }
 
+func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.Operation) error {
+	if op.Type != common.OperationTypeSignInput {
+		panic(op.Type)
+	}
+	op.Extra = []byte(PrepareExtra)
+	extra := common.AESEncrypt(node.aesKey[:], op.Encode(), op.Id)
+	if len(extra) > 160 {
+		panic(fmt.Errorf("node.sendSignerPrepareTransaction(%v) omitted %x", op, extra))
+	}
+	members := node.conf.MTG.Genesis.Members
+	threshold := node.conf.MTG.Genesis.Threshold
+	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", op.Id, string(node.id))
+	traceId = mixin.UniqueConversationID(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
+	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
+	logger.Printf("node.sendSignerPrepareTransaction(%v) => %s %x %v", op, op.Id, extra, err)
+	return err
+}
+
 func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Operation) error {
 	extra := common.AESEncrypt(node.aesKey[:], op.Encode(), op.Id)
 	if len(extra) > 160 {
@@ -456,13 +514,11 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo []byte, traceId string) error {
 	if common.CheckTestEnvironment(ctx) {
-		out := &mtg.Output{Sender: string(node.id), AssetID: node.conf.AssetId}
+		out := &mtg.Output{Sender: string(node.id), AssetID: node.conf.AssetId, CreatedAt: time.Now()}
 		out.Memo = common.Base91Encode(memo)
 		data := common.MarshalJSONOrPanic(out)
-		msg := common.MarshalPanic(&protocol.Message{Data: data})
-		extra := append([]byte{16}, uuid.Nil.Bytes()...)
-		extra = append(extra, msg...)
-		return node.network.BroadcastMessage(ctx, extra)
+		network := node.network.(*testNetwork)
+		return network.QueueMTGOutput(ctx, data)
 	}
 
 	return common.SendTransactionUntilSufficient(ctx, node.mixin, assetId, receivers, threshold, amount, common.Base91Encode(memo), traceId, node.conf.MTG.App.PIN)

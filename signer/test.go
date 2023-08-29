@@ -1,7 +1,6 @@
 package signer
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -19,11 +18,9 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/saver"
-	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -50,6 +47,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 		ctx = context.WithValue(ctx, "party", string(nodes[i].id))
 		go network.mtgLoop(ctx, nodes[i])
 		go nodes[i].loopInitialSessions(ctx)
+		go nodes[i].loopPreparedSessions(ctx)
 		go nodes[i].loopPendingSessions(ctx)
 		go nodes[i].acceptIncomingMessages(ctx)
 	}
@@ -68,7 +66,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: crv, Type: common.OperationTypeKeygenInput}
-		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now().UTC())
+		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now().UTC(), false)
 		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb)
 		require.Nil(err)
@@ -141,12 +139,13 @@ func TestCMPProcessOutput(ctx context.Context, require *require.Assertions, node
 	network := nodes[0].network.(*testNetwork)
 	for i := 0; i < 4; i++ {
 		data := common.MarshalJSONOrPanic(out)
-		network.mtgChannels[nodes[i].id] <- data
+		network.mtgChannel(nodes[i].id) <- data
 	}
 
 	var op *common.Operation
 	for _, node := range nodes {
 		op = testWaitOperation(ctx, node, sessionId)
+		logger.Verbosef("testWaitOperation(%s, %s) => %v\n", node.id, sessionId, op)
 	}
 	return op
 }
@@ -212,22 +211,22 @@ func testStartSaver(require *require.Assertions) *saver.SQLite3Store {
 }
 
 type testNetwork struct {
-	parties        party.IDSlice
-	listenChannels map[party.ID]chan []byte
-	mtgChannels    map[party.ID]chan []byte
-	mtx            sync.Mutex
+	parties     party.IDSlice
+	msgChannels map[party.ID]chan []byte
+	mtgChannels map[party.ID]chan []byte
+	mtx         sync.Mutex
 }
 
 func newTestNetwork(parties party.IDSlice) *testNetwork {
 	n := &testNetwork{
-		parties:        parties,
-		listenChannels: make(map[party.ID]chan []byte, 2*len(parties)),
-		mtgChannels:    make(map[party.ID]chan []byte, 2*len(parties)),
+		parties:     parties,
+		msgChannels: make(map[party.ID]chan []byte, 2*len(parties)),
+		mtgChannels: make(map[party.ID]chan []byte, 2*len(parties)),
 	}
 	N := len(n.parties)
 	for _, id := range n.parties {
-		n.listenChannels[id] = make(chan []byte, N*N*10)
-		n.mtgChannels[id] = make(chan []byte, N*N*10)
+		n.msgChannels[id] = make(chan []byte, N*N)
+		n.mtgChannels[id] = make(chan []byte, N*N)
 	}
 	return n
 }
@@ -249,50 +248,48 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 
 func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessage, error) {
 	id := ctx.Value("party").(string)
-	msb := <-n.listen(party.ID(id))
+	msb := <-n.msgChannel(party.ID(id))
 	_, msg, _ := unmarshalSessionMessage(msb)
 	return &messenger.MixinMessage{
-		Peer: string(msg.From),
-		Data: msb,
+		Peer:      string(msg.From),
+		Data:      msb,
+		CreatedAt: time.Now(),
 	}, nil
 }
 
 func (n *testNetwork) QueueMessage(ctx context.Context, receiver string, b []byte) error {
 	sessionId, msg, err := unmarshalSessionMessage(b)
+	logger.Printf("test.QueueMessage(%s) => %x %v %v", receiver, sessionId, msg, err)
 	if err != nil {
 		return err
 	}
-	n.Send(sessionId, msg)
+	n.msgChannel(party.ID(receiver)) <- marshalSessionMessage(sessionId, msg)
+	logger.Printf("test.Send(%s) => %x %v %v", receiver, sessionId, msg, err)
 	return nil
 }
 
-func (n *testNetwork) BroadcastMessage(ctx context.Context, b []byte) error {
-	for _, id := range n.parties {
-		n.QueueMessage(ctx, string(id), b)
-	}
-	return nil
-}
-
-func (n *testNetwork) Send(sessionId []byte, msg *protocol.Message) {
-	if bytes.Equal(sessionId, uuid.Nil.Bytes()) {
-		for _, c := range n.mtgChannels {
-			c <- msg.Data
-		}
-	} else {
-		for _, id := range n.parties {
-			if !msg.IsFor(id) {
-				continue
-			}
-			n.listen(id) <- marshalSessionMessage(sessionId, msg)
-		}
-	}
-}
-
-func (n *testNetwork) listen(id party.ID) chan []byte {
+func (n *testNetwork) QueueMTGOutput(ctx context.Context, b []byte) error {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
-	return n.listenChannels[id]
+	for _, c := range n.mtgChannels {
+		c <- b
+	}
+	return nil
+}
+
+func (n *testNetwork) mtgChannel(id party.ID) chan []byte {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	return n.mtgChannels[id]
+}
+
+func (n *testNetwork) msgChannel(id party.ID) chan []byte {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	return n.msgChannels[id]
 }
 
 var testCMPKeys = map[party.ID]string{

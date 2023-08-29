@@ -12,6 +12,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -93,9 +94,9 @@ func (s *SQLite3Store) ReadSession(ctx context.Context, sessionId string) (*Sess
 	defer s.mutex.Unlock()
 
 	var r Session
-	query := "SELECT session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at FROM sessions WHERE session_id=?"
+	query := "SELECT session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at, prepared_at FROM sessions WHERE session_id=?"
 	row := s.db.QueryRowContext(ctx, query, sessionId)
-	err := row.Scan(&r.Id, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Curve, &r.Public, &r.Extra, &r.State, &r.CreatedAt)
+	err := row.Scan(&r.Id, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Curve, &r.Public, &r.Extra, &r.State, &r.CreatedAt, &r.PreparedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -128,6 +129,32 @@ func (s *SQLite3Store) WriteSessionWorkIfNotExist(ctx context.Context, sessionId
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) PrepareSessionSignerIfNotExist(ctx context.Context, sessionId, signerId string, createdAt time.Time) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT extra FROM session_signers WHERE session_id=? AND signer_id=?"
+	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId)
+	if err != nil || existed {
+		return err
+	}
+
+	cols := []string{"session_id", "signer_id", "extra", "created_at", "updated_at"}
+	err = s.execOne(ctx, tx, buildInsertionSQL("session_signers", cols),
+		sessionId, signerId, "", createdAt, createdAt)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store INSERT session_signers %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) WriteSessionSignerIfNotExist(ctx context.Context, sessionId, signerId string, extra []byte, createdAt time.Time, self bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -143,9 +170,9 @@ func (s *SQLite3Store) WriteSessionSignerIfNotExist(ctx context.Context, session
 		return err
 	}
 
-	cols := []string{"session_id", "signer_id", "extra", "created_at"}
+	cols := []string{"session_id", "signer_id", "extra", "created_at", "updated_at"}
 	err = s.execOne(ctx, tx, buildInsertionSQL("session_signers", cols),
-		sessionId, signerId, hex.EncodeToString(extra), createdAt)
+		sessionId, signerId, hex.EncodeToString(extra), createdAt, createdAt)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT session_signers %v", err)
 	}
@@ -165,11 +192,72 @@ func (s *SQLite3Store) WriteSessionSignerIfNotExist(ctx context.Context, session
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) UpdateSessionSigner(ctx context.Context, sessionId, signerId string, extra []byte, updatedAt time.Time, self bool) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT extra FROM session_signers WHERE session_id=? AND signer_id=?"
+	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId)
+	if err != nil || !existed {
+		return err
+	}
+
+	query = "UPDATE session_signers SET extra=?, updated_at=? WHERE session_id=? AND signer_id=?"
+	err = s.execOne(ctx, tx, query, hex.EncodeToString(extra), updatedAt, sessionId, signerId)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE session_signers %v", err)
+	}
+
+	existed, err = s.checkExistence(ctx, tx, "SELECT session_id FROM sessions WHERE session_id=? AND state=?", sessionId, common.RequestStateInitial)
+	if err != nil {
+		return err
+	}
+	if self && existed {
+		err = s.execOne(ctx, tx, "UPDATE sessions SET state=?, updated_at=? WHERE session_id=? AND state=?",
+			common.RequestStatePending, updatedAt, sessionId, common.RequestStateInitial)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListSessionPreparedMembers(ctx context.Context, sessionId string, threshold int) ([]party.ID, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	query := fmt.Sprintf("SELECT signer_id FROM session_signers WHERE session_id=? ORDER BY created_at ASC LIMIT %d", threshold)
+	rows, err := s.db.QueryContext(ctx, query, sessionId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var signers []party.ID
+	for rows.Next() {
+		var signer string
+		err := rows.Scan(&signer)
+		if err != nil {
+			return nil, err
+		}
+		signers = append(signers, party.ID(signer))
+	}
+	return signers, nil
+}
+
 func (s *SQLite3Store) ListSessionSigners(ctx context.Context, sessionId string) (map[string]string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	rows, err := s.db.QueryContext(ctx, "SELECT signer_id, extra FROM session_signers WHERE session_id=?", sessionId)
+	query := "SELECT signer_id, extra FROM session_signers WHERE session_id=?"
+	rows, err := s.db.QueryContext(ctx, query, sessionId)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +275,7 @@ func (s *SQLite3Store) ListSessionSigners(ctx context.Context, sessionId string)
 	return signers, nil
 }
 
-func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Operation, transaction crypto.Hash, outputIndex int, createdAt time.Time) error {
+func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Operation, transaction crypto.Hash, outputIndex int, createdAt time.Time, needsCommittment bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -204,8 +292,13 @@ func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Op
 
 	cols := []string{"session_id", "mixin_hash", "mixin_index", "operation", "curve", "public",
 		"extra", "state", "created_at", "updated_at"}
-	err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), op.Id, transaction.String(), outputIndex,
-		op.Type, op.Curve, op.Public, hex.EncodeToString(op.Extra), common.RequestStateInitial, createdAt, createdAt)
+	vals := []any{op.Id, transaction.String(), outputIndex, op.Type, op.Curve, op.Public,
+		hex.EncodeToString(op.Extra), common.RequestStateInitial, createdAt, createdAt}
+	if !needsCommittment {
+		cols = append(cols, "committed_at", "prepared_at")
+		vals = append(vals, createdAt, createdAt)
+	}
+	err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 	}
@@ -232,7 +325,7 @@ func (s *SQLite3Store) FailSession(ctx context.Context, sessionId string) error 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishSignSession(ctx context.Context, sessionId string, curve uint8, fingerprint string, extra []byte) error {
+func (s *SQLite3Store) MarkSessionPending(ctx context.Context, sessionId string, curve uint8, fingerprint string, extra []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -242,8 +335,53 @@ func (s *SQLite3Store) FinishSignSession(ctx context.Context, sessionId string, 
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE sessions SET extra=?, state=?, updated_at=? WHERE session_id=? AND curve=? AND public=? AND created_at=updated_at AND state=?",
+	err = s.execOne(ctx, tx, "UPDATE sessions SET extra=?, state=?, updated_at=? WHERE session_id=? AND curve=? AND public=? AND state=? AND prepared_at IS NOT NULL",
 		hex.EncodeToString(extra), common.RequestStatePending, time.Now().UTC(), sessionId, curve, fingerprint, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) MarkSessionCommitted(ctx context.Context, sessionId string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	committedAt := time.Now().UTC()
+	query := "UPDATE sessions SET committed_at=?, updated_at=? WHERE session_id=? AND state=? AND committed_at IS NULL"
+	err = s.execOne(ctx, tx, query, committedAt, committedAt, sessionId, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) MarkSessionPrepared(ctx context.Context, sessionId string, preparedAt time.Time) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT prepared_at FROM sessions WHERE session_id=? AND prepared_at IS NOT NULL"
+	existed, err := s.checkExistence(ctx, tx, query, sessionId)
+	if err != nil || existed {
+		return err
+	}
+
+	query = "UPDATE sessions SET prepared_at=?, updated_at=? WHERE session_id=? AND state=? AND prepared_at IS NULL"
+	err = s.execOne(ctx, tx, query, preparedAt, preparedAt, sessionId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}
@@ -275,7 +413,16 @@ func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*S
 	defer s.mutex.Unlock()
 
 	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
-	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NULL AND prepared_at IS NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
+	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
+}
+
+func (s *SQLite3Store) ListPreparedSessions(ctx context.Context, limit int) ([]*Session, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NOT NULL AND prepared_at IS NOT NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
 }
 
