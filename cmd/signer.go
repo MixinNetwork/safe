@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -25,6 +26,11 @@ import (
 func SignerBootCmd(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
+
+	ua := fmt.Sprintf("Mixin Safe Signer (%s)", config.AppVersion)
+	resty := mixin.GetRestyClient()
+	resty.SetTimeout(time.Second * 30)
+	resty.SetHeader("User-Agent", ua)
 
 	mc, err := config.ReadConfiguration(c.String("config"))
 	if err != nil {

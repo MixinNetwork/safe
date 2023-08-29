@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/store"
@@ -9,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/custodian"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
@@ -17,6 +20,11 @@ import (
 func KeeperBootCmd(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
+
+	ua := fmt.Sprintf("Mixin Safe Keeper (%s)", config.AppVersion)
+	resty := mixin.GetRestyClient()
+	resty.SetTimeout(time.Second * 30)
+	resty.SetHeader("User-Agent", ua)
 
 	mc, err := config.ReadConfiguration(c.String("config"))
 	if err != nil {

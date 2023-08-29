@@ -16,9 +16,8 @@ github.com/MixinNetwork/multi-party-sig v0.3.2 h1:10cgPGvgZrAHPnyQEgF6B2M/D3KINc
 github.com/MixinNetwork/multi-party-sig v0.3.2/go.mod h1:cQMY7v0MmcOFHgjnTznhHVQy1QkTW3yrk5qD10jXLZA=
 github.com/MixinNetwork/nfo v0.3.5 h1:2c48HTnCMBiOyjw1/4uxh2UpVHBN6k0WEVbjU5Ualxw=
 github.com/MixinNetwork/nfo v0.3.5/go.mod h1:zbWp8mtOjiVahGQBu0qa8t9/ndfob5R6E29JG8Ml26M=
-github.com/MixinNetwork/trusted-group v0.5.6-0.20230826052422-562014ec7020 h1:PwWA5jTVIJLdJwJBIQ+CQQXDEMbzh34W3L76WCxeye4=
-github.com/MixinNetwork/trusted-group v0.5.6-0.20230826052422-562014ec7020/go.mod h1:E2CAtQXgOhd9fqk0tcsm6Ygnd3Unj9S1kIY5SqP9doE=
-github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
+github.com/MixinNetwork/trusted-group v0.5.6 h1:a54nED/ZEynZrf4KFeop5ezmB3jQUxEwuq+Zr2o1pKc=
+github.com/MixinNetwork/trusted-group v0.5.6/go.mod h1:GbLe8R49wZjkOVgtA7is8g3YzaFjgwZlaiezqzIBSOs=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/btcsuite/btcd v0.20.1-beta/go.mod h1:wVuoA8VJLEcwgqHBwHmzLRazpKxTv13Px/pDuV7OomQ=
@@ -107,7 +106,6 @@ github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
 github.com/fxamacker/cbor/v2 v2.5.0 h1:oHsG0V/Q6E/wqTS2O1Cozzsy69nqCiguo5Q1a1ADivE=
 github.com/fxamacker/cbor/v2 v2.5.0/go.mod h1:TA1xS00nchWmaBnEIxPSE5oHLuJBAVvqrtAnWBwBCVo=
-github.com/go-ole/go-ole v1.2.5/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.3.0 h1:Dt6ye7+vXGIKZ7Xtk4s6/xVdGDQynvom7xCFEdWr6uE=
 github.com/go-ole/go-ole v1.3.0/go.mod h1:5LS6F96DhAwUc7C+1HLexzMXY1xGRSryjyPPKW6zv78=

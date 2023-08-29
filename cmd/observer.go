@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -26,6 +27,11 @@ import (
 func ObserverBootCmd(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
+
+	ua := fmt.Sprintf("Mixin Safe Observer (%s)", config.AppVersion)
+	resty := mixin.GetRestyClient()
+	resty.SetTimeout(time.Second * 30)
+	resty.SetHeader("User-Agent", ua)
 
 	mc, err := config.ReadConfiguration(c.String("config"))
 	if err != nil {
