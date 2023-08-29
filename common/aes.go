@@ -5,7 +5,7 @@ import (
 	"crypto/cipher"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func ECDHEd25519(priv, pub string) [32]byte {

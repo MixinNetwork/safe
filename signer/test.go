@@ -23,7 +23,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"

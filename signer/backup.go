@@ -9,7 +9,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, share []byte) error {

@@ -15,7 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string, error) {

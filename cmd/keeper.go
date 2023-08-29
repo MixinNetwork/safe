@@ -12,7 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
