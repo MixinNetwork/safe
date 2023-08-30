@@ -136,7 +136,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	if err != nil {
 		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
 	}
-	if len(signers) <= node.threshold || len(signers) < node.conf.MTG.Genesis.Threshold {
+	if len(signers) <= node.threshold {
 		return nil
 	}
 	err = node.store.MarkSessionPrepared(ctx, op.Id, out.CreatedAt)
@@ -176,7 +176,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if !finished {
 		return nil
 	}
-	if l := len(signers); l <= node.threshold || l < node.conf.MTG.Genesis.Threshold {
+	if l := len(signers); l <= node.threshold {
 		panic(session.Id)
 	}
 
@@ -378,7 +378,7 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 				signed = signed + 1
 			}
 		}
-		return signed >= node.conf.MTG.Genesis.Threshold && signed > node.threshold, sig
+		return signed > node.threshold, sig
 	default:
 		panic(session.Id)
 	}
