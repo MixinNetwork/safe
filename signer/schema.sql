@@ -19,16 +19,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS keys_by_session_id ON keys(session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_fingerprint ON keys(fingerprint);
 
 CREATE TABLE IF NOT EXISTS sessions (
-	session_id		VARCHAR NOT NULL,
-	mixin_hash		VARCHAR NOT NULL,
-	mixin_index		INTEGER NOT NULL,
-	operation			INTEGER NOT NULL,
-	curve					INTEGER NOT NULL,
-	public				VARCHAR NOT NULL,
-	extra					VARCHAR NOT NULL,
-	state					INTEGER NOT NULL,
-	created_at		TIMESTAMP NOT NULL,
-	updated_at		TIMESTAMP NOT NULL,
+	session_id    VARCHAR NOT NULL,
+	mixin_hash    VARCHAR NOT NULL,
+	mixin_index   INTEGER NOT NULL,
+	operation     INTEGER NOT NULL,
+	curve         INTEGER NOT NULL,
+	public        VARCHAR NOT NULL,
+	extra         VARCHAR NOT NULL,
+	state         INTEGER NOT NULL,
+	created_at    TIMESTAMP NOT NULL,
+	updated_at    TIMESTAMP NOT NULL,
 	committed_at  TIMESTAMP,
 	prepared_at   TIMESTAMP,
 	PRIMARY KEY ('session_id')

@@ -84,6 +84,10 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)
 	go node.loopPendingSessions(ctx)
@@ -302,7 +306,8 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 		} else {
 			rm := &protocol.Message{SSID: sessionId, From: node.id, To: party.ID(mm.Peer)}
 			rmb := marshalSessionMessage(sessionId, rm)
-			node.network.QueueMessage(ctx, mm.Peer, rmb)
+			err := node.network.QueueMessage(ctx, mm.Peer, rmb)
+			logger.Verbosef("network.QueueMessage(%x, %d) => %s %v", mps.id, msg.RoundNumber, id, err)
 		}
 	}
 }

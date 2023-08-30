@@ -2,12 +2,12 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 filippo.io/edwards25519 v1.0.0 h1:0wAIcmJUqRdI8IJ/3eGi5/HwXZWPujYXXlkrQogz0Ek=
 filippo.io/edwards25519 v1.0.0/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5EwJns=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/MixinNetwork/bot-api-go-client v1.8.4 h1:CgHLvSm5h2WmOSO3+GwVDHu7o9jAzQP/0HYpPAQf0rc=
-github.com/MixinNetwork/bot-api-go-client v1.8.4/go.mod h1:Phc+juNRPDadsTUfLOeIbYHX6AiePofe8YH3gIxARZ8=
+github.com/MixinNetwork/bot-api-go-client v1.8.6 h1:QzA+yXJuDXpOX+1xvlw76/wtfhQDAa+TA/YXB3XaWK4=
+github.com/MixinNetwork/bot-api-go-client v1.8.6/go.mod h1:Phc+juNRPDadsTUfLOeIbYHX6AiePofe8YH3gIxARZ8=
 github.com/MixinNetwork/go-number v0.1.0 h1:rxXG00MFa6w+1dyduacZQsbmHPR3duZNSgAXgXtkMBw=
 github.com/MixinNetwork/go-number v0.1.0/go.mod h1:TASJGXNi4CK9bh2AOQFpVe7r3//CBuZJTNlJYzTXRUk=
-github.com/MixinNetwork/mixin v0.16.5 h1:SYP0A+sHxRWZCaPKRe0V6d3Mh6mvVTlXly25w5sF1Xw=
-github.com/MixinNetwork/mixin v0.16.5/go.mod h1:lkdJdi+N1ZA05nRHTHoGBTBiN1iw7yd9a52gntqPztM=
+github.com/MixinNetwork/mixin v0.16.6 h1:X+4X0OTih5LPZbk/sRFMUUXiDfUWiQRSGxMk6BTU7Wk=
+github.com/MixinNetwork/mixin v0.16.6/go.mod h1:PGbkHK5U9eRnFmY9I8v9O2DZ0pfLyXblt0LlEO+slzM=
 github.com/MixinNetwork/mobilecoin-account v0.0.5 h1:1ueD9G/zl4dpObFjfm6WJu0m155YAfOLODfBuTBrXBA=
 github.com/MixinNetwork/mobilecoin-account v0.0.5/go.mod h1:b5+IefD8Iij5K+IWeVKky5iMMrlFHgyEp8ixOucjYIU=
 github.com/MixinNetwork/msgpack/v4 v4.4.0 h1:IsMyKqr5sSRqifQXQCJ9z5StjY4ubVA8scbVqpAzoR8=
