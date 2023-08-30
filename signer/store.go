@@ -252,7 +252,7 @@ func (s *SQLite3Store) ListSessionPreparedMembers(ctx context.Context, sessionId
 	return signers, nil
 }
 
-func (s *SQLite3Store) ListSessionSigners(ctx context.Context, sessionId string) (map[string]string, error) {
+func (s *SQLite3Store) ListSessionSignerResults(ctx context.Context, sessionId string) (map[string]string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

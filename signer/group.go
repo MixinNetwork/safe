@@ -132,9 +132,9 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	if err != nil {
 		return fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", op, err)
 	}
-	signers, err := node.store.ListSessionSigners(ctx, op.Id)
+	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
 	if err != nil {
-		return fmt.Errorf("store.ListSessionSigners(%s) => %d %v", op.Id, len(signers), err)
+		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
 	}
 	if len(signers) <= node.threshold || len(signers) < node.conf.MTG.Genesis.Threshold {
 		return nil
@@ -167,12 +167,12 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		}
 	}
 
-	signers, err := node.store.ListSessionSigners(ctx, op.Id)
+	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
 	if err != nil {
-		return fmt.Errorf("store.ListSessionSigners(%s) => %d %v", op.Id, len(signers), err)
+		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
 	}
-	finished := node.verifySessionSigners(ctx, session, signers)
-	logger.Printf("node.verifySessionSigners(%v, %d) => %t", session, len(signers), finished)
+	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
+	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)
 	if !finished {
 		return nil
 	}
@@ -207,6 +207,18 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Extra = append(op.Extra, common.RequestFlagNone)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
+		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
+			op := session.asOperation()
+			extra := []byte{byte(len(op.Extra))}
+			extra = append(extra, op.Extra...)
+			extra = append(extra, sig...)
+			err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
+			logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
+			if err != nil {
+				panic(err)
+			}
+		}
+
 		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
@@ -343,7 +355,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	}
 }
 
-func (node *Node) verifySessionSigners(ctx context.Context, session *Session, sessionSigners map[string]string) bool {
+func (node *Node) verifySessionSignerResults(ctx context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		var signed int
@@ -353,7 +365,7 @@ func (node *Node) verifySessionSigners(ctx context.Context, session *Session, se
 				signed = signed + 1
 			}
 		}
-		return signed >= len(node.conf.MTG.Genesis.Members)
+		return signed >= len(node.conf.MTG.Genesis.Members), nil
 	case common.OperationTypeSignInput:
 		var signed int
 		var sig []byte
@@ -366,22 +378,7 @@ func (node *Node) verifySessionSigners(ctx context.Context, session *Session, se
 				signed = signed + 1
 			}
 		}
-		if signed < node.conf.MTG.Genesis.Threshold || signed <= node.threshold {
-			return false
-		}
-		if session.State != common.RequestStateInitial || !session.PreparedAt.Valid {
-			return true
-		}
-		op := session.asOperation()
-		extra := []byte{byte(len(op.Extra))}
-		extra = append(extra, op.Extra...)
-		extra = append(extra, sig...)
-		err := node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
-		logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
-		if err != nil {
-			panic(err)
-		}
-		return true
+		return signed >= node.conf.MTG.Genesis.Threshold && signed > node.threshold, sig
 	default:
 		panic(session.Id)
 	}

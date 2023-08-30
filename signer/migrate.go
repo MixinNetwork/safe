@@ -17,6 +17,11 @@ func (s *SQLite3Store) migrate(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
+	existed, err := s.checkExistence(ctx, tx, "SELECT session_id FROM sessions LIMIT 1")
+	if err != nil || !existed {
+		return err
+	}
+
 	key, val := "SCHEMA:VERSION:20230830", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
