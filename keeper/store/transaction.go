@@ -67,7 +67,7 @@ func (s *SQLite3Store) CountUnfinishedTransactionsByHolder(ctx context.Context, 
 	return count, err
 }
 
-func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*bitcoin.Input) error {
+func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*bitcoin.Input, utxoState int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -83,7 +83,7 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 		return fmt.Errorf("UPDATE safes %v", err)
 	}
 
-	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos)
+	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, utxoState)
 	if err != nil {
 		return err
 	}
@@ -100,14 +100,14 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 	}
 	defer tx.Rollback()
 
-	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos)
+	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStatePending)
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.Tx, trx *Transaction, utxos []*bitcoin.Input) error {
+func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.Tx, trx *Transaction, utxos []*bitcoin.Input, utxoState int) error {
 	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
 	err := s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
 	if err != nil {
@@ -120,7 +120,7 @@ func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.
 	}
 	for _, utxo := range utxos {
 		err = s.execOne(ctx, tx, "UPDATE bitcoin_outputs SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?",
-			common.RequestStatePending, trx.TransactionHash, trx.UpdatedAt, utxo.TransactionHash, utxo.Index)
+			utxoState, trx.TransactionHash, trx.UpdatedAt, utxo.TransactionHash, utxo.Index)
 		if err != nil {
 			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 		}

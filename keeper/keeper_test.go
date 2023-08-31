@@ -77,12 +77,57 @@ func TestKeeper(t *testing.T) {
 	}
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 2)
 
+	holder := testPublicKey(testBitcoinKeyHolderPrivate)
+	outputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(outputs, 2)
+	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
+
 	transactionHash := testSafeProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "18d6e8a1bcce1b1dddbfed5826cde933dc55ba65a733fc5a2198f113c86e31d0", "70736274ff0100cd02000000022704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff9451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b292689352870001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(outputs, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 2)
 	testSafeRevokeTransaction(ctx, require, node, transactionHash, false)
+	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(outputs, 2)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
+
 	transactionHash = testSafeProposeTransaction(ctx, require, node, mpc, bondId, "8bf052c1-41f4-4547-8091-bcf0c85f09a6", "29091ae146a7ab2e547d0e3fddd21f65a8de4314d66ffc2c4c11f3fa444ea706", "70736274ff0100cd02000000022704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff9451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a108bf052c141f445478091bcf0c85f09a6000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b292689352870001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(outputs, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 2)
 	testSafeRevokeTransaction(ctx, require, node, transactionHash, true)
+	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(outputs, 2)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
+
 	transactionHash = testSafeProposeTransaction(ctx, require, node, mpc, bondId, "b0a22078-0a86-459d-93f4-a1aadbf2b9b7", "5f489b710d495808d7693f0d1b62b6af05d0af69b52980d3e4263c66dde9e676", "70736274ff0100cd02000000022704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff9451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a10b0a220780a86459d93f4a1aadbf2b9b7000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b292689352870001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(outputs, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 2)
 	signedRaw := testSafeApproveTransaction(ctx, require, node, transactionHash, signers)
+	require.Nil(err)
+	require.Len(outputs, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
 	testSpareKeys(ctx, require, node, 0, 0, 0)
 
 	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderSigner)
@@ -109,9 +154,26 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	utxos, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	require.Len(utxos, 1)
+	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
 
 	transactionHash := testSafeProposeRecoveryTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "cbddccdd13631eb68a1d65ace28abd547f62a0937d093d7ba4d0e97f6d86955e", "70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c8500000000000600000002a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
+	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 1)
+
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, "", signers)
+	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
+
 	testSpareKeys(ctx, require, node, 0, 0, 0)
 
 	testAccountantSpentTransaction(ctx, require, signedRaw, testSignerObserver)
@@ -122,6 +184,9 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	require.Len(utxos, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
 }
 
 func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
@@ -145,9 +210,19 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	utxos, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	require.Len(utxos, 1)
+	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
 
 	holderSignedRaw := testHolderApproveTransaction("70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c8500000000000600000002a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
 	signedRaw := testSafeCloseAccount(ctx, require, node, public, "", holderSignedRaw, signers)
+	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(utxos, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
+
 	testSpareKeys(ctx, require, node, 0, 0, 0)
 
 	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderObserver)
@@ -157,6 +232,9 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	require.Len(utxos, 0)
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	require.Len(pendings, 0)
 }
 
 func testPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
@@ -467,6 +545,10 @@ func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.As
 	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.001))
 	testStep(ctx, require, node, out)
 
+	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(pendings, 1)
+
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeProposeTransaction)
 	require.Equal(rraw, hex.EncodeToString(b))
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(b)
@@ -600,6 +682,10 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		return hex.EncodeToString(signedBuffer)
 	}
 
+	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	logger.Println("1 ListPendingBitcoinUTXOsForHolder:", len(pendings))
+
 	psTx, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(holderSignedRaw))
 	for idx := range psTx.UnsignedTx.TxIn {
 		hash := psTx.SigHash(idx)
@@ -615,14 +701,22 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	transactionHash = msgTx.TxHash().String()
 	raw := psTx.Marshal()
 
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	logger.Println("2 ListPendingBitcoinUTXOsForHolder:", len(pendings))
+
 	ref := crypto.NewHash(raw)
-	err := node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 	require.Nil(err)
 	extra := uuid.Nil.Bytes()
 	extra = append(extra, ref[:]...)
 	id := uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra)
 	testStep(ctx, require, node, out)
+
+	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
+	require.Nil(err)
+	logger.Println("3 ListPendingBitcoinUTXOsForHolder:", len(pendings))
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	logger.Println(tx)

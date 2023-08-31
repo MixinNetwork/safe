@@ -58,7 +58,7 @@ func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder 
 		return nil, err
 	}
 
-	mainInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, safe.Address, safe.Chain)
+	mainInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, safe.Address, safe.Chain, common.RequestStateInitial)
 	if err != nil {
 		return nil, err
 	}
@@ -66,10 +66,30 @@ func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder 
 	return mainInputs, nil
 }
 
-func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiver string, chain byte) ([]*bitcoin.Input, error) {
+func (s *SQLite3Store) ListPendingBitcoinUTXOsForHolder(ctx context.Context, holder string) ([]*bitcoin.Input, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	safe, err := s.readSafe(ctx, tx, holder)
+	if err != nil {
+		return nil, err
+	}
+
+	mainInputs, err := s.listAllBitcoinUTXOsForAddress(ctx, safe.Address, safe.Chain, common.RequestStatePending)
+	if err != nil {
+		return nil, err
+	}
+
+	return mainInputs, nil
+}
+
+func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiver string, chain byte, state int) ([]*bitcoin.Input, error) {
 	cols := strings.Join([]string{"transaction_hash", "output_index", "satoshi", "script", "sequence"}, ",")
 	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE address=? AND state=? ORDER BY created_at ASC, request_id ASC", cols)
-	rows, err := s.db.QueryContext(ctx, query, receiver, common.RequestStateInitial)
+	rows, err := s.db.QueryContext(ctx, query, receiver, state)
 	if err != nil {
 		return nil, err
 	}
