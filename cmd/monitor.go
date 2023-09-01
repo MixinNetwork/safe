@@ -45,30 +45,10 @@ func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.S
 		time.Sleep(3 * time.Minute)
 		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
-			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
+			logger.Verbosef("Monitor.bundleSignerState() => %v", err)
 			continue
 		}
-		var messages []*bot.MessageRequest
-		for i := range conv.Participants {
-			s := conv.Participants[i]
-			if s.UserId == app.ClientId {
-				continue
-			}
-			u, err := fetchConversationUser(ctx, store, s.UserId, conf.MTG)
-			if err != nil || checkBot(u) {
-				logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
-				continue
-			}
-			messages = append(messages, &bot.MessageRequest{
-				ConversationId: conversationId,
-				RecipientId:    s.UserId,
-				Category:       bot.MessageCategoryPlainText,
-				MessageId:      mixin.UniqueConversationID(msg, s.UserId),
-				Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
-			})
-		}
-		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
-		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
+		postMessages(ctx, store, conv, conf.MTG, msg)
 		time.Sleep(30 * time.Minute)
 	}
 }
@@ -142,27 +122,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
 			continue
 		}
-		var messages []*bot.MessageRequest
-		for i := range conv.Participants {
-			s := conv.Participants[i]
-			if s.UserId == app.ClientId {
-				continue
-			}
-			u, err := fetchConversationUser(ctx, store, s.UserId, conf.MTG)
-			if err != nil || checkBot(u) {
-				logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
-				continue
-			}
-			messages = append(messages, &bot.MessageRequest{
-				ConversationId: conversationId,
-				RecipientId:    s.UserId,
-				Category:       bot.MessageCategoryPlainText,
-				MessageId:      mixin.UniqueConversationID(msg, s.UserId),
-				Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
-			})
-		}
-		err = bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
-		logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
+		postMessages(ctx, store, conv, conf.MTG, msg)
 		time.Sleep(30 * time.Minute)
 	}
 }
@@ -225,6 +185,31 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
 	return state, nil
+}
+
+func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, conf *mtg.Configuration, msg string) {
+	app := conf.App
+	var messages []*bot.MessageRequest
+	for i := range conv.Participants {
+		s := conv.Participants[i]
+		if s.UserId == app.ClientId {
+			continue
+		}
+		u, err := fetchConversationUser(ctx, store, s.UserId, conf)
+		if err != nil || checkBot(u) {
+			logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
+			continue
+		}
+		messages = append(messages, &bot.MessageRequest{
+			ConversationId: conv.ConversationId,
+			RecipientId:    s.UserId,
+			Category:       bot.MessageCategoryPlainText,
+			MessageId:      mixin.UniqueConversationID(msg, s.UserId),
+			Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
+		})
+	}
+	err := bot.PostMessages(ctx, messages, app.ClientId, app.SessionId, app.PrivateKey)
+	logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
 }
 
 func fetchAsset(ctx context.Context, conf *mtg.Configuration, assetId string) (*bot.Asset, error) {

@@ -25,14 +25,6 @@ const (
 	testBitcoinKeyAccountant = "3d1f5a749578b2726bb6efd8d9656cb9be216879550980c633ac338828e1e79a"
 )
 
-type bitcoinUTXO struct {
-	TransactionHash string
-	Index           uint32
-	Satoshi         int64
-	Script          []byte
-	Sequence        uint32
-}
-
 func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)

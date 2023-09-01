@@ -50,7 +50,6 @@ const (
 	testBitcoinKeyDummyHolderPrivate = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 	testSafeAddress                  = "bc1qm7qaucdjwzpapugfvmzp2xduzs7p0jd3zq7yxpvuf9dp5nml3pesx57a9x"
 	testTransactionReceiver          = "bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc"
-	testBitcoinDepositMainHash       = "8260f125afdb1a85b540f0066cd9db18d488a3891b5fa5595c73f40435502d09"
 	testTimelockDuration             = bitcoin.TimeLockMinimum
 
 	testHolderSigner   = 0
@@ -466,33 +465,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	require.Equal(mb, b)
 
-	b, _ = hex.DecodeString(tx.RawTransaction)
-	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-	msgTx := psbt.UnsignedTx
-	for idx := range msgTx.TxIn {
-		pop := msgTx.TxIn[idx].PreviousOutPoint
-		hash := psbt.SigHash(idx)
-		utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
-		msig := signed[idx]
-		if msig == nil {
-			continue
-		}
-
-		msig = append(msig, byte(bitcoin.SigHashType))
-		der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
-		pub, _ := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
-		signer, _ := btcutil.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
-		require.True(der.Verify(hash, signer.PubKey()))
-
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
-
-		signature := ecdsa.Sign(holder, hash)
-		sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
-	}
-
+	msgTx := node.testSignerHolderApproveTransaction(ctx, require, tx.RawTransaction, signed, safe.Signer, safe.Path)
 	signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 	signedRaw := hex.EncodeToString(signedBuffer)
 	logger.Println(signedRaw)
@@ -589,6 +562,40 @@ func testHolderApproveTransaction(rawTransaction string) string {
 	return hex.EncodeToString(raw)
 }
 
+func (node *Node) testSignerHolderApproveTransaction(ctx context.Context, require *require.Assertions, rawTransaction string, signed map[int][]byte, signer, path string) *wire.MsgTx {
+	hb := common.DecodeHexOrPanic(testBitcoinKeyHolderPrivate)
+	holder, _ := btcec.PrivKeyFromBytes(hb)
+
+	b, _ := hex.DecodeString(rawTransaction)
+	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	msgTx := psbt.UnsignedTx
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		hash := psbt.SigHash(idx)
+		utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
+		msig := signed[idx]
+		if msig == nil {
+			continue
+		}
+
+		msig = append(msig, byte(bitcoin.SigHashType))
+		der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
+		pub, _ := node.deriveBIP32WithPath(ctx, signer, common.DecodeHexOrPanic(path))
+		signer, _ := btcutil.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
+		require.True(der.Verify(hash, signer.PubKey()))
+
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
+
+		signature := ecdsa.Sign(holder, hash)
+		sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
+		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
+	}
+
+	return msgTx
+}
+
 func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHash, holderSignedRaw string, signers []*signer.Node) string {
 	for i := 0; i < 10; i++ {
 		testUpdateNetworkStatus(ctx, require, node, 797082, "00000000000000000004f8a108a06a9f61389c7340d8a3fa431a534ff339402a")
@@ -651,33 +658,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 		require.Equal(mb, b)
 
-		b, _ = hex.DecodeString(tx.RawTransaction)
-		psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
-		msgTx := psbt.UnsignedTx
-		for idx := range msgTx.TxIn {
-			pop := msgTx.TxIn[idx].PreviousOutPoint
-			hash := psbt.SigHash(idx)
-			utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
-			msig := signed[idx]
-			if msig == nil {
-				continue
-			}
-
-			msig = append(msig, byte(bitcoin.SigHashType))
-			der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
-			pub, _ := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))
-			signer, _ := btcutil.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
-			require.True(der.Verify(hash, signer.PubKey()))
-
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, msig)
-
-			signature := ecdsa.Sign(observer, hash)
-			sig := append(signature.Serialize(), byte(bitcoin.SigHashType))
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, sig)
-			msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, utxo.Script)
-		}
-
+		msgTx := node.testSignerHolderApproveTransaction(ctx, require, tx.RawTransaction, signed, safe.Signer, safe.Path)
 		signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 		return hex.EncodeToString(signedBuffer)
 	}

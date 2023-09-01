@@ -325,27 +325,6 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 	}, nil
 }
 
-func calcSigHashes(tx *wire.MsgTx, inputs []*Input) ([]byte, error) {
-	var hashes []byte
-	for i := range tx.TxIn {
-		if inputs[i].TransactionHash != tx.TxIn[i].PreviousOutPoint.Hash.String() {
-			panic(tx.TxHash().String())
-		}
-		if inputs[i].Index != tx.TxIn[i].PreviousOutPoint.Index {
-			panic(tx.TxHash().String())
-		}
-		script, satoshi := inputs[i].Script, inputs[i].Satoshi
-		pof := txscript.NewCannedPrevOutputFetcher(script, satoshi)
-		tsh := txscript.NewTxSigHashes(tx, pof)
-		hash, err := txscript.CalcWitnessSigHash(script, tsh, SigHashType, tx, i, satoshi)
-		if err != nil {
-			return nil, err
-		}
-		hashes = append(hashes, hash...)
-	}
-	return hashes, nil
-}
-
 func addInputs(tx *wire.MsgTx, inputs []*Input, chain byte) (string, int64, error) {
 	var address string
 	var inputSatoshi int64
