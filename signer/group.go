@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
@@ -80,8 +81,9 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 		if err != nil {
 			panic(err)
 		}
-		if len(op.Extra) == 32 && op.Curve == common.CurveEdwards25519Mixin && op.Type == common.OperationTypeSignInput {
-			op.Extra = node.readKernelStorageOrPanic(ctx, op)
+		err = node.tryToFetchMessageForMixin(ctx, op, out)
+		if err != nil {
+			panic(err)
 		}
 		needsCommittment := op.Type == common.OperationTypeSignInput
 		err = node.store.WriteSessionIfNotExist(ctx, op, out.TransactionHash, out.OutputIndex, out.CreatedAt, needsCommittment)
@@ -502,9 +504,30 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	return err
 }
 
-func (node *Node) readKernelStorageOrPanic(ctx context.Context, op *common.Operation) []byte {
+func (node *Node) tryToFetchMessageForMixin(ctx context.Context, op *common.Operation, out *mtg.Output) error {
+	if op.Curve != common.CurveEdwards25519Mixin {
+		return nil
+	}
+	if op.Type != common.OperationTypeSignInput {
+		return nil
+	}
+	if len(op.Extra) != 64 {
+		return nil
+	}
+	refs := node.readKernelTransactionReferences(ctx, out.TransactionHash)
+	if len(refs) != 1 || !bytes.Equal(refs[0][:], op.Extra[32:]) {
+		return nil
+	}
+
+	// mask || storage-reference
+	raw := node.readKernelStorageOrPanic(ctx, refs[0])
+	op.Extra = append(op.Extra[:32], raw...)
+	return nil
+}
+
+func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash) []byte {
 	if common.CheckTestEnvironment(ctx) {
-		k := hex.EncodeToString(op.Extra)
+		k := hex.EncodeToString(stx[:])
 		o, err := node.store.ReadProperty(ctx, k)
 		if err != nil {
 			panic(err)
@@ -516,8 +539,6 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, op *common.Opera
 		return v
 	}
 
-	var stx crypto.Hash
-	copy(stx[:], op.Extra)
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
 	if err != nil {
 		panic(stx.String())
@@ -528,9 +549,35 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, op *common.Opera
 	}
 	data, err := common.Base91Decode(smsp.M)
 	if err != nil || len(data) < 32 {
-		panic(op.Id)
+		panic(stx.String())
 	}
 	return data
+}
+
+func (node *Node) readKernelTransactionReferences(ctx context.Context, hash crypto.Hash) []crypto.Hash {
+	if common.CheckTestEnvironment(ctx) {
+		k := hex.EncodeToString(hash[:])
+		o, err := node.store.ReadProperty(ctx, k)
+		if err != nil {
+			panic(err)
+		}
+		v, err := hex.DecodeString(o)
+		if err != nil {
+			panic(err)
+		}
+		var ref crypto.Hash
+		if len(v) != len(ref) {
+			panic(o)
+		}
+		copy(ref[:], v)
+		return []crypto.Hash{ref}
+	}
+
+	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, hash)
+	if err != nil {
+		panic(hash.String())
+	}
+	return tx.References
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Output) error {
