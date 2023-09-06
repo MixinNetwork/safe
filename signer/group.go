@@ -65,7 +65,7 @@ func (r *Session) asOperation() *common.Operation {
 	}
 }
 
-func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
+func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	switch out.AssetID {
 	case node.conf.KeeperAssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
@@ -74,7 +74,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		op, err := node.parseOperation(ctx, out.Memo)
 		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
 		if err != nil {
-			return
+			return false
 		}
 		err = node.verifyKernelTransaction(ctx, out)
 		if err != nil {
@@ -90,12 +90,12 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 		}
 	case node.conf.AssetId:
 		if node.findMember(out.Sender) < 0 {
-			return
+			return false
 		}
 		req, err := node.parseSignerMessage(out)
 		logger.Printf("node.parseSignerMessage(%v) => %v %v", out, req, err)
 		if err != nil {
-			return
+			return false
 		}
 		if string(req.Extra) == PrepareExtra {
 			err = node.processSignerPrepare(ctx, req, out)
@@ -111,9 +111,12 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 			}
 		}
 	}
+	return false
 }
 
-func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {}
+func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
+	return false
+}
 
 func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Output) error {
 	if op.Type != common.OperationTypeSignInput {

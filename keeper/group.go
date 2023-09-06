@@ -14,7 +14,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
+func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	_, err := node.handleBondAsset(ctx, out)
 	if err != nil {
 		panic(err)
@@ -23,7 +23,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	req, err := node.parseRequest(out)
 	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
 	if err != nil {
-		return
+		return false
 	}
 
 	switch req.Action {
@@ -42,11 +42,11 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	case common.ActionBitcoinSafeRevokeTransaction:
 	case common.ActionBitcoinSafeCloseAccount:
 	default:
-		return
+		return false
 	}
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
-		return
+		return false
 	}
 
 	// FIXME this blocks the main group loop
@@ -58,6 +58,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	if err != nil {
 		panic(err)
 	}
+	return false
 }
 
 func (node *Node) getActionRole(act byte) byte {
@@ -95,7 +96,9 @@ func (node *Node) getActionRole(act byte) byte {
 	}
 }
 
-func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {}
+func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
+	return false
+}
 
 func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, error) {
 	if common.CheckTestEnvironment(ctx) {

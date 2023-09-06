@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	XINAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
+
 	// domain do the first key, next should be from the first key
 	CustodianActionRefreshKey = 1
 	CustodianActionDistribute = 2
@@ -34,16 +36,21 @@ func NewWorker(s *SQLite3Store) *Worker {
 	}
 }
 
-func (worker *Worker) ProcessOutput(ctx context.Context, out *mtg.Output) {
+func (worker *Worker) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	switch out.AssetID {
 	case worker.signerAssetId:
 	case worker.keeperAssetId:
 	case worker.observerAssetId:
+	case XINAssetId:
+		return true
 	default:
 	}
+	return false
 }
 
-func (worker *Worker) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {}
+func (worker *Worker) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
+	return false
+}
 
 func (worker *Worker) Boot(ctx context.Context) {
 	go worker.loopKernelMintDistributions(ctx)
