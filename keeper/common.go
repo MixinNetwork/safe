@@ -74,7 +74,7 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 	case SafeBitcoinChainId, SafeLitecoinChainId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
-		panic(assetId)
+		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	}
 }
 
