@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -60,7 +61,10 @@ func TestCreateEthereumAccount(t *testing.T) {
 	threshold := 2
 
 	addr := ethereum.GetSafeAccountAddress(owners, int64(threshold))
-	require.Equal("0xe6B15C4603C20dDe1F48231ef1dFC5A1c9A02C22", addr)
+	require.Equal("0xe6B15C4603C20dDe1F48231ef1dFC5A1c9A02C22", addr.String())
+
+	err = ethereum.GetOrDeploySafeAccount("https://geth.mvm.dev", os.Getenv("MVM_DEPLOYER"), owners, int64(threshold))
+	require.Nil(err)
 }
 
 func ethereumAddressFromPriv(require *require.Assertions, priv string) (string, error) {

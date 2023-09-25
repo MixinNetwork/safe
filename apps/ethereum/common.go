@@ -89,13 +89,27 @@ func packSaltArguments(salt *big.Int) []byte {
 	return args
 }
 
-func safeInit(rpc string) (*ethclient.Client, *GnosisSafe, error) {
+func safeInit(rpc, address string) (*ethclient.Client, *GnosisSafe, error) {
 	conn, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	abi, err := NewGnosisSafe(common.HexToAddress(EthereumSafeL2Address), conn)
+	abi, err := NewGnosisSafe(common.HexToAddress(address), conn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return conn, abi, nil
+}
+
+func factoryInit(rpc string) (*ethclient.Client, *ProxyFactory, error) {
+	conn, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	abi, err := NewProxyFactory(common.HexToAddress(EthereumSafeProxyFactoryAddress), conn)
 	if err != nil {
 		return nil, nil, err
 	}
