@@ -2,6 +2,7 @@ package signer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,6 +21,10 @@ import (
 
 const (
 	testEthereumAddress = "0xF05C33aA6D2026AD675CAdB73648A9A0Ff279B65"
+
+	testEthereumKeyHolder   = "4cb7437a31a724c7231f83c01f865bf13fc65725cb6219ac944321f484bf80a2"
+	testEthereumKeySigner   = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
+	testEthereumKeyObserver = "169b5ed2deaa8ea7171e60598332560b1d01e8a28243510335196acd62fd3a71"
 )
 
 var (
@@ -37,6 +43,37 @@ var (
 		ByzantiumBlock: big.NewInt(0),
 	}
 )
+
+func TestCreateEthereumAccount(t *testing.T) {
+	require := require.New(t)
+
+	ah, err := ethereumAddressFromPriv(require, testEthereumKeyHolder)
+	require.Nil(err)
+	require.Equal("0xC698197Dd0B0c24438a2508E464Fc5814A6cd512", ah)
+	as, err := ethereumAddressFromPriv(require, testEthereumKeySigner)
+	require.Nil(err)
+	require.Equal("0xf78409F2c9Ffe7e697f9F463890889287a06B4Ad", as)
+	ao, err := ethereumAddressFromPriv(require, testEthereumKeyObserver)
+	require.Nil(err)
+	require.Equal("0xE65b6FE01d67B8564DA6a6536e48833d8f14EF49", ao)
+	owners := []string{ah, as, ao}
+	threshold := 2
+
+	addr := ethereum.GetSafeAccountAddress(owners, int64(threshold))
+	require.Equal("0xe6B15C4603C20dDe1F48231ef1dFC5A1c9A02C22", addr)
+}
+
+func ethereumAddressFromPriv(require *require.Assertions, priv string) (string, error) {
+	privateKey, err := crypto.HexToECDSA(priv)
+	require.Nil(err)
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	require.True(ok)
+
+	addr := crypto.PubkeyToAddress(*publicKeyECDSA)
+	return addr.String(), nil
+}
 
 func TestCMPEthereumSign(t *testing.T) {
 	require := require.New(t)
