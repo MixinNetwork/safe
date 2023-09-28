@@ -6,13 +6,10 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/exp/slices"
 )
 
@@ -20,7 +17,8 @@ import (
 // with safe guard to do time lock of observer
 // with deploy2 to determine exact contract address
 
-func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64) error {
+// owners should be in the order of hold, signer and observer
+func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock int64) error {
 	addr := GetSafeAccountAddress(owners, threshold)
 
 	os, thres, err := CheckSafeAccountDeployed(rpc, addr.String())
@@ -108,14 +106,6 @@ func GetSafeAccountAddress(owners []string, threshold int64) common.Address {
 	input = append(input, math.U256Bytes(new(big.Int).SetBytes(salt))...)
 	input = append(input, crypto.Keccak256(code)...)
 	return common.BytesToAddress(crypto.Keccak256(input))
-}
-
-func DeploySafeGuard(signer *bind.TransactOpts, conn *ethclient.Client, observer string, timelock int64) (*common.Address, error) {
-	address, _, _, err := abi.DeploySafeTimelockGuard(signer, conn, common.HexToAddress(observer), new(big.Int).SetInt64(timelock))
-	if err != nil {
-		return nil, err
-	}
-	return &address, nil
 }
 
 func getInitializer(owners []string, threshold int64) []byte {

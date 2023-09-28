@@ -44,7 +44,9 @@ var (
 		ByzantiumBlock: big.NewInt(0),
 	}
 
-	rpc = "https://geth.mvm.dev"
+	rpc      = "https://geth.mvm.dev"
+	chainID  = 73927
+	timelock = 1
 )
 
 func TestCMPEthereumSignHolderSigner(t *testing.T) {
@@ -59,7 +61,7 @@ func TestCMPEthereumSignHolderSigner(t *testing.T) {
 	blankAddress := common.HexToAddress(ethereum.EthereumEmptyAddress)
 	zero, _ := new(big.Int).SetString("0", 10)
 
-	tx, err := ethereum.CreateTransferTransaction(rpc, accountAddress, destination, value, nil, zero, zero, zero, blankAddress, blankAddress, nonce)
+	tx, err := ethereum.CreateTransferTransaction(int64(chainID), accountAddress, destination, value, zero, zero, zero, blankAddress, blankAddress, nonce)
 	require.Nil(err)
 	require.Equal("46388bd992f26f3d5c126a9e43d56201d8b8e0d4809d23f78eb192c5afe058d3", hex.EncodeToString(tx.Message))
 
@@ -101,7 +103,7 @@ func testPrepareEthereumAccount(require *require.Assertions) string {
 	addr := ethereum.GetSafeAccountAddress(owners, int64(threshold))
 	require.Equal("0xe6B15C4603C20dDe1F48231ef1dFC5A1c9A02C22", addr.String())
 
-	err = ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold))
+	err = ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock))
 	require.Nil(err)
 
 	return addr.String()

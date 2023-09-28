@@ -791,9 +791,9 @@ func (_GnosisSafe *GnosisSafeTransactorSession) EnableModule(module common.Addre
 	return _GnosisSafe.Contract.EnableModule(&_GnosisSafe.TransactOpts, module)
 }
 
-func (_GnosisSafe *GnosisSafeTransactor) ValidTransaction(destination common.Address, value *big.Int, signatures []byte, data []byte, operation uint8, safeTxGas, baseGas, gasPrice *big.Int, gasToken, refundReceiver common.Address) (bool, error) {
+func (_GnosisSafe *GnosisSafeTransactor) ValidTransaction(to common.Address, value *big.Int, data []byte, operation uint8, safeTxGas, baseGas, gasPrice *big.Int, gasToken, refundReceiver common.Address, signatures []byte) (bool, error) {
 	var out []interface{}
-	err := _GnosisSafe.contract.Call(nil, &out, "execTransaction", destination, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures)
+	err := _GnosisSafe.contract.Call(nil, &out, "execTransaction", to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures)
 
 	if err != nil {
 		return false, err
