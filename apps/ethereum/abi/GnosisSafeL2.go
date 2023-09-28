@@ -1,7 +1,7 @@
 // Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
 
-package ethereum
+package abi
 
 import (
 	"errors"
@@ -789,6 +789,18 @@ func (_GnosisSafe *GnosisSafeSession) EnableModule(module common.Address) (*type
 // Solidity: function enableModule(address module) returns()
 func (_GnosisSafe *GnosisSafeTransactorSession) EnableModule(module common.Address) (*types.Transaction, error) {
 	return _GnosisSafe.Contract.EnableModule(&_GnosisSafe.TransactOpts, module)
+}
+
+func (_GnosisSafe *GnosisSafeTransactor) ValidTransaction(destination common.Address, value *big.Int, signatures []byte, data []byte, operation uint8, safeTxGas, baseGas, gasPrice *big.Int, gasToken, refundReceiver common.Address) (bool, error) {
+	var out []interface{}
+	err := _GnosisSafe.contract.Call(nil, &out, "execTransaction", destination, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures)
+
+	if err != nil {
+		return false, err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+	return out0, err
 }
 
 // ExecTransaction is a paid mutator transaction binding the contract method 0x6a761202.

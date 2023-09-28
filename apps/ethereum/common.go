@@ -4,7 +4,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/MixinNetwork/safe/apps/ethereum/abi"
+	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -21,7 +22,7 @@ const (
 )
 
 func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, fallbackHandler, paymentToken, paymentReceiver common.Address, payment *big.Int) []byte {
-	safeAbi, err := abi.JSON(strings.NewReader(GnosisSafeMetaData.ABI))
+	safeAbi, err := gethAbi.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
 	}
@@ -49,12 +50,12 @@ func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, 
 }
 
 func packSafeArguments(address string) []byte {
-	addressTy, err := abi.NewType("address", "", nil)
+	addressTy, err := gethAbi.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	arguments := abi.Arguments{
+	arguments := gethAbi.Arguments{
 		{
 			Type: addressTy,
 		},
@@ -70,12 +71,12 @@ func packSafeArguments(address string) []byte {
 }
 
 func packSaltArguments(salt *big.Int) []byte {
-	uint256Ty, err := abi.NewType("uint256", "", nil)
+	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	arguments := abi.Arguments{
+	arguments := gethAbi.Arguments{
 		{
 			Type: uint256Ty,
 		},
@@ -90,13 +91,13 @@ func packSaltArguments(salt *big.Int) []byte {
 	return args
 }
 
-func safeInit(rpc, address string) (*ethclient.Client, *GnosisSafe, error) {
+func safeInit(rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {
 	conn, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	abi, err := NewGnosisSafe(common.HexToAddress(address), conn)
+	abi, err := abi.NewGnosisSafe(common.HexToAddress(address), conn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,13 +105,13 @@ func safeInit(rpc, address string) (*ethclient.Client, *GnosisSafe, error) {
 	return conn, abi, nil
 }
 
-func factoryInit(rpc string) (*ethclient.Client, *ProxyFactory, error) {
+func factoryInit(rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
 	conn, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	abi, err := NewProxyFactory(common.HexToAddress(EthereumSafeProxyFactoryAddress), conn)
+	abi, err := abi.NewProxyFactory(common.HexToAddress(EthereumSafeProxyFactoryAddress), conn)
 	if err != nil {
 		return nil, nil, err
 	}

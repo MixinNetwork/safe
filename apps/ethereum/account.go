@@ -6,10 +6,13 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/apps/ethereum/abi"
+	commonAbi "github.com/MixinNetwork/safe/common/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/exp/slices"
 )
 
@@ -50,7 +53,7 @@ func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64) e
 	}
 	defer conn.Close()
 
-	signer, err := abi.SignerInit(key)
+	signer, err := commonAbi.SignerInit(key)
 	if err != nil {
 		return err
 	}
@@ -105,6 +108,14 @@ func GetSafeAccountAddress(owners []string, threshold int64) common.Address {
 	input = append(input, math.U256Bytes(new(big.Int).SetBytes(salt))...)
 	input = append(input, crypto.Keccak256(code)...)
 	return common.BytesToAddress(crypto.Keccak256(input))
+}
+
+func DeploySafeGuard(signer *bind.TransactOpts, conn *ethclient.Client, observer string, timelock int64) (*common.Address, error) {
+	address, _, _, err := abi.DeploySafeTimelockGuard(signer, conn, common.HexToAddress(observer), new(big.Int).SetInt64(timelock))
+	if err != nil {
+		return nil, err
+	}
+	return &address, nil
 }
 
 func getInitializer(owners []string, threshold int64) []byte {
