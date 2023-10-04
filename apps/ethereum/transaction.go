@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"context"
 	"math/big"
 	"strings"
 
@@ -21,6 +22,7 @@ type SafeTransaction struct {
 	Destination    common.Address
 	Value          *big.Int
 	Data           []byte
+	Operation      uint8
 	SafeTxGas      *big.Int
 	BaseGas        *big.Int
 	GasPrice       *big.Int
@@ -31,37 +33,36 @@ type SafeTransaction struct {
 	Message        []byte
 }
 
-func CreateTransferTransaction(chainID int64, safeAddress, destination string, value *big.Int, safeTxGas, baseGas, gasPrice *big.Int, gasToken, refundReceiver common.Address, nonce int64) (*SafeTransaction, error) {
+func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination string, value int64, nonce *big.Int) (*SafeTransaction, error) {
+	conn, safeAbi, err := safeInit(rpc, safeAddress)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
 	tx := &SafeTransaction{
 		ChainID:        chainID,
 		SafeAddress:    safeAddress,
 		Destination:    common.HexToAddress(destination),
-		Value:          value,
-		SafeTxGas:      safeTxGas,
-		BaseGas:        baseGas,
-		GasPrice:       gasPrice,
-		GasToken:       gasToken,
-		RefundReceiver: refundReceiver,
-		Nonce:          new(big.Int).SetInt64(nonce),
+		Value:          new(big.Int).SetInt64(value),
+		Operation:      operationTypeCall,
+		SafeTxGas:      new(big.Int).SetInt64(0),
+		BaseGas:        new(big.Int).SetInt64(0),
+		GasPrice:       new(big.Int).SetInt64(0),
+		GasToken:       common.HexToAddress(EthereumEmptyAddress),
+		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
+		Nonce:          nonce,
 	}
-	tx.Message = tx.GetTransactionHash()
-	return tx, nil
-}
-
-func CreateSetGuardTransaction(chainID int64, safeAddress, guardAddress string, safeTxGas, baseGas, gasPrice *big.Int, gasToken, refundReceiver common.Address, nonce int64) (*SafeTransaction, error) {
-	tx := &SafeTransaction{
-		ChainID:        chainID,
-		SafeAddress:    safeAddress,
-		Destination:    common.HexToAddress(safeAddress),
-		Value:          new(big.Int).SetInt64(0),
-		SafeTxGas:      safeTxGas,
-		BaseGas:        baseGas,
-		GasPrice:       gasPrice,
-		GasToken:       gasToken,
-		RefundReceiver: refundReceiver,
-		Nonce:          new(big.Int).SetInt64(nonce),
+	if tx.Nonce == nil {
+		n, err := safeAbi.Nonce(nil)
+		if err != nil {
+			return nil, err
+		}
+		tx.Nonce = n
 	}
-	tx.Data = tx.GetEnableGuradData(guardAddress)
+	if enableGuardTx {
+		tx.Data = tx.GetEnableGuradData(EthereumSafeGuardAddress)
+	}
 	tx.Message = tx.GetTransactionHash()
 	return tx, nil
 }
@@ -111,7 +112,7 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 		tx.Destination,
 		tx.Value,
 		tx.Data,
-		operationTypeCall,
+		tx.Operation,
 		tx.SafeTxGas,
 		tx.BaseGas,
 		tx.GasPrice,

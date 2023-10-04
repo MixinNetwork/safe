@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
@@ -25,7 +26,7 @@ const (
 
 	testEthereumKeyHolder   = "4cb7437a31a724c7231f83c01f865bf13fc65725cb6219ac944321f484bf80a2"
 	testEthereumKeySigner   = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
-	testEthereumKeyObserver = "169b5ed2deaa8ea7171e60598332560b1d01e8a28243510335196acd62fd3a71"
+	testEthereumKeyObserver = "6421d5ce0fd415397fdd2978733852cee7ad44f28d87cd96038460907e2ffb18"
 )
 
 var (
@@ -49,67 +50,88 @@ var (
 	timelock = 1
 )
 
-func TestCMPEthereumSignHolderSigner(t *testing.T) {
+func TestCMPEthereumTransaction(t *testing.T) {
+	ctx := context.Background()
 	require := require.New(t)
-
-	accountAddress := testPrepareEthereumAccount(require)
+	accountAddress := testPrepareEthereumAccount(ctx, require)
 
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
-	value, _ := new(big.Int).SetString("10000000000", 10)
-	nonce := int64(0)
-
-	blankAddress := common.HexToAddress(ethereum.EthereumEmptyAddress)
-	zero, _ := new(big.Int).SetString("0", 10)
-
-	tx, err := ethereum.CreateTransferTransaction(int64(chainID), accountAddress, destination, value, zero, zero, zero, blankAddress, blankAddress, nonce)
+	value := 10000000000
+	n := 6
+	tx, err := ethereum.CreateTransaction(ctx, false, rpc, int64(chainID), accountAddress, destination, int64(value), new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
-	require.Equal("46388bd992f26f3d5c126a9e43d56201d8b8e0d4809d23f78eb192c5afe058d3", hex.EncodeToString(tx.Message))
 
-	sigHolder, err := testEthereumSignMessage(require, testEthereumKeyHolder, tx.Message)
+	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
-	require.Equal("05fe0c070799ca15f0f492602b4c3f7142283990804d9cadbff5de848b838f804305b734a52b6c1cb68b041f47c0659dffe635a4e4a580ca8ee61ad83feebd8420", hex.EncodeToString(sigHolder))
 	tx.AddSignature(sigHolder)
-	sigSigner, err := testEthereumSignMessage(require, testEthereumKeySigner, tx.Message)
+	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
 	require.Nil(err)
-	require.Equal("0a295c6362a3505b6e6c620227475985424ec60f21a043bca2271ac2fd6f3f6f1f05f9623d9b3dd07332a3f1f092be2142fb412a8ef71c19b482af49b74c00ab1f", hex.EncodeToString(sigSigner))
 	tx.AddSignature(sigSigner)
 
 	currentNonce, err := ethereum.GetNonce(rpc, accountAddress)
 	require.Nil(err)
-	if currentNonce == int64(nonce) {
+	if currentNonce == int64(n) {
 		isValid, err := tx.ValidTransaction(rpc)
 		require.Nil(err)
 		require.True(isValid)
 
-		txHash, err := tx.ExecTransaction(rpc, os.Getenv("MVM_DEPLOYER"))
+		_, err = tx.ExecTransaction(rpc, os.Getenv("MVM_DEPLOYER"))
 		require.Nil(err)
-		require.Equal("0x8c90261f976eee4911e9656e53510b70d075e5f5f2801843538be918bc71c6de", txHash)
+
+		time.Sleep(1 * time.Minute)
+		tx, err := ethereum.CreateTransaction(ctx, false, rpc, int64(chainID), accountAddress, destination, int64(value), new(big.Int).SetInt64(int64(n+1)))
+		require.Nil(err)
+
+		// signatures should follow the asc order of addresses of owners
+		sigObserver, err := testEthereumSignMessage(testEthereumKeyObserver, tx.Message)
+		require.Nil(err)
+		tx.AddSignature(sigObserver)
+		sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+		require.Nil(err)
+		tx.AddSignature(sigHolder)
+
+		_, err = tx.ValidTransaction(rpc)
+		require.NotNil(err)
 	}
 }
 
-func testPrepareEthereumAccount(require *require.Assertions) string {
-	ah, err := ethereumAddressFromPriv(require, testEthereumKeyHolder)
+func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions) string {
+	ah, err := ethereumAddressFromPriv(testEthereumKeyHolder)
 	require.Nil(err)
 	require.Equal("0xC698197Dd0B0c24438a2508E464Fc5814A6cd512", ah)
-	as, err := ethereumAddressFromPriv(require, testEthereumKeySigner)
+	as, err := ethereumAddressFromPriv(testEthereumKeySigner)
 	require.Nil(err)
 	require.Equal("0xf78409F2c9Ffe7e697f9F463890889287a06B4Ad", as)
-	ao, err := ethereumAddressFromPriv(require, testEthereumKeyObserver)
+	ao, err := ethereumAddressFromPriv(testEthereumKeyObserver)
 	require.Nil(err)
-	require.Equal("0xE65b6FE01d67B8564DA6a6536e48833d8f14EF49", ao)
+	require.Equal("0x09084B528F2AB737FF8A55a51ee6d8939da82F20", ao)
 	owners := []string{ah, as, ao}
 	threshold := 2
+	timelock := 2
 
 	addr := ethereum.GetSafeAccountAddress(owners, int64(threshold))
-	require.Equal("0xe6B15C4603C20dDe1F48231ef1dFC5A1c9A02C22", addr.String())
+	addrStr := addr.Hex()
+	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 
-	err = ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock))
+	tx, err := ethereum.CreateTransaction(ctx, true, rpc, int64(chainID), addrStr, addrStr, 0, new(big.Int).SetInt64(0))
 	require.Nil(err)
 
-	return addr.String()
+	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+	require.Nil(err)
+	require.Equal("683c998e6f37b71c04316194a55e9c03ef926b4b624f70ea87bc2d156b559c836f245bc48a0e2dfb5c41cd5ef7fc540935cdc72b150134d7e4b322e2a702bfa91f", hex.EncodeToString(sigHolder))
+	tx.AddSignature(sigHolder)
+	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
+	require.Nil(err)
+	require.Equal("d0363d11d6f0e62bcec483c7943befaacf9cff03d0e03f88559ad6d010a45ee22851c7499d9c3edc5726ef42ce65205734bb1a7fce86f76a3bba78a94528b1ea1f", hex.EncodeToString(sigSigner))
+	tx.AddSignature(sigSigner)
+
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock), tx)
+	require.Nil(err)
+	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
+	return safeaddress.String()
 }
 
-func testEthereumSignMessage(require *require.Assertions, priv string, message []byte) ([]byte, error) {
+func testEthereumSignMessage(priv string, message []byte) ([]byte, error) {
 	private, err := crypto.HexToECDSA(priv)
 	if err != nil {
 		return nil, err
@@ -123,14 +145,14 @@ func testEthereumSignMessage(require *require.Assertions, priv string, message [
 	// Golang returns the recovery ID in the last byte instead of v
 	// v = 27 + rid
 	signature[64] += 27
-	hasPrefix := testIsTxHashSignedWithPrefix(require, priv, hash.Bytes(), signature)
+	hasPrefix := testIsTxHashSignedWithPrefix(priv, hash.Bytes(), signature)
 	if hasPrefix {
 		signature[64] += 4
 	}
 	return signature, nil
 }
 
-func testIsTxHashSignedWithPrefix(require *require.Assertions, priv string, hash, signature []byte) bool {
+func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
 	recoveredData, err := crypto.Ecrecover(hash, signature)
 	if err != nil {
 		return params.TestRules.IsEIP150
@@ -140,7 +162,7 @@ func testIsTxHashSignedWithPrefix(require *require.Assertions, priv string, hash
 		return true
 	}
 	recoveredAddress := crypto.PubkeyToAddress(*recoveredPub).Hex()
-	address, err := ethereumAddressFromPriv(require, priv)
+	address, err := ethereumAddressFromPriv(priv)
 	if err != nil {
 		return true
 	}
@@ -170,13 +192,14 @@ func TestCMPEthereumSign(t *testing.T) {
 	require.Equal(hash, tx.Hash().Hex())
 }
 
-func ethereumAddressFromPriv(require *require.Assertions, priv string) (string, error) {
+func ethereumAddressFromPriv(priv string) (string, error) {
 	privateKey, err := crypto.HexToECDSA(priv)
-	require.Nil(err)
+	if err != nil {
+		return "", err
+	}
 
 	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	require.True(ok)
+	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 
 	addr := crypto.PubkeyToAddress(*publicKeyECDSA)
 	return addr.String(), nil

@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"math/big"
 	"strings"
@@ -17,13 +18,28 @@ const (
 	EthereumSafeProxyFactoryAddress             = "0xC00abA7FbB0d1e7f02082E346fe1B80EFA16Dc5D"
 	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
 	EthereumCompatibilityFallbackHandlerAddress = "0x52Bb11433e9C993Cc320B659bdd3F0699AEa678d"
+	EthereumSafeGuardAddress                    = "0x5B56eAa83f4747bAA3Aa607f2177661757f30b08"
 
 	predeterminedSaltNonce  = "0xb1073742015cbcf5a3a4d9d1ae33ecf619439710b89475f92e2abd2117e90f90"
 	accountContractCode     = "0x608060405234801561001057600080fd5b506040516101e63803806101e68339818101604052602081101561003357600080fd5b8101908080519060200190929190505050600073ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1614156100ca576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260228152602001806101c46022913960400191505060405180910390fd5b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505060ab806101196000396000f3fe608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea264697066735822122003d1488ee65e08fa41e58e888a9865554c535f2c77126a82cb4c0f917f31441364736f6c63430007060033496e76616c69642073696e676c65746f6e20616464726573732070726f7669646564"
 	operationTypeCall       = 0
 	safeTxTypehash          = "0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8"
 	domainSeparatorTypehash = "0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218"
+	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
+
+func PrivToAddress(priv string) (*common.Address, error) {
+	privateKey, err := crypto.HexToECDSA(priv)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+
+	addr := crypto.PubkeyToAddress(*publicKeyECDSA)
+	return &addr, nil
+}
 
 func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, fallbackHandler, paymentToken, paymentReceiver common.Address, payment *big.Int) []byte {
 	safeAbi, err := gethAbi.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
@@ -228,6 +244,20 @@ func factoryInit(rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
 	}
 
 	abi, err := abi.NewProxyFactory(common.HexToAddress(EthereumSafeProxyFactoryAddress), conn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return conn, abi, nil
+}
+
+func guardInit(rpc string) (*ethclient.Client, *abi.MixinSafeGuard, error) {
+	conn, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	abi, err := abi.NewMixinSafeGuard(common.HexToAddress(EthereumSafeGuardAddress), conn)
 	if err != nil {
 		return nil, nil, err
 	}
