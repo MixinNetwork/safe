@@ -118,11 +118,11 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
-	require.Equal("683c998e6f37b71c04316194a55e9c03ef926b4b624f70ea87bc2d156b559c836f245bc48a0e2dfb5c41cd5ef7fc540935cdc72b150134d7e4b322e2a702bfa91f", hex.EncodeToString(sigHolder))
+	require.Equal("bfad11e74c9d56cdb77fac087e94739057c9204da379b3b5bc7eb8d771dd24d97b26a14f2c35ce6b87baaf83a487a569d61bdbfeb74c2b0a5075325a023374ec1f", hex.EncodeToString(sigHolder))
 	tx.AddSignature(sigHolder)
 	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
 	require.Nil(err)
-	require.Equal("d0363d11d6f0e62bcec483c7943befaacf9cff03d0e03f88559ad6d010a45ee22851c7499d9c3edc5726ef42ce65205734bb1a7fce86f76a3bba78a94528b1ea1f", hex.EncodeToString(sigSigner))
+	require.Equal("424f1a89f438a54c78fc35df68647e83af390ba2bc319dfe19249167ffdd4c765d7e939c40e691f735eb886aa61cf4f5e0bf3e7aed6eb5e7838b7f63fe5c4f551f", hex.EncodeToString(sigSigner))
 	tx.AddSignature(sigSigner)
 
 	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock), tx)
