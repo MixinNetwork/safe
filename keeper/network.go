@@ -84,6 +84,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	case SafeChainBitcoin:
 	case SafeChainLitecoin:
 	case SafeChainEthereum:
+	case SafeChainMVM:
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -131,6 +132,18 @@ func (node *Node) bitcoinParams(chain byte) (string, string) {
 		return node.conf.BitcoinRPC, SafeBitcoinChainId
 	case SafeChainLitecoin:
 		return node.conf.LitecoinRPC, SafeLitecoinChainId
+	default:
+		panic(chain)
+	}
+}
+
+func (node *Node) ethereumParams(chain byte) (string, string) {
+	switch chain {
+	case SafeChainEthereum:
+		// FIXME: Add ethereum rpc
+		return node.conf.MVMRPC, SafeEthereumChainId
+	case SafeChainMVM:
+		return node.conf.MVMRPC, SafeMVMChainId
 	default:
 		panic(chain)
 	}

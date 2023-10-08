@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/shopspring/decimal"
@@ -16,10 +17,9 @@ import (
 
 const (
 	SafeChainBitcoin  = bitcoin.ChainBitcoin
-	SafeChainEthereum = 2
-	SafeChainMixin    = 3
-	SafeChainMVM      = 4
 	SafeChainLitecoin = bitcoin.ChainLitecoin
+	SafeChainEthereum = ethereum.ChainEthereum
+	SafeChainMVM      = ethereum.ChainMVM
 
 	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
 	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
@@ -55,6 +55,28 @@ func BitcoinChainCurve(chain byte) byte {
 		return common.CurveSecp256k1ECDSABitcoin
 	case SafeChainLitecoin:
 		return common.CurveSecp256k1ECDSALitecoin
+	default:
+		panic(chain)
+	}
+}
+
+func EthereumCurveChain(crv byte) byte {
+	switch crv {
+	case common.CurveSecp256k1ECDSAEthereum:
+		return SafeChainEthereum
+	case common.CurveSecp256k1ECDSAMVM:
+		return SafeChainMVM
+	default:
+		panic(crv)
+	}
+}
+
+func EthereumChainCurve(chain byte) byte {
+	switch chain {
+	case SafeChainEthereum:
+		return common.CurveSecp256k1ECDSAEthereum
+	case SafeChainMVM:
+		return common.CurveSecp256k1ECDSAMVM
 	default:
 		panic(chain)
 	}

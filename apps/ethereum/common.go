@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
@@ -14,6 +15,12 @@ import (
 )
 
 const (
+	ChainEthereum = 2
+	ChainMVM      = 4
+
+	TimeLockMinimum = time.Hour * 1
+	TimeLockMaximum = time.Hour * 24 * 365
+
 	EthereumEmptyAddress                        = "0x0000000000000000000000000000000000000000"
 	EthereumSafeProxyFactoryAddress             = "0xC00abA7FbB0d1e7f02082E346fe1B80EFA16Dc5D"
 	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
@@ -27,6 +34,36 @@ const (
 	domainSeparatorTypehash = "0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218"
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
+
+func ParseSequence(lock time.Duration, chain byte) int64 {
+	if lock < TimeLockMinimum || lock > TimeLockMaximum {
+		panic(lock.String())
+	}
+	blockDuration := 12 * time.Second
+	switch chain {
+	case ChainEthereum:
+	case ChainMVM:
+		blockDuration = 1 * time.Second
+	default:
+	}
+	// FIXME check litecoin timelock consensus as this may exceed 0xffff
+	lock = lock / blockDuration
+	if lock >= 0xffff {
+		lock = 0xffff
+	}
+	return int64(lock)
+}
+
+func GetEvmChainID(chain int64) int64 {
+	switch chain {
+	case ChainEthereum:
+		return 1
+	case ChainMVM:
+		return 73927
+	default:
+		panic(chain)
+	}
+}
 
 func PrivToAddress(priv string) (*common.Address, error) {
 	privateKey, err := crypto.HexToECDSA(priv)

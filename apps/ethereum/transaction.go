@@ -34,12 +34,6 @@ type SafeTransaction struct {
 }
 
 func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination string, value int64, nonce *big.Int) (*SafeTransaction, error) {
-	conn, safeAbi, err := safeInit(rpc, safeAddress)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
 	tx := &SafeTransaction{
 		ChainID:        chainID,
 		SafeAddress:    safeAddress,
@@ -53,7 +47,12 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
 		Nonce:          nonce,
 	}
-	if tx.Nonce == nil {
+	if tx.Nonce == nil && rpc != "" {
+		conn, safeAbi, err := safeInit(rpc, safeAddress)
+		if err != nil {
+			return nil, err
+		}
+		defer conn.Close()
 		n, err := safeAbi.Nonce(nil)
 		if err != nil {
 			return nil, err

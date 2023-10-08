@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -164,7 +165,12 @@ func (req *Request) ParseMixinRecipient(extra []byte) (*AccountProposal, error) 
 		return nil, fmt.Errorf("extra size %x %v", extra, arp)
 	}
 	arp.Observer = hex.EncodeToString(extra[offset:])
-	err = bitcoin.VerifyHolderKey(arp.Observer)
+	switch req.Action {
+	case ActionBitcoinSafeProposeAccount:
+		err = bitcoin.VerifyHolderKey(arp.Observer)
+	case ActionEthereumSafeProposeAccount:
+		err = ethereum.VerifyHolderKey(arp.Observer)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
 	}

@@ -937,7 +937,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, holder, signer, observer string, path []byte, timelock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {
 	sdk, err := node.deriveBIP32WithPath(ctx, signer, path)
-	logger.Verbosef("bitcoin.DeriveBIP32(%s) => %s %v", observer, sdk, err)
+	logger.Verbosef("bitcoin.DeriveBIP32(%s) => %s %v", signer, sdk, err)
 	if err != nil {
 		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", signer, err)
 	}

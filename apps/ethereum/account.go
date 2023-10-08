@@ -1,10 +1,15 @@
 package ethereum
 
 import (
+	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +20,37 @@ import (
 // create a gnosis safe contract with 2/3 multisig
 // with safe guard to do time lock of observer
 // with deploy2 to determine exact contract address
+
+func BuildWitnessScriptAccount(ctx context.Context, rpc, holder, signer, observer string, lock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {
+	var owners []string
+	for _, public := range []string{holder, signer, observer} {
+		pub, err := parseEthereumCompressedPublicKey(public)
+		if err != nil {
+			return nil, fmt.Errorf("parseEthereumCompressedPublicKey(%s) => %v", public, err)
+		}
+		owners = append(owners, pub.Hex())
+	}
+	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
+
+	if lock < TimeLockMinimum || lock > TimeLockMaximum {
+		return nil, fmt.Errorf("time lock out of range %s", lock.String())
+	}
+	sequence := ParseSequence(lock, chain)
+
+	chainID := GetEvmChainID(int64(chain))
+	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
+	tx, err := CreateTransaction(ctx, true, rpc, chainID, safeAddress, safeAddress, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	script := tx.Message
+
+	return &bitcoin.WitnessScriptAccount{
+		Sequence: uint32(sequence),
+		Script:   script,
+		Address:  safeAddress,
+	}, nil
+}
 
 // owners should be in the order of hold, signer and observer
 func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock int64, tx *SafeTransaction) (*common.Address, error) {
@@ -131,6 +167,26 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 		return err
 	}
 	return nil
+}
+
+func VerifyHolderKey(public string) error {
+	_, err := parseEthereumCompressedPublicKey(public)
+	return err
+}
+
+func parseEthereumCompressedPublicKey(public string) (*common.Address, error) {
+	bPub, err := hex.DecodeString(public)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey, err := crypto.UnmarshalPubkey(bPub)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := crypto.PubkeyToAddress(*publicKey)
+	return &addr, nil
 }
 
 func getInitializer(owners []string, threshold int64) []byte {
