@@ -169,8 +169,7 @@ func (node *Node) bitcoinParams(chain byte) (string, string) {
 func (node *Node) ethereumParams(chain byte) (string, string) {
 	switch chain {
 	case SafeChainEthereum:
-		// FIXME: Add ethereum rpc
-		return node.conf.MVMRPC, SafeEthereumChainId
+		return node.conf.EthereumRPC, SafeEthereumChainId
 	case SafeChainMVM:
 		return node.conf.MVMRPC, SafeMVMChainId
 	default:

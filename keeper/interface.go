@@ -18,6 +18,7 @@ type Configuration struct {
 	MixinRPC             string             `toml:"mixin-rpc"`
 	BitcoinRPC           string             `toml:"bitcoin-rpc"`
 	LitecoinRPC          string             `toml:"litecoin-rpc"`
+	EthereumRPC          string             `toml:"ethereum-rpc"`
 	MVMRPC               string             `toml:"mvm-rpc"`
 	MVMFactoryAddress    string             `toml:"mvm-factory-address"`
 	MTG                  *mtg.Configuration `toml:"mtg"`

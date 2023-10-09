@@ -2,6 +2,7 @@ package ethereum
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -58,6 +59,9 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 			return nil, err
 		}
 		tx.Nonce = n
+	}
+	if tx.Nonce == nil {
+		return nil, fmt.Errorf("Invalid ethereum transaction nonce")
 	}
 	if enableGuardTx {
 		tx.Data = tx.GetEnableGuradData(EthereumSafeGuardAddress)
