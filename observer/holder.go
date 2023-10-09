@@ -43,9 +43,15 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, extra []byte, c
 	if err != nil {
 		return err
 	}
-	_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, sp.Holder)
-	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, sp.Holder, err)
+	var assetId string
+	switch sp.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		_, assetId = node.bitcoinParams(sp.Chain)
+	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
+		_, assetId = node.ethereumParams(sp.Chain)
+	}
+	_, err = node.checkOrDeployKeeperBond(ctx, assetId, sp.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", assetId, sp.Holder, err)
 	if err != nil {
 		return err
 	}
