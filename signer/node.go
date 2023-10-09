@@ -274,6 +274,7 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 			continue
 		}
 		mps := node.getSession(sessionId)
+		// TODO verify msg signature by sender public key
 		mps.incoming <- msg
 		if msg.RoundNumber != MPCFirstMessageRound {
 			continue
