@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/gofrs/uuid/v5"
@@ -53,6 +54,9 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 
 	switch info.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
+		if info.Chain != BitcoinCurveChain(req.Curve) {
+			panic(req.Id)
+		}
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
@@ -60,8 +64,17 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		} else if !valid {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-	case SafeChainEthereum:
-		panic(0)
+	case SafeChainEthereum, SafeChainMVM:
+		if info.Chain != EthereumCurveChain(req.Curve) {
+			panic(req.Id)
+		}
+		info.Hash = hex.EncodeToString(extra[17:])
+		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
+		if err != nil {
+			return fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
+		} else if !valid {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -81,15 +94,16 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 
 	chain := extra[0]
 	switch chain {
-	case SafeChainBitcoin:
-	case SafeChainLitecoin:
-	case SafeChainEthereum:
-	case SafeChainMVM:
+	case SafeChainBitcoin, SafeChainLitecoin:
+		if chain != BitcoinCurveChain(req.Curve) {
+			panic(req.Id)
+		}
+	case SafeChainEthereum, SafeChainMVM:
+		if chain != EthereumCurveChain(req.Curve) {
+			panic(req.Id)
+		}
 	default:
 		return node.store.FailRequest(ctx, req.Id)
-	}
-	if chain != BitcoinCurveChain(req.Curve) {
-		panic(req.Id)
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
@@ -122,6 +136,21 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	}
 	if info.Fee < bitcoinMinimumFeeRate || info.Fee > bitcoinMaximumFeeRate {
 		return false, nil
+	}
+	return true, nil
+}
+
+func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
+	if len(info.Hash) != 64 {
+		return false, nil
+	}
+	rpc, _ := node.ethereumParams(info.Chain)
+	block, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	if err != nil || block == nil {
+		return false, fmt.Errorf("malicious ethereum block or node not in sync? %s %v", info.Hash, err)
+	}
+	if block.Height != info.Height {
+		return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
 	}
 	return true, nil
 }

@@ -38,6 +38,10 @@ func bitcoinDefaultDerivationPath() []byte {
 	return []byte{2, 0, 0, 0}
 }
 
+func ethereumDefaultDerivationPath() []byte {
+	return []byte{0, 0, 0, 0}
+}
+
 func BitcoinCurveChain(crv byte) byte {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
@@ -93,7 +97,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
-	case SafeBitcoinChainId, SafeLitecoinChainId:
+	case SafeBitcoinChainId, SafeLitecoinChainId, SafeEthereumChainId, SafeMVMChainId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		panic(assetId)

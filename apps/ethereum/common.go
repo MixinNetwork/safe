@@ -18,6 +18,9 @@ const (
 	ChainEthereum = 2
 	ChainMVM      = 4
 
+	ValuePrecision = 18
+	ValueDust      = 100000000000000
+
 	TimeLockMinimum = time.Hour * 1
 	TimeLockMaximum = time.Hour * 24 * 365
 

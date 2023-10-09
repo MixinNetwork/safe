@@ -52,8 +52,12 @@ const (
 	ActionMixinSafeRevokeTransaction  = 124
 
 	// For all Ethereum like chains
-	ActionEthereumSafeProposeAccount = 130
-	ActionEthereumSafeApproveAccount = 131
+	ActionEthereumSafeProposeAccount     = 130
+	ActionEthereumSafeApproveAccount     = 131
+	ActionEthereumSafeProposeTransaction = 132
+	ActionEthereumSafeApproveTransaction = 133
+	ActionEthereumSafeRevokeTransaction  = 134
+	ActionEthereumSafeCloseAccount       = 135
 
 	FlagProposeNormalTransaction   = 0
 	FlagProposeRecoveryTransaction = 1
@@ -197,6 +201,8 @@ func (r *Request) VerifyFormat() error {
 	switch r.Curve {
 	case CurveSecp256k1ECDSABitcoin, CurveSecp256k1ECDSALitecoin:
 		return bitcoin.VerifyHolderKey(r.Holder)
+	case CurveSecp256k1ECDSAEthereum, CurveSecp256k1ECDSAMVM:
+		return ethereum.VerifyHolderKey(r.Holder)
 	default:
 		return fmt.Errorf("invalid request curve %v", r)
 	}

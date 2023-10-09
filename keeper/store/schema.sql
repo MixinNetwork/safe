@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   raw_transaction    VARCHAR NOT NULL,
   holder             VARCHAR NOT NULL,
   chain              INTEGER NOT NULL,
+  asset_id           VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   data               VARCHAR NOT NULL,
   request_id         VARCHAR NOT NULL,

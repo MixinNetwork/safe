@@ -17,7 +17,6 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -154,8 +153,8 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		}
 		total = total + bo.Satoshi
 
-		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, txHash, idx, req)
-		logger.Printf("node.checkBitcoinUTXOSignaturePending(%s, %d) => %t %v", txHash, idx, pending, err)
+		pending, err := node.checkTransactionIndexSignaturePending(ctx, txHash, idx, req)
+		logger.Printf("node.checkTransactionIndexSignaturePending(%s, %d) => %t %v", txHash, idx, pending, err)
 		if err != nil {
 			return err
 		} else if pending {
@@ -172,7 +171,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 			CreatedAt:       req.CreatedAt,
 			UpdatedAt:       req.CreatedAt,
 		}
-		sr.RequestId = mixin.UniqueConversationID(req.Id, sr.Message)
+		sr.RequestId = common.UniqueId(req.Id, sr.Message)
 		requests = append(requests, sr)
 	}
 	if total != msgTx.TxOut[0].Value {
@@ -266,7 +265,8 @@ func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.C
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, inputs, common.RequestStatePending)
+	transacionInputs := store.TransactionInputsFromBitcoin(inputs)
+	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStatePending)
 	return []string{safe.Holder}, err
 }
 
@@ -296,7 +296,8 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, mainInputs, common.RequestStateDone)
+	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone)
 }
 
 func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *common.Request) error {
@@ -579,6 +580,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
+		var total decimal.Decimal
 		for _, rp := range recipients {
 			script, err := bitcoin.ParseAddress(rp[0], safe.Chain)
 			logger.Printf("bitcoin.ParseAddress(%s, %d) => %x %v", string(extra), safe.Chain, script, err)
@@ -592,10 +594,14 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			if amt.Cmp(plan.TransactionMinimum) < 0 {
 				return node.store.FailRequest(ctx, req.Id)
 			}
+			total = total.Add(amt)
 			outputs = append(outputs, &bitcoin.Output{
 				Address: rp[0],
 				Satoshi: bitcoin.ParseSatoshi(amt.String()),
 			})
+		}
+		if !total.Equal(req.Amount) {
+			return node.store.FailRequest(ctx, req.Id)
 		}
 	} else {
 		script, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)
@@ -645,13 +651,15 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		RawTransaction:  hex.EncodeToString(extra),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
+		AssetId:         assetId,
 		State:           common.RequestStateInitial,
 		Data:            string(data),
 		RequestId:       req.Id,
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	return node.store.WriteTransactionWithRequest(ctx, tx, mainInputs)
+	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+	return node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs)
 }
 
 func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *common.Request) error {
@@ -806,8 +814,8 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 			continue
 		}
 
-		pending, err := node.checkBitcoinUTXOSignaturePending(ctx, tx.TransactionHash, idx, req)
-		logger.Printf("node.checkBitcoinUTXOSignaturePending(%s, %d) => %t %v", tx.TransactionHash, idx, pending, err)
+		pending, err := node.checkTransactionIndexSignaturePending(ctx, tx.TransactionHash, idx, req)
+		logger.Printf("node.checkTransactionIndexSignaturePending(%s, %d) => %t %v", tx.TransactionHash, idx, pending, err)
 		if err != nil {
 			return err
 		} else if pending {
@@ -824,7 +832,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 			CreatedAt:       req.CreatedAt,
 			UpdatedAt:       req.CreatedAt,
 		}
-		sr.RequestId = mixin.UniqueConversationID(req.Id, sr.Message)
+		sr.RequestId = common.UniqueId(req.Id, sr.Message)
 		requests = append(requests, sr)
 	}
 	err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
@@ -922,7 +930,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	}
 
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
-	id := mixin.UniqueConversationID(old.TransactionHash, hex.EncodeToString(exk[:]))
+	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := BitcoinChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
@@ -930,7 +938,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}
 	raw := hex.EncodeToString(spsbt.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)))
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), tx.Chain)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	return err
 }
@@ -973,7 +981,7 @@ func (node *Node) deriveBIP32WithPath(ctx context.Context, public string, path8 
 	return sdk, err
 }
 
-func (node *Node) checkBitcoinUTXOSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {
+func (node *Node) checkTransactionIndexSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {
 	old, err := node.store.ReadSignatureRequestByTransactionIndex(ctx, hash, index)
 	if err != nil {
 		return false, err

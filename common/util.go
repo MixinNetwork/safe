@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+
+	"github.com/fox-one/mixin-sdk-go"
 )
 
 const (
@@ -41,6 +43,10 @@ func DecodeHexOrPanic(s string) []byte {
 func Fingerprint(public string) []byte {
 	sum := sha256.Sum256([]byte(public))
 	return sum[:8]
+}
+
+func UniqueId(a, b string) string {
+	return mixin.UniqueConversationID(a, b)
 }
 
 func EnableTestEnvironment(ctx context.Context) context.Context {
