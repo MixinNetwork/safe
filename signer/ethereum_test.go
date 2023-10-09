@@ -2,14 +2,18 @@ package signer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,6 +23,10 @@ import (
 
 const (
 	testEthereumAddress = "0xF05C33aA6D2026AD675CAdB73648A9A0Ff279B65"
+
+	testEthereumKeyHolder   = "4cb7437a31a724c7231f83c01f865bf13fc65725cb6219ac944321f484bf80a2"
+	testEthereumKeySigner   = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
+	testEthereumKeyObserver = "6421d5ce0fd415397fdd2978733852cee7ad44f28d87cd96038460907e2ffb18"
 )
 
 var (
@@ -36,7 +44,130 @@ var (
 		EIP158Block:    big.NewInt(0),
 		ByzantiumBlock: big.NewInt(0),
 	}
+
+	rpc      = "https://geth.mvm.dev"
+	chainID  = 73927
+	timelock = 1
 )
+
+func TestCMPEthereumTransaction(t *testing.T) {
+	ctx := context.Background()
+	require := require.New(t)
+	accountAddress := testPrepareEthereumAccount(ctx, require)
+
+	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
+	value := 10000000000
+	n := 6
+	tx, err := ethereum.CreateTransaction(ctx, false, rpc, int64(chainID), accountAddress, destination, int64(value), new(big.Int).SetInt64(int64(n)))
+	require.Nil(err)
+
+	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+	require.Nil(err)
+	tx.AddSignature(sigHolder)
+	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
+	require.Nil(err)
+	tx.AddSignature(sigSigner)
+
+	currentNonce, err := ethereum.GetNonce(rpc, accountAddress)
+	require.Nil(err)
+	if currentNonce == int64(n) {
+		isValid, err := tx.ValidTransaction(rpc)
+		require.Nil(err)
+		require.True(isValid)
+
+		_, err = tx.ExecTransaction(rpc, os.Getenv("MVM_DEPLOYER"))
+		require.Nil(err)
+
+		time.Sleep(1 * time.Minute)
+		tx, err := ethereum.CreateTransaction(ctx, false, rpc, int64(chainID), accountAddress, destination, int64(value), new(big.Int).SetInt64(int64(n+1)))
+		require.Nil(err)
+
+		// signatures should follow the asc order of addresses of owners
+		sigObserver, err := testEthereumSignMessage(testEthereumKeyObserver, tx.Message)
+		require.Nil(err)
+		tx.AddSignature(sigObserver)
+		sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+		require.Nil(err)
+		tx.AddSignature(sigHolder)
+
+		_, err = tx.ValidTransaction(rpc)
+		require.NotNil(err)
+	}
+}
+
+func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions) string {
+	ah, err := ethereumAddressFromPriv(testEthereumKeyHolder)
+	require.Nil(err)
+	require.Equal("0xC698197Dd0B0c24438a2508E464Fc5814A6cd512", ah)
+	as, err := ethereumAddressFromPriv(testEthereumKeySigner)
+	require.Nil(err)
+	require.Equal("0xf78409F2c9Ffe7e697f9F463890889287a06B4Ad", as)
+	ao, err := ethereumAddressFromPriv(testEthereumKeyObserver)
+	require.Nil(err)
+	require.Equal("0x09084B528F2AB737FF8A55a51ee6d8939da82F20", ao)
+	owners := []string{ah, as, ao}
+	threshold := 2
+	timelock := 2
+
+	addr := ethereum.GetSafeAccountAddress(owners, int64(threshold))
+	addrStr := addr.Hex()
+	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
+
+	tx, err := ethereum.CreateTransaction(ctx, true, rpc, int64(chainID), addrStr, addrStr, 0, new(big.Int).SetInt64(0))
+	require.Nil(err)
+
+	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+	require.Nil(err)
+	require.Equal("bfad11e74c9d56cdb77fac087e94739057c9204da379b3b5bc7eb8d771dd24d97b26a14f2c35ce6b87baaf83a487a569d61bdbfeb74c2b0a5075325a023374ec1f", hex.EncodeToString(sigHolder))
+	tx.AddSignature(sigHolder)
+	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
+	require.Nil(err)
+	require.Equal("424f1a89f438a54c78fc35df68647e83af390ba2bc319dfe19249167ffdd4c765d7e939c40e691f735eb886aa61cf4f5e0bf3e7aed6eb5e7838b7f63fe5c4f551f", hex.EncodeToString(sigSigner))
+	tx.AddSignature(sigSigner)
+
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock), tx)
+	require.Nil(err)
+	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
+	return safeaddress.String()
+}
+
+func testEthereumSignMessage(priv string, message []byte) ([]byte, error) {
+	private, err := crypto.HexToECDSA(priv)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message)))
+	signature, err := crypto.Sign(hash.Bytes(), private)
+	if err != nil {
+		return nil, err
+	}
+	// Golang returns the recovery ID in the last byte instead of v
+	// v = 27 + rid
+	signature[64] += 27
+	hasPrefix := testIsTxHashSignedWithPrefix(priv, hash.Bytes(), signature)
+	if hasPrefix {
+		signature[64] += 4
+	}
+	return signature, nil
+}
+
+func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
+	recoveredData, err := crypto.Ecrecover(hash, signature)
+	if err != nil {
+		return params.TestRules.IsEIP150
+	}
+	recoveredPub, err := crypto.UnmarshalPubkey(recoveredData)
+	if err != nil {
+		return true
+	}
+	recoveredAddress := crypto.PubkeyToAddress(*recoveredPub).Hex()
+	address, err := ethereumAddressFromPriv(priv)
+	if err != nil {
+		return true
+	}
+	return recoveredAddress != address
+}
 
 func TestCMPEthereumSign(t *testing.T) {
 	require := require.New(t)
@@ -59,6 +190,19 @@ func TestCMPEthereumSign(t *testing.T) {
 	verify, _ := signer.Sender(&tx)
 	require.Equal(testEthereumAddress, verify.String())
 	require.Equal(hash, tx.Hash().Hex())
+}
+
+func ethereumAddressFromPriv(priv string) (string, error) {
+	privateKey, err := crypto.HexToECDSA(priv)
+	if err != nil {
+		return "", err
+	}
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+
+	addr := crypto.PubkeyToAddress(*publicKeyECDSA)
+	return addr.String(), nil
 }
 
 func ethereumAddressFromPub(require *require.Assertions, public string) common.Address {
