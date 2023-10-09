@@ -8,6 +8,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -41,6 +42,12 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	case common.ActionBitcoinSafeApproveTransaction:
 	case common.ActionBitcoinSafeRevokeTransaction:
 	case common.ActionBitcoinSafeCloseAccount:
+	case common.ActionMixinKernelSafeProposeAccount:
+	case common.ActionMixinKernelSafeApproveAccount:
+	case common.ActionMixinKernelSafeProposeTransaction:
+	case common.ActionMixinKernelSafeApproveTransaction:
+	case common.ActionMixinKernelSafeRevokeTransaction:
+	case common.ActionMixinKernelSafeCloseAccount:
 	default:
 		return false
 	}
@@ -79,17 +86,17 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionObserverSetOperationParams:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeProposeAccount:
+	case common.ActionBitcoinSafeProposeAccount, common.ActionMixinKernelSafeProposeAccount:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeApproveAccount:
+	case common.ActionBitcoinSafeApproveAccount, common.ActionMixinKernelSafeApproveAccount:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeProposeTransaction:
+	case common.ActionBitcoinSafeProposeTransaction, common.ActionMixinKernelSafeProposeTransaction:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeApproveTransaction:
+	case common.ActionBitcoinSafeApproveTransaction, common.ActionMixinKernelSafeApproveTransaction:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeRevokeTransaction:
+	case common.ActionBitcoinSafeRevokeTransaction, common.ActionMixinKernelSafeRevokeTransaction:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeCloseAccount:
+	case common.ActionBitcoinSafeCloseAccount, common.ActionMixinKernelSafeCloseAccount:
 		return common.RequestRoleObserver
 	default:
 		return 0
@@ -223,6 +230,18 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processBitcoinSafeRevokeTransaction(ctx, req)
 	case common.ActionBitcoinSafeCloseAccount:
 		return node.processBitcoinSafeCloseAccount(ctx, req)
+	case common.ActionMixinKernelSafeProposeAccount:
+		return node.processMixinKernelSafeProposeAccount(ctx, req)
+	case common.ActionMixinKernelSafeApproveAccount:
+		return node.processMixinKernelSafeApproveAccount(ctx, req)
+	case common.ActionMixinKernelSafeProposeTransaction:
+		return node.processMixinKernelSafeProposeTransaction(ctx, req)
+	case common.ActionMixinKernelSafeApproveTransaction:
+		return node.processMixinKernelSafeApproveTransaction(ctx, req)
+	case common.ActionMixinKernelSafeRevokeTransaction:
+		return node.processMixinKernelSafeRevokeTransaction(ctx, req)
+	case common.ActionMixinKernelSafeCloseAccount:
+		return node.processMixinKernelSafeCloseAccount(ctx, req)
 	default:
 		panic(req.Action)
 	}
@@ -267,6 +286,12 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
+	case common.CurveEdwards25519Mixin:
+		err = mixin.VerifyPublicKey(req.Holder)
+		logger.Printf("mixin.VerifyPublicKey(%s, %x) => %v", req.Holder, chainCode, err)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 	default:
 		panic(req.Curve)
 	}
@@ -299,6 +324,8 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	switch safe.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req)
+	case SafeChainMixinKernel:
+		return node.processMixinKernelSafeSignatureResponse(ctx, req)
 	default:
 		panic(safe.Chain)
 	}

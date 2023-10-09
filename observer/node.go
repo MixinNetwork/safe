@@ -101,7 +101,7 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
-	return node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
+	return node.sendKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {
@@ -204,7 +204,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 	id := mixin.UniqueConversationID(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
-	err = node.sendBitcoinKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
+	err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
 	if err != nil {
 		return false, err
 	}

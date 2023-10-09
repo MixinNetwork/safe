@@ -21,6 +21,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type VersionedTransaction = common.VersionedTransaction
+
 // TODO the output should include the snapshot signature, then it can just be
 // verified against the active kernel nodes public key
 func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration) error {
@@ -142,6 +144,26 @@ func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransac
 		return nil, err
 	}
 	return common.UnmarshalVersionedTransaction(hex)
+}
+
+func ReadKernelSnapshot(rpc string, id crypto.Hash) (*common.SnapshotWithTopologicalOrder, error) {
+	raw, err := callMixinRPC(rpc, "getsnapshot", []any{id.String()})
+	if err != nil {
+		return nil, err
+	}
+	var snap map[string]any
+	err = json.Unmarshal(raw, &snap)
+	if err != nil {
+		return nil, err
+	}
+	if snap["hex"] == nil {
+		return nil, fmt.Errorf("snap %s not found in kernel", id)
+	}
+	hex, err := hex.DecodeString(snap["hex"].(string))
+	if err != nil {
+		return nil, err
+	}
+	return common.UnmarshalVersionedSnapshot(hex)
 }
 
 func callMixinRPC(node, method string, params []any) ([]byte, error) {

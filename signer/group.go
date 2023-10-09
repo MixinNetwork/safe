@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"slices"
@@ -214,9 +215,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	case common.OperationTypeSignInput:
 		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
 			op := session.asOperation()
-			extra := []byte{byte(len(op.Extra))}
-			extra = append(extra, op.Extra...)
-			extra = append(extra, sig...)
+			extra := node.concatMessageAndSignature(op.Extra, sig)
 			err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
 			logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
 			if err != nil {
@@ -313,12 +312,20 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 	}
 }
 
+func (node *Node) concatMessageAndSignature(msg, sig []byte) []byte {
+	extra := binary.BigEndian.AppendUint32(nil, uint32(len(msg)))
+	extra = append(extra, msg...)
+	extra = append(extra, sig...)
+	return extra
+}
+
 func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
-	if len(extra) < int(extra[0])+32 {
+	el := binary.BigEndian.Uint32(extra[:4])
+	if len(extra) < int(el)+32 {
 		return false, nil
 	}
-	msg := extra[1 : 1+extra[0]]
-	sig := extra[1+extra[0]:]
+	msg := extra[4 : 4+el]
+	sig := extra[4+el:]
 	public, _ := node.deriveByPath(ctx, crv, share, path)
 
 	switch crv {
@@ -496,9 +503,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	if err != nil {
 		return node.store.FailSession(ctx, op.Id)
 	}
-	extra := []byte{byte(len(op.Extra))}
-	extra = append(extra, op.Extra...)
-	extra = append(extra, res.Signature...)
+	extra := node.concatMessageAndSignature(op.Extra, res.Signature)
 	err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
 	logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
 	return err
@@ -536,7 +541,11 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash)
 		if err != nil {
 			panic(err)
 		}
-		return v
+		data, err := common.Base91Decode(string(v))
+		if err != nil || len(data) < 32 {
+			panic(stx.String())
+		}
+		return data
 	}
 
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)

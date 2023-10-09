@@ -9,22 +9,24 @@ import (
 	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	SafeChainBitcoin  = bitcoin.ChainBitcoin
-	SafeChainEthereum = 2
-	SafeChainMixin    = 3
-	SafeChainMVM      = 4
-	SafeChainLitecoin = bitcoin.ChainLitecoin
+	SafeChainBitcoin     = bitcoin.ChainBitcoin
+	SafeChainEthereum    = 2
+	SafeChainMixinKernel = mixin.ChainMixinKernel
+	SafeChainMVM         = 4
+	SafeChainLitecoin    = bitcoin.ChainLitecoin
 
-	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
-	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
-	SafeMVMChainId      = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
-	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
+	SafeBitcoinChainId     = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
+	SafeEthereumChainId    = "43d61dcd-e413-450d-80b8-101d5e903357"
+	SafeMVMChainId         = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
+	SafeLitecoinChainId    = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
+	SafeMixinKernelAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
 
 	SafeNetworkInfoTimeout = 3 * time.Minute
 	SafeSignatureTimeout   = 10 * time.Minute
@@ -33,6 +35,10 @@ const (
 	SafeStateApproved = common.RequestStateDone
 	SafeStateClosed   = common.RequestStateFailed
 )
+
+func mixinDefaultDerivationPath() []byte {
+	return []byte{0, 0, 0, 0}
+}
 
 func bitcoinDefaultDerivationPath() []byte {
 	return []byte{2, 0, 0, 0}
@@ -71,7 +77,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
-	case SafeBitcoinChainId, SafeLitecoinChainId:
+	case SafeBitcoinChainId, SafeLitecoinChainId, SafeMixinKernelAssetId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
