@@ -24,7 +24,7 @@ func TestFROSTMixinSign(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
 
-	public := testFROSTPrepareKeys(ctx, require, nodes, CurveEdwards25519Mixin)
+	public := TestFROSTPrepareKeys(ctx, require, nodes, CurveEdwards25519Mixin)
 
 	addr := mixinAddress(public)
 	require.Equal(testMixinAddress, addr.String())
