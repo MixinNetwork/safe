@@ -31,6 +31,7 @@ const (
 	SafeKeyBackupMaturity  = 24 * time.Hour
 
 	SafeStateApproved = common.RequestStateDone
+	SafeStatePending  = common.RequestStatePending
 	SafeStateClosed   = common.RequestStateFailed
 )
 
@@ -42,30 +43,12 @@ func ethereumDefaultDerivationPath() []byte {
 	return []byte{0, 0, 0, 0}
 }
 
-func BitcoinCurveChain(crv byte) byte {
+func SafeCurveChain(crv byte) byte {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		return SafeChainBitcoin
 	case common.CurveSecp256k1ECDSALitecoin:
 		return SafeChainLitecoin
-	default:
-		panic(crv)
-	}
-}
-
-func BitcoinChainCurve(chain byte) byte {
-	switch chain {
-	case SafeChainBitcoin:
-		return common.CurveSecp256k1ECDSABitcoin
-	case SafeChainLitecoin:
-		return common.CurveSecp256k1ECDSALitecoin
-	default:
-		panic(chain)
-	}
-}
-
-func EthereumCurveChain(crv byte) byte {
-	switch crv {
 	case common.CurveSecp256k1ECDSAEthereum:
 		return SafeChainEthereum
 	case common.CurveSecp256k1ECDSAMVM:
@@ -75,8 +58,12 @@ func EthereumCurveChain(crv byte) byte {
 	}
 }
 
-func EthereumChainCurve(chain byte) byte {
+func SafeChainCurve(chain byte) byte {
 	switch chain {
+	case SafeChainBitcoin:
+		return common.CurveSecp256k1ECDSABitcoin
+	case SafeChainLitecoin:
+		return common.CurveSecp256k1ECDSALitecoin
 	case SafeChainEthereum:
 		return common.CurveSecp256k1ECDSAEthereum
 	case SafeChainMVM:

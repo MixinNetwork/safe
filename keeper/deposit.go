@@ -33,7 +33,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		Chain: extra[0],
 		Asset: uuid.Must(uuid.FromBytes(extra[1:17])).String(),
 	}
-	if deposit.Chain != BitcoinCurveChain(req.Curve) {
+	if deposit.Chain != SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	extra = extra[17:]

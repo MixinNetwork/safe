@@ -240,7 +240,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	if err != nil || len(op.Extra) != 32 {
 		return false, err
 	}
-	chain := keeper.BitcoinCurveChain(op.Curve)
+	chain := keeper.SafeCurveChain(op.Curve)
 	params, err := node.keeperStore.ReadLatestOperationParams(ctx, chain, s.CreatedAt)
 	if err != nil || params == nil {
 		return false, err
@@ -286,9 +286,11 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	case common.ActionBitcoinSafeApproveTransaction:
 		return true, node.keeperCombineBitcoinTransactionSignatures(ctx, data)
 	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:
-		return true, node.keeperSaveAccountProposal(ctx, data, s.CreatedAt)
+		return true, node.keeperSaveAccountProposal(ctx, chain, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveAccount:
 		return true, node.deployBitcoinSafeBond(ctx, data)
+	case common.ActionEthereumSafeApproveAccount:
+		return true, node.deployEthereumGnosisSafe(ctx, data)
 	}
 	return true, nil
 }

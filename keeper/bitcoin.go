@@ -31,7 +31,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := BitcoinCurveChain(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -318,7 +318,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	chain := BitcoinCurveChain(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", chain, plan, err)
@@ -377,7 +377,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	extra := wsa.Marshal()
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionBitcoinSafeProposeAccount)
-	crv := BitcoinChainCurve(chain)
+	crv := SafeChainCurve(chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
@@ -411,7 +411,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	} else if old != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	chain := BitcoinCurveChain(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
@@ -446,7 +446,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	}
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(sp.Extra)))
 	typ := byte(common.ActionBitcoinSafeApproveAccount)
-	crv := BitcoinChainCurve(sp.Chain)
+	crv := SafeChainCurve(sp.Chain)
 	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
@@ -475,7 +475,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
 	}
-	chain := BitcoinCurveChain(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -627,7 +627,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	extra = psbt.Marshal()
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionBitcoinSafeProposeTransaction)
-	crv := BitcoinChainCurve(safe.Chain)
+	crv := SafeChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
@@ -666,7 +666,7 @@ func (node *Node) processBitcoinSafeRevokeTransaction(ctx context.Context, req *
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := BitcoinCurveChain(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -757,7 +757,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := BitcoinCurveChain(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -932,7 +932,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
-	crv := BitcoinChainCurve(safe.Chain)
+	crv := SafeChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)

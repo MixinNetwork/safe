@@ -125,7 +125,10 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) err
 	}
 	defer tx.Rollback()
 
-	if safe.State != common.RequestStateDone {
+	switch safe.State {
+	case common.RequestStatePending:
+	case common.RequestStateDone:
+	default:
 		panic(safe.State)
 	}
 	err = s.execOne(ctx, tx, buildInsertionSQL("safes", safeCols), safe.values()...)
@@ -134,6 +137,32 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) err
 	}
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), safe.RequestId)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, safe *Safe, requestId string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if safe.State != common.RequestStatePending {
+		panic(safe.State)
+	}
+	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=?",
+		common.RequestStateDone, time.Now().UTC(), safe.Holder)
+	if err != nil {
+		return fmt.Errorf("UPDATE safes %v", err)
+	}
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+		common.RequestStateDone, time.Now().UTC(), requestId)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}

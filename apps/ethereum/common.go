@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -37,6 +38,27 @@ const (
 	domainSeparatorTypehash = "0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218"
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
+
+func ParseWei(amount string) int64 {
+	amt, err := decimal.NewFromString(amount)
+	if err != nil {
+		panic(amount)
+	}
+	amt = amt.Mul(decimal.New(1, ValuePrecision))
+	if !amt.IsInteger() {
+		panic(amount)
+	}
+	if !amt.BigInt().IsInt64() {
+		panic(amount)
+	}
+	return amt.BigInt().Int64()
+}
+
+func UnitWei(amount *big.Int) string {
+	amt := decimal.NewFromBigInt(amount, 0)
+	amt = amt.Div(decimal.New(1, ValuePrecision))
+	return amt.String()
+}
 
 func ParseSequence(lock time.Duration, chain byte) int64 {
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {

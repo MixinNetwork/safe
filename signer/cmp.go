@@ -80,7 +80,7 @@ func (node *Node) cmpSign(ctx context.Context, members []party.ID, public string
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		res.Signature = signature.SerializeDER()
-	case common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
 		res.Signature = signature.SerializeEthereum()
 	default:
 		panic(crv)

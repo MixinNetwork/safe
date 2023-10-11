@@ -2,10 +2,13 @@ package ethereum
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
 
+	mixinCommon "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/safe/apps"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
 	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
@@ -29,9 +32,9 @@ type SafeTransaction struct {
 	GasPrice       *big.Int
 	GasToken       common.Address
 	RefundReceiver common.Address
-	Signatures     []byte
 	Nonce          *big.Int
 	Message        []byte
+	Signatures     [][]byte
 }
 
 func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination string, value int64, nonce *big.Int) (*SafeTransaction, error) {
@@ -47,6 +50,7 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 		GasToken:       common.HexToAddress(EthereumEmptyAddress),
 		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
 		Nonce:          nonce,
+		Signatures:     make([][]byte, 3),
 	}
 	if tx.Nonce == nil && rpc != "" {
 		conn, safeAbi, err := safeInit(rpc, safeAddress)
@@ -70,8 +74,89 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 	return tx, nil
 }
 
-func (tx *SafeTransaction) AddSignature(signature []byte) {
-	tx.Signatures = append(tx.Signatures, signature...)
+func (tx *SafeTransaction) Marshal() []byte {
+	enc := mixinCommon.NewEncoder()
+	enc.WriteUint64(uint64(tx.ChainID))
+	apps.WriteBytes(enc, []byte(tx.SafeAddress))
+	apps.WriteBytes(enc, tx.Destination.Bytes())
+	apps.WriteBytes(enc, []byte(UnitWei(tx.Value)))
+	apps.WriteBytes(enc, tx.Data)
+	enc.WriteUint64(uint64(tx.Nonce.Uint64()))
+	apps.WriteBytes(enc, tx.Message)
+
+	var signatures []string
+	for _, sig := range tx.Signatures {
+		signatures = append(signatures, hex.EncodeToString(sig))
+	}
+	sigs := strings.Join(signatures, ",")
+	apps.WriteBytes(enc, []byte(sigs))
+	return enc.Bytes()
+}
+
+func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
+	dec := mixinCommon.NewDecoder(b)
+	chainID, err := dec.ReadUint64()
+	if err != nil {
+		return nil, err
+	}
+	safeAddress, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	destination, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	valueByte, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	data, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	nonce, err := dec.ReadUint64()
+	if err != nil {
+		return nil, err
+	}
+	msg, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	signature, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	sigsStr := strings.Split(string(signature), ",")
+
+	signatures := make([][]byte, 3)
+	for i, s := range sigsStr {
+		if s == "" {
+			continue
+		}
+		sig, err := hex.DecodeString(s)
+		if err != nil {
+			return nil, err
+		}
+		signatures[i] = sig
+	}
+
+	return &SafeTransaction{
+		ChainID:        int64(chainID),
+		SafeAddress:    string(safeAddress),
+		Destination:    common.BytesToAddress(destination),
+		Value:          new(big.Int).SetInt64(ParseWei(string(valueByte))),
+		Data:           data,
+		Operation:      operationTypeCall,
+		SafeTxGas:      new(big.Int).SetInt64(0),
+		BaseGas:        new(big.Int).SetInt64(0),
+		GasPrice:       new(big.Int).SetInt64(0),
+		GasToken:       common.HexToAddress(EthereumEmptyAddress),
+		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
+		Nonce:          new(big.Int).SetUint64(nonce),
+		Message:        msg,
+		Signatures:     signatures,
+	}, nil
 }
 
 func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
@@ -80,6 +165,19 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 		return false, err
 	}
 	defer conn.Close()
+
+	var signature []byte
+	count := 0
+	for _, sig := range tx.Signatures {
+		if sig == nil {
+			continue
+		}
+		signature = append(signature, sig...)
+		count += 1
+	}
+	if count < 2 {
+		return false, fmt.Errorf("SafeTransaction has insufficient signatures")
+	}
 
 	isValid, err := abi.ValidTransaction(
 		tx.Destination,
@@ -91,7 +189,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 		tx.GasPrice,
 		tx.GasToken,
 		tx.RefundReceiver,
-		tx.Signatures,
+		signature,
 	)
 	if err != nil {
 		return false, err
@@ -110,6 +208,19 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 	}
 	defer conn.Close()
 
+	var signature []byte
+	count := 0
+	for _, sig := range tx.Signatures {
+		if sig == nil {
+			continue
+		}
+		signature = append(signature, sig...)
+		count += 1
+	}
+	if count < 2 {
+		return "", fmt.Errorf("SafeTransaction has insufficient signatures")
+	}
+
 	txResponse, err := safeAbi.ExecTransaction(
 		signer,
 		tx.Destination,
@@ -121,7 +232,7 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 		tx.GasPrice,
 		tx.GasToken,
 		tx.RefundReceiver,
-		tx.Signatures,
+		signature,
 	)
 	if err != nil {
 		return "", err

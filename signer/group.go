@@ -477,7 +477,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 
 	var res *SignResult
 	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
 		res, err = node.cmpSign(ctx, members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
 		logger.Verbosef("node.cmpSign(%v) => %v %v", op, res, err)
 	case common.CurveSecp256k1SchnorrBitcoin:

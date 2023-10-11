@@ -126,6 +126,47 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) WriteInitialTransaction(ctx context.Context, trx *Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.AssetId, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT transactions %v", err)
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) UpdateInitialTransactionWithRequest(ctx context.Context, hash, raw, requestId string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, updated_at=? WHERE transaction_hash=?",
+		raw, time.Now().UTC(), hash)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+		common.RequestStateDone, time.Now().UTC(), requestId)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

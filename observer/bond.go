@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,9 +13,62 @@ import (
 	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/fox-one/mixin-sdk-go"
+	"github.com/gofrs/uuid/v5"
 )
+
+func (node *Node) deployEthereumGnosisSafe(ctx context.Context, data []byte) error {
+	logger.Printf("node.deployEthereumGnosisSafe(%x)", data)
+	gs, err := ethereum.UnmarshalGnosisSafe(data)
+	if err != nil {
+		return fmt.Errorf("ethereum.UnmarshalGnosisSafe(%x) => %v", data, err)
+	}
+	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, gs.Address)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", gs.Address, err)
+	}
+	_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
+	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, sp.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, sp.Holder, err)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", gs.Address, err)
+	}
+
+	tx, err := node.keeperStore.ReadTransaction(ctx, gs.TxHash)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadTransaction(%s) => %v", gs.TxHash, err)
+	}
+	rawB, err := hex.DecodeString(tx.RawTransaction)
+	logger.Printf("hex.DecodeString(%s) => %v %v", tx.RawTransaction, rawB, err)
+	if err != nil {
+		return err
+	}
+	t, err := ethereum.UnmarshalSafeTransaction(rawB)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", rawB, t, err)
+	if err != nil {
+		return err
+	}
+	rpc, _ := node.ethereumParams(sp.Chain)
+	owners, _, err := ethereum.GetSortedSafeOwners(sp.Holder, sp.Signer, sp.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", sp.Holder, sp.Signer, sp.Observer, owners, err)
+	if err != nil {
+		return err
+	}
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.MVMKey, owners, 2, int64(sp.Timelock), t)
+	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(sp.Timelock), t, safeaddress.Hex(), err)
+	if err != nil {
+		return err
+	}
+
+	id := mixin.UniqueConversationID(safeaddress.Hex(), "approve")
+	rid := uuid.Must(uuid.FromString(sp.RequestId))
+	action := common.ActionBitcoinSafeApproveAccount
+	return node.sendBitcoinKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, rid.Bytes())
+}
 
 func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployBitcoinSafeBond(%x)", data)

@@ -52,12 +52,12 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	if info.Chain != SafeCurveChain(req.Curve) {
+		panic(req.Id)
+	}
+	info.Hash = hex.EncodeToString(extra[17:])
 	switch info.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
-		if info.Chain != BitcoinCurveChain(req.Curve) {
-			panic(req.Id)
-		}
-		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
 			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
@@ -65,10 +65,6 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 			return node.store.FailRequest(ctx, req.Id)
 		}
 	case SafeChainEthereum, SafeChainMVM:
-		if info.Chain != EthereumCurveChain(req.Curve) {
-			panic(req.Id)
-		}
-		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
 			return fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
@@ -94,12 +90,8 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 
 	chain := extra[0]
 	switch chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
-		if chain != BitcoinCurveChain(req.Curve) {
-			panic(req.Id)
-		}
-	case SafeChainEthereum, SafeChainMVM:
-		if chain != EthereumCurveChain(req.Curve) {
+	case SafeChainBitcoin, SafeChainLitecoin, SafeChainEthereum, SafeChainMVM:
+		if chain != SafeCurveChain(req.Curve) {
 			panic(req.Id)
 		}
 	default:

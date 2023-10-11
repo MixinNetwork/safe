@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/domains/bitcoin"
 	"github.com/MixinNetwork/mixin/domains/litecoin"
 	"github.com/btcsuite/btcd/btcutil"
@@ -166,9 +165,4 @@ func IsInsufficientInputError(err error) bool {
 
 func BuildInsufficientInputError(cat, inSatoshi, outSatoshi string) error {
 	return fmt.Errorf("insufficient %s %s %s", cat, inSatoshi, outSatoshi)
-}
-
-func writeBytes(enc *common.Encoder, b []byte) {
-	enc.WriteInt(len(b))
-	enc.Write(b)
 }

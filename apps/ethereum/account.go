@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/safe/apps/bitcoin"
+	mixinCommon "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps"
 	"github.com/MixinNetwork/safe/common/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,35 +23,80 @@ import (
 // with safe guard to do time lock of observer
 // with deploy2 to determine exact contract address
 
-func BuildWitnessScriptAccount(ctx context.Context, rpc, holder, signer, observer string, lock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {
-	var owners []string
-	for _, public := range []string{holder, signer, observer} {
-		pub, err := parseEthereumCompressedPublicKey(public)
-		if err != nil {
-			return nil, fmt.Errorf("parseEthereumCompressedPublicKey(%s) => %v", public, err)
-		}
-		owners = append(owners, pub.Hex())
+type GnosisSafe struct {
+	Sequence uint32
+	Address  string
+	TxHash   string
+}
+
+func (gs *GnosisSafe) Marshal() []byte {
+	enc := mixinCommon.NewEncoder()
+	enc.WriteUint64(uint64(gs.Sequence))
+	apps.WriteBytes(enc, []byte(gs.Address))
+	apps.WriteBytes(enc, []byte(gs.TxHash))
+	return enc.Bytes()
+}
+
+func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
+	dec := mixinCommon.NewDecoder(extra)
+	sequence, err := dec.ReadUint64()
+	if err != nil {
+		return nil, err
 	}
-	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
+	addr, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	return &GnosisSafe{
+		Sequence: uint32(sequence),
+		Address:  string(addr),
+		TxHash:   string(hash),
+	}, nil
+}
+
+func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
+	owners, _, err := GetSortedSafeOwners(holder, signer, observer)
+	if err != nil {
+		return nil, nil, err
+	}
+	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
 
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
-		return nil, fmt.Errorf("time lock out of range %s", lock.String())
+		return nil, nil, fmt.Errorf("time lock out of range %s", lock.String())
 	}
 	sequence := ParseSequence(lock, chain)
 
 	chainID := GetEvmChainID(int64(chain))
-	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
-	tx, err := CreateTransaction(ctx, true, rpc, chainID, safeAddress, safeAddress, 0, nil)
+	t, err := CreateTransaction(ctx, true, rpc, chainID, safeAddress, safeAddress, 0, nil)
+	logger.Printf("CreateTransaction(%s, %d, %s, %s, %d) => %v", rpc, chainID, safeAddress, safeAddress, 0, err)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	script := tx.Message
 
-	return &bitcoin.WitnessScriptAccount{
+	return &GnosisSafe{
 		Sequence: uint32(sequence),
-		Script:   script,
 		Address:  safeAddress,
-	}, nil
+		TxHash:   hex.EncodeToString(t.Message),
+	}, t, nil
+}
+
+func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string, error) {
+	var owners []string
+	var pubs []string
+	for _, public := range []string{holder, signer, observer} {
+		pub, err := parseEthereumCompressedPublicKey(public)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parseEthereumCompressedPublicKey(%s) => %v", public, err)
+		}
+		owners = append(owners, pub.Hex())
+		pubs = append(pubs, public)
+	}
+	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
+	return owners, pubs, nil
 }
 
 // owners should be in the order of hold, signer and observer
@@ -172,6 +219,18 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 func VerifyHolderKey(public string) error {
 	_, err := parseEthereumCompressedPublicKey(public)
 	return err
+}
+
+func VerifySignature(public string, msg, sig []byte) error {
+	bPub, err := hex.DecodeString(public)
+	if err != nil {
+		return err
+	}
+	signed := crypto.VerifySignature(bPub, msg, sig)
+	if signed {
+		return nil
+	}
+	return fmt.Errorf("crypto.VerifySignature(%s, %x, %x)", public, msg, sig)
 }
 
 func parseEthereumCompressedPublicKey(public string) (*common.Address, error) {
