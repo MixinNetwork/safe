@@ -71,7 +71,7 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer string, 
 	sequence := ParseSequence(lock, chain)
 
 	chainID := GetEvmChainID(int64(chain))
-	t, err := CreateTransaction(ctx, true, rpc, chainID, safeAddress, safeAddress, 0, nil)
+	t, err := CreateTransaction(ctx, true, rpc, chainID, safeAddress, safeAddress, 0, new(big.Int).SetUint64(0))
 	logger.Printf("CreateTransaction(%s, %d, %s, %s, %d) => %v", rpc, chainID, safeAddress, safeAddress, 0, err)
 	if err != nil {
 		return nil, nil, err
@@ -222,24 +222,28 @@ func VerifyHolderKey(public string) error {
 }
 
 func VerifySignature(public string, msg, sig []byte) error {
-	bPub, err := hex.DecodeString(public)
+	hash, err := HashMessageForSignature(hex.EncodeToString(msg))
 	if err != nil {
 		return err
 	}
-	signed := crypto.VerifySignature(bPub, msg, sig)
+	pub, err := hex.DecodeString(public)
+	if err != nil {
+		return err
+	}
+	signed := crypto.VerifySignature(pub, hash, sig[:64])
 	if signed {
 		return nil
 	}
-	return fmt.Errorf("crypto.VerifySignature(%s, %x, %x)", public, msg, sig)
+	return fmt.Errorf("crypto.VerifySignature(%s, %x, %x)", public, hash, sig)
 }
 
 func parseEthereumCompressedPublicKey(public string) (*common.Address, error) {
-	bPub, err := hex.DecodeString(public)
+	pub, err := hex.DecodeString(public)
 	if err != nil {
 		return nil, err
 	}
 
-	publicKey, err := crypto.UnmarshalPubkey(bPub)
+	publicKey, err := crypto.DecompressPubkey(pub)
 	if err != nil {
 		return nil, err
 	}

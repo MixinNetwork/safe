@@ -3,6 +3,7 @@ package ethereum
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -38,6 +39,15 @@ const (
 	domainSeparatorTypehash = "0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218"
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
+
+func HashMessageForSignature(msg string) ([]byte, error) {
+	msgB, err := hex.DecodeString(msg)
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(msgB), msgB)))
+	return hash.Bytes(), nil
+}
 
 func ParseWei(amount string) int64 {
 	amt, err := decimal.NewFromString(amount)

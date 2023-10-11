@@ -152,7 +152,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	} else if old != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	chain := SafeChainCurve(req.Curve)
+	chain := SafeCurveChain(req.Curve)
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
@@ -182,13 +182,8 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return err
 	}
 
-	gsByte, err := common.Base91Decode(string(sp.Extra))
-	logger.Printf("Base91Decode(%s) => %v %v", string(sp.Extra), gsByte, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	gs, err := ethereum.UnmarshalGnosisSafe(gsByte)
-	logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", gsByte, gs, err)
+	gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
+	logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", sp.Extra, gs, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -222,7 +217,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 			t.Signatures[i] = extra[16:]
 		}
 	}
-	err = node.store.UpdateInitialTransactionWithRequest(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()), req.Id)
+	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
 	logger.Printf("store.WriteTransactionWithRequest(%v) => %v", tx, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
@@ -239,7 +234,13 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		UpdatedAt:       req.CreatedAt,
 	}
 	sr.RequestId = common.UniqueId(req.Id, sr.Message)
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
+	if err != nil {
+		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+	}
 	err = node.sendSignerSignRequest(ctx, sr, sp.Path)
+	logger.Printf("store.sendSignerSignRequest(%v, %s) => %v", sr, sp.Path, err)
 	if err != nil {
 		return fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
 	}

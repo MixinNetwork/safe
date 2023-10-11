@@ -144,7 +144,7 @@ func (s *SQLite3Store) WriteInitialTransaction(ctx context.Context, trx *Transac
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) UpdateInitialTransactionWithRequest(ctx context.Context, hash, raw, requestId string) error {
+func (s *SQLite3Store) UpdateInitialTransaction(ctx context.Context, hash, raw string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -158,11 +158,6 @@ func (s *SQLite3Store) UpdateInitialTransactionWithRequest(ctx context.Context, 
 		raw, time.Now().UTC(), hash)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
-	}
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-		common.RequestStateDone, time.Now().UTC(), requestId)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
 	}
 	return tx.Commit()
 }

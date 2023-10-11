@@ -89,20 +89,24 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	}
 
 	chain := extra[0]
+	if chain != SafeCurveChain(req.Curve) {
+		panic(req.Id)
+	}
+	var precision int64
 	switch chain {
-	case SafeChainBitcoin, SafeChainLitecoin, SafeChainEthereum, SafeChainMVM:
-		if chain != SafeCurveChain(req.Curve) {
-			panic(req.Id)
-		}
+	case SafeChainBitcoin, SafeChainLitecoin:
+		precision = bitcoin.ValuePrecision
+	case SafeChainEthereum, SafeChainMVM:
+		precision = ethereum.ValuePrecision
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
 	abu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[17:25]))
-	amount := decimal.NewFromBigInt(abu, -8)
+	amount := decimal.NewFromBigInt(abu, -int32(precision))
 	mbu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[25:33]))
-	minimum := decimal.NewFromBigInt(mbu, -8)
+	minimum := decimal.NewFromBigInt(mbu, -int32(precision))
 	params := &store.OperationParams{
 		RequestId:            req.Id,
 		Chain:                chain,
