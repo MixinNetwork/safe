@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	sc "github.com/MixinNetwork/safe/common"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/stretchr/testify/require"
 )
@@ -87,7 +88,7 @@ func writeTransactionReferences(ctx context.Context, nodes []*Node, crv byte, ms
 func writeStorageTransaction(ctx context.Context, nodes []*Node, extra []byte) []byte {
 	tx := crypto.Blake3Hash(extra)
 	k := hex.EncodeToString(tx[:])
-	v := hex.EncodeToString(extra)
+	v := hex.EncodeToString([]byte(sc.Base91Encode(extra)))
 	for _, n := range nodes {
 		err := n.store.WriteProperty(ctx, k, v)
 		if err != nil {
