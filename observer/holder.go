@@ -77,10 +77,17 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 	return node.store.WriteAccountProposalIfNotExists(ctx, sp.Address, createdAt)
 }
 
-func (node *Node) keeperSaveTransactionProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
+func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte, extra []byte, createdAt time.Time) error {
 	logger.Printf("node.keeperSaveTransactionProposal(%x, %s)", extra, createdAt)
-	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
-	txHash := psbt.UnsignedTx.TxHash().String()
+	var txHash string
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
+		txHash = psbt.UnsignedTx.TxHash().String()
+	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
+		t, _ := ethereum.UnmarshalSafeTransaction(extra)
+		txHash = hex.EncodeToString(t.Hash())
+	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
 		return err

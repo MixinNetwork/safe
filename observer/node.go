@@ -281,8 +281,8 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	}
 
 	switch op.Type {
-	case common.ActionBitcoinSafeProposeTransaction:
-		return true, node.keeperSaveTransactionProposal(ctx, data, s.CreatedAt)
+	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction:
+		return true, node.keeperSaveTransactionProposal(ctx, chain, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveTransaction:
 		return true, node.keeperCombineBitcoinTransactionSignatures(ctx, data)
 	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:

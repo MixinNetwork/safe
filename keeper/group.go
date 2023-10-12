@@ -234,6 +234,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processEthereumSafeProposeAccount(ctx, req)
 	case common.ActionEthereumSafeApproveAccount:
 		return node.processEthereumSafeApproveAccount(ctx, req)
+	case common.ActionEthereumSafeProposeTransaction:
+		return node.processEthereumSafeProposeTransaction(ctx, req)
 	default:
 		panic(req.Action)
 	}

@@ -37,6 +37,12 @@ type SafeTransaction struct {
 	Signatures     [][]byte
 }
 
+type Output struct {
+	Destination string
+	Wei         int64
+	Nonce       int64
+}
+
 func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination string, value int64, nonce *big.Int) (*SafeTransaction, error) {
 	tx := &SafeTransaction{
 		ChainID:        chainID,
@@ -72,6 +78,10 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 	}
 	tx.Message = tx.GetTransactionHash()
 	return tx, nil
+}
+
+func (tx *SafeTransaction) Hash() []byte {
+	return tx.Message
 }
 
 func (tx *SafeTransaction) Marshal() []byte {

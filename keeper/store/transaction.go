@@ -192,11 +192,13 @@ func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 	table := transactionInputTable(trx.Chain)
-	query := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?", table)
-	for _, utxo := range utxos {
-		err = s.execOne(ctx, tx, query, utxoState, trx.TransactionHash, trx.UpdatedAt, utxo.Hash, utxo.Index)
-		if err != nil {
-			return fmt.Errorf("UPDATE %s %v", table, err)
+	if table != "" {
+		query := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?", table)
+		for _, utxo := range utxos {
+			err = s.execOne(ctx, tx, query, utxoState, trx.TransactionHash, trx.UpdatedAt, utxo.Hash, utxo.Index)
+			if err != nil {
+				return fmt.Errorf("UPDATE %s %v", table, err)
+			}
 		}
 	}
 	return nil

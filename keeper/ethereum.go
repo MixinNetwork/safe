@@ -3,13 +3,18 @@ package keeper
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"math/big"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *common.Request) error {
@@ -209,7 +214,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		}
 	}
 	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
-	logger.Printf("store.WriteTransactionWithRequest(%v) => %v", tx, err)
+	logger.Printf("store.UpdateInitialTransaction(%v) => %v", tx, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -263,6 +268,178 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
 	}
 	return nil
+}
+
+func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req *common.Request) error {
+	if req.Role != common.RequestRoleHolder {
+		panic(req.Role)
+	}
+	chain := SafeCurveChain(req.Curve)
+	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	if err != nil {
+		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+	}
+	if safe == nil || safe.Chain != chain {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if safe.State != SafeStateApproved {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	assetId := SafeEthereumChainId
+	switch safe.Chain {
+	case SafeChainEthereum:
+	case SafeChainMVM:
+		assetId = SafeMVMChainId
+	default:
+		panic(safe.Chain)
+	}
+
+	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
+	if err != nil {
+		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
+	}
+	if meta.Chain != SafeChainMVM {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
+	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
+	if err != nil {
+		return fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
+	}
+	if deployed.Sign() <= 0 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	if id.String() != assetId {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	plan, err := node.store.ReadLatestOperationParams(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", safe.Chain, plan, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadLatestOperationParams(%d) => %v", safe.Chain, err)
+	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+	}
+	if req.Amount.Cmp(plan.TransactionMinimum) < 0 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	bondId, _, err := node.getBondAsset(ctx, id.String(), req.Holder)
+	logger.Printf("node.getBondAsset(%s, %s) => %s %v", id.String(), req.Holder, bondId, err)
+	if err != nil {
+		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", id.String(), req.Holder, err)
+	}
+	if crypto.NewHash([]byte(req.AssetId)) != bondId {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	extra, _ := hex.DecodeString(req.Extra)
+	if len(extra) < 33 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	extra = extra[1:]
+	iid, err := uuid.FromBytes(extra[:16])
+	if err != nil || iid.String() == uuid.Nil.String() {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	info, err := node.store.ReadNetworkInfo(ctx, iid.String())
+	logger.Printf("store.ReadNetworkInfo(%s) => %v %v", iid.String(), info, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadNetworkInfo(%s) => %v", iid.String(), err)
+	}
+	if info == nil || info.Chain != safe.Chain {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
+	rpc, _ := node.ethereumParams(safe.Chain)
+	nonce, err := ethereum.GetNonce(rpc, safe.Address)
+	logger.Printf("ethereum.GetNonce(%s) => %d %v", safe.Address, nonce, err)
+
+	var outputs []*ethereum.Output
+	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
+	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
+		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
+		extra := common.DecodeMixinObjectExtra(stx.Extra)
+		var recipients [][2]string // TODO better encoding
+		err = json.Unmarshal(extra, &recipients)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		var total decimal.Decimal
+		n := nonce
+		for _, rp := range recipients {
+			amt, err := decimal.NewFromString(rp[1])
+			if err != nil {
+				return node.store.FailRequest(ctx, req.Id)
+			}
+			if amt.Cmp(plan.TransactionMinimum) < 0 {
+				return node.store.FailRequest(ctx, req.Id)
+			}
+			total = total.Add(amt)
+			outputs = append(outputs, &ethereum.Output{
+				Destination: string(extra[16:]),
+				Wei:         ethereum.ParseWei(req.Amount.String()),
+				Nonce:       n,
+			})
+			n += 1
+		}
+		if !total.Equal(req.Amount) {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+	} else {
+		outputs = []*ethereum.Output{{
+			Destination: string(extra[16:]),
+			Wei:         ethereum.ParseWei(req.Amount.String()),
+			Nonce:       nonce,
+		}}
+	}
+
+	total := decimal.Zero
+	recipients := make([]map[string]string, len(outputs))
+	for i, out := range outputs {
+		amt := decimal.New(out.Wei, -ethereum.ValuePrecision)
+		recipients[i] = map[string]string{
+			"receiver": out.Destination, "amount": amt.String(),
+		}
+		total = total.Add(amt)
+	}
+	if !total.Equal(req.Amount) {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	// todo: func multicall encoding
+	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, big.NewInt(outputs[0].Nonce))
+	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
+		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
+
+	extra = t.Marshal()
+	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
+	typ := byte(common.ActionEthereumSafeProposeTransaction)
+	crv := SafeChainCurve(safe.Chain)
+	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
+	}
+
+	data := common.MarshalJSONOrPanic(recipients)
+	tx := &store.Transaction{
+		TransactionHash: hex.EncodeToString(t.Message),
+		RawTransaction:  hex.EncodeToString(extra),
+		Holder:          req.Holder,
+		Chain:           safe.Chain,
+		AssetId:         assetId,
+		State:           common.RequestStateInitial,
+		Data:            string(data),
+		RequestId:       req.Id,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+	var transacionInputs []*store.TransactionInput
+	return node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs)
 }
 
 func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req *common.Request) error {
