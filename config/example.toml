@@ -69,6 +69,8 @@ bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
 litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
 mvm-rpc = "https://geth.mvm.dev"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
+# evm private key to deploy contract on evm chains
+evm-key = ""
 
 [keeper.mtg.genesis]
 # it is not necessary to include all signer mtg members here,

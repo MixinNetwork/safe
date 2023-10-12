@@ -216,16 +216,29 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 	return nil
 }
 
+func ProcessSignature(signature []byte) []byte {
+	// Golang returns the recovery ID in the last byte instead of v
+	// v = 27 + rid
+	signature[64] += 27
+	// Sign with prefix
+	signature[64] += 4
+	return signature
+}
+
 func VerifyHolderKey(public string) error {
 	_, err := parseEthereumCompressedPublicKey(public)
 	return err
 }
 
-func VerifySignature(public string, msg, sig []byte) error {
+func VerifyMessageSignature(public string, msg, sig []byte) error {
 	hash, err := HashMessageForSignature(hex.EncodeToString(msg))
 	if err != nil {
 		return err
 	}
+	return VerifyHashSignature(public, hash, sig)
+}
+
+func VerifyHashSignature(public string, hash, sig []byte) error {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
 		return err

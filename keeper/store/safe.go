@@ -115,6 +115,52 @@ func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *Saf
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if safe.State != common.RequestStatePending {
+		panic(safe.State)
+	}
+	err = s.execOne(ctx, tx, buildInsertionSQL("safes", safeCols), safe.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT safes %v", err)
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) FinishedSafeWithRequest(ctx context.Context, safe *Safe, requestId string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if safe.State != common.RequestStatePending {
+		panic(safe.State)
+	}
+	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=?",
+		common.RequestStateDone, time.Now().UTC(), safe.Holder)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+		common.RequestStateDone, time.Now().UTC(), requestId)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -125,10 +171,7 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) err
 	}
 	defer tx.Rollback()
 
-	switch safe.State {
-	case common.RequestStatePending:
-	case common.RequestStateDone:
-	default:
+	if safe.State != common.RequestStateDone {
 		panic(safe.State)
 	}
 	err = s.execOne(ctx, tx, buildInsertionSQL("safes", safeCols), safe.values()...)

@@ -144,10 +144,12 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 	}
 
 	table := transactionInputTable(chain)
-	update := fmt.Sprintf("UPDATE %s SET state=?, updated_at=? WHERE spent_by=?", table)
-	err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, transactionHash)
-	if err != nil {
-		return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+	if table != "" {
+		update := fmt.Sprintf("UPDATE %s SET state=?, updated_at=? WHERE spent_by=?", table)
+		err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, transactionHash)
+		if err != nil {
+			return fmt.Errorf("UPDATE %s %v", table, err)
+		}
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",

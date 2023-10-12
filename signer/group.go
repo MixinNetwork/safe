@@ -339,8 +339,8 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		logger.Printf("bitcoin.VerifySignatureDER(%x, %x, %x) => %v", public, msg, sig, err)
 		return err == nil, sig
 	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
-		err := ethereum.VerifySignature(hex.EncodeToString(public), msg, sig)
-		logger.Printf("ethereum.VerifySignature(%x, %x, %x) => %v", public, msg, sig, err)
+		err := ethereum.VerifyHashSignature(hex.EncodeToString(public), msg, sig)
+		logger.Printf("ethereum.VerifyHashSignature(%x, %x, %x) => %v", public, msg, sig, err)
 		return err == nil, sig
 	case common.CurveEdwards25519Mixin:
 		if len(msg) < 32 || len(sig) != 64 {

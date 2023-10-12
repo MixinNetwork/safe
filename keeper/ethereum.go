@@ -172,15 +172,6 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	} else if sp.Chain != chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	safe, err := node.store.ReadSafeByAddress(ctx, sp.Address)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafeByAddress(%s) => %v %v", sp.Address, safe, err)
-	}
-	if safe != nil && safe.State == SafeStatePending {
-		err = node.store.FinishSafeWithRequest(ctx, safe, req.Id)
-		logger.Printf("store.FinishSafeWithRequest(%s) => %v %v", sp.Address, safe, err)
-		return err
-	}
 
 	gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
 	logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", sp.Extra, gs, err)
@@ -202,8 +193,8 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	err = ethereum.VerifySignature(req.Holder, t.Message, extra[16:])
-	logger.Printf("ethereum.VerifySignature(%v) => %v", req, err)
+	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:])
+	logger.Printf("ethereum.VerifyMessageSignature(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -223,12 +214,39 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	safe := &store.Safe{
+		Holder:    sp.Holder,
+		Chain:     sp.Chain,
+		Signer:    sp.Signer,
+		Observer:  sp.Observer,
+		Timelock:  sp.Timelock,
+		Path:      sp.Path,
+		Address:   sp.Address,
+		Extra:     sp.Extra,
+		Receivers: sp.Receivers,
+		Threshold: sp.Threshold,
+		RequestId: req.Id,
+		State:     SafeStatePending,
+		CreatedAt: req.CreatedAt,
+		UpdatedAt: req.CreatedAt,
+	}
+	err = node.store.WriteUnfinishedSafe(ctx, safe)
+	logger.Printf("store.WriteUnfinishedSafe(%v) => %v", safe, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
+	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
 		Signer:          sp.Signer,
 		Curve:           req.Curve,
-		Message:         tx.TransactionHash,
+		Message:         hex.EncodeToString(hash),
 		State:           common.RequestStateInitial,
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
@@ -263,22 +281,18 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
 	}
-	sp, err := node.store.ReadSafeProposal(ctx, tx.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafeProposal(%s) => %v", tx.Holder, err)
-	}
 	safe, err := node.store.ReadSafe(ctx, tx.Holder)
 	if err != nil {
 		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
 	}
-	if sp.Signer != req.Holder {
+	if safe.Signer != req.Holder {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = ethereum.VerifySignature(sp.Signer, msg, sig)
-	logger.Printf("node.VerifySignature(%v) => %v", req, err)
+	err = ethereum.VerifyHashSignature(safe.Signer, msg, sig)
+	logger.Printf("node.VerifyHashSignature(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -299,8 +313,8 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	_, pubs, err := ethereum.GetSortedSafeOwners(sp.Holder, sp.Signer, sp.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v %v", sp, pubs, err)
+	owners, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v %v", safe, pubs, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -313,10 +327,10 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return fmt.Errorf("Invalid signature requests len: %d", len(requests))
 	}
 	for i, pub := range pubs {
-		if pub == sp.Signer {
-			msg := t.Message
+		if pub == safe.Signer {
 			sig := common.DecodeHexOrPanic(requests[0].Signature.String)
-			err = ethereum.VerifySignature(sp.Signer, msg, sig)
+			sig = ethereum.ProcessSignature(sig)
+			err = ethereum.VerifyMessageSignature(safe.Signer, t.Message, sig)
 			if err != nil {
 				panic(requests[0].Signature.String)
 			}
@@ -327,41 +341,37 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, tx.Chain)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 
-	if safe == nil {
+	if safe.State == common.RequestStatePending {
+		rpc, _ := node.ethereumParams(tx.Chain)
+		safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, int64(safe.Timelock), t)
+		logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(safe.Timelock), t, safeaddress.Hex(), err)
+		if err != nil {
+			return err
+		}
+
+		sp, err := node.store.ReadSafeProposalByAddress(ctx, safe.Address)
+		if err != nil {
+			return fmt.Errorf("store.ReadSafeProposalByAddress(%s) => %v", safe.Address, err)
+		}
 		spr, err := node.store.ReadRequest(ctx, sp.RequestId)
 		if err != nil {
 			return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 		}
-		exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(sp.Extra)))
+		exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(safe.Extra)))
 		typ := byte(common.ActionEthereumSafeApproveAccount)
-		crv := SafeChainCurve(sp.Chain)
-		err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
+		crv := SafeChainCurve(safe.Chain)
+		id := common.UniqueId(req.Id, safeaddress.Hex())
+		err = node.sendObserverResponseWithAssetAndReferences(ctx, id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 		if err != nil {
 			return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 		}
 
-		safe := &store.Safe{
-			Holder:    sp.Holder,
-			Chain:     sp.Chain,
-			Signer:    sp.Signer,
-			Observer:  sp.Observer,
-			Timelock:  sp.Timelock,
-			Path:      sp.Path,
-			Address:   sp.Address,
-			Extra:     sp.Extra,
-			Receivers: sp.Receivers,
-			Threshold: sp.Threshold,
-			RequestId: req.Id,
-			State:     SafeStatePending,
-			CreatedAt: req.CreatedAt,
-			UpdatedAt: req.CreatedAt,
-		}
-		return node.store.WriteSafeWithRequest(ctx, safe)
+		return node.store.FinishedSafeWithRequest(ctx, safe, req.Id)
 	}
 
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(t.Marshal())))
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
-	typ := byte(common.ActionBitcoinSafeApproveTransaction)
+	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
 	if err != nil {

@@ -25,22 +25,22 @@ import (
 const (
 	testEthereumSafeAddress = "0xEf1dfD07d60A0000A6DDE2F399ed5E8d5D335bDE"
 	testEthereumKeyHolder   = "4cb7437a31a724c7231f83c01f865bf13fc65725cb6219ac944321f484bf80a2"
-	testEthereumKeySigner   = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
 	testEthereumKeyObserver = "6421d5ce0fd415397fdd2978733852cee7ad44f28d87cd96038460907e2ffb18"
 
-	testMixinKernelBondAssetId         = "afd17288-1765-3d37-ba91-43bb73448ae0"
-	testMixinKernelTransactionReceiver = "XINZrJcfd6QoKrR7Q31YY7gk2zvbU1qkAAZ4xBan4KQYeDq7sZ21g4WFsa2bXKoXSWy4sRvr8grSBRmXPxjDBHbF4jaik5om"
+	testEthereumBondAssetId         = "1cec68e2-3f14-3f1d-a46b-3d37688c95bd"
+	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )
 
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, _, _ := testEthereumPrepare(require)
 
+	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
+	require.Equal(testEthereumBondAssetId, bondId)
+
 	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
 	require.Nil(err)
 	fmt.Println(observer)
-	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
-	require.Equal(testMixinKernelBondAssetId, bondId)
 }
 
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
@@ -106,7 +106,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	}
 	rid, safe := testEthereumProposeAccount(ctx, require, node, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
-	testEthereumApproveAccount(ctx, require, node, rid, safe, signers)
+	testEthereumApproveAccount(ctx, require, node, rid, safe, signers, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAMVM)
 
 	return ctx, node, mpc, signers
@@ -131,18 +131,11 @@ func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assert
 	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
-func testEthereumRecipient() []byte {
-	extra := binary.BigEndian.AppendUint16(nil, uint16(testTimelockDuration/time.Hour))
-	extra = append(extra, 1, 1)
-	id := uuid.FromStringOrNil(testSafeBondReceiverId)
-	return append(extra, id.Bytes()...)
-}
-
 func testEthereumProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, *ethereum.GnosisSafe) {
 	id := uuid.Must(uuid.NewV4()).String()
 	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
 	require.Nil(err)
-	extra := testEthereumRecipient()
+	extra := testRecipient()
 	price := decimal.NewFromFloat(testAccountPriceAmount)
 	out := testBuildHolderRequest(node, id, holder, common.ActionEthereumSafeProposeAccount, testAccountPriceAssetId, extra, price)
 	testStep(ctx, require, node, out)
@@ -171,8 +164,8 @@ func testEthereumProposeAccount(ctx context.Context, require *require.Assertions
 	return id, gs
 }
 
-func testEthereumApproveAccount(ctx context.Context, require *require.Assertions, node *Node, rid string, gs *ethereum.GnosisSafe, signers []*signer.Node) {
-	id := uuid.Must(uuid.NewV4()).String()
+func testEthereumApproveAccount(ctx context.Context, require *require.Assertions, node *Node, rid string, gs *ethereum.GnosisSafe, signers []*signer.Node, safeSigner, safeObserver string) {
+	approveRequestId := uuid.Must(uuid.NewV4()).String()
 	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
 	require.Nil(err)
 	sp, err := node.store.ReadSafeProposalByAddress(ctx, gs.Address)
@@ -185,7 +178,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 
 	extra := uuid.FromStringOrNil(rid).Bytes()
 	extra = append(extra, signature[:]...)
-	out := testBuildObserverRequest(node, id, holder, common.ActionEthereumSafeApproveAccount, extra, common.CurveSecp256k1ECDSAMVM)
+	out := testBuildObserverRequest(node, approveRequestId, holder, common.ActionEthereumSafeApproveAccount, extra, common.CurveSecp256k1ECDSAMVM)
 	testStep(ctx, require, node, out)
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, gs.TxHash, common.RequestStateInitial)
 	require.Nil(err)
@@ -199,25 +192,26 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	out = testBuildSignerOutput(node, requests[0].RequestId, sp.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAMVM)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, gs.TxHash, common.RequestStateDone)
-	require.Len(requests, 2)
+	require.Len(requests, 1)
 	tx, _ = node.store.ReadTransaction(ctx, gs.TxHash)
 	require.Equal(common.RequestStateDone, tx.State)
 
-	// safe, err := node.store.ReadSafe(ctx, holder)
-	// require.Nil(err)
-	// require.Equal(id, safe.RequestId)
-	// require.Equal(holder, safe.Holder)
-	// require.Equal(signer, safe.Signer)
-	// require.Equal(observer, safe.Observer)
-	// public := mixin.BuildAddress(holder, signer, observer)
-	// require.Equal(testMixinKernelAddress, public.String())
-	// require.Equal(public.String(), safe.Address)
-	// require.Equal(byte(1), safe.Threshold)
-	// require.Len(safe.Receivers, 1)
-	// require.Equal(testSafeBondReceiverId, safe.Receivers[0])
-	// var view crypto.Key
-	// copy(view[:], safe.Extra)
-	// require.Equal(view, public.PrivateViewKey)
+	id := common.UniqueId(requests[0].RequestId, gs.Address)
+	r := testReadObserverResponse(ctx, require, node, id, common.ActionEthereumSafeApproveAccount)
+	wsa, err := ethereum.UnmarshalGnosisSafe(r)
+	require.Equal(testEthereumSafeAddress, wsa.Address)
+
+	safe, err := node.store.ReadSafe(ctx, holder)
+	require.Nil(err)
+	require.Equal(approveRequestId, safe.RequestId)
+	require.Equal(holder, safe.Holder)
+	require.Equal(safeSigner, safe.Signer)
+	require.Equal(safeObserver, safe.Observer)
+	require.Equal(gs.Address, safe.Address)
+	require.Equal(byte(1), safe.Threshold)
+	require.Len(safe.Receivers, 1)
+	require.Equal(testSafeBondReceiverId, safe.Receivers[0])
+
 }
 
 func testEthereumSignMessage(require *require.Assertions, priv string, message []byte) ([]byte, error) {

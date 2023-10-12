@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -263,6 +264,8 @@ func transactionInputTable(chain byte) string {
 	switch chain {
 	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
 		return "bitcoin_outputs"
+	case ethereum.ChainEthereum, ethereum.ChainMVM:
+		return ""
 	default:
 		panic(chain)
 	}
