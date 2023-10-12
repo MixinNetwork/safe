@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	testEthereumSafeAddress = "0xEf1dfD07d60A0000A6DDE2F399ed5E8d5D335bDE"
-	testEthereumKeyHolder   = "4cb7437a31a724c7231f83c01f865bf13fc65725cb6219ac944321f484bf80a2"
-	testEthereumKeyObserver = "6421d5ce0fd415397fdd2978733852cee7ad44f28d87cd96038460907e2ffb18"
+	testEthereumSafeAddress    = "0xEf1dfD07d60A0000A6DDE2F399ed5E8d5D335bDE"
+	testEthereumKeyHolder      = "4cb7437a31a724c7231f83c01f865bf13fc65725cb6219ac944321f484bf80a2"
+	testEthereumKeyObserver    = "6421d5ce0fd415397fdd2978733852cee7ad44f28d87cd96038460907e2ffb18"
+	testEthereumKeyDummyHolder = "169b5ed2deaa8ea7171e60598332560b1d01e8a28243510335196acd62fd3a71"
 
 	testEthereumBondAssetId         = "1cec68e2-3f14-3f1d-a46b-3d37688c95bd"
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
@@ -108,27 +109,10 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
 	testEthereumApproveAccount(ctx, require, node, rid, safe, signers, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAMVM)
-
+	for i := 0; i < 10; i++ {
+		testEthereumUpdateNetworkStatus(ctx, require, node, 43084096, "e738f3e9584313e1cba72113985d55473cd1ffc5048b22dc075f3b3860dd019b")
+	}
 	return ctx, node, mpc, signers
-}
-
-func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
-	id := uuid.Must(uuid.NewV4()).String()
-
-	extra := []byte{SafeChainMVM}
-	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
-	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*1000000000000000000)
-	extra = binary.BigEndian.AppendUint64(extra, 100000000000000)
-	dummy, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
-	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSAMVM)
-	testStep(ctx, require, node, out)
-
-	plan, err := node.store.ReadLatestOperationParams(ctx, SafeChainMVM, time.Now())
-	require.Nil(err)
-	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
-	require.Equal(fmt.Sprint(testAccountPriceAmount), plan.OperationPriceAmount.String())
-	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
 func testEthereumProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, *ethereum.GnosisSafe) {
@@ -211,7 +195,49 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(byte(1), safe.Threshold)
 	require.Len(safe.Receivers, 1)
 	require.Equal(testSafeBondReceiverId, safe.Receivers[0])
+}
 
+func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node, blockHeight int, blockHash string) {
+	id := uuid.Must(uuid.NewV4()).String()
+	fee, height := 0, uint64(blockHeight)
+	hash, err := hex.DecodeString(blockHash)
+	require.Nil(err)
+
+	extra := []byte{SafeChainMVM}
+	extra = binary.BigEndian.AppendUint64(extra, uint64(fee))
+	extra = binary.BigEndian.AppendUint64(extra, height)
+	extra = append(extra, hash[:]...)
+	dummy, err := testEthereumPublicKey(testEthereumKeyDummyHolder)
+	require.Nil(err)
+	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSAMVM)
+	testStep(ctx, require, node, out)
+
+	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainMVM, time.Now())
+	require.Nil(err)
+	require.NotNil(info)
+	require.Equal(byte(SafeChainMVM), info.Chain)
+	require.Equal(uint64(fee), info.Fee)
+	require.Equal(height, info.Height)
+	require.Equal(hex.EncodeToString(hash), info.Hash)
+}
+
+func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
+	id := uuid.Must(uuid.NewV4()).String()
+
+	extra := []byte{SafeChainMVM}
+	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
+	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*1000000000000000000)
+	extra = binary.BigEndian.AppendUint64(extra, 100000000000000)
+	dummy, err := testEthereumPublicKey(testEthereumKeyHolder)
+	require.Nil(err)
+	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSAMVM)
+	testStep(ctx, require, node, out)
+
+	plan, err := node.store.ReadLatestOperationParams(ctx, SafeChainMVM, time.Now())
+	require.Nil(err)
+	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
+	require.Equal(fmt.Sprint(testAccountPriceAmount), plan.OperationPriceAmount.String())
+	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
 func testEthereumSignMessage(require *require.Assertions, priv string, message []byte) ([]byte, error) {

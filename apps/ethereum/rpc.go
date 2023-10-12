@@ -20,7 +20,10 @@ type RPCBlock struct {
 }
 
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, 1})
+	if !strings.HasPrefix(hash, "0x") {
+		hash = "0x" + hash
+	}
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, false})
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +32,7 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	height, success := new(big.Int).SetString(b.Number, 16)
+	height, success := new(big.Int).SetString(b.Number[2:], 16)
 	if !success {
 		return nil, fmt.Errorf("Failed to parse ethereum block number")
 	}
