@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/signer"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gofrs/uuid/v5"
@@ -34,14 +36,14 @@ const (
 
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
-	ctx, node, _, _ := testEthereumPrepare(require)
-
-	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
-	require.Equal(testEthereumBondAssetId, bondId)
+	ctx, node, mpc, _ := testEthereumPrepare(require)
 
 	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
 	require.Nil(err)
-	fmt.Println(observer)
+	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
+	require.Equal(testEthereumBondAssetId, bondId)
+	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(10000000000), CreatedAt: time.Now()})
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "e738f3e9584313e1cba72113985d55473cd1ffc5048b22dc075f3b3860dd019b", testEthereumSafeAddress, bondId, 10000000000)
 }
 
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
@@ -195,6 +197,27 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(byte(1), safe.Threshold)
 	require.Len(safe.Receivers, 1)
 	require.Equal(testSafeBondReceiverId, safe.Receivers[0])
+}
+
+func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, block, address, asset_id string, balance int64) {
+	id := uuid.Must(uuid.NewV4()).String()
+	addr, err := hex.DecodeString(address[2:])
+	require.Nil(err)
+	b, err := hex.DecodeString(block)
+	require.Nil(err)
+	extra := []byte{SafeChainMVM}
+	extra = append(extra, uuid.Must(uuid.FromString(SafeMVMChainId)).Bytes()...)
+	extra = append(extra, addr[:]...)
+	extra = append(extra, b[:]...)
+	extra = append(extra, big.NewInt(balance).Bytes()...)
+
+	holder := testPublicKey(testEthereumKeyHolder)
+	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSAMVM)
+	testStep(ctx, require, node, out)
+
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, SafeMVMChainId)
+	require.Nil(err)
+	require.Equal(balance, safeBalance.Int64())
 }
 
 func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node, blockHeight int, blockHash string) {

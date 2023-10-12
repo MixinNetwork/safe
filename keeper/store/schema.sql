@@ -161,6 +161,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS bitcoin_outputs_by_request_id ON bitcoin_outpu
 
 
 
+CREATE TABLE IF NOT EXISTS ethereum_balances (
+  address            VARCHAR NOT NULL,
+  asset_id           VARCHAR NOT NULL,
+  balance            INTEGER NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('address')
+);
+
+
+
+
+
+
+
 CREATE TABLE IF NOT EXISTS transactions (
   transaction_hash   VARCHAR NOT NULL,
   raw_transaction    VARCHAR NOT NULL,

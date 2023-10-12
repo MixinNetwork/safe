@@ -10,6 +10,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/gofrs/uuid/v5"
@@ -17,11 +18,12 @@ import (
 )
 
 type Deposit struct {
-	Chain  byte
-	Asset  string
-	Hash   string
-	Index  uint64
-	Amount *big.Int
+	Chain   byte
+	Asset   string
+	Hash    string
+	Address string
+	Index   uint64
+	Amount  *big.Int
 }
 
 func parseDepositExtra(req *common.Request) (*Deposit, error) {
@@ -45,10 +47,10 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
-	case SafeChainEthereum:
-		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
-		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
-		deposit.Amount = new(big.Int).SetBytes(extra[40:])
+	case SafeChainEthereum, SafeChainMVM:
+		deposit.Address = "0x" + hex.EncodeToString(extra[0:20])
+		deposit.Hash = "0x" + hex.EncodeToString(extra[20:52])
+		deposit.Amount = new(big.Int).SetBytes(extra[52:])
 	default:
 		return nil, fmt.Errorf("invalid deposit chain %d", deposit.Chain)
 	}
@@ -71,13 +73,16 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != deposit.Chain {
+		logger.Printf("Safe not exists or invalid chain %v", safe)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if safe.State != SafeStateApproved {
+		logger.Printf("Invalid safe state %d", safe.State)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	bondId, bondChain, err := node.getBondAsset(ctx, deposit.Asset, req.Holder)
+	logger.Printf("node.getBondAsset(%s %s) => %s %d %v", deposit.Asset, req.Holder, bondId, bondChain, err)
 	if err != nil {
 		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", deposit.Asset, req.Holder, err)
 	}
@@ -111,8 +116,8 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	switch deposit.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
-	case SafeChainEthereum:
-		panic(0)
+	case SafeChainEthereum, SafeChainMVM:
+		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -172,6 +177,27 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	}
 
 	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
+}
+
+// FIXME Keeper should deny new deposits when too many unspent outputs
+func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
+	if asset.Decimals != ethereum.ValuePrecision {
+		panic(asset.Decimals)
+	}
+
+	rpc, _ := node.ethereumParams(deposit.Chain)
+	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, deposit.Address)
+	if err != nil {
+		return fmt.Errorf("ethereum.RPCGetAddressBalance(%s) => %v", deposit.Hash, err)
+	}
+	if balance.Cmp(deposit.Amount) != 0 {
+		return fmt.Errorf("inconsistent %s balance: %v %v", safe.Address, deposit.Amount, balance)
+	}
+
+	// FIXME: tryToCloseEthereumAccountsFromUnannouncedRecovery?
+	// FIXME: verifyBitcoinTransaction?
+
+	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe.Address, asset.AssetId, deposit.Amount, req, safe.Chain)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {
