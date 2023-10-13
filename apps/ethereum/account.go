@@ -58,7 +58,7 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 	}, nil
 }
 
-func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
+func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
 	owners, _, err := GetSortedSafeOwners(holder, signer, observer)
 	if err != nil {
 		return nil, nil, err
@@ -80,7 +80,7 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer string, 
 	return &GnosisSafe{
 		Sequence: uint32(sequence),
 		Address:  safeAddress,
-		TxHash:   hex.EncodeToString(t.Message),
+		TxHash:   t.Hash(rid),
 	}, t, nil
 }
 
@@ -99,8 +99,7 @@ func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string, e
 	return owners, pubs, nil
 }
 
-// owners should be in the order of hold, signer and observer
-func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock int64, tx *SafeTransaction) (*common.Address, error) {
+func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
 	addr := GetSafeAccountAddress(owners, threshold)
 
 	isGuarded, isDeployed, err := CheckSafeAccountDeployed(rpc, addr.String())
@@ -114,7 +113,7 @@ func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, t
 		}
 	}
 	if !isGuarded {
-		err = EnableGuard(rpc, key, timelock, owners[2], addr.Hash().String(), tx)
+		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hash().String(), tx)
 		if err != nil {
 			return nil, err
 		}

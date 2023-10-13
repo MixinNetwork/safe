@@ -127,7 +127,7 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 
 	testSafeTransactionMarshal(require, tx)
 
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock), tx)
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, int64(threshold), int64(timelock), 2, tx)
 	require.Nil(err)
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 	return safeaddress.String()

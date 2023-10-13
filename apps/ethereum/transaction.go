@@ -80,8 +80,12 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 	return tx, nil
 }
 
-func (tx *SafeTransaction) Hash() []byte {
-	return tx.Message
+func (tx *SafeTransaction) Hash(id string) string {
+	var txData []byte
+	txData = append(txData, []byte(id)...)
+	txData = append(txData, tx.Message...)
+	hash := crypto.Keccak256(txData)
+	return hex.EncodeToString(hash)
 }
 
 func (tx *SafeTransaction) Marshal() []byte {

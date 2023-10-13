@@ -238,6 +238,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processEthereumSafeProposeTransaction(ctx, req)
 	case common.ActionEthereumSafeRevokeTransaction:
 		return node.processEthereumSafeRevokeTransaction(ctx, req)
+	case common.ActionEthereumSafeApproveTransaction:
+		return node.processEthereumSafeApproveTransaction(ctx, req)
 	default:
 		panic(req.Action)
 	}
