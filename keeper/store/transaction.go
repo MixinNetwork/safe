@@ -215,23 +215,25 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	defer tx.Rollback()
 
 	table := transactionInputTable(trx.Chain)
-	inputs := TransactionInputsFromRawTransaction(trx)
-	update := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?", table)
-	query := fmt.Sprintf("SELECT address FROM %s WHERE transaction_hash=? AND output_index=?", table)
-	for _, in := range inputs {
-		err = s.execOne(ctx, tx, update, common.RequestStateInitial, nil, req.CreatedAt, in.Hash, in.Index, trx.TransactionHash)
-		if err != nil {
-			return fmt.Errorf("UPDATE %s %v", table, err)
-		}
+	if table != "" {
+		inputs := TransactionInputsFromRawTransaction(trx)
+		update := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?", table)
+		query := fmt.Sprintf("SELECT address FROM %s WHERE transaction_hash=? AND output_index=?", table)
+		for _, in := range inputs {
+			err = s.execOne(ctx, tx, update, common.RequestStateInitial, nil, req.CreatedAt, in.Hash, in.Index, trx.TransactionHash)
+			if err != nil {
+				return fmt.Errorf("UPDATE %s %v", table, err)
+			}
 
-		var receiver string
-		row := tx.QueryRowContext(ctx, query, in.Hash, in.Index)
-		err = row.Scan(&receiver)
-		if err != nil {
-			return err
-		}
-		if receiver != safe.Address {
-			panic(trx.TransactionHash)
+			var receiver string
+			row := tx.QueryRowContext(ctx, query, in.Hash, in.Index)
+			err = row.Scan(&receiver)
+			if err != nil {
+				return err
+			}
+			if receiver != safe.Address {
+				panic(trx.TransactionHash)
+			}
 		}
 	}
 

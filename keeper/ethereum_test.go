@@ -45,7 +45,8 @@ func TestEthereumKeeper(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(100010000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ae9da299dfe98dbaa571a527550a9184184b2452cb4de52eaa2c961d8c4a1a9a", testEthereumSafeAddress, bondId, 100010000000000)
 
-	_ = testEthereumProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
+	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
+	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
 }
 
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
@@ -146,6 +147,32 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	require.Equal(common.RequestStateInitial, stx.State)
 
 	return stx.TransactionHash
+}
+
+func testEthereumRevokeTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string, signByObserver bool) {
+	id := uuid.Must(uuid.NewV4()).String()
+
+	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStateInitial, tx.State)
+
+	key := testEthereumKeyHolder
+	if signByObserver {
+		key = testEthereumKeyObserver
+	}
+	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
+	sig, err := testEthereumSignMessage(require, key, []byte(ms))
+	require.Nil(err)
+
+	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	extra = append(extra, sig...)
+
+	out := testBuildObserverRequest(node, id, testPublicKey(testEthereumKeyHolder), common.ActionEthereumSafeRevokeTransaction, extra, common.CurveSecp256k1ECDSAMVM)
+	testStep(ctx, require, node, out)
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
+	require.Nil(err)
+	require.Len(requests, 0)
+	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStateFailed, tx.State)
 }
 
 func testEthereumProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, *ethereum.GnosisSafe) {
