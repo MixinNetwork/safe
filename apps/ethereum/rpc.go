@@ -31,16 +31,18 @@ type RPCTransaction struct {
 	BlockHash        string `json:"blockHash"`
 	BlockNumber      string `json:"blockNumber"`
 	ChainID          string `json:"chainId"`
+	From             string `json:"from"`
 	Gas              string `json:"gas"`
 	GasPrice         string `json:"gasPrice"`
 	Hash             string `json:"hash"`
 	Input            string `json:"input"`
 	Nonce            string `json:"Nonce"`
-	From             string `json:"from"`
 	To               string `json:"to"`
 	TransactionIndex string `json:"transactionIndex"`
 	Type             string `json:"type"`
 	Value            string `json:"value"`
+
+	BlockHeight uint64
 }
 
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
@@ -56,11 +58,11 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	height, success := new(big.Int).SetString(b.Number[2:], 16)
-	if !success {
-		return nil, fmt.Errorf("Failed to parse ethereum block number")
+	blockHeight, err := ethereumNumberToUint64(b.Number)
+	if err != nil {
+		return nil, err
 	}
-	b.Height = height.Uint64()
+	b.Height = blockHeight
 	return &b, err
 }
 
@@ -77,18 +79,60 @@ func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, e
 	if err != nil {
 		return nil, err
 	}
-	height, success := new(big.Int).SetString(b.Number[2:], 16)
-	if !success {
-		return nil, fmt.Errorf("Failed to parse ethereum block number")
+	blockHeight, err := ethereumNumberToUint64(b.Number)
+	if err != nil {
+		return nil, err
 	}
-	b.Height = height.Uint64()
+	b.Height = blockHeight
 	for _, tx := range b.Tx {
 		tx.BlockHash = hash
 	}
 	return &b, err
 }
 
-func RPCGetAddressBalance(rpc, blockHash, address string) (*big.Int, error) {
+func RPCGetAddressBalance(rpc, txHash, address string) (*big.Int, error) {
+	tx, err := RPCGetTransactionByHash(rpc, txHash)
+	if err != nil {
+		return nil, err
+	}
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, tx.BlockHash})
+	if err != nil {
+		return nil, err
+	}
+	var b string
+	err = json.Unmarshal(res, &b)
+	if err != nil {
+		return nil, err
+	}
+	balance, success := new(big.Int).SetString(b[2:], 16)
+	if !success {
+		return nil, fmt.Errorf("Failed to parse address balance")
+	}
+	return balance, err
+}
+
+func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
+	if !strings.HasPrefix(hash, "0x") {
+		hash = "0x" + hash
+	}
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getTransactionByHash", []any{hash})
+	if err != nil {
+		return nil, err
+	}
+	var b RPCTransaction
+	err = json.Unmarshal(res, &b)
+	if err != nil {
+		return nil, err
+	}
+	blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
+	if err != nil {
+		return nil, err
+	}
+	b.BlockHeight = blockHeight
+	return &b, err
+}
+
+func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, error) {
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, blockHash})
 	if err != nil {
 		return nil, err
@@ -163,4 +207,18 @@ func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
 
 func buildRPCError(rpc, method string, params []any, err error) error {
 	return fmt.Errorf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
+}
+
+func ethereumNumberToUint64(hex string) (uint64, error) {
+	if !strings.HasPrefix(hex, "0x") {
+		return 0, fmt.Errorf("invalid hex %s", hex)
+	}
+	value, success := new(big.Int).SetString(hex, 0)
+	if !success {
+		return 0, fmt.Errorf("invalid hex %s", hex)
+	}
+	if !value.IsUint64() {
+		return 0, fmt.Errorf("invalid uint64 %s", hex)
+	}
+	return value.Uint64(), nil
 }

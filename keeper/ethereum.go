@@ -17,6 +17,201 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *common.Request) error {
+	if req.Role != common.RequestRoleObserver {
+		panic(req.Role)
+	}
+	chain := SafeCurveChain(req.Curve)
+	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	if err != nil {
+		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+	}
+	if safe == nil || safe.Chain != chain {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if safe.State != SafeStateApproved {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	extra, _ := hex.DecodeString(req.Extra)
+	if len(extra) != 48 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	var ref crypto.Hash
+	copy(ref[:], extra[16:])
+	raw := node.readStorageExtraFromObserver(ctx, ref)
+
+	t, err := ethereum.UnmarshalSafeTransaction(raw)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, t, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", safe.Holder, safe.Signer, safe.Observer, pubs, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	signedByObserver := false
+	for i, pub := range pubs {
+		if pub == safe.Observer {
+			sig := t.Signatures[i]
+			err = ethereum.VerifyMessageSignature(safe.Observer, t.Message, sig)
+			logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", safe.Observer, t.Message, sig, err)
+			if err == nil {
+				signedByObserver = true
+			}
+		}
+	}
+	if !signedByObserver {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if t.Destination.Hex() == safe.Address {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	rid, err := uuid.FromBytes(extra[:16])
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if rid.String() == uuid.Nil.String() {
+		if count != 0 {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		err = node.closeEthereumAccountWithHolder(ctx, req, safe, raw, t.Destination.Hex())
+		logger.Printf("node.closeEthereumAccountWithHolder(%v, %s) => %v", req, t.Destination.Hex(), err)
+		return err
+	}
+
+	if count != 1 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
+	if err != nil {
+		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
+	} else if tx == nil {
+		return node.store.FailRequest(ctx, req.Id)
+	} else if tx.Holder != req.Holder {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	b := common.DecodeHexOrPanic(tx.RawTransaction)
+	proposedTx, _ := ethereum.UnmarshalSafeTransaction(b)
+	if hex.EncodeToString(t.Message) != hex.EncodeToString(proposedTx.Message) {
+		logger.Printf("Inconsistent safe tx message: %s %s", hex.EncodeToString(t.Message), hex.EncodeToString(proposedTx.Message))
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
+	if err != nil {
+		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
+	}
+	if meta.Chain != SafeChainMVM {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, meta.AssetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, meta.AssetId, balance, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if new(big.Int).SetUint64(balance.Balance).Cmp(t.Value) != 0 {
+		return fmt.Errorf("Inconsistent safe balance: %d %d", balance.Balance, t.Value.Uint64())
+	}
+
+	rpc, _ := node.ethereumParams(safe.Chain)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	sequence := uint64(ethereum.ParseSequence(safe.Timelock, safe.Chain))
+	transaction, err := ethereum.RPCGetTransactionByHash(rpc, balance.LatestTxHash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, balance.LatestTxHash, transaction, err)
+	if err != nil {
+		return err
+	}
+	if transaction.BlockHeight == 0 || transaction.BlockHeight+sequence+100 > info.Height {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
+	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	sr := &store.SignatureRequest{
+		TransactionHash: t.Hash(req.Id),
+		InputIndex:      0,
+		Signer:          safe.Signer,
+		Curve:           req.Curve,
+		Message:         hex.EncodeToString(hash),
+		State:           common.RequestStateInitial,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+	sr.RequestId = common.UniqueId(req.Id, sr.Message)
+	err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+	logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
+	if err != nil {
+		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+	}
+
+	err = node.sendSignerSignRequest(ctx, sr, safe.Path)
+	if err != nil {
+		return fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
+	}
+	return nil
+}
+
+func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, receiver string) error {
+	t, _ := ethereum.UnmarshalSafeTransaction(raw)
+	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", safe.Holder, safe.Signer, safe.Observer, pubs, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	signedByHolder := false
+	for i, pub := range pubs {
+		if pub == safe.Holder {
+			sig := t.Signatures[i]
+			err = ethereum.VerifyMessageSignature(safe.Holder, t.Message, sig)
+			logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", safe.Holder, t.Message, sig, err)
+			if err == nil {
+				signedByHolder = true
+			}
+		}
+	}
+	if !signedByHolder {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	amt := decimal.New(t.Value.Int64(), -ethereum.ValuePrecision)
+	data := common.MarshalJSONOrPanic([]map[string]string{{
+		"receiver": receiver,
+		"amount":   amt.String(),
+	}})
+	tx := &store.Transaction{
+		TransactionHash: t.Hash(safe.RequestId),
+		RawTransaction:  hex.EncodeToString(raw),
+		Holder:          req.Holder,
+		Chain:           safe.Chain,
+		State:           common.RequestStateDone,
+		Data:            string(data),
+		RequestId:       req.Id,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
+}
+
 func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *common.Request) error {
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
@@ -416,7 +611,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
 		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
 
-	extra = t.Marshal()
+	extra = uuid.Must(uuid.FromString(req.Id)).Bytes()
+	extra = append(extra, t.Marshal()...)
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
@@ -428,7 +624,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
 		TransactionHash: t.Hash(req.Id),
-		RawTransaction:  hex.EncodeToString(extra),
+		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
 		AssetId:         assetId,

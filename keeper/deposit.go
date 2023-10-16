@@ -187,8 +187,9 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 
 	rpc, _ := node.ethereumParams(deposit.Chain)
 	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, deposit.Address)
+	logger.Printf("ethereum.RPCGetAddressBalance(%v) => %v", deposit, err)
 	if err != nil {
-		return fmt.Errorf("ethereum.RPCGetAddressBalance(%s) => %v", deposit.Hash, err)
+		return err
 	}
 	if balance.Cmp(deposit.Amount) != 0 {
 		return fmt.Errorf("inconsistent %s balance: %v %v", safe.Address, deposit.Amount, balance)
@@ -197,7 +198,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	// FIXME: tryToCloseEthereumAccountsFromUnannouncedRecovery?
 	// FIXME: verifyBitcoinTransaction?
 
-	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe.Address, asset.AssetId, deposit.Amount, req, safe.Chain)
+	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe.Address, asset.AssetId, deposit.Hash, deposit.Amount, req, safe.Chain)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {

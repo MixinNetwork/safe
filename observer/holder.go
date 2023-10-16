@@ -85,8 +85,12 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 		psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 		txHash = psbt.UnsignedTx.TxHash().String()
 	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
-		t, _ := ethereum.UnmarshalSafeTransaction(extra)
-		txHash = hex.EncodeToString(t.Hash())
+		id := uuid.FromBytesOrNil(extra[:16])
+		if id.IsNil() {
+			return fmt.Errorf("Empty transaction proposal id")
+		}
+		t, _ := ethereum.UnmarshalSafeTransaction(extra[16:])
+		txHash = t.Hash(id.String())
 	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
