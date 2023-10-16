@@ -207,7 +207,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		"amount":   amt.String(),
 	}})
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(safe.RequestId),
+		TransactionHash: t.Hash(safe.Address),
 		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,

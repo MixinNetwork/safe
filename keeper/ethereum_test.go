@@ -127,6 +127,68 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.True(success)
 }
 
+func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
+	require := require.New(t)
+	ctx, node, mpc, _ := testEthereumPrepare(require)
+	for i := 0; i < 10; i++ {
+		testEthereumUpdateNetworkStatus(ctx, require, node, 43449605, "aed58c19f879c9298da96c1c598554aeccf4b858d4d421b651b9e528a7d8d6d3")
+	}
+
+	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
+	require.Nil(err)
+	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
+	require.Nil(err)
+	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
+	require.Equal(testEthereumBondAssetId, bondId)
+	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumSafeAddress, bondId, 100000000000000)
+
+	rpc, _ := node.ethereumParams(SafeChainMVM)
+	chainId := ethereum.GetEvmChainID(SafeChainMVM)
+	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, 100000000000000, nil)
+	require.Nil(err)
+
+	safe, _ := node.store.ReadSafe(ctx, holder)
+	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	require.Nil(err)
+	for i, pub := range pubs {
+		var sig []byte
+		if pub == observer {
+			sig, err = testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
+			require.Nil(err)
+			st.Signatures[i] = sig
+		}
+		if pub == holder {
+			sig, err = testEthereumSignMessage(require, testEthereumKeyHolder, st.Message)
+			require.Nil(err)
+			st.Signatures[i] = sig
+		}
+	}
+	raw := st.Marshal()
+
+	ref := mc.NewHash(raw)
+	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+	require.Nil(err)
+	extra := uuid.Nil.Bytes()
+	extra = append(extra, ref[:]...)
+	id := uuid.Must(uuid.NewV4()).String()
+	out := testBuildObserverRequest(node, id, holder, common.ActionEthereumSafeCloseAccount, extra, common.CurveSecp256k1ECDSAMVM)
+	testStep(ctx, require, node, out)
+
+	tx, err := node.store.ReadTransaction(ctx, st.Hash(testEthereumSafeAddress))
+	require.Nil(err)
+	require.Equal(common.RequestStateDone, tx.State)
+	safe, err = node.store.ReadSafe(ctx, tx.Holder)
+	require.Nil(err)
+	require.Equal(common.RequestStateFailed, int(safe.State))
+
+	raw, _ = hex.DecodeString(tx.RawTransaction)
+	stx, _ := ethereum.UnmarshalSafeTransaction(raw)
+	success, err := stx.ValidTransaction(rpc)
+	require.Nil(err)
+	require.True(success)
+}
+
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
 	logger.SetLevel(logger.VERBOSE)
 	ctx, signers := signer.TestPrepare(require)
