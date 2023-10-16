@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -114,8 +115,10 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if meta.Chain != SafeChainMVM {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, meta.AssetId)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, meta.AssetId, balance, err)
+
+	rpc, asset_id := node.ethereumParams(safe.Chain)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -123,7 +126,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return fmt.Errorf("Inconsistent safe balance: %d %d", balance.Balance, t.Value.Uint64())
 	}
 
-	rpc, _ := node.ethereumParams(safe.Chain)
 	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
@@ -148,7 +150,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	sr := &store.SignatureRequest{
-		TransactionHash: t.Hash(req.Id),
+		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
 		Signer:          safe.Signer,
 		Curve:           req.Curve,
@@ -167,6 +169,12 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	err = node.sendSignerSignRequest(ctx, sr, safe.Path)
 	if err != nil {
 		return fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
+	}
+
+	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
+	logger.Printf("store.UpdateInitialTransaction(%v) => %v", tx, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	return nil
 }
@@ -906,8 +914,8 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			}
 		}
 		rpc, _ := node.ethereumParams(tx.Chain)
-		safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, int64(safe.Timelock), index, t)
-		logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(safe.Timelock), t, safeaddress.Hex(), err)
+		safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, int64(safe.Timelock/time.Hour), index, t)
+		logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(safe.Timelock/time.Hour), t, safeaddress.Hex(), err)
 		if err != nil {
 			return err
 		}
