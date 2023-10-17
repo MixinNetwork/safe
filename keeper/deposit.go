@@ -136,11 +136,6 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		return fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err)
 	}
-	closed, err := node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx, req, btx, safe.Chain)
-	logger.Printf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", btx, closed, err)
-	if err != nil || len(closed) > 0 {
-		return fmt.Errorf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", btx, closed, err)
-	}
 
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
 	change, err := node.checkBitcoinChange(ctx, deposit, btx)
