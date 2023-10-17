@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/gofrs/uuid/v5"
@@ -190,84 +189,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		}
 	}
 	return nil
-}
-
-func (node *Node) tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx context.Context, req *common.Request, btx *bitcoin.RPCTransaction, chain byte) ([]string, error) {
-	var safe *store.Safe
-	var inputs []*bitcoin.Input
-	for _, vin := range btx.Vin {
-		in, spentBy, err := node.store.ReadBitcoinUTXO(ctx, vin.TxId, int(vin.VOUT))
-		if err != nil {
-			return nil, fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", vin.TxId, vin.VOUT, err)
-		}
-		if in == nil || spentBy != "" {
-			continue
-		}
-		addr, err := bitcoin.EncodeAddress(in.Script, chain)
-		if err != nil {
-			panic(in.TransactionHash)
-		}
-		another, err := node.store.ReadSafeByAddress(ctx, addr)
-		if err != nil {
-			return nil, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", addr, err)
-		}
-		if safe == nil {
-			safe = another
-		}
-		if safe.Holder != another.Holder {
-			return nil, fmt.Errorf("tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v)", btx)
-		}
-		inputs = append(inputs, in)
-	}
-	if len(inputs) == 0 {
-		return nil, nil
-	}
-	if safe.State != SafeStateApproved { // TODO close multiple safes
-		return nil, nil
-	}
-	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(btx.Hex, safe.Holder)
-	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) => %t", btx.Hex, safe.Holder, signedByHolder)
-	if !signedByHolder {
-		return nil, fmt.Errorf("tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v)", btx)
-	}
-	opk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
-	if err != nil {
-		return nil, fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", safe.Observer, err)
-	}
-	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(btx.Hex, opk)
-	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) => %t", btx.Hex, opk, signedByObserver)
-	if !signedByObserver {
-		return nil, fmt.Errorf("tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v)", btx)
-	}
-	rtx, err := btcutil.NewTxFromBytes(common.DecodeHexOrPanic(btx.Hex))
-	if err != nil {
-		return nil, err
-	}
-	out := rtx.MsgTx().TxOut[0]
-	amt := decimal.New(out.Value, -bitcoin.ValuePrecision)
-	receiver, err := bitcoin.ExtractPkScriptAddr(out.PkScript, chain)
-	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", out.PkScript, receiver, err)
-	if err != nil {
-		panic(err)
-	}
-	data := common.MarshalJSONOrPanic([]map[string]string{{
-		"receiver": receiver,
-		"amount":   amt.String(),
-	}})
-	tx := &store.Transaction{
-		TransactionHash: btx.TxId,
-		RawTransaction:  btx.Hex,
-		Holder:          req.Holder,
-		Chain:           chain,
-		State:           common.RequestStateDone,
-		Data:            string(data),
-		RequestId:       req.Id,
-		CreatedAt:       req.CreatedAt,
-		UpdatedAt:       req.CreatedAt,
-	}
-	transacionInputs := store.TransactionInputsFromBitcoin(inputs)
-	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStatePending)
-	return []string{safe.Holder}, err
 }
 
 func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, mainInputs []*bitcoin.Input, receiver string) error {

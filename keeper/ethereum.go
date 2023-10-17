@@ -220,66 +220,6 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
 }
 
-func (node *Node) tryToCloseEthereumAccountsFromUnannouncedRecovery(ctx context.Context, req *common.Request, etx *ethereum.RPCTransaction, chain byte) ([]string, error) {
-	rpc, _ := node.ethereumParams(chain)
-	st, err := ethereum.UnpackSafeTransactionInput(rpc, etx, chain)
-	if err != nil {
-		return nil, err
-	}
-	if st == nil {
-		return nil, nil
-	}
-	safe, err := node.store.ReadSafeByAddress(ctx, st.SafeAddress)
-	if err != nil {
-		return nil, err
-	}
-	if safe.State != SafeStateApproved { // TODO close multiple safes
-		return nil, nil
-	}
-	if safe.Address == st.Destination.Hex() {
-		return nil, nil
-	}
-
-	offset := 0
-	length := 65
-	pubs := []string{safe.Holder, safe.Observer}
-	sigs := make(map[string][]byte, 2)
-	for offset+length <= len(st.Signature) {
-		end := offset + length
-		sig := st.Signature[offset:end]
-		for _, pub := range pubs {
-			err = ethereum.VerifyMessageSignature(pub, st.Message, sig)
-			if err == nil {
-				sigs[pub] = sig
-			}
-		}
-		offset += length
-	}
-	if sigs[safe.Holder] == nil || sigs[safe.Observer] == nil {
-		return nil, fmt.Errorf("tryToCloseEthereumAccountsFromUnannouncedRecovery(%v %v)", sigs[safe.Holder], sigs[safe.Observer])
-	}
-
-	amt := decimal.NewFromBigInt(st.Value, -ethereum.ValuePrecision)
-	data := common.MarshalJSONOrPanic([]map[string]string{{
-		"receiver": st.Destination.Hex(),
-		"amount":   amt.String(),
-	}})
-	tx := &store.Transaction{
-		TransactionHash: etx.Hash,
-		RawTransaction:  hex.EncodeToString(st.Marshal()),
-		Holder:          req.Holder,
-		Chain:           chain,
-		State:           common.RequestStateDone,
-		Data:            string(data),
-		RequestId:       req.Id,
-		CreatedAt:       req.CreatedAt,
-		UpdatedAt:       req.CreatedAt,
-	}
-	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStatePending)
-	logger.Printf("store.CloseAccountByTransactionWithRequest(%v) => %v", tx, err)
-	return []string{safe.Holder}, err
-}
-
 func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *common.Request) error {
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)

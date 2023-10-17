@@ -141,11 +141,6 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		return fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err)
 	}
-	closed, err := node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(ctx, req, btx, safe.Chain)
-	logger.Printf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", btx, closed, err)
-	if err != nil || len(closed) > 0 {
-		return fmt.Errorf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", btx, closed, err)
-	}
 
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
 	change, err := node.checkBitcoinChange(ctx, deposit, btx)
@@ -179,7 +174,6 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
 }
 
-// FIXME Keeper should deny new deposits when too many unspent outputs
 func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
 	if asset.Decimals != ethereum.ValuePrecision {
 		panic(asset.Decimals)
@@ -190,11 +184,6 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	logger.Printf("ethereum.RPCGetTransactionByHash(%v) => %v %v", deposit, etx, err)
 	if err != nil {
 		return err
-	}
-	closed, err := node.tryToCloseEthereumAccountsFromUnannouncedRecovery(ctx, req, etx, safe.Chain)
-	logger.Printf("node.tryToCloseEthereumAccountsFromUnannouncedRecovery(%v) => %v %v", etx, closed, err)
-	if err != nil || len(closed) > 0 {
-		return fmt.Errorf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", etx, closed, err)
 	}
 
 	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, deposit.Address)
