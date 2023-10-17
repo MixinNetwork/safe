@@ -186,6 +186,17 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 
 	rpc, _ := node.ethereumParams(deposit.Chain)
+	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%v) => %v %v", deposit, etx, err)
+	if err != nil {
+		return err
+	}
+	closed, err := node.tryToCloseEthereumAccountsFromUnannouncedRecovery(ctx, req, etx, safe.Chain)
+	logger.Printf("node.tryToCloseEthereumAccountsFromUnannouncedRecovery(%v) => %v %v", etx, closed, err)
+	if err != nil || len(closed) > 0 {
+		return fmt.Errorf("node.tryToCloseBitcoinAccountsFromUnannouncedRecovery(%v) => %v %v", etx, closed, err)
+	}
+
 	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, deposit.Address)
 	logger.Printf("ethereum.RPCGetAddressBalance(%v) => %v", deposit, err)
 	if err != nil {
@@ -194,9 +205,6 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if balance.Cmp(deposit.Amount) != 0 {
 		return fmt.Errorf("inconsistent %s balance: %v %v", safe.Address, deposit.Amount, balance)
 	}
-
-	// FIXME: tryToCloseEthereumAccountsFromUnannouncedRecovery?
-	// FIXME: verifyBitcoinTransaction?
 
 	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe.Address, asset.AssetId, deposit.Hash, deposit.Amount, req, safe.Chain)
 }

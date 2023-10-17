@@ -11,9 +11,11 @@ import (
 	"github.com/MixinNetwork/safe/apps"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
+	"github.com/ethereum/go-ethereum"
 	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 // gnosis safe
@@ -35,6 +37,8 @@ type SafeTransaction struct {
 	Nonce          *big.Int
 	Message        []byte
 	Signatures     [][]byte
+
+	Signature []byte
 }
 
 type Output struct {
@@ -294,4 +298,24 @@ func GetNonce(rpc, address string) (int64, error) {
 		return 0, err
 	}
 	return nonce.Int64(), nil
+}
+
+func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error) {
+	data, err := hex.DecodeString("affed0e0")
+	if err != nil {
+		return nil, err
+	}
+	addr := common.HexToAddress(address)
+	callMsg := ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}
+	conn, err := ethclient.Dial(rpc)
+	defer conn.Close()
+	if err != nil {
+		return nil, err
+	}
+	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
+	n := new(big.Int).SetBytes(response)
+	return new(big.Int).Sub(n, big.NewInt(1)), nil
 }
