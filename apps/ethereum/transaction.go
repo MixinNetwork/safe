@@ -7,12 +7,12 @@ import (
 	"math/big"
 	"strings"
 
-	mixinCommon "github.com/MixinNetwork/mixin/common"
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	commonAbi "github.com/MixinNetwork/safe/common/abi"
+	ca "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum"
-	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
+	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -97,7 +97,7 @@ func (tx *SafeTransaction) Hash(id string) string {
 }
 
 func (tx *SafeTransaction) Marshal() []byte {
-	enc := mixinCommon.NewEncoder()
+	enc := mc.NewEncoder()
 	enc.WriteUint64(uint64(tx.ChainID))
 	bitcoin.WriteBytes(enc, []byte(tx.SafeAddress))
 	bitcoin.WriteBytes(enc, tx.Destination.Bytes())
@@ -116,7 +116,7 @@ func (tx *SafeTransaction) Marshal() []byte {
 }
 
 func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
-	dec := mixinCommon.NewDecoder(b)
+	dec := mc.NewDecoder(b)
 	chainID, err := dec.ReadUint64()
 	if err != nil {
 		return nil, err
@@ -220,7 +220,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 }
 
 func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
-	signer, err := commonAbi.SignerInit(key)
+	signer, err := ca.SignerInit(key)
 	if err != nil {
 		return "", err
 	}
@@ -275,7 +275,7 @@ func (tx *SafeTransaction) GetTransactionHash() []byte {
 }
 
 func (tx *SafeTransaction) GetEnableGuradData(address string) []byte {
-	safeAbi, err := gethAbi.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
+	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
 	}

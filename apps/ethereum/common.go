@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
+	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -111,7 +111,7 @@ func PrivToAddress(priv string) (*common.Address, error) {
 }
 
 func UnpackSafeTransactionInput(rpc string, tx *RPCTransaction, chain byte) (*SafeTransaction, error) {
-	safeAbi, err := gethAbi.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
+	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func UnpackSafeTransactionInput(rpc string, tx *RPCTransaction, chain byte) (*Sa
 }
 
 func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, fallbackHandler, paymentToken, paymentReceiver common.Address, payment *big.Int) []byte {
-	safeAbi, err := gethAbi.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
+	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
 	}
@@ -185,12 +185,12 @@ func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, 
 }
 
 func packSafeArguments(address string) []byte {
-	addressTy, err := gethAbi.NewType("address", "", nil)
+	addressTy, err := ga.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: addressTy,
 		},
@@ -206,12 +206,12 @@ func packSafeArguments(address string) []byte {
 }
 
 func packSaltArguments(salt *big.Int) []byte {
-	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
+	uint256Ty, err := ga.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: uint256Ty,
 		},
@@ -227,19 +227,19 @@ func packSaltArguments(salt *big.Int) []byte {
 }
 
 func packSafeTransactionArguments(tx *SafeTransaction) []byte {
-	bytes32Ty, err := gethAbi.NewType("bytes32", "", nil)
+	bytes32Ty, err := ga.NewType("bytes32", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	addressTy, err := gethAbi.NewType("address", "", nil)
+	addressTy, err := ga.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
+	uint256Ty, err := ga.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: bytes32Ty,
 		},
@@ -299,19 +299,19 @@ func packSafeTransactionArguments(tx *SafeTransaction) []byte {
 }
 
 func packDomainSeparatorArguments(chainID int64, safeAddress string) []byte {
-	bytes32Ty, err := gethAbi.NewType("bytes32", "", nil)
+	bytes32Ty, err := ga.NewType("bytes32", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	addressTy, err := gethAbi.NewType("address", "", nil)
+	addressTy, err := ga.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
+	uint256Ty, err := ga.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: bytes32Ty,
 		},

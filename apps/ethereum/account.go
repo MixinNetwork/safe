@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	mixinCommon "github.com/MixinNetwork/mixin/common"
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common/abi"
-	commonAbi "github.com/MixinNetwork/safe/common/abi"
+	ca "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -30,7 +30,7 @@ type GnosisSafe struct {
 }
 
 func (gs *GnosisSafe) Marshal() []byte {
-	enc := mixinCommon.NewEncoder()
+	enc := mc.NewEncoder()
 	enc.WriteUint64(uint64(gs.Sequence))
 	bitcoin.WriteBytes(enc, []byte(gs.Address))
 	bitcoin.WriteBytes(enc, []byte(gs.TxHash))
@@ -38,7 +38,7 @@ func (gs *GnosisSafe) Marshal() []byte {
 }
 
 func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
-	dec := mixinCommon.NewDecoder(extra)
+	dec := mc.NewDecoder(extra)
 	sequence, err := dec.ReadUint64()
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error 
 	}
 	defer conn.Close()
 
-	signer, err := commonAbi.SignerInit(key)
+	signer, err := ca.SignerInit(key)
 	if err != nil {
 		return err
 	}
