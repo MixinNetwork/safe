@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	mixinCommon "github.com/MixinNetwork/mixin/common"
-	"github.com/MixinNetwork/safe/apps"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum"
@@ -95,19 +95,19 @@ func (tx *SafeTransaction) Hash(id string) string {
 func (tx *SafeTransaction) Marshal() []byte {
 	enc := mixinCommon.NewEncoder()
 	enc.WriteUint64(uint64(tx.ChainID))
-	apps.WriteBytes(enc, []byte(tx.SafeAddress))
-	apps.WriteBytes(enc, tx.Destination.Bytes())
-	apps.WriteBytes(enc, []byte(UnitWei(tx.Value)))
-	apps.WriteBytes(enc, tx.Data)
+	bitcoin.WriteBytes(enc, []byte(tx.SafeAddress))
+	bitcoin.WriteBytes(enc, tx.Destination.Bytes())
+	bitcoin.WriteBytes(enc, []byte(UnitWei(tx.Value)))
+	bitcoin.WriteBytes(enc, tx.Data)
 	enc.WriteUint64(uint64(tx.Nonce.Uint64()))
-	apps.WriteBytes(enc, tx.Message)
+	bitcoin.WriteBytes(enc, tx.Message)
 
 	var signatures []string
 	for _, sig := range tx.Signatures {
 		signatures = append(signatures, hex.EncodeToString(sig))
 	}
 	sigs := strings.Join(signatures, ",")
-	apps.WriteBytes(enc, []byte(sigs))
+	bitcoin.WriteBytes(enc, []byte(sigs))
 	return enc.Bytes()
 }
 

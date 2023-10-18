@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/MixinNetwork/safe/apps"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -24,8 +23,8 @@ type WitnessScriptAccount struct {
 func (wsa *WitnessScriptAccount) Marshal() []byte {
 	enc := common.NewEncoder()
 	enc.WriteUint64(uint64(wsa.Sequence))
-	apps.WriteBytes(enc, wsa.Script)
-	apps.WriteBytes(enc, []byte(wsa.Address))
+	WriteBytes(enc, wsa.Script)
+	WriteBytes(enc, []byte(wsa.Address))
 	return enc.Bytes()
 }
 

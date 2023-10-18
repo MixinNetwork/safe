@@ -11,7 +11,7 @@ import (
 
 	mixinCommon "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/safe/apps"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common/abi"
 	commonAbi "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,8 +32,8 @@ type GnosisSafe struct {
 func (gs *GnosisSafe) Marshal() []byte {
 	enc := mixinCommon.NewEncoder()
 	enc.WriteUint64(uint64(gs.Sequence))
-	apps.WriteBytes(enc, []byte(gs.Address))
-	apps.WriteBytes(enc, []byte(gs.TxHash))
+	bitcoin.WriteBytes(enc, []byte(gs.Address))
+	bitcoin.WriteBytes(enc, []byte(gs.TxHash))
 	return enc.Bytes()
 }
 
