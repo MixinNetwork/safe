@@ -39,7 +39,7 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, rec
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
 		}
 	} else {
-		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, latest_tx_hash, updated_at=? WHERE address=?", amount.Uint64(), txHash, time.Now().UTC(), receiver)
+		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, latest_tx_hash, updated_at=? WHERE address=?", amount.String(), txHash, time.Now().UTC(), receiver)
 		if err != nil {
 			return fmt.Errorf("UPDATE ethereum_balances %v", err)
 		}
@@ -65,7 +65,15 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, asset_i
 	var safeBalance SafeBalance
 	var bStr string
 	err = row.Scan(&safeBalance.Address, &safeBalance.AssetId, &bStr, &safeBalance.LatestTxHash, &safeBalance.UpdatedAt)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		return &SafeBalance{
+			Address:      address,
+			AssetId:      asset_id,
+			Balance:      big.NewInt(0),
+			LatestTxHash: "",
+			UpdatedAt:    time.Now().UTC(),
+		}, nil
+	} else if err != nil {
 		return nil, err
 	}
 	balance, ok := new(big.Int).SetString(bStr, 10)
