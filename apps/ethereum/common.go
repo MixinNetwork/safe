@@ -49,7 +49,7 @@ func HashMessageForSignature(msg string) ([]byte, error) {
 	return hash.Bytes(), nil
 }
 
-func ParseWei(amount string) int64 {
+func ParseWei(amount string) *big.Int {
 	amt, err := decimal.NewFromString(amount)
 	if err != nil {
 		panic(amount)
@@ -58,10 +58,7 @@ func ParseWei(amount string) int64 {
 	if !amt.IsInteger() {
 		panic(amount)
 	}
-	if !amt.BigInt().IsInt64() {
-		panic(amount)
-	}
-	return amt.BigInt().Int64()
+	return amt.BigInt()
 }
 
 func UnitWei(amount *big.Int) string {

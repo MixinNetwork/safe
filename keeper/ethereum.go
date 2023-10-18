@@ -122,7 +122,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if new(big.Int).SetUint64(balance.Balance).Cmp(t.Value) != 0 {
+	if balance.Balance.Cmp(t.Value) != 0 {
 		return fmt.Errorf("Inconsistent safe balance: %d %d", balance.Balance, t.Value.Uint64())
 	}
 
@@ -558,9 +558,12 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	rpc, _ := node.ethereumParams(safe.Chain)
+	rpc, asset_id := node.ethereumParams(safe.Chain)
 	nonce, err := ethereum.GetNonce(rpc, safe.Address)
 	logger.Printf("ethereum.GetNonce(%s) => %d %v", safe.Address, nonce, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	var outputs []*ethereum.Output
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
@@ -604,7 +607,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
-		amt := decimal.New(out.Wei, -ethereum.ValuePrecision)
+		amt := decimal.NewFromBigInt(out.Wei, -ethereum.ValuePrecision)
 		recipients[i] = map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
 		}
@@ -615,9 +618,21 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	// todo: func multicall encoding
-	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, big.NewInt(outputs[0].Nonce))
+	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
 	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
 		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if t.Value.Cmp(balance.Balance) > 0 {
+		logger.Printf("insufficient balance %s %s", t.Value.String(), balance.Balance.String())
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	extra = uuid.Must(uuid.FromString(req.Id)).Bytes()
 	extra = append(extra, t.Marshal()...)
@@ -905,6 +920,9 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	raw := hex.EncodeToString(t.Marshal())
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, tx.Chain)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	if safe.State == common.RequestStatePending {
 		var index int64

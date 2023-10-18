@@ -43,16 +43,20 @@ type SafeTransaction struct {
 
 type Output struct {
 	Destination string
-	Wei         int64
+	Wei         *big.Int
 	Nonce       int64
 }
 
-func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination string, value int64, nonce *big.Int) (*SafeTransaction, error) {
+func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination, amount string, nonce *big.Int) (*SafeTransaction, error) {
+	value, ok := new(big.Int).SetString(amount, 10)
+	if !ok {
+		return nil, fmt.Errorf("Fail to parse value to big.Int")
+	}
 	tx := &SafeTransaction{
 		ChainID:        chainID,
 		SafeAddress:    safeAddress,
 		Destination:    common.HexToAddress(destination),
-		Value:          new(big.Int).SetInt64(value),
+		Value:          value,
 		Operation:      operationTypeCall,
 		SafeTxGas:      new(big.Int).SetInt64(0),
 		BaseGas:        new(big.Int).SetInt64(0),
@@ -97,7 +101,7 @@ func (tx *SafeTransaction) Marshal() []byte {
 	enc.WriteUint64(uint64(tx.ChainID))
 	bitcoin.WriteBytes(enc, []byte(tx.SafeAddress))
 	bitcoin.WriteBytes(enc, tx.Destination.Bytes())
-	bitcoin.WriteBytes(enc, []byte(UnitWei(tx.Value)))
+	bitcoin.WriteBytes(enc, tx.Value.Bytes())
 	bitcoin.WriteBytes(enc, tx.Data)
 	enc.WriteUint64(uint64(tx.Nonce.Uint64()))
 	bitcoin.WriteBytes(enc, tx.Message)
@@ -163,7 +167,7 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 		ChainID:        int64(chainID),
 		SafeAddress:    string(safeAddress),
 		Destination:    common.BytesToAddress(destination),
-		Value:          new(big.Int).SetInt64(ParseWei(string(valueByte))),
+		Value:          new(big.Int).SetBytes(valueByte),
 		Data:           data,
 		Operation:      operationTypeCall,
 		SafeTxGas:      new(big.Int).SetInt64(0),

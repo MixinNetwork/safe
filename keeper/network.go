@@ -137,7 +137,7 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 }
 
 func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
-	if len(info.Hash) != 64 {
+	if len(info.Hash) != 66 {
 		return false, nil
 	}
 	rpc, _ := node.ethereumParams(info.Chain)

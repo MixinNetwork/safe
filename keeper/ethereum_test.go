@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -77,7 +76,7 @@ func TestEthereumKeeper(t *testing.T) {
 	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
 	require.Equal(testEthereumBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumSafeAddress, bondId, 100000000000000)
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", bondId, "100000000000000")
 
 	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
 	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
@@ -97,7 +96,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
 	require.Equal(testEthereumBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumSafeAddress, bondId, 100000000000000)
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", bondId, "100000000000000")
 
 	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
 
@@ -173,11 +172,11 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
 	require.Equal(testEthereumBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumSafeAddress, bondId, 100000000000000)
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", bondId, "100000000000000")
 
 	rpc, _ := node.ethereumParams(SafeChainMVM)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
-	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, 100000000000000, nil)
+	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", nil)
 	require.Nil(err)
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
@@ -306,7 +305,8 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	t, err := ethereum.UnmarshalSafeTransaction(b[16:])
 	require.Nil(err)
 
-	require.Equal(int64(100000000000000), t.Value.Int64())
+	amt := decimal.NewFromBigInt(t.Value, -ethereum.ValuePrecision)
+	require.Equal("0.0001", amt.String())
 	require.Equal(testEthereumTransactionReceiver, t.Destination.Hex())
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
@@ -496,17 +496,17 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(testSafeBondReceiverId, safe.Receivers[0])
 }
 
-func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, address, asset_id string, balance uint64) {
+func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, asset_id, balance string) {
 	id := uuid.Must(uuid.NewV4()).String()
-	addr, err := hex.DecodeString(address[2:])
+	amt, err := decimal.NewFromString(balance)
 	require.Nil(err)
 	b, err := hex.DecodeString(txHash)
 	require.Nil(err)
 	extra := []byte{SafeChainMVM}
 	extra = append(extra, uuid.Must(uuid.FromString(SafeMVMChainId)).Bytes()...)
-	extra = append(extra, addr[:]...)
-	extra = append(extra, b[:]...)
-	extra = append(extra, new(big.Int).SetUint64(balance).Bytes()...)
+	extra = append(extra, b...)
+	extra = binary.BigEndian.AppendUint64(extra, uint64(0))
+	extra = append(extra, amt.BigInt().Bytes()...)
 
 	holder := testPublicKey(testEthereumKeyHolder)
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSAMVM)
@@ -514,7 +514,7 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 
 	safeBalance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, SafeMVMChainId)
 	require.Nil(err)
-	require.Equal(balance, safeBalance.Balance)
+	require.Equal(balance, safeBalance.Balance.String())
 }
 
 func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node, blockHeight int, blockHash string) {
@@ -538,7 +538,7 @@ func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Asser
 	require.Equal(byte(SafeChainMVM), info.Chain)
 	require.Equal(uint64(fee), info.Fee)
 	require.Equal(height, info.Height)
-	require.Equal(hex.EncodeToString(hash), info.Hash)
+	require.Equal(hex.EncodeToString(hash), info.Hash[2:])
 }
 
 func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
@@ -546,8 +546,8 @@ func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assert
 
 	extra := []byte{SafeChainMVM}
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
-	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*1000000000000000000)
-	extra = binary.BigEndian.AppendUint64(extra, 100000000000000)
+	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
+	extra = binary.BigEndian.AppendUint64(extra, 10000)
 	dummy, err := testEthereumPublicKey(testEthereumKeyHolder)
 	require.Nil(err)
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSAMVM)

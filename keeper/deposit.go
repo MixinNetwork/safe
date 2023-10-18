@@ -18,12 +18,11 @@ import (
 )
 
 type Deposit struct {
-	Chain   byte
-	Asset   string
-	Hash    string
-	Address string
-	Index   uint64
-	Amount  *big.Int
+	Chain  byte
+	Asset  string
+	Hash   string
+	Index  uint64
+	Amount *big.Int
 }
 
 func parseDepositExtra(req *common.Request) (*Deposit, error) {
@@ -48,9 +47,9 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
 	case SafeChainEthereum, SafeChainMVM:
-		deposit.Address = "0x" + hex.EncodeToString(extra[0:20])
-		deposit.Hash = "0x" + hex.EncodeToString(extra[20:52])
-		deposit.Amount = new(big.Int).SetBytes(extra[52:])
+		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
+		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
+		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 	default:
 		return nil, fmt.Errorf("invalid deposit chain %d", deposit.Chain)
 	}
@@ -186,7 +185,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return err
 	}
 
-	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, deposit.Address)
+	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, safe.Address)
 	logger.Printf("ethereum.RPCGetAddressBalance(%v) => %v", deposit, err)
 	if err != nil {
 		return err
