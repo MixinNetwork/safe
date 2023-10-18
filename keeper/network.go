@@ -55,9 +55,9 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	if info.Chain != SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
-	info.Hash = hex.EncodeToString(extra[17:])
 	switch info.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
+		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
 			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
@@ -65,6 +65,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 			return node.store.FailRequest(ctx, req.Id)
 		}
 	case SafeChainEthereum, SafeChainMVM:
+		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
 			return fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
@@ -92,21 +93,20 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	if chain != SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
-	var precision int64
 	switch chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
-		precision = bitcoin.ValuePrecision
-	case SafeChainEthereum, SafeChainMVM:
-		precision = ethereum.ValuePrecision
+	case SafeChainBitcoin:
+	case SafeChainLitecoin:
+	case SafeChainEthereum:
+	case SafeChainMVM:
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
 	abu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[17:25]))
-	amount := decimal.NewFromBigInt(abu, -int32(precision))
+	amount := decimal.NewFromBigInt(abu, -8)
 	mbu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[25:33]))
-	minimum := decimal.NewFromBigInt(mbu, -int32(precision))
+	minimum := decimal.NewFromBigInt(mbu, -8)
 	params := &store.OperationParams{
 		RequestId:            req.Id,
 		Chain:                chain,
