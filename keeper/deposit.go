@@ -190,6 +190,11 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return fmt.Errorf("inconsistent %s balance: %v %v", safe.Address, deposit.Amount, balance)
 	}
 
+	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -ethereum.ValuePrecision).String(), nil, req.Id)
+	if err != nil {
+		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+	}
+
 	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe.Address, asset.AssetId, deposit.Hash, safeBalance.Balance, req, safe.Chain)
 }
 
