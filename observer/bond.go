@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,11 +26,45 @@ func (node *Node) deployEthereumSafeBond(ctx context.Context, data []byte) error
 	}
 	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, gs.Address)
 	if err != nil {
-		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", gs.Address, err)
+		return fmt.Errorf("keeperStore.ReadSafeProposalByAddress(%s) => %v", gs.Address, err)
 	}
-	_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, sp.Holder)
-	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, sp.Holder, err)
+	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	if err != nil || safe == nil {
+		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v", gs.Address, err)
+	}
+	owners, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v %v %v", safe.Holder, safe.Signer, safe.Observer, owners, pubs, err)
+	if err != nil {
+		return err
+	}
+	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	_, err = node.checkOrDeployKeeperBond(ctx, ethereumAssetId, sp.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", ethereumAssetId, sp.Holder, err)
+	if err != nil {
+		return err
+	}
+
+	tx, err := node.keeperStore.ReadTransaction(ctx, gs.TxHash)
+	if err != nil || tx == nil {
+		return fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err)
+	}
+	raw, err := hex.DecodeString(tx.RawTransaction)
+	if err != nil {
+		return err
+	}
+	t, err := ethereum.UnmarshalSafeTransaction(raw)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", tx.RawTransaction, t, err)
+	if err != nil {
+		return err
+	}
+	var index int64
+	for i, pub := range pubs {
+		if pub == safe.Observer {
+			index = int64(i)
+		}
+	}
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, int64(safe.Timelock/time.Hour), index, t)
+	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(safe.Timelock/time.Hour), t, safeaddress.Hex(), err)
 	return err
 }
 

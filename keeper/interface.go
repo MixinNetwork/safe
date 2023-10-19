@@ -21,7 +21,6 @@ type Configuration struct {
 	EthereumRPC          string             `toml:"ethereum-rpc"`
 	MVMRPC               string             `toml:"mvm-rpc"`
 	MVMFactoryAddress    string             `toml:"mvm-factory-address"`
-	EVMKey               string             `toml:"evm-key"`
 	MTG                  *mtg.Configuration `toml:"mtg"`
 }
 

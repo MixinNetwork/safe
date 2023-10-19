@@ -902,7 +902,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	owners, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v %v", safe, pubs, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
@@ -934,19 +934,6 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 
 	if safe.State == common.RequestStatePending {
-		var index int64
-		for i, pub := range pubs {
-			if pub == safe.Observer {
-				index = int64(i)
-			}
-		}
-		rpc, _ := node.ethereumParams(tx.Chain)
-		safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, int64(safe.Timelock/time.Hour), index, t)
-		logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(safe.Timelock/time.Hour), t, safeaddress.Hex(), err)
-		if err != nil {
-			return err
-		}
-
 		sp, err := node.store.ReadSafeProposalByAddress(ctx, safe.Address)
 		if err != nil {
 			return fmt.Errorf("store.ReadSafeProposalByAddress(%s) => %v", safe.Address, err)
@@ -958,7 +945,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(safe.Extra)))
 		typ := byte(common.ActionEthereumSafeApproveAccount)
 		crv := SafeChainCurve(safe.Chain)
-		id := common.UniqueId(req.Id, safeaddress.Hex())
+		id := common.UniqueId(req.Id, safe.Address)
 		err = node.sendObserverResponseWithAssetAndReferences(ctx, id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 		if err != nil {
 			return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)

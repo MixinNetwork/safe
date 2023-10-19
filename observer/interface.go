@@ -26,6 +26,7 @@ type Configuration struct {
 	MVMRPC                string `toml:"mvm-rpc"`
 	MVMFactoryAddress     string `toml:"mvm-factory-address"`
 	MVMKey                string `toml:"mvm-key"`
+	EVMKey                string `toml:"evm-key"`
 	App                   struct {
 		ClientId   string `toml:"client-id"`
 		SessionId  string `toml:"session-id"`
