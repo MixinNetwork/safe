@@ -134,6 +134,13 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	} else if old != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
+	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
+	} else if deposited != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	rpc, _ := node.bitcoinParams(deposit.Chain)
 	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)
@@ -170,32 +177,44 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		}
 	}
 
-	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
+	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, btx)
+	if err != nil {
+		return fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err)
+	}
+	return node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
 }
 
 func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
 	if asset.Decimals != ethereum.ValuePrecision {
 		panic(asset.Decimals)
 	}
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
+	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
+	} else if deposited != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	rpc, asset_id := node.ethereumParams(deposit.Chain)
-	balance, err := ethereum.RPCGetAddressBalance(rpc, deposit.Hash, safe.Address)
-	logger.Printf("ethereum.RPCGetAddressBalance(%v) => %v", deposit, err)
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, safeBalance, err)
 	if err != nil {
 		return err
 	}
-	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, safeBalance, err)
-	if balance.Cmp(safeBalance.Balance.Add(deposit.Amount, safeBalance.Balance)) != 0 {
-		return fmt.Errorf("inconsistent %s balance: %v %v", safe.Address, deposit.Amount, balance)
-	}
+	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
 	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -ethereum.ValuePrecision).String(), nil, req.Id)
 	if err != nil {
 		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
 	}
 
-	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe.Address, asset.AssetId, deposit.Hash, safeBalance.Balance, req, safe.Chain)
+	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", deposit.Hash, etx, err)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, etx.From)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {

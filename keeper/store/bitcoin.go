@@ -12,7 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiver string, utxo *bitcoin.Input, req *common.Request, chain byte) error {
+func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *Safe, utxo *bitcoin.Input, req *common.Request, assetId, sender string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -24,11 +24,18 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, receiv
 
 	script := hex.EncodeToString(utxo.Script)
 	cols := []string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "chain", "state", "spent_by", "request_id", "created_at", "updated_at"}
-	vals := []any{utxo.TransactionHash, utxo.Index, receiver, utxo.Satoshi, script, utxo.Sequence, chain, common.RequestStateInitial, nil, req.Id, req.CreatedAt, req.CreatedAt}
+	vals := []any{utxo.TransactionHash, utxo.Index, safe.Address, utxo.Satoshi, script, utxo.Sequence, safe.Chain, common.RequestStateInitial, nil, req.Id, req.CreatedAt, req.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("bitcoin_outputs", cols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT bitcoin_outputs %v", err)
 	}
+
+	vals = []any{utxo.TransactionHash, utxo.Index, assetId, string(utxo.Satoshi), safe.Address, sender, common.RequestStateDone, safe.Chain, safe.Holder, common.ActionObserverHolderDeposit, req.Id, req.CreatedAt, req.CreatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("deposits", depositsCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT deposits %v", err)
+	}
+
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)

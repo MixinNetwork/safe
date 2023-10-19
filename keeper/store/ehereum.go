@@ -18,7 +18,7 @@ type SafeBalance struct {
 	UpdatedAt    time.Time
 }
 
-func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, receiver, asset_id, txHash string, amount *big.Int, req *common.Request, chain byte) error {
+func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, safe *Safe, txHash string, index int64, amount *big.Int, req *common.Request, assetId, sender string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -29,20 +29,26 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, rec
 	defer tx.Rollback()
 
 	var balance *big.Int
-	row := tx.QueryRowContext(ctx, "SELECT balance FROM ethereum_balances WHERE address=? AND asset_id=?", receiver, asset_id)
+	row := tx.QueryRowContext(ctx, "SELECT balance FROM ethereum_balances WHERE address=? AND asset_id=?", safe.Address, assetId)
 	err = row.Scan(&balance)
 	if err == sql.ErrNoRows {
 		cols := []string{"address", "asset_id", "balance", "latest_tx_hash", "updated_at"}
-		vals := []any{receiver, asset_id, amount.String(), txHash, time.Now().UTC()}
+		vals := []any{safe.Address, assetId, amount.String(), txHash, time.Now().UTC()}
 		err = s.execOne(ctx, tx, buildInsertionSQL("ethereum_balances", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
 		}
 	} else {
-		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, latest_tx_hash, updated_at=? WHERE address=?", amount.String(), txHash, time.Now().UTC(), receiver)
+		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, latest_tx_hash, updated_at=? WHERE address=?", amount.String(), txHash, time.Now().UTC(), safe.Address)
 		if err != nil {
 			return fmt.Errorf("UPDATE ethereum_balances %v", err)
 		}
+	}
+
+	vals := []any{txHash, index, assetId, amount.String(), safe.Address, sender, common.RequestStateDone, safe.Chain, safe.Holder, common.ActionObserverHolderDeposit, req.Id, req.CreatedAt, req.CreatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("deposits", depositsCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT deposits %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
