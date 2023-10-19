@@ -68,7 +68,7 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
 		return nil, nil, fmt.Errorf("time lock out of range %s", lock.String())
 	}
-	sequence := ParseSequence(lock, chain)
+	sequence := lock / time.Hour
 
 	chainID := GetEvmChainID(int64(chain))
 	t, err := CreateTransaction(ctx, true, rpc, chainID, safeAddress, safeAddress, "0", new(big.Int).SetUint64(0))

@@ -70,6 +70,43 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	rpc, asset_id := node.ethereumParams(safe.Chain)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if balance.Balance.Cmp(t.Value) != 0 {
+		return fmt.Errorf("Inconsistent safe balance: %d %d", balance.Balance, t.Value.Uint64())
+	}
+
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
+	if err != nil {
+		return err
+	}
+	transaction, err := ethereum.RPCGetTransactionByHash(rpc, balance.LatestTxHash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, balance.LatestTxHash, transaction, err)
+	if err != nil {
+		return err
+	}
+	block, err := ethereum.RPCGetBlock(rpc, transaction.BlockHash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, transaction.BlockHash, block, err)
+	if err != nil {
+		return err
+	}
+	if block.Time.IsZero() || latest.Time.IsZero() || block.Time.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
 	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
 	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
 	if err != nil {
@@ -113,34 +150,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
 	if meta.Chain != SafeChainMVM {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	rpc, asset_id := node.ethereumParams(safe.Chain)
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	if balance.Balance.Cmp(t.Value) != 0 {
-		return fmt.Errorf("Inconsistent safe balance: %d %d", balance.Balance, t.Value.Uint64())
-	}
-
-	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
-	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
-	if err != nil {
-		return err
-	}
-	if info == nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	sequence := uint64(ethereum.ParseSequence(safe.Timelock, safe.Chain))
-	transaction, err := ethereum.RPCGetTransactionByHash(rpc, balance.LatestTxHash)
-	logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, balance.LatestTxHash, transaction, err)
-	if err != nil {
-		return err
-	}
-	if transaction.BlockHeight == 0 || transaction.BlockHeight+sequence+100 > info.Height {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 

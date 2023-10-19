@@ -12,11 +12,13 @@ import (
 )
 
 type RPCBlock struct {
-	Hash   string   `json:"hash"`
-	Number string   `json:"number"`
-	Tx     []string `json:"transactions"`
+	Hash      string   `json:"hash"`
+	Number    string   `json:"number"`
+	Tx        []string `json:"transactions"`
+	Timestamp string   `json:"timestamp"`
 
 	Height uint64
+	Time   time.Time
 }
 
 type RPCBlockWithTransactions struct {
@@ -63,6 +65,11 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 		return nil, err
 	}
 	b.Height = blockHeight
+	timestamp, err := ethereumNumberToUint64(b.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	b.Time = time.Unix(int64(timestamp), 0)
 	return &b, err
 }
 

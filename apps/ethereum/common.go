@@ -67,25 +67,6 @@ func UnitWei(amount *big.Int) string {
 	return amt.String()
 }
 
-func ParseSequence(lock time.Duration, chain byte) int64 {
-	if lock < TimeLockMinimum || lock > TimeLockMaximum {
-		panic(lock.String())
-	}
-	blockDuration := 12 * time.Second
-	switch chain {
-	case ChainEthereum:
-	case ChainMVM:
-		blockDuration = 1 * time.Second
-	default:
-	}
-	// FIXME check litecoin timelock consensus as this may exceed 0xffff
-	lock = lock / blockDuration
-	if lock >= 0xffff {
-		lock = 0xffff
-	}
-	return int64(lock)
-}
-
 func GetEvmChainID(chain int64) int64 {
 	switch chain {
 	case ChainEthereum:
