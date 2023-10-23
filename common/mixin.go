@@ -126,7 +126,7 @@ func SendTransaction(ctx context.Context, client *mixin.Client, assetId string, 
 
 func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
 	raw, err := callMixinRPC(rpc, "gettransaction", []any{tx.String()})
-	if err != nil {
+	if err != nil || raw == nil {
 		return nil, err
 	}
 	var signed map[string]any
@@ -176,6 +176,9 @@ func callMixinRPC(node, method string, params []any) ([]byte, error) {
 	}
 	if result.Error != nil {
 		return nil, fmt.Errorf("ERROR %s", result.Error)
+	}
+	if result.Data == nil {
+		return nil, nil
 	}
 
 	return json.Marshal(result.Data)
