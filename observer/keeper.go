@@ -41,11 +41,11 @@ func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string)
 	return safe != nil, nil
 }
 
-func (node *Node) sendBitcoinKeeperResponse(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte) error {
-	return node.sendBitcoinKeeperResponseWithReferences(ctx, holder, typ, chain, id, extra, nil)
+func (node *Node) sendKeeperResponse(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte) error {
+	return node.sendKeeperResponseWithReferences(ctx, holder, typ, chain, id, extra, nil)
 }
 
-func (node *Node) sendBitcoinKeeperResponseWithReferences(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte, references []crypto.Hash) error {
+func (node *Node) sendKeeperResponseWithReferences(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte, references []crypto.Hash) error {
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	switch chain {
 	case keeper.SafeChainBitcoin:

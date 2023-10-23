@@ -41,7 +41,7 @@ func (node *Node) bitcoinAddObserverKeys(ctx context.Context) error {
 		id := mixin.UniqueConversationID(observer, observer)
 		extra := append([]byte{common.RequestRoleObserver}, chainCode...)
 		extra = append(extra, common.RequestFlagNone)
-		err = node.sendBitcoinKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
+		err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
 		if err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func (node *Node) bitcoinRequestSignerKeys(ctx context.Context) error {
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := mixin.UniqueConversationID(requested.String(), requested.String())
-	err = node.sendBitcoinKeeperResponse(ctx, dummy, common.ActionObserverRequestSignerKeys, keeper.SafeChainBitcoin, id, []byte{64})
+	err = node.sendKeeperResponse(ctx, dummy, common.ActionObserverRequestSignerKeys, keeper.SafeChainBitcoin, id, []byte{64})
 	if err != nil {
 		return err
 	}

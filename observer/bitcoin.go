@@ -113,8 +113,8 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 
 		dummy := node.bitcoinDummyHolder()
 		action := common.ActionObserverUpdateNetworkStatus
-		err = node.sendBitcoinKeeperResponse(ctx, dummy, byte(action), chain, id, extra)
-		logger.Verbosef("node.sendBitcoinKeeperResponse(%d, %s, %x) => %v", chain, id, extra, err)
+		err = node.sendKeeperResponse(ctx, dummy, byte(action), chain, id, extra)
+		logger.Verbosef("node.sendKeeperResponse(%d, %s, %x) => %v", chain, id, extra, err)
 	}
 }
 
@@ -313,9 +313,9 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	extra := deposit.encodeKeeperExtra()
 	id := mixin.UniqueConversationID(assetId, deposit.Holder)
 	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
-	err = node.sendBitcoinKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
+	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
 	if err != nil {
-		return fmt.Errorf("node.sendBitcoinKeeperResponse(%s) => %v", id, err)
+		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
 	}
 	err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
 	if err != nil {
