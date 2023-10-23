@@ -685,3 +685,88 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 	utxo, _, _ := node.keeperStore.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
 }
+
+func (node *Node) ethereumTransactionApprovalLoop(ctx context.Context, chain byte) {
+	for {
+		time.Sleep(3 * time.Second)
+		approvals, err := node.store.ListPendingTransactionApprovals(ctx, chain)
+		if err != nil {
+			panic(err)
+		}
+		for _, approval := range approvals {
+			err := node.sendToKeeperEthereumApproveTransaction(ctx, approval)
+			logger.Verbosef("node.sendToKeeperEthereumApproveTransaction(%v) => %v", approval, err)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
+func (node *Node) sendToKeeperEthereumApproveTransaction(ctx context.Context, approval *Transaction) error {
+	signed, err := node.ethereumCheckKeeperSignedTransaction(ctx, approval)
+	logger.Printf("node.ethereumCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
+	if err != nil || signed {
+		return err
+	}
+	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		panic(approval.RawTransaction)
+	}
+
+	rawId := mixin.UniqueConversationID(approval.RawTransaction, approval.RawTransaction)
+	raw := common.DecodeHexOrPanic(approval.RawTransaction)
+	raw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), raw...)
+	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(raw)
+	traceId := mixin.UniqueConversationID(msg, msg)
+	conf := node.conf.App
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+
+	tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+	if err != nil {
+		return err
+	}
+	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
+	rid := uuid.Must(uuid.FromString(tx.RequestId))
+	extra := append(rid.Bytes(), ref[:]...)
+	references := []crypto.Hash{ref}
+	action := common.ActionEthereumSafeApproveTransaction
+	err = node.sendKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = mixin.UniqueConversationID(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) ethereumCheckKeeperSignedTransaction(ctx context.Context, approval *Transaction) (bool, error) {
+	requests, err := node.keeperStore.ListAllSignaturesForTransaction(ctx, approval.TransactionHash, common.RequestStateDone)
+	if err != nil {
+		return false, err
+	}
+	if len(requests) != 1 {
+		return false, err
+	}
+	sig := common.DecodeHexOrPanic(requests[0].Signature.String)
+	if len(sig) < 32 {
+		return false, nil
+	}
+	return true, nil
+}

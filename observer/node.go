@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
@@ -55,31 +56,51 @@ func (node *Node) Boot(ctx context.Context) {
 	for _, chain := range []byte{
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
+		keeper.SafeChainMVM,
 	} {
-		err := node.sendBitcoinPriceInfo(ctx, chain)
+		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
-		go node.bitcoinNetworkInfoLoop(ctx, chain)
-		go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
-		go node.bitcoinRPCBlocksLoop(ctx, chain)
-		go node.bitcoinDepositConfirmLoop(ctx, chain)
-		go node.bitcoinTransactionApprovalLoop(ctx, chain)
-		go node.bitcoinTransactionSpendLoop(ctx, chain)
+
+		switch chain {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			go node.bitcoinNetworkInfoLoop(ctx, chain)
+			go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
+			go node.bitcoinRPCBlocksLoop(ctx, chain)
+			go node.bitcoinDepositConfirmLoop(ctx, chain)
+			go node.bitcoinTransactionApprovalLoop(ctx, chain)
+			go node.bitcoinTransactionSpendLoop(ctx, chain)
+		case keeper.SafeChainMVM:
+			go node.ethereumNetworkInfoLoop(ctx, chain)
+			go node.ethereumTransactionApprovalLoop(ctx, chain)
+			go node.ethereumTransactionSpendLoop(ctx, chain)
+		}
 	}
 	go node.bitcoinKeyLoop(ctx)
 	node.snapshotsLoop(ctx)
 }
 
-func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
-	_, bitcoinAssetId := node.bitcoinParams(chain)
+func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
+	var assetId string
+	var dust int64
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		_, assetId = node.bitcoinParams(chain)
+		dust = bitcoin.ValueDust(chain)
+	case keeper.SafeChainMVM:
+		_, assetId = node.ethereumParams(chain)
+		dust = ethereum.ValueDust
+	default:
+		panic(chain)
+	}
 	asset, err := node.fetchAssetMeta(ctx, node.conf.OperationPriceAssetId)
 	if err != nil {
 		return err
 	}
 	amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
-	logger.Printf("node.sendBitcoinPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
+	logger.Printf("node.sendPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
 		panic(node.conf.OperationPriceAmount)
@@ -88,12 +109,12 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
 		panic(node.conf.TransactionMinimum)
 	}
-	if minimum.IntPart() < bitcoin.ValueDust(chain) {
+	if minimum.IntPart() < dust {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := mixin.UniqueConversationID("ActionObserverSetOperationParams", dummy)
-	id = mixin.UniqueConversationID(id, bitcoinAssetId)
+	id = mixin.UniqueConversationID(id, assetId)
 	id = mixin.UniqueConversationID(id, asset.AssetId)
 	id = mixin.UniqueConversationID(id, amount.String())
 	id = mixin.UniqueConversationID(id, minimum.String())

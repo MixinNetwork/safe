@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/blockchain"
@@ -315,6 +316,44 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 	}, node.store.WriteBitcoinFeeOutput(ctx, msgTx, receiver, tx)
 }
 
+func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) {
+	rpc, _ := node.ethereumParams(chain)
+
+	for {
+		time.Sleep(3 * time.Second)
+		txs, err := node.store.ListFullySignedTransactionApprovals(ctx, chain)
+		if err != nil {
+			panic(err)
+		}
+		for _, tx := range txs {
+			spentHash, err := node.ethereumSpendFullySignedTransaction(ctx, tx)
+			logger.Verbosef("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
+			if err != nil {
+				break
+			}
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction)
+			if err != nil {
+				panic(err)
+			}
+			tx, err := ethereum.RPCGetTransactionByHash(rpc, spentHash)
+			if err != nil || tx == nil {
+				panic(fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", spentHash, tx, err))
+			}
+			err = node.ethereumProcessTransaction(ctx, tx, chain)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
+func (node *Node) ethereumSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (string, error) {
+	b := common.DecodeHexOrPanic(tx.RawTransaction)
+	st, _ := ethereum.UnmarshalSafeTransaction(b)
+
+	return node.ethereumBroadcastTransactionAndWriteDeposit(ctx, st, tx.Chain)
+}
+
 func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -485,6 +524,22 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 		return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
 	}
 	return node.bitcoinProcessTransaction(ctx, tx, chain)
+}
+
+func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, st *ethereum.SafeTransaction, chain byte) (string, error) {
+	rpc, _ := node.ethereumParams(chain)
+	hash, err := st.ExecTransaction(rpc, node.conf.EVMKey)
+	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
+
+	tx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
+	if err != nil || tx == nil {
+		return "", fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, tx, err)
+	}
+	err = node.ethereumProcessTransaction(ctx, tx, chain)
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {

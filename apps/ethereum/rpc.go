@@ -2,6 +2,7 @@ package ethereum
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,6 +74,37 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	return &b, err
 }
 
+func RPCGetBlockHeight(rpc string) (int64, error) {
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_blockNumber", []any{})
+	if err != nil {
+		return 0, err
+	}
+	var h string
+	err = json.Unmarshal(res, &h)
+	if err != nil {
+		return 0, err
+	}
+	height, err := ethereumNumberToUint64(h)
+	if err != nil {
+		return 0, err
+	}
+	return int64(height), err
+}
+
+func RPCGetBlockHash(rpc string, height int64) (string, error) {
+	h := "0x" + hex.EncodeToString(new(big.Int).SetInt64(height).Bytes())
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h})
+	if err != nil {
+		return "", err
+	}
+	var b *RPCBlock
+	err = json.Unmarshal(res, &b)
+	if err != nil {
+		return "", err
+	}
+	return b.Hash, err
+}
+
 func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, error) {
 	if !strings.HasPrefix(hash, "0x") {
 		hash = "0x" + hash
@@ -95,6 +127,26 @@ func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, e
 		tx.BlockHash = hash
 	}
 	return &b, err
+}
+
+func RPCGetGasPrice(rpc string) (*big.Int, error) {
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_gasPrice", []any{})
+	if err != nil {
+		return nil, err
+	}
+	var p string
+	err = json.Unmarshal(res, &p)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(p, "0x") {
+		return nil, fmt.Errorf("invalid hex %s", p)
+	}
+	value, success := new(big.Int).SetString(p, 0)
+	if !success {
+		return nil, fmt.Errorf("invalid hex %s", p)
+	}
+	return value, err
 }
 
 func RPCGetAddressBalance(rpc, txHash, address string) (*big.Int, error) {

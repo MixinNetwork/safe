@@ -290,6 +290,21 @@ func (tx *SafeTransaction) GetEnableGuradData(address string) []byte {
 	return args
 }
 
+func CheckTransactionPartiallySignedBy(raw, public string) bool {
+	b, _ := hex.DecodeString(raw)
+	st, _ := UnmarshalSafeTransaction(b)
+
+	for _, sig := range st.Signatures {
+		if sig != nil {
+			err := VerifyMessageSignature(public, st.Message, sig)
+			if err == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func GetNonce(rpc, address string) (int64, error) {
 	conn, abi, err := safeInit(rpc, address)
 	if err != nil {

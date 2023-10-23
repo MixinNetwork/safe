@@ -68,17 +68,6 @@ func (node *Node) bitcoinParams(chain byte) (string, string) {
 	}
 }
 
-func (node *Node) ethereumParams(chain byte) (string, string) {
-	switch chain {
-	case keeper.SafeChainEthereum:
-		return node.conf.EthereumRPC, keeper.SafeEthereumChainId
-	case keeper.SafeChainMVM:
-		return node.conf.MVMRPC, keeper.SafeMVMChainId
-	default:
-		panic(chain)
-	}
-}
-
 func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.bitcoinParams(chain)
 
