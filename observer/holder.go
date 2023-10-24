@@ -861,6 +861,88 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 	return err
 }
 
+func (node *Node) httpApproveEthereumTransaction(ctx context.Context, hash, raw string) error {
+	logger.Printf("node.httpApproveBitcoinTransaction(%s)", raw)
+
+	approval, err := node.store.ReadTransactionApproval(ctx, hash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
+	if ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		return nil
+	}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, approval.Holder) {
+		return nil
+	}
+	tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
+	if err != nil || tx == nil {
+		return err
+	}
+
+	err = node.store.AddTransactionPartials(ctx, hash, raw)
+	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	return err
+}
+
+func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash string, sigBase64 string) error {
+	logger.Printf("node.httpRevokeBitcoinTransaction(%s, %s)", txHash, sigBase64)
+	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
+	if ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		return nil
+	}
+
+	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+	if err != nil {
+		return err
+	}
+
+	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
+	if err != nil {
+		return err
+	}
+	msg := []byte(fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash))
+	err = ethereum.VerifyHashSignature(tx.Holder, msg, sig)
+	logger.Printf("holder: ethereum.VerifyHashSignature(%v) => %v", tx, err)
+	if err != nil {
+		safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+		if err != nil {
+			return err
+		}
+		err = ethereum.VerifyHashSignature(safe.Observer, msg, sig)
+		logger.Printf("observer: ethereum.VerifyHashSignature(%v) => %v", tx, err)
+		if err != nil {
+			return err
+		}
+	}
+
+	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
+	rid := uuid.Must(uuid.FromString(tx.RequestId))
+	extra := append(rid.Bytes(), sig...)
+	action := common.ActionEthereumSafeRevokeTransaction
+	err = node.sendKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
+	logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", tx.Holder, action, id, extra)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64+":"+approval.RawTransaction)
+	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
+	return err
+}
+
 func (node *Node) holderPayTransactionApproval(ctx context.Context, hash string) error {
 	logger.Printf("node.holderPayTransactionApproval(%s)", hash)
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
