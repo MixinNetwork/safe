@@ -73,6 +73,8 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
 		case keeper.SafeChainMVM:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
+			go node.ethereumMixinWithdrawalsLoop(ctx, chain)
+			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumTransactionApprovalLoop(ctx, chain)
 			go node.ethereumTransactionSpendLoop(ctx, chain)
 		}
