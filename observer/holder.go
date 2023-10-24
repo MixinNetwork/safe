@@ -113,8 +113,8 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 	return node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
 }
 
-func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64 string) error {
-	logger.Printf("node.httpApproveBitcoinAccount(%s, %s)", addr, sigBase64)
+func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 string) error {
+	logger.Printf("node.httpApproveSafeAccount(%s, %s)", addr, sigBase64)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -123,23 +123,47 @@ func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64
 	if err != nil {
 		return err
 	}
-	switch sp.Chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
-	default:
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
 
 	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
 	if err != nil {
 		return err
 	}
-	ms := fmt.Sprintf("APPROVE:%s:%s", sp.RequestId, sp.Address)
-	hash := bitcoin.HashMessageForSignature(ms, sp.Chain)
-	err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig)
-	logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", sp, err)
-	if err != nil {
-		return err
+	switch sp.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		ms := fmt.Sprintf("APPROVE:%s:%s", sp.RequestId, sp.Address)
+		hash := bitcoin.HashMessageForSignature(ms, sp.Chain)
+		err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig)
+		logger.Printf("bitcoin.VerifySignatureDER(%v) => %v", sp, err)
+		if err != nil {
+			return err
+		}
+	case keeper.SafeChainMVM:
+		gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
+		logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", hex.EncodeToString(sp.Extra), gs, err)
+		if err != nil {
+			return err
+		}
+		tx, err := node.keeperStore.ReadTransaction(ctx, gs.TxHash)
+		logger.Printf("keeperStore.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err)
+		if err != nil {
+			return err
+		}
+		raw, err := hex.DecodeString(tx.RawTransaction)
+		if err != nil {
+			return err
+		}
+		st, err := ethereum.UnmarshalSafeTransaction(raw)
+		logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", tx.RawTransaction, st, err)
+		if err != nil {
+			return err
+		}
+		err = ethereum.VerifyMessageSignature(sp.Holder, st.Message, sig)
+		logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", sp.Holder, hex.EncodeToString(st.Message), hex.EncodeToString(sig), err)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
 	id := mixin.UniqueConversationID(addr, sigBase64)
@@ -149,8 +173,11 @@ func (node *Node) httpApproveBitcoinAccount(ctx context.Context, addr, sigBase64
 	return node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 }
 
-func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
-	logger.Printf("node.httpCreateBitcoinAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
+func (node *Node) httpCreateSafeAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpCreateAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
+	if hash == "" || raw == "" {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -166,22 +193,23 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	if safe == nil || safe.State != common.RequestStateDone {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
+
 	switch safe.Chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		return node.httpCreateBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
+	case keeper.SafeChainMVM:
+		return node.httpCreateEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
+}
 
-	if hash == "" || raw == "" {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
+func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 	if err != nil {
 		return err
 	}
-
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
 	if err != nil {
 		return err
@@ -309,8 +337,130 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, a
 	return node.store.WriteInitialRecovery(ctx, r)
 }
 
-func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
-	logger.Printf("node.httpSignBitcoinAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
+func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
+	approval, err := node.store.ReadTransactionApproval(ctx, hash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+	if err != nil {
+		return err
+	}
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	if err != nil {
+		return err
+	}
+
+	rb := common.DecodeHexOrPanic(raw)
+	st, err := ethereum.UnmarshalSafeTransaction(rb)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, st, err)
+	if err != nil {
+		return err
+	}
+	if st.Destination.Hex() == safe.Address {
+		return fmt.Errorf("recovery destination %s is the same as safe address %s", st.Destination.Hex(), safe.Address)
+	}
+
+	switch {
+	case approval != nil: // Close account with safeBTC
+		if count != 1 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
+		if approval.State != common.RequestStateInitial {
+			return nil
+		}
+		if approval.TransactionHash != hash {
+			return nil
+		}
+		if approval.RawTransaction != raw {
+			return nil
+		}
+		if ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+			return nil
+		}
+
+		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
+		if err != nil || tx == nil {
+			return err
+		}
+	case approval == nil: // Close account with holder key
+		if count != 0 {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+
+		if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+			return nil
+		}
+	}
+
+	rpc, assetId := node.ethereumParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return nil
+	}
+	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
+	if err != nil {
+		return err
+	}
+	safeBalance, err := node.keeperStore.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, safeBalance, err)
+	if err != nil {
+		return err
+	}
+	transaction, err := ethereum.RPCGetTransactionByHash(rpc, safeBalance.LatestTxHash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, safeBalance.LatestTxHash, transaction, err)
+	if err != nil {
+		return err
+	}
+	block, err := ethereum.RPCGetBlock(rpc, transaction.BlockHash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, transaction.BlockHash, block, err)
+	if err != nil {
+		return err
+	}
+	if block.Time.IsZero() || latest.Time.IsZero() || block.Time.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
+		return fmt.Errorf("safe %s is locked", safe.Address)
+	}
+	if safeBalance.Balance.Cmp(st.Value) != 0 {
+		return fmt.Errorf("recovery amount %d is not equal to balance %d ", st.Value, safeBalance.Balance)
+	}
+
+	if approval == nil {
+		approval = &Transaction{
+			TransactionHash: hash,
+			RawTransaction:  raw,
+			Chain:           safe.Chain,
+			Holder:          safe.Holder,
+			Signer:          safe.Signer,
+			State:           common.RequestStateInitial,
+			CreatedAt:       time.Now().UTC(),
+			UpdatedAt:       time.Now().UTC(),
+		}
+		err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
+		if err != nil {
+			return err
+		}
+	}
+
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  raw,
+		TransactionHash: hash,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	return node.store.WriteInitialRecovery(ctx, r)
+}
+
+func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
+	logger.Printf("node.httpSignAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -326,12 +476,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	if safe == nil || safe.State != common.RequestStateDone {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-	switch safe.Chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
-	default:
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
 
 	r, err := node.store.ReadRecovery(ctx, safe.Address)
 	if err != nil {
@@ -344,6 +488,17 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		return node.httpSignBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
+	case keeper.SafeChainMVM:
+		return node.httpSignEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+}
+
+func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
 	if err != nil || approval == nil {
@@ -355,6 +510,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
+
 	isHolderSigned := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
 
 	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
@@ -470,12 +626,145 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, add
 		if err != nil {
 			return err
 		}
-		return node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStateDone)
+		return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
 	}
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
 	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
-	return node.store.UpdateRecoveryState(ctx, addr, raw, common.RequestStatePending)
+	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
+}
+
+func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
+	approval, err := node.store.ReadTransactionApproval(ctx, hash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.TransactionHash != hash {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
+
+	isHolderSigned := ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+		return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, safe.Observer)
+	}
+
+	rb := common.DecodeHexOrPanic(raw)
+	st, err := ethereum.UnmarshalSafeTransaction(rb)
+	if err != nil {
+		return err
+	}
+	if st.Destination.Hex() == safe.Address {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	signedRaw := st.Marshal()
+
+	rpc, assetId := node.ethereumParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return nil
+	}
+	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
+	if err != nil {
+		return err
+	}
+	safeBalance, err := node.keeperStore.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, safeBalance, err)
+	if err != nil {
+		return err
+	}
+	transaction, err := ethereum.RPCGetTransactionByHash(rpc, safeBalance.LatestTxHash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, safeBalance.LatestTxHash, transaction, err)
+	if err != nil {
+		return err
+	}
+	block, err := ethereum.RPCGetBlock(rpc, transaction.BlockHash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, transaction.BlockHash, block, err)
+	if err != nil {
+		return err
+	}
+	if block.Time.IsZero() || latest.Time.IsZero() || block.Time.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
+		return fmt.Errorf("safe %s is locked", safe.Address)
+	}
+	if safeBalance.Balance.Cmp(st.Value) != 0 {
+		return fmt.Errorf("recovery amount %d is not equal to balance %d ", st.Value, safeBalance.Balance)
+	}
+
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionApprovalsForHolder(%s) => %d %v", safe.Holder, count, err)
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	var extra []byte
+	id := mixin.UniqueConversationID(safe.Address, st.Destination.Hex())
+	switch {
+	case !isHolderSigned: // Close account with safeBTC
+		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
+		if err != nil {
+			return err
+		}
+		if tx == nil {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	case isHolderSigned: // Close account with holder key
+		if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+			return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) holder", raw, safe.Holder)
+		}
+		extra = uuid.Nil.Bytes()
+	}
+
+	objectRaw := signedRaw
+	rawId := mixin.UniqueConversationID(raw, raw)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := mixin.UniqueConversationID(msg, msg)
+	conf := node.conf.App
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+
+	extra = append(extra, ref[:]...)
+	action := common.ActionEthereumSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if isHolderSigned {
+		err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
+		logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
+		if err != nil {
+			return err
+		}
+		return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
+	}
+
+	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
+	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
 }
 
 func (node *Node) httpApproveBitcoinTransaction(ctx context.Context, raw string) error {
