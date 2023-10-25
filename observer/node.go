@@ -200,8 +200,10 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 	if len(extra) != 66 {
 		return false, nil
 	}
+
 	switch extra[0] {
 	case common.CurveSecp256k1ECDSABitcoin:
+	case common.CurveSecp256k1ECDSAEthereum:
 	default:
 		return false, nil
 	}
@@ -225,10 +227,11 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return true, nil
 	}
 
+	chain := keeper.SafeCurveChain(extra[0])
 	id := mixin.UniqueConversationID(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
-	err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
+	err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, chain, id, extra)
 	if err != nil {
 		return false, err
 	}
@@ -272,14 +275,17 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 
 	switch s.AssetID {
 	case node.conf.AssetId:
-		if op.Type == common.ActionBitcoinSafeApproveAccount {
+		switch op.Type {
+		case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
 			return false, nil
 		}
 		if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			return false, nil
 		}
 	case params.OperationPriceAsset:
-		if op.Type != common.ActionBitcoinSafeApproveAccount {
+		switch op.Type {
+		case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
+		default:
 			return false, nil
 		}
 		if s.Amount.Cmp(params.OperationPriceAmount) < 0 {

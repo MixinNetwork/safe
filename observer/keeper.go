@@ -51,6 +51,10 @@ func (node *Node) sendKeeperResponseWithReferences(ctx context.Context, holder s
 	case keeper.SafeChainBitcoin:
 	case keeper.SafeChainLitecoin:
 		crv = common.CurveSecp256k1ECDSALitecoin
+	case keeper.SafeChainEthereum:
+		crv = common.CurveSecp256k1ECDSAEthereum
+	case keeper.SafeChainMVM:
+		crv = common.CurveSecp256k1ECDSAMVM
 	default:
 		panic(chain)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcec/v2"
 )
@@ -124,16 +125,21 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 		return signers
 	}
 
-	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
-	if err != nil {
-		panic(err)
+	opk, spk := safe.Observer, safe.Signer
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		var err error
+		opk, err = node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+		if err != nil {
+			panic(err)
+		}
+		spk, err = node.deriveBIP32WithKeeperPath(ctx, t.Signer, safe.Path)
+		if err != nil {
+			panic(err)
+		}
 	}
-	spk, err := node.deriveBIP32WithKeeperPath(ctx, t.Signer, safe.Path)
-	if err != nil {
-		panic(err)
-	}
-	pubs := []string{t.Holder, spk, opk}
 
+	pubs := []string{t.Holder, spk, opk}
 	for idx, pub := range pubs {
 		isSigned := bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
 		if isSigned {
