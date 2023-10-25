@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +15,14 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/shopspring/decimal"
 )
+
+type Transfer struct {
+	Index    int64
+	Receiver string
+	Value    *big.Int
+}
 
 func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 	switch chain {
@@ -108,6 +116,151 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 		return nil, err
 	}
 	return block.Tx, nil
+}
+
+func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Transfer, tx *ethereum.RPCTransaction, chain byte) error {
+	_, assetId := node.ethereumParams(chain)
+	amount := decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
+
+	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: tx.Hash}})
+	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", tx.Hash, sent, err)
+	if err != nil {
+		return fmt.Errorf("store.QueryDepositSentHashes(%s) => %v", tx.Hash, err)
+	}
+	if sent[tx.Hash] != "" {
+		return nil
+	}
+
+	old, err := node.keeperStore.ReadDeposit(ctx, tx.Hash, transfer.Index, assetId, transfer.Receiver)
+	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", tx.Hash, transfer.Index, assetId, transfer.Receiver, old, err)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", tx.Hash, transfer.Index, assetId, transfer.Receiver, old, err)
+	} else if old != nil {
+		return nil
+	}
+
+	safe, err := node.keeperStore.ReadSafeByAddress(ctx, transfer.Receiver)
+	logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", transfer.Receiver, safe, err)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
+	} else if safe == nil {
+		return nil
+	}
+
+	createdAt := time.Now().UTC()
+	deposit := &Deposit{
+		TransactionHash: tx.Hash,
+		OutputIndex:     transfer.Index,
+		AssetId:         assetId,
+		Amount:          amount.String(),
+		Receiver:        transfer.Receiver,
+		Sender:          tx.From,
+		Holder:          safe.Holder,
+		Category:        common.ActionObserverHolderDeposit,
+		State:           common.RequestStateInitial,
+		Chain:           chain,
+		CreatedAt:       createdAt,
+		UpdatedAt:       createdAt,
+	}
+
+	err = node.store.WritePendingDepositIfNotExists(ctx, deposit)
+	if err != nil {
+		return fmt.Errorf("store.WritePendingDeposit(%v) => %v", deposit, err)
+	}
+	return nil
+}
+
+func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
+	rpc, assetId := node.ethereumParams(deposit.Chain)
+
+	bonded, err := node.checkOrDeployKeeperBond(ctx, assetId, deposit.Holder)
+	if err != nil {
+		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
+	} else if !bonded {
+		return nil
+	}
+
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, deposit.Chain, time.Now())
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadLatestNetworkInfo(%d) => %v", deposit.Chain, err)
+	} else if info == nil {
+		return nil
+	}
+	if info.CreatedAt.Add(keeper.SafeNetworkInfoTimeout / 7).Before(time.Now()) {
+		return nil
+	}
+	if info.CreatedAt.After(time.Now()) {
+		panic(fmt.Errorf("malicious ethereum network info %v", info))
+	}
+
+	tx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.TransactionHash)
+	if err != nil || tx == nil {
+		panic(fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", deposit.TransactionHash, err))
+	}
+	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.TransactionHash)
+	if err != nil {
+		return err
+	}
+	transfers := loopCalls(traces, 0, 0)
+	match := false
+	for _, t := range transfers {
+		if t.Receiver == deposit.Receiver && ethereum.ParseWei(deposit.Amount).Cmp(t.Value) == 0 {
+			match = true
+		}
+	}
+	if !match {
+		panic(fmt.Errorf("malicious ethereum deposit %s", deposit.TransactionHash))
+	}
+	confirmations := info.Height - tx.BlockHeight + 1
+	if info.Height < tx.BlockHeight {
+		confirmations = 0
+	}
+	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, assetId, deposit.Sender)
+	if err != nil {
+		return fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", deposit.Sender, err)
+	}
+	if isDomain {
+		confirmations = 1000000
+	}
+	isSafe, err := node.checkSafeInternalAddress(ctx, deposit.Sender)
+	if err != nil {
+		return fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", deposit.Sender, err)
+	}
+	if isSafe {
+		confirmations = 1000000
+	}
+	if confirmations < ethereum.TransactionConfirmations {
+		return nil
+	}
+
+	extra := deposit.encodeKeeperExtra()
+	id := mixin.UniqueConversationID(assetId, deposit.Holder)
+	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
+	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
+	if err != nil {
+		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
+	}
+	err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
+	if err != nil {
+		return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
+	}
+	return nil
+}
+
+func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
+	for {
+		time.Sleep(3 * time.Second)
+		deposits, err := node.store.ListDeposits(ctx, int(chain), "", common.RequestStateInitial, 0)
+		if err != nil {
+			panic(err)
+		}
+		for _, d := range deposits {
+			err := node.ethereumConfirmPendingDeposit(ctx, d)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
 }
 
 func (node *Node) ethereumMixinWithdrawalsLoop(ctx context.Context, chain byte) {
@@ -219,8 +372,42 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 }
 
 func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.RPCTransaction, chain byte) error {
-	// todo
+	rpc, _ := node.ethereumParams(chain)
+	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, tx.Hash)
+	if err != nil {
+		return err
+	}
+	transfers := loopCalls(traces, 0, 0)
+	for _, transfer := range transfers {
+		err := node.ethereumWritePendingDeposit(ctx, transfer, tx, chain)
+		if err != nil {
+			panic(err)
+		}
+	}
 	return nil
+}
+
+func loopCalls(trace *ethereum.RPCTransactionCallTrace, layer, index int) []*Transfer {
+	var transfers []*Transfer
+
+	if trace.Value != "" && trace.Input == "0x" {
+		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
+		if value.Cmp(big.NewInt(0)) > 0 {
+			transfers = append(transfers, &Transfer{
+				Index:    int64(layer*10 + index),
+				Value:    value,
+				Receiver: trace.To,
+			})
+		}
+	}
+
+	for i, c := range trace.Calls {
+		ts := loopCalls(c, layer+1, i)
+		for _, t := range ts {
+			transfers = append(transfers, t)
+		}
+	}
+	return transfers
 }
 
 func (node *Node) ethereumReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {

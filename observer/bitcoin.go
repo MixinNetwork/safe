@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"strconv"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -311,20 +309,6 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 	}
 	return nil
-}
-
-func (deposit *Deposit) encodeKeeperExtra() []byte {
-	hash, err := crypto.HashFromString(deposit.TransactionHash)
-	if err != nil {
-		panic(deposit.TransactionHash)
-	}
-	satoshi := bitcoin.ParseSatoshi(deposit.Amount)
-	extra := []byte{deposit.Chain}
-	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
-	extra = append(extra, hash[:]...)
-	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
-	extra = append(extra, big.NewInt(satoshi).Bytes()...)
-	return extra
 }
 
 func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {

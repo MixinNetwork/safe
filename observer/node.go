@@ -75,6 +75,7 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumMixinWithdrawalsLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
+			go node.ethereumDepositConfirmLoop(ctx, chain)
 			go node.ethereumTransactionApprovalLoop(ctx, chain)
 			go node.ethereumTransactionSpendLoop(ctx, chain)
 		}
@@ -249,7 +250,7 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 	if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
 		return true, nil
 	}
-	return true, node.holderPayTransactionApproval(ctx, s.Memo)
+	return true, node.holderPayTransactionApproval(ctx, approval.Chain, s.Memo)
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {

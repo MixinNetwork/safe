@@ -3,8 +3,10 @@ package observer
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -128,8 +130,10 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 	if err != nil {
 		return err
 	}
+	var action int
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		action = common.ActionBitcoinSafeApproveAccount
 		ms := fmt.Sprintf("APPROVE:%s:%s", sp.RequestId, sp.Address)
 		hash := bitcoin.HashMessageForSignature(ms, sp.Chain)
 		err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig)
@@ -138,6 +142,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 			return err
 		}
 	case keeper.SafeChainMVM:
+		action = common.ActionEthereumSafeApproveAccount
 		gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
 		logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", hex.EncodeToString(sp.Extra), gs, err)
 		if err != nil {
@@ -169,7 +174,6 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 	id := mixin.UniqueConversationID(addr, sigBase64)
 	rid := uuid.Must(uuid.FromString(sp.RequestId))
 	extra := append(rid.Bytes(), sig...)
-	action := common.ActionBitcoinSafeApproveAccount
 	return node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 }
 
@@ -862,7 +866,7 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 }
 
 func (node *Node) httpApproveEthereumTransaction(ctx context.Context, hash, raw string) error {
-	logger.Printf("node.httpApproveBitcoinTransaction(%s)", raw)
+	logger.Printf("node.httpApproveEthereumTransaction(%s)", raw)
 
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
@@ -890,7 +894,7 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, hash, raw 
 }
 
 func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash string, sigBase64 string) error {
-	logger.Printf("node.httpRevokeBitcoinTransaction(%s, %s)", txHash, sigBase64)
+	logger.Printf("node.httpRevokeEthereumTransaction(%s, %s)", txHash, sigBase64)
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
@@ -943,7 +947,7 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 	return err
 }
 
-func (node *Node) holderPayTransactionApproval(ctx context.Context, hash string) error {
+func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, hash string) error {
 	logger.Printf("node.holderPayTransactionApproval(%s)", hash)
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Printf("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
@@ -953,8 +957,15 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, hash string)
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
-	if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-		return nil
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+			return nil
+		}
+	case keeper.SafeChainMVM:
+		if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+			return nil
+		}
 	}
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }
@@ -1140,4 +1151,25 @@ func (node *Node) ethereumCheckKeeperSignedTransaction(ctx context.Context, appr
 		return false, nil
 	}
 	return true, nil
+}
+
+func (deposit *Deposit) encodeKeeperExtra() []byte {
+	hash, err := crypto.HashFromString(deposit.TransactionHash)
+	if err != nil {
+		panic(deposit.TransactionHash)
+	}
+	var amount *big.Int
+	switch deposit.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		satoshi := bitcoin.ParseSatoshi(deposit.Amount)
+		amount = new(big.Int).SetInt64(satoshi)
+	case keeper.SafeChainMVM:
+		amount = ethereum.ParseWei(deposit.Amount)
+	}
+	extra := []byte{deposit.Chain}
+	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
+	extra = append(extra, hash[:]...)
+	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
+	extra = append(extra, amount.Bytes()...)
+	return extra
 }
