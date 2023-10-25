@@ -140,6 +140,9 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Len(requests, 1)
 	tx, _ = node.store.ReadTransaction(ctx, tx.TransactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
+	safe, err = node.store.ReadSafe(ctx, tx.Holder)
+	require.Nil(err)
+	require.Equal(common.RequestStateFailed, int(safe.State))
 
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
 	exk := mc.Blake3Hash([]byte(common.Base91Encode(mb)))
@@ -147,7 +150,11 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeApproveTransaction)
 	require.Equal(mb, b)
 
-	rpc, _ := node.ethereumParams(SafeChainMVM)
+	rpc, assetId := node.ethereumParams(SafeChainMVM)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	require.Nil(err)
+	require.Equal(int64(0), balance.Balance.Int64())
+
 	st, _ = ethereum.UnmarshalSafeTransaction(mb)
 	success, err := st.ValidTransaction(rpc)
 	require.Nil(err)
@@ -395,10 +402,13 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
 
-	rpc, _ := node.ethereumParams(SafeChainMVM)
+	rpc, assetId := node.ethereumParams(SafeChainMVM)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	require.Nil(err)
+	require.Equal(int64(0), balance.Balance.Int64())
+
 	raw, _ = hex.DecodeString(tx.RawTransaction)
 	t, _ = ethereum.UnmarshalSafeTransaction(raw)
-
 	valid, err := t.ValidTransaction(rpc)
 	require.Nil(err)
 	require.True(valid)

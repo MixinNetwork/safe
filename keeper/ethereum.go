@@ -933,6 +933,22 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	_, assetId := node.ethereumParams(safe.Chain)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	closeBalance := balance.Balance.Sub(balance.Balance, t.Value)
+	if closeBalance.Cmp(big.NewInt(0)) < 0 {
+		logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
+	}
+	err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, assetId)
+	logger.Printf("store.CreateOrUpdateEthereumBalanceWithCloseBalance(%s, %s, %s) => %v", safe.Address, assetId, closeBalance.String(), err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
 	if safe.State == common.RequestStatePending {
 		sp, err := node.store.ReadSafeProposalByAddress(ctx, safe.Address)
 		if err != nil {

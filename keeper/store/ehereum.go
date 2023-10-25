@@ -39,7 +39,7 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
 		}
 	} else {
-		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, latest_tx_hash, updated_at=? WHERE address=?", amount.String(), txHash, time.Now().UTC(), safe.Address)
+		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, latest_tx_hash=?, updated_at=? WHERE address=? AND asset_id=?", amount.String(), txHash, time.Now().UTC(), safe.Address, assetId)
 		if err != nil {
 			return fmt.Errorf("UPDATE ethereum_balances %v", err)
 		}
@@ -55,6 +55,36 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) CreateOrUpdateEthereumBalanceWithCloseBalance(ctx context.Context, safe *Safe, balance *big.Int, assetId string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var b *big.Int
+	row := tx.QueryRowContext(ctx, "SELECT balance FROM ethereum_balances WHERE address=? AND asset_id=?", safe.Address, assetId)
+	err = row.Scan(&b)
+	if err == sql.ErrNoRows {
+		cols := []string{"address", "asset_id", "balance", "latest_tx_hash", "updated_at"}
+		vals := []any{safe.Address, assetId, balance.String(), "", time.Now().UTC()}
+		err = s.execOne(ctx, tx, buildInsertionSQL("ethereum_balances", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT ethereum_balances %v", err)
+		}
+	} else {
+		err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET balance=?, updated_at=? WHERE address=? AND asset_id=?", balance.String(), time.Now().UTC(), safe.Address, assetId)
+		if err != nil {
+			return fmt.Errorf("UPDATE ethereum_balances %v", err)
+		}
+	}
+
 	return tx.Commit()
 }
 
