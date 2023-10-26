@@ -18,6 +18,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	ethereumKeygenRequestTimeKey = "ethereum-keygen-request-time"
+)
+
 type Transfer struct {
 	Index    int64
 	Receiver string

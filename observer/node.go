@@ -80,7 +80,8 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.ethereumTransactionSpendLoop(ctx, chain)
 		}
 	}
-	go node.bitcoinKeyLoop(ctx)
+	go node.safeKeyLoop(ctx, keeper.SafeChainBitcoin)
+	go node.safeKeyLoop(ctx, keeper.SafeChainEthereum)
 	node.snapshotsLoop(ctx)
 }
 

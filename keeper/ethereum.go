@@ -643,8 +643,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra = uuid.Must(uuid.FromString(req.Id)).Bytes()
-	extra = append(extra, t.Marshal()...)
+	extra = t.Marshal()
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)

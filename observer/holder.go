@@ -39,26 +39,24 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 
 func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, extra []byte, createdAt time.Time) error {
 	logger.Printf("node.keeperSaveAccountProposal(%d, %x, %s)", chain, extra, createdAt)
-	var sp *store.SafeProposal
+	var address string
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		wsa, err := bitcoin.UnmarshalWitnessScriptAccount(extra)
 		if err != nil {
 			return err
 		}
-		sp, err = node.keeperStore.ReadSafeProposalByAddress(ctx, wsa.Address)
-		if err != nil {
-			return err
-		}
+		address = wsa.Address
 	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
 		gs, err := ethereum.UnmarshalGnosisSafe(extra)
 		if err != nil {
 			return err
 		}
-		sp, err = node.keeperStore.ReadSafeProposalByAddress(ctx, gs.Address)
-		if err != nil {
-			return err
-		}
+		address = gs.Address
+	}
+	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, address)
+	if err != nil {
+		return err
 	}
 	if sp.Chain != chain {
 		return fmt.Errorf("inconsistent chain between SafeProposal and keeper response: %d, %d", sp.Chain, chain)
@@ -71,7 +69,7 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
 		_, assetId = node.ethereumParams(sp.Chain)
 	}
-	_, err := node.checkOrDeployKeeperBond(ctx, assetId, sp.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, assetId, sp.Holder)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", assetId, sp.Holder, err)
 	if err != nil {
 		return err
@@ -87,11 +85,7 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 		psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 		txHash = psbt.UnsignedTx.TxHash().String()
 	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
-		id := uuid.FromBytesOrNil(extra[:16])
-		if id.IsNil() {
-			return fmt.Errorf("Empty transaction proposal id")
-		}
-		t, _ := ethereum.UnmarshalSafeTransaction(extra[16:])
+		t, _ := ethereum.UnmarshalSafeTransaction(extra)
 		txHash = t.TxHash
 	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)

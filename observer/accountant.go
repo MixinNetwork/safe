@@ -367,11 +367,11 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			if err != nil {
 				panic(err)
 			}
-			tx, err := ethereum.RPCGetTransactionByHash(rpc, spentHash)
+			etx, err := ethereum.RPCGetTransactionByHash(rpc, spentHash)
 			if err != nil || tx == nil {
 				panic(fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", spentHash, tx, err))
 			}
-			err = node.ethereumProcessTransaction(ctx, tx, chain)
+			err = node.ethereumProcessTransaction(ctx, etx, chain)
 			if err != nil {
 				panic(err)
 			}
