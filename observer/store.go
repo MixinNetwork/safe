@@ -623,15 +623,15 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw str
 	}
 	defer tx.Rollback()
 
+	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=?", address)
+	if err != nil || !existed {
+		return err
+	}
 	switch state {
 	case common.RequestStatePending:
 		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state=?",
 			state, raw, time.Now().UTC(), address, common.RequestStateInitial)
 	case common.RequestStateDone:
-		existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=?", address)
-		if err != nil || !existed {
-			return err
-		}
 		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
 			state, time.Now().UTC(), address, common.RequestStatePending)
 	default:

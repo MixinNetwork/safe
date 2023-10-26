@@ -110,6 +110,38 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	return err
 }
 
+func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context, extra []byte) error {
+	logger.Printf("node.keeperVerifyEthereumTransactionSignatures(%x)", extra)
+	st, _ := ethereum.UnmarshalSafeTransaction(extra)
+	raw := hex.EncodeToString(st.Marshal())
+
+	tx, err := node.store.ReadTransactionApproval(ctx, st.TxHash)
+	if err != nil || tx.State >= common.RequestStateDone {
+		return err
+	}
+	switch tx.Chain {
+	case keeper.SafeChainEthereum:
+	case keeper.SafeChainMVM:
+	default:
+		panic(st.TxHash)
+	}
+
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
+	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.FinishTransactionSignatures(ctx, st.TxHash, raw)
+	logger.Printf("store.FinishTransactionSignatures(%s) => %v", st.TxHash, err)
+	return err
+}
+
 func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
 
