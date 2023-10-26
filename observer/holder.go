@@ -635,6 +635,9 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
 	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	if err != nil {
+		return err
+	}
 	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
 }
 
@@ -768,6 +771,9 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
 	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
+	if err != nil {
+		return err
+	}
 	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
 }
 

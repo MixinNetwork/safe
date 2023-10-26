@@ -530,6 +530,9 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	rpc, _ := node.ethereumParams(chain)
 	hash, err := st.ExecTransaction(rpc, node.conf.EVMKey)
 	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
+	if err != nil {
+		return "", err
+	}
 
 	tx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 	if err != nil || tx == nil {
