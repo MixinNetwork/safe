@@ -92,7 +92,7 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 			return fmt.Errorf("Empty transaction proposal id")
 		}
 		t, _ := ethereum.UnmarshalSafeTransaction(extra[16:])
-		txHash = t.Hash(id.String())
+		txHash = t.TxHash
 	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {

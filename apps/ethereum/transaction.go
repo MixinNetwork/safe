@@ -23,6 +23,7 @@ import (
 // execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)
 
 type SafeTransaction struct {
+	TxHash         string
 	ChainID        int64
 	SafeAddress    string
 	Destination    common.Address
@@ -47,7 +48,7 @@ type Output struct {
 	Nonce       int64
 }
 
-func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination, amount string, nonce *big.Int) (*SafeTransaction, error) {
+func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, id, safeAddress, destination, amount string, nonce *big.Int) (*SafeTransaction, error) {
 	value, ok := new(big.Int).SetString(amount, 10)
 	if !ok {
 		return nil, fmt.Errorf("Fail to parse value to big.Int")
@@ -85,6 +86,7 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 		tx.Data = tx.GetEnableGuradData(EthereumSafeGuardAddress)
 	}
 	tx.Message = tx.GetTransactionHash()
+	tx.TxHash = tx.Hash(id)
 	return tx, nil
 }
 
@@ -99,6 +101,7 @@ func (tx *SafeTransaction) Hash(id string) string {
 func (tx *SafeTransaction) Marshal() []byte {
 	enc := mc.NewEncoder()
 	enc.WriteUint64(uint64(tx.ChainID))
+	bitcoin.WriteBytes(enc, []byte(tx.TxHash))
 	bitcoin.WriteBytes(enc, []byte(tx.SafeAddress))
 	bitcoin.WriteBytes(enc, tx.Destination.Bytes())
 	bitcoin.WriteBytes(enc, tx.Value.Bytes())
@@ -118,6 +121,10 @@ func (tx *SafeTransaction) Marshal() []byte {
 func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	dec := mc.NewDecoder(b)
 	chainID, err := dec.ReadUint64()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := dec.ReadBytes()
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +171,7 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	}
 
 	return &SafeTransaction{
+		TxHash:         string(hash),
 		ChainID:        int64(chainID),
 		SafeAddress:    string(safeAddress),
 		Destination:    common.BytesToAddress(destination),

@@ -216,7 +216,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		"amount":   amt.String(),
 	}})
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(safe.Address),
+		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
@@ -309,7 +309,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(req.Id),
+		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           chain,
@@ -627,7 +627,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	// todo: func multicall encoding
-	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
+	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, req.Id, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
 	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
 		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
 	if err != nil {
@@ -655,7 +655,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(req.Id),
+		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,

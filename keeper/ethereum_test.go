@@ -170,7 +170,8 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 
 	rpc, _ := node.ethereumParams(SafeChainMVM)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
-	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", nil)
+	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
+	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, id, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", nil)
 	require.Nil(err)
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
@@ -196,11 +197,11 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Nil(err)
 	extra := uuid.Nil.Bytes()
 	extra = append(extra, ref[:]...)
-	id := uuid.Must(uuid.NewV4()).String()
+	id = uuid.Must(uuid.NewV4()).String()
 	out := testBuildObserverRequest(node, id, holder, common.ActionEthereumSafeCloseAccount, extra, common.CurveSecp256k1ECDSAMVM)
 	testStep(ctx, require, node, out)
 
-	tx, err := node.store.ReadTransaction(ctx, st.Hash(testEthereumSafeAddress))
+	tx, err := node.store.ReadTransaction(ctx, st.TxHash)
 	require.Nil(err)
 	require.Equal(common.RequestStateDone, tx.State)
 	safe, err = node.store.ReadSafe(ctx, tx.Holder)
@@ -304,7 +305,7 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	require.Equal(testEthereumTransactionReceiver, t.Destination.Hex())
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
-	stx, err := node.store.ReadTransaction(ctx, t.Hash(rid))
+	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(t.Marshal()), stx.RawTransaction)
 	require.Equal("[{\"amount\":\"0.0001\",\"receiver\":\"0xA03A8590BB3A2cA5c747c8b99C63DA399424a055\"}]", stx.Data)
