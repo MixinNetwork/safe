@@ -297,7 +297,7 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	testStep(ctx, require, node, out)
 
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeProposeTransaction)
-	t, err := ethereum.UnmarshalSafeTransaction(b[16:])
+	t, err := ethereum.UnmarshalSafeTransaction(b)
 	require.Nil(err)
 
 	amt := decimal.NewFromBigInt(t.Value, -ethereum.ValuePrecision)
