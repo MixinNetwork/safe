@@ -70,9 +70,9 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	rpc, asset_id := node.ethereumParams(safe.Chain)
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
+	rpc, assetId := node.ethereumParams(safe.Chain)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -567,7 +567,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	rpc, asset_id := node.ethereumParams(safe.Chain)
+	rpc, assetId := node.ethereumParams(safe.Chain)
 	nonce, err := ethereum.GetNonce(rpc, safe.Address)
 	logger.Printf("ethereum.GetNonce(%s) => %d %v", safe.Address, nonce, err)
 	if err != nil {
@@ -633,8 +633,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}

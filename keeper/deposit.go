@@ -196,9 +196,9 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	rpc, asset_id := node.ethereumParams(deposit.Chain)
-	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, safeBalance, err)
+	rpc, assetId := node.ethereumParams(deposit.Chain)
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, safeBalance, err)
 	if err != nil {
 		return err
 	}

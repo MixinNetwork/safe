@@ -520,7 +520,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(testEthereumSafeAddress, safeaddress.Hex())
 }
 
-func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, asset_id, balance string) {
+func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, assetId, balance string) {
 	id := uuid.Must(uuid.NewV4()).String()
 	amt, err := decimal.NewFromString(balance)
 	require.Nil(err)
