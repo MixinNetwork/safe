@@ -191,14 +191,14 @@ func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
-	table := transactionInputTable(trx.Chain)
-	if table != "" {
-		query := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?", table)
-		for _, utxo := range utxos {
-			err = s.execOne(ctx, tx, query, utxoState, trx.TransactionHash, trx.UpdatedAt, utxo.Hash, utxo.Index)
-			if err != nil {
-				return fmt.Errorf("UPDATE %s %v", table, err)
-			}
+	if !transactionHasOutputs(trx.Chain) {
+		return nil
+	}
+	query := "UPDATE bitcoin_outputs SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?"
+	for _, utxo := range utxos {
+		err = s.execOne(ctx, tx, query, utxoState, trx.TransactionHash, trx.UpdatedAt, utxo.Hash, utxo.Index)
+		if err != nil {
+			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 		}
 	}
 	return nil
@@ -214,15 +214,14 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	}
 	defer tx.Rollback()
 
-	table := transactionInputTable(trx.Chain)
-	if table != "" {
+	if transactionHasOutputs(trx.Chain) {
 		inputs := TransactionInputsFromRawTransaction(trx)
-		update := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?", table)
-		query := fmt.Sprintf("SELECT address FROM %s WHERE transaction_hash=? AND output_index=?", table)
+		update := "UPDATE bitcoin_outputs SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?"
+		query := "SELECT address FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?"
 		for _, in := range inputs {
 			err = s.execOne(ctx, tx, update, common.RequestStateInitial, nil, req.CreatedAt, in.Hash, in.Index, trx.TransactionHash)
 			if err != nil {
-				return fmt.Errorf("UPDATE %s %v", table, err)
+				return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 			}
 
 			var receiver string
@@ -264,12 +263,12 @@ func (s *SQLite3Store) readTransaction(ctx context.Context, tx *sql.Tx, transact
 	return &trx, err
 }
 
-func transactionInputTable(chain byte) string {
+func transactionHasOutputs(chain byte) bool {
 	switch chain {
 	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
-		return "bitcoin_outputs"
+		return true
 	case ethereum.ChainEthereum, ethereum.ChainMVM:
-		return ""
+		return false
 	default:
 		panic(chain)
 	}

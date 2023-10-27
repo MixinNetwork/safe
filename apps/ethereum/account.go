@@ -13,7 +13,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common/abi"
-	ca "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -184,7 +183,7 @@ func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error 
 	}
 	defer conn.Close()
 
-	signer, err := ca.SignerInit(key)
+	signer, err := abi.SignerInit(key)
 	if err != nil {
 		return err
 	}
