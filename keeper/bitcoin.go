@@ -672,28 +672,9 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	return nil
 }
 
-func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *common.Request) error {
+func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) error {
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
-	}
-	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
-	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
-	if err != nil {
-		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
-	}
-	if old == nil || old.State == common.RequestStateDone {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
-	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
-	}
-	safe, err := node.store.ReadSafe(ctx, tx.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
-	}
-	if safe.Signer != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	spk, err := node.deriveBIP32WithPath(ctx, safe.Signer, common.DecodeHexOrPanic(safe.Path))

@@ -40,13 +40,13 @@ const (
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
 
-func HashMessageForSignature(msg string) ([]byte, error) {
-	msgB, err := hex.DecodeString(msg)
+func HashMessageForSignature(msg string) []byte {
+	b, err := hex.DecodeString(msg)
 	if err != nil {
-		return nil, err
+		panic(msg)
 	}
-	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(msgB), msgB)))
-	return hash.Bytes(), nil
+	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(b), b)))
+	return hash.Bytes()
 }
 
 func ParseWei(amount string) *big.Int {

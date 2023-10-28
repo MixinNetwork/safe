@@ -325,9 +325,9 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	}
 	switch safe.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
-		return node.processBitcoinSafeSignatureResponse(ctx, req)
+		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
 	case SafeChainEthereum, SafeChainMVM:
-		return node.processEthereumSafeSignatureResponse(ctx, req)
+		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
 	default:
 		panic(safe.Chain)
 	}

@@ -226,10 +226,7 @@ func VerifyHolderKey(public string) error {
 }
 
 func VerifyMessageSignature(public string, msg, sig []byte) error {
-	hash, err := HashMessageForSignature(hex.EncodeToString(msg))
-	if err != nil {
-		return err
-	}
+	hash := HashMessageForSignature(hex.EncodeToString(msg))
 	return VerifyHashSignature(public, hash, sig)
 }
 

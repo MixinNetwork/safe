@@ -142,11 +142,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%x) => %v %x %v", t.Message, hash, hash, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
@@ -424,11 +420,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%x) => %x %v", t.Message, hash, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
@@ -688,11 +680,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%x) => %x %v", t.Message, hash, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
@@ -717,33 +705,14 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	return nil
 }
 
-func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req *common.Request) error {
+func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) error {
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
-	}
-	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
-	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
-	if err != nil {
-		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
-	}
-	if old == nil || old.State == common.RequestStateDone {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
-	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
-	}
-	safe, err := node.store.ReadSafe(ctx, tx.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
-	}
-	if safe.Signer != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = ethereum.VerifyHashSignature(safe.Signer, msg, sig)
+	err := ethereum.VerifyHashSignature(safe.Signer, msg, sig)
 	logger.Printf("node.VerifyHashSignature(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
