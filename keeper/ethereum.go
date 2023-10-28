@@ -553,8 +553,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		var total decimal.Decimal
-		n := nonce
-		for _, rp := range recipients {
+		for i, rp := range recipients {
 			amt, err := decimal.NewFromString(rp[1])
 			if err != nil {
 				return node.store.FailRequest(ctx, req.Id)
@@ -564,11 +563,10 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			}
 			total = total.Add(amt)
 			outputs = append(outputs, &ethereum.Output{
-				Destination: string(extra[16:]),
+				Destination: rp[0],
 				Wei:         ethereum.ParseWei(req.Amount.String()),
-				Nonce:       n,
+				Nonce:       nonce + int64(i),
 			})
-			n += 1
 		}
 		if !total.Equal(req.Amount) {
 			return node.store.FailRequest(ctx, req.Id)
