@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/shopspring/decimal"
 )
 
@@ -103,4 +104,38 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 		return crypto.Hash{}, 0, err
 	}
 	return mvm.GenerateAssetId(assetKey), SafeChainMVM, nil
+}
+
+func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {
+	switch common.NormalizeCurve(SafeChainCurve(safe.Chain)) {
+	case common.CurveSecp256k1ECDSABitcoin:
+		msg := bitcoin.HashMessageForSignature(ms, safe.Chain)
+		err := bitcoin.VerifySignatureDER(safe.Holder, msg, sig)
+		logger.Printf("holder: bitcoin.VerifySignatureDER(%s, %x) => %v", ms, sig, err)
+		if err != nil {
+			odk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
+			if err != nil {
+				return err
+			}
+			err = bitcoin.VerifySignatureDER(odk, msg, sig)
+			logger.Printf("holder: bitcoin.VerifySignatureDER(%s, %x) => %v", ms, sig, err)
+			if err != nil {
+				return err
+			}
+		}
+	case common.CurveSecp256k1ECDSAEthereum:
+		msg := []byte(ms)
+		err := ethereum.VerifyMessageSignature(safe.Holder, msg, sig)
+		logger.Printf("holder: ethereum.VerifyMessageSignature(%s, %x) => %v", ms, sig, err)
+		if err != nil {
+			err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+			logger.Printf("observer: ethereum.VerifyMessageSignature(%s, %x) => %v", ms, sig, err)
+			if err != nil {
+				return err
+			}
+		}
+	default:
+		panic(safe.Chain)
+	}
+	return nil
 }
