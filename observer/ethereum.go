@@ -36,11 +36,6 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	if err != nil || safe == nil {
 		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v", gs.Address, err)
 	}
-	owners, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v %v %v", safe.Holder, safe.Signer, safe.Observer, owners, pubs, err)
-	if err != nil {
-		return err
-	}
 	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
 	_, err = node.checkOrDeployKeeperBond(ctx, ethereumAssetId, sp.Holder)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", ethereumAssetId, sp.Holder, err)
@@ -61,13 +56,16 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	if err != nil {
 		return err
 	}
+	owners, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v %v", safe.Holder, safe.Signer, safe.Observer, owners, pubs)
 	var index int64
 	for i, pub := range pubs {
 		if pub == safe.Observer {
 			index = int64(i)
 		}
 	}
-	sa, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, int64(safe.Timelock/time.Hour), index, t)
-	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, int64(safe.Timelock/time.Hour), t, sa.Hex(), err)
+	timelock := int64(safe.Timelock / time.Hour)
+	sa, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, owners, 2, timelock, index, t)
+	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %v, %d, %d, %v) => %s %v", rpc, owners, 2, timelock, t, sa.Hex(), err)
 	return err
 }

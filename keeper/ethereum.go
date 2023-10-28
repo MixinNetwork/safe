@@ -44,7 +44,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	raw := node.readStorageExtraFromObserver(ctx, ref)
 
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
-	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, t, err)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -370,21 +370,18 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
 	logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", sp.Extra, gs, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 	tx, err := node.store.ReadTransaction(ctx, gs.TxHash)
 	logger.Printf("store.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	rawB, err := hex.DecodeString(tx.RawTransaction)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	rawB := common.DecodeHexOrPanic(tx.RawTransaction)
 	t, err := ethereum.UnmarshalSafeTransaction(rawB)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", rawB, t, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 
 	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:])
@@ -392,11 +389,8 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	_, pubs, err := ethereum.GetSortedSafeOwners(sp.Holder, sp.Signer, sp.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", sp.Holder, sp.Signer, sp.Observer, pubs, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	_, pubs := ethereum.GetSortedSafeOwners(sp.Holder, sp.Signer, sp.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v", sp.Holder, sp.Signer, sp.Observer, pubs)
 	for i, pub := range pubs {
 		if pub == sp.Holder {
 			t.Signatures[i] = extra[16:]
@@ -770,7 +764,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 
 	signed, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
@@ -853,22 +847,13 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return fmt.Errorf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
 	}
 
-	rawB, err := hex.DecodeString(tx.RawTransaction)
-	logger.Printf("hex.DecodeString(%v) => %v %v", tx, rawB, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	rawB := common.DecodeHexOrPanic(tx.RawTransaction)
 	t, err := ethereum.UnmarshalSafeTransaction(rawB)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", rawB, t, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v %v", safe, pubs, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
 	logger.Printf("store.ListAllSignaturesForTransaction(%s) => %d %v", old.TransactionHash, len(requests), err)
 	if err != nil {
@@ -877,6 +862,8 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	if len(requests) != 1 {
 		return fmt.Errorf("Invalid signature requests len: %d", len(requests))
 	}
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v", safe, pubs)
 	for i, pub := range pubs {
 		if pub != safe.Signer {
 			continue
@@ -945,17 +932,14 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 }
 
 func (node *Node) checkEthereumTransactionSignedBy(safe *store.Safe, t *ethereum.SafeTransaction, public string) (bool, error) {
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", safe.Holder, safe.Signer, safe.Observer, pubs, err)
-	if err != nil {
-		return false, err
-	}
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v", safe.Holder, safe.Signer, safe.Observer, pubs)
 	for i, k := range pubs {
 		sig := t.Signatures[i]
 		if k != public || sig == nil {
 			continue
 		}
-		err = ethereum.VerifyMessageSignature(public, t.Message, sig)
+		err := ethereum.VerifyMessageSignature(public, t.Message, sig)
 		logger.Printf("ethereum.VerifyMessageSignature(%s, %x, %x) => %v", safe.Holder, t.Message, sig, err)
 		return err == nil, nil
 	}

@@ -71,8 +71,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	st, err := ethereum.UnmarshalSafeTransaction(raw)
 
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
 		if pub == observer {
 			sig, err := testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
@@ -149,8 +148,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Nil(err)
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
 		var sig []byte
 		if pub == observer {
@@ -325,8 +323,7 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	require.Nil(err)
 
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 
 	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
 	require.Nil(err)
@@ -402,8 +399,7 @@ func testEthereumProposeAccount(ctx context.Context, require *require.Assertions
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
 
-	owners, _, err := ethereum.GetSortedSafeOwners(holder, signer, observer)
-	require.Nil(err)
+	owners, _ := ethereum.GetSortedSafeOwners(holder, signer, observer)
 	addr := ethereum.GetSafeAccountAddress(owners, 2)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, addr.Hex())
@@ -470,8 +466,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
 	require.Equal(testEthereumBondAssetId, bondId)
 
-	owners, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	owners, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	rpc, _ := node.ethereumParams(safe.Chain)
 	raw, err = hex.DecodeString(tx.RawTransaction)
 	require.Nil(err)

@@ -58,10 +58,7 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 }
 
 func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
-	owners, _, err := GetSortedSafeOwners(holder, signer, observer)
-	if err != nil {
-		return nil, nil, err
-	}
+	owners, _ := GetSortedSafeOwners(holder, signer, observer)
 	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
 
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
@@ -83,19 +80,19 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	}, t, nil
 }
 
-func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string, error) {
+func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 	var owners []string
 	var pubs []string
 	for _, public := range []string{holder, signer, observer} {
 		pub, err := parseEthereumCompressedPublicKey(public)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parseEthereumCompressedPublicKey(%s) => %v", public, err)
+			panic(public)
 		}
 		owners = append(owners, pub.Hex())
 		pubs = append(pubs, public)
 	}
 	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
-	return owners, pubs, nil
+	return owners, pubs
 }
 
 func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
