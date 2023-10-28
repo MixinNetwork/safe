@@ -78,6 +78,14 @@ func GetEvmChainID(chain int64) int64 {
 	}
 }
 
+func NormalizeAddress(addr string) string {
+	norm := common.HexToAddress(addr).Hex()
+	if norm == EthereumEmptyAddress || norm != addr {
+		return ""
+	}
+	return norm
+}
+
 func PrivToAddress(priv string) (*common.Address, error) {
 	privateKey, err := crypto.HexToECDSA(priv)
 	if err != nil {

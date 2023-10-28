@@ -592,6 +592,10 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
+		norm := ethereum.NormalizeAddress(out.Destination)
+		if norm == "" || norm == safe.Address {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 		amt := decimal.NewFromBigInt(out.Wei, -ethereum.ValuePrecision)
 		recipients[i] = map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
@@ -602,7 +606,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	// todo: func multicall encoding
+	// TODO func multicall encoding
 	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
 	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
 		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
