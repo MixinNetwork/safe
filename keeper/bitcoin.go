@@ -148,7 +148,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 			return err
 		}
 		if bo.Height == 0 || bo.Height+sequence+100 > info.Height {
-			return node.store.FailRequest(ctx, req.Id)
+			return fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height)
 		}
 		total = total + bo.Satoshi
 
@@ -427,11 +427,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil {
+	if err != nil || deployed.Sign() <= 0 {
 		return fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
-	}
-	if deployed.Sign() <= 0 {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	if id.String() != assetId {

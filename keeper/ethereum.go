@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -92,7 +93,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return err
 	}
 	if block.Time.IsZero() || latest.Time.IsZero() || block.Time.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
-		return node.store.FailRequest(ctx, req.Id)
+		return fmt.Errorf("invalid timelock to close account %s %s", block.Time, latest.Time)
 	}
 
 	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
@@ -127,8 +128,8 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	proposedTx, _ := ethereum.UnmarshalSafeTransaction(b)
-	if hex.EncodeToString(t.Message) != hex.EncodeToString(proposedTx.Message) {
-		logger.Printf("Inconsistent safe tx message: %s %s", hex.EncodeToString(t.Message), hex.EncodeToString(proposedTx.Message))
+	if !bytes.Equal(t.Message, proposedTx.Message) {
+		logger.Printf("Inconsistent safe tx message: %x %x", t.Message, proposedTx.Message)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -142,7 +143,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 
 	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
+	logger.Printf("ethereum.HashMessageForSignature(%x) => %v %x %v", t.Message, hash, hash, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -430,7 +431,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	}
 
 	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
+	logger.Printf("ethereum.HashMessageForSignature(%x) => %x %v", t.Message, hash, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -493,11 +494,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil {
+	if err != nil || deployed.Sign() <= 0 {
 		return fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
-	}
-	if deployed.Sign() <= 0 {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	if id.String() != assetId {
@@ -770,7 +768,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	copy(ref[:], extra[16:])
 	raw := node.readStorageExtraFromObserver(ctx, ref)
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
-	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", hex.EncodeToString(raw), t, err)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -790,7 +788,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	}
 
 	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
+	logger.Printf("ethereum.HashMessageForSignature(%x) => %x %v", t.Message, hash, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
