@@ -109,7 +109,7 @@ func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, t
 		}
 	}
 	if !isGuarded {
-		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hash().String(), tx)
+		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hex(), tx)
 		if err != nil {
 			return nil, err
 		}
@@ -200,15 +200,13 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 		return err
 	}
 	defer conn.Close()
+
 	signer, err := abi.SignerInit(key)
 	if err != nil {
 		return err
 	}
 	_, err = guardAbi.GuardSafe(signer, common.HexToAddress(safeAddress), common.HexToAddress(observer), new(big.Int).SetInt64(timelock))
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func ProcessSignature(signature []byte) []byte {
@@ -233,7 +231,7 @@ func VerifyMessageSignature(public string, msg, sig []byte) error {
 func VerifyHashSignature(public string, hash, sig []byte) error {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
-		return err
+		panic(public)
 	}
 	signed := crypto.VerifySignature(pub, hash, sig[:64])
 	if signed {
