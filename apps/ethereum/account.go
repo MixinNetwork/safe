@@ -30,7 +30,7 @@ type GnosisSafe struct {
 
 func (gs *GnosisSafe) Marshal() []byte {
 	enc := mc.NewEncoder()
-	enc.WriteUint64(uint64(gs.Sequence))
+	enc.WriteUint32(gs.Sequence)
 	bitcoin.WriteBytes(enc, []byte(gs.Address))
 	bitcoin.WriteBytes(enc, []byte(gs.TxHash))
 	return enc.Bytes()
@@ -38,7 +38,7 @@ func (gs *GnosisSafe) Marshal() []byte {
 
 func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 	dec := mc.NewDecoder(extra)
-	sequence, err := dec.ReadUint64()
+	sequence, err := dec.ReadUint32()
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 		return nil, err
 	}
 	return &GnosisSafe{
-		Sequence: uint32(sequence),
+		Sequence: sequence,
 		Address:  string(addr),
 		TxHash:   string(hash),
 	}, nil

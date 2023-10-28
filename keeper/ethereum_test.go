@@ -35,38 +35,6 @@ const (
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )
 
-func TestUnpackSafeTransactionInput(t *testing.T) {
-	require := require.New(t)
-	hash := "0xd030120e4840dff693e85cb2d82c35a46917e0703de774f909e7ba6eaca40fbf"
-	tx, _ := ethereum.RPCGetTransactionByHash("https://geth.mvm.dev", hash)
-	st, err := ethereum.UnpackSafeTransactionInput("https://geth.mvm.dev", tx, SafeChainMVM)
-	require.Nil(err)
-	require.NotNil(st)
-
-	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
-	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
-	require.Nil(err)
-
-	offset := 0
-	length := 65
-	pubs := []string{holder, observer}
-	sigs := make(map[string][]byte, 2)
-	for offset+length <= len(st.Signature) {
-		end := offset + length
-		sig := st.Signature[offset:end]
-		for _, pub := range pubs {
-			err = ethereum.VerifyMessageSignature(pub, st.Message, sig)
-			if err == nil {
-				sigs[pub] = sig
-			}
-		}
-		offset += length
-	}
-	require.NotNil(sigs[holder])
-	require.NotNil(sigs[observer])
-}
-
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testEthereumPrepare(require)

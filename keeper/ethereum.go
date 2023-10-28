@@ -967,7 +967,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 		}
 
-		return node.store.FinishedSafeWithRequest(ctx, safe, req.Id)
+		return node.store.FinishSafeWithRequest(ctx, safe, req.Id)
 	}
 
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(t.Marshal())))

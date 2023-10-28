@@ -48,9 +48,6 @@ type RPCTransaction struct {
 }
 
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
-	if !strings.HasPrefix(hash, "0x") {
-		hash = "0x" + hash
-	}
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, false})
 	if err != nil {
 		return nil, err
@@ -74,9 +71,6 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 }
 
 func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, error) {
-	if !strings.HasPrefix(hash, "0x") {
-		hash = "0x" + hash
-	}
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, true})
 	if err != nil {
 		return nil, err
@@ -119,9 +113,6 @@ func RPCGetAddressBalance(rpc, txHash, address string) (*big.Int, error) {
 }
 
 func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
-	if !strings.HasPrefix(hash, "0x") {
-		hash = "0x" + hash
-	}
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getTransactionByHash", []any{hash})
 	if err != nil {
 		return nil, err

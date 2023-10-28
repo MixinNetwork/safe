@@ -37,8 +37,6 @@ type SafeTransaction struct {
 	Nonce          *big.Int
 	Message        []byte
 	Signatures     [][]byte
-
-	Signature []byte
 }
 
 type Output struct {
