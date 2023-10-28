@@ -252,11 +252,25 @@ func main() {
 			{
 				Name:   "generate",
 				Usage:  "Generate observer keys list",
-				Action: cmd.GenerateTestObserverKeys,
+				Action: cmd.GenerateObserverKeys,
 				Flags: []cli.Flag{
 					&cli.IntFlag{
 						Name:  "chain",
 						Usage: "The chain type of public keys",
+					},
+					&cli.UintFlag{
+						Name:  "offset",
+						Usage: "The account offset",
+						Value: 1,
+					},
+					&cli.UintFlag{
+						Name:  "count",
+						Usage: "The total accounts count",
+						Value: 1000,
+					},
+					&cli.StringFlag{
+						Name:  "seed",
+						Usage: "The 64 bytes master seed for the coin",
 					},
 					&cli.StringFlag{
 						Name:  "list",
