@@ -151,8 +151,8 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		}
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=?",
-		safe.Nonce+1, time.Now().UTC(), safe.Holder)
+	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=?",
+		safe.Nonce+1, time.Now().UTC(), safe.Holder, safe.Nonce)
 	if err != nil {
 		return fmt.Errorf("UPDATE safes %v", err)
 	}

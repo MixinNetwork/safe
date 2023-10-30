@@ -174,8 +174,8 @@ func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHas
 	if safe.State != common.RequestStatePending {
 		panic(safe.State)
 	}
-	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, state=?, updated_at=? WHERE holder=?",
-		safe.Nonce+1, common.RequestStateDone, time.Now().UTC(), safe.Holder)
+	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, state=?, updated_at=? WHERE holder=? AND nonce=? AND state=?",
+		safe.Nonce+1, common.RequestStateDone, time.Now().UTC(), safe.Holder, safe.Nonce, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("UPDATE safes %v", err)
 	}
