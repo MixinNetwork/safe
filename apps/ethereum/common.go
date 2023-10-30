@@ -3,17 +3,29 @@ package ethereum
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	gethAbi "github.com/ethereum/go-ethereum/accounts/abi"
+	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/shopspring/decimal"
 )
 
 const (
+	ChainEthereum = 2
+	ChainMVM      = 4
+
+	ValuePrecision = 18
+	ValueDust      = 100000000000000
+
+	TimeLockMinimum = time.Hour * 1
+	TimeLockMaximum = time.Hour * 24 * 365
+
 	EthereumEmptyAddress                        = "0x0000000000000000000000000000000000000000"
 	EthereumSafeProxyFactoryAddress             = "0xC00abA7FbB0d1e7f02082E346fe1B80EFA16Dc5D"
 	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
@@ -27,6 +39,52 @@ const (
 	domainSeparatorTypehash = "0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218"
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
+
+func HashMessageForSignature(msg string) []byte {
+	b, err := hex.DecodeString(msg)
+	if err != nil {
+		panic(msg)
+	}
+	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(b), b)))
+	return hash.Bytes()
+}
+
+func ParseWei(amount string) *big.Int {
+	amt, err := decimal.NewFromString(amount)
+	if err != nil {
+		panic(amount)
+	}
+	amt = amt.Mul(decimal.New(1, ValuePrecision))
+	if !amt.IsInteger() {
+		panic(amount)
+	}
+	return amt.BigInt()
+}
+
+func UnitWei(amount *big.Int) string {
+	amt := decimal.NewFromBigInt(amount, 0)
+	amt = amt.Div(decimal.New(1, ValuePrecision))
+	return amt.String()
+}
+
+func GetEvmChainID(chain int64) int64 {
+	switch chain {
+	case ChainEthereum:
+		return 1
+	case ChainMVM:
+		return 73927
+	default:
+		panic(chain)
+	}
+}
+
+func NormalizeAddress(addr string) string {
+	norm := common.HexToAddress(addr).Hex()
+	if norm == EthereumEmptyAddress || norm != addr {
+		return ""
+	}
+	return norm
+}
 
 func PrivToAddress(priv string) (*common.Address, error) {
 	privateKey, err := crypto.HexToECDSA(priv)
@@ -42,7 +100,7 @@ func PrivToAddress(priv string) (*common.Address, error) {
 }
 
 func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, fallbackHandler, paymentToken, paymentReceiver common.Address, payment *big.Int) []byte {
-	safeAbi, err := gethAbi.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
+	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
 	}
@@ -70,12 +128,12 @@ func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, 
 }
 
 func packSafeArguments(address string) []byte {
-	addressTy, err := gethAbi.NewType("address", "", nil)
+	addressTy, err := ga.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: addressTy,
 		},
@@ -91,12 +149,12 @@ func packSafeArguments(address string) []byte {
 }
 
 func packSaltArguments(salt *big.Int) []byte {
-	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
+	uint256Ty, err := ga.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: uint256Ty,
 		},
@@ -112,19 +170,19 @@ func packSaltArguments(salt *big.Int) []byte {
 }
 
 func packSafeTransactionArguments(tx *SafeTransaction) []byte {
-	bytes32Ty, err := gethAbi.NewType("bytes32", "", nil)
+	bytes32Ty, err := ga.NewType("bytes32", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	addressTy, err := gethAbi.NewType("address", "", nil)
+	addressTy, err := ga.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
+	uint256Ty, err := ga.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: bytes32Ty,
 		},
@@ -184,19 +242,19 @@ func packSafeTransactionArguments(tx *SafeTransaction) []byte {
 }
 
 func packDomainSeparatorArguments(chainID int64, safeAddress string) []byte {
-	bytes32Ty, err := gethAbi.NewType("bytes32", "", nil)
+	bytes32Ty, err := ga.NewType("bytes32", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	addressTy, err := gethAbi.NewType("address", "", nil)
+	addressTy, err := ga.NewType("address", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	uint256Ty, err := gethAbi.NewType("uint256", "", nil)
+	uint256Ty, err := ga.NewType("uint256", "", nil)
 	if err != nil {
 		panic(err)
 	}
-	arguments := gethAbi.Arguments{
+	arguments := ga.Arguments{
 		{
 			Type: bytes32Ty,
 		},

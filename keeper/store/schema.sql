@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS safes (
   receivers        VARCHAR NOT NULL,
   threshold        INTEGER NOT NULL,
   request_id       VARCHAR NOT NULL,
+  nonce            INTEGER NOT NULL,
   state            INTEGER NOT NULL,
   created_at       TIMESTAMP NOT NULL,
   updated_at       TIMESTAMP NOT NULL,
@@ -161,11 +162,49 @@ CREATE UNIQUE INDEX IF NOT EXISTS bitcoin_outputs_by_request_id ON bitcoin_outpu
 
 
 
+CREATE TABLE IF NOT EXISTS ethereum_balances (
+  address            VARCHAR NOT NULL,
+  asset_id           VARCHAR NOT NULL,
+  balance            VARCHAR NOT NULL,
+  latest_tx_hash     VARCHAR NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('address')
+);
+
+
+
+
+
+
+
+CREATE TABLE IF NOT EXISTS deposits (
+  transaction_hash   VARCHAR NOT NULL,
+  output_index       VARCHAR NOT NULL,
+  asset_id           VARCHAR NOT NULL,
+  amount             VARCHAR NOT NULL,
+  receiver           VARCHAR NOT NULL,
+  sender             VARCHAR NOT NULL,
+  state              INTEGER NOT NULL,
+  chain              INTEGER NOT NULL,
+  holder             VARCHAR NOT NULL,
+  category           INTEGER NOT NULL,
+  created_at         TIMESTAMP NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('transaction_hash', 'output_index', 'asset_id', 'receiver')
+);
+
+
+
+
+
+
+
 CREATE TABLE IF NOT EXISTS transactions (
   transaction_hash   VARCHAR NOT NULL,
   raw_transaction    VARCHAR NOT NULL,
   holder             VARCHAR NOT NULL,
   chain              INTEGER NOT NULL,
+  asset_id           VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   data               VARCHAR NOT NULL,
   request_id         VARCHAR NOT NULL,

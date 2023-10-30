@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
 )
 
 type Node struct {
@@ -76,7 +75,7 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, assetId st
 		})
 		return node.store.WriteProperty(ctx, traceId, string(v))
 	}
-	traceId = mixin.UniqueConversationID(node.group.GenesisId(), traceId)
+	traceId = common.UniqueId(node.group.GenesisId(), traceId)
 	if tx.HasValue() {
 		return node.group.BuildTransactionWithReferences(ctx, assetId, receivers, threshold, amount, string(memo), traceId, "", []crypto.Hash{tx})
 	}

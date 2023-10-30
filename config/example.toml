@@ -116,6 +116,8 @@ litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
 mvm-rpc = "https://geth.mvm.dev"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 mvm-key = ""
+# evm private key to deploy contract on evm chains
+evm-key = ""
 
 [observer.app]
 client-id = "observer-id"

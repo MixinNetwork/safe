@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/gofrs/uuid/v5"
@@ -51,6 +52,9 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	if info.Chain != SafeCurveChain(req.Curve) {
+		panic(req.Id)
+	}
 	switch info.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
@@ -60,8 +64,14 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		} else if !valid {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-	case SafeChainEthereum:
-		panic(0)
+	case SafeChainEthereum, SafeChainMVM:
+		info.Hash = "0x" + hex.EncodeToString(extra[17:])
+		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
+		if err != nil {
+			return fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
+		} else if !valid {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -80,15 +90,16 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	}
 
 	chain := extra[0]
+	if chain != SafeCurveChain(req.Curve) {
+		panic(req.Id)
+	}
 	switch chain {
 	case SafeChainBitcoin:
 	case SafeChainLitecoin:
 	case SafeChainEthereum:
+	case SafeChainMVM:
 	default:
 		return node.store.FailRequest(ctx, req.Id)
-	}
-	if chain != BitcoinCurveChain(req.Curve) {
-		panic(req.Id)
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
@@ -125,12 +136,38 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	return true, nil
 }
 
+func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
+	if len(info.Hash) != 66 {
+		return false, nil
+	}
+	rpc, _ := node.ethereumParams(info.Chain)
+	block, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	if err != nil || block == nil {
+		return false, fmt.Errorf("malicious ethereum block or node not in sync? %s %v", info.Hash, err)
+	}
+	if block.Height != info.Height {
+		return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
+	}
+	return true, nil
+}
+
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
 	case SafeChainBitcoin:
 		return node.conf.BitcoinRPC, SafeBitcoinChainId
 	case SafeChainLitecoin:
 		return node.conf.LitecoinRPC, SafeLitecoinChainId
+	default:
+		panic(chain)
+	}
+}
+
+func (node *Node) ethereumParams(chain byte) (string, string) {
+	switch chain {
+	case SafeChainEthereum:
+		return node.conf.EthereumRPC, SafeEthereumChainId
+	case SafeChainMVM:
+		return node.conf.MVMRPC, SafeMVMChainId
 	default:
 		panic(chain)
 	}

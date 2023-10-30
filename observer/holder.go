@@ -11,8 +11,10 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid/v5"
@@ -33,29 +35,63 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 	return "approved", nil
 }
 
-func (node *Node) keeperSaveAccountProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
-	logger.Printf("node.keeperSaveAccountProposal(%x, %s)", extra, createdAt)
-	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(extra)
-	if err != nil {
-		return err
+func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, extra []byte, createdAt time.Time) error {
+	logger.Printf("node.keeperSaveAccountProposal(%d, %x, %s)", chain, extra, createdAt)
+	var sp *store.SafeProposal
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		wsa, err := bitcoin.UnmarshalWitnessScriptAccount(extra)
+		if err != nil {
+			return err
+		}
+		sp, err = node.keeperStore.ReadSafeProposalByAddress(ctx, wsa.Address)
+		if err != nil {
+			return err
+		}
+	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
+		gs, err := ethereum.UnmarshalGnosisSafe(extra)
+		if err != nil {
+			return err
+		}
+		sp, err = node.keeperStore.ReadSafeProposalByAddress(ctx, gs.Address)
+		if err != nil {
+			return err
+		}
 	}
-	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, wsa.Address)
-	if err != nil {
-		return err
+	if sp.Chain != chain {
+		return fmt.Errorf("inconsistent chain between SafeProposal and keeper response: %d, %d", sp.Chain, chain)
 	}
-	_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, sp.Holder)
-	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, sp.Holder, err)
+
+	var assetId string
+	switch sp.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		_, assetId = node.bitcoinParams(sp.Chain)
+	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
+		_, assetId = node.ethereumParams(sp.Chain)
+	}
+	_, err := node.checkOrDeployKeeperBond(ctx, assetId, sp.Holder)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", assetId, sp.Holder, err)
 	if err != nil {
 		return err
 	}
 	return node.store.WriteAccountProposalIfNotExists(ctx, sp.Address, createdAt)
 }
 
-func (node *Node) keeperSaveTransactionProposal(ctx context.Context, extra []byte, createdAt time.Time) error {
+func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte, extra []byte, createdAt time.Time) error {
 	logger.Printf("node.keeperSaveTransactionProposal(%x, %s)", extra, createdAt)
-	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
-	txHash := psbt.UnsignedTx.TxHash().String()
+	var txHash string
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
+		txHash = psbt.UnsignedTx.TxHash().String()
+	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
+		id := uuid.FromBytesOrNil(extra[:16])
+		if id.IsNil() {
+			return fmt.Errorf("Empty transaction proposal id")
+		}
+		t, _ := ethereum.UnmarshalSafeTransaction(extra[16:])
+		txHash = t.Hash(id.String())
+	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
 		return err

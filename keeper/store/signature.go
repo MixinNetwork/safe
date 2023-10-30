@@ -121,7 +121,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64) error {
+func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -143,10 +143,18 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
-	err = s.execMultiple(ctx, tx, num, "UPDATE bitcoin_outputs SET state=?, updated_at=? WHERE spent_by=?",
-		common.RequestStateDone, req.CreatedAt, transactionHash)
+	if transactionHasOutputs(safe.Chain) {
+		update := "UPDATE bitcoin_outputs SET state=?, updated_at=? WHERE spent_by=?"
+		err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, transactionHash)
+		if err != nil {
+			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+		}
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=?",
+		safe.Nonce+1, time.Now().UTC(), safe.Holder, safe.Nonce)
 	if err != nil {
-		return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+		return fmt.Errorf("UPDATE safes %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",

@@ -10,6 +10,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/gofrs/uuid/v5"
@@ -33,7 +34,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		Chain: extra[0],
 		Asset: uuid.Must(uuid.FromBytes(extra[1:17])).String(),
 	}
-	if deposit.Chain != BitcoinCurveChain(req.Curve) {
+	if deposit.Chain != SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	extra = extra[17:]
@@ -45,7 +46,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
-	case SafeChainEthereum:
+	case SafeChainEthereum, SafeChainMVM:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
@@ -71,13 +72,16 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != deposit.Chain {
+		logger.Printf("Safe not exists or invalid chain %v", safe)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if safe.State != SafeStateApproved {
+		logger.Printf("Invalid safe state %d", safe.State)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	bondId, bondChain, err := node.getBondAsset(ctx, deposit.Asset, req.Holder)
+	logger.Printf("node.getBondAsset(%s %s) => %s %d %v", deposit.Asset, req.Holder, bondId, bondChain, err)
 	if err != nil {
 		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", deposit.Asset, req.Holder, err)
 	}
@@ -111,8 +115,8 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	switch deposit.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
-	case SafeChainEthereum:
-		panic(0)
+	case SafeChainEthereum, SafeChainMVM:
+		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -128,6 +132,13 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
 	} else if old != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
+	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
+	} else if deposited != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -166,7 +177,44 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		}
 	}
 
-	return node.store.WriteBitcoinOutputFromRequest(ctx, safe.Address, output, req, safe.Chain)
+	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, btx)
+	if err != nil {
+		return fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err)
+	}
+	return node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
+}
+
+func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
+	if asset.Decimals != ethereum.ValuePrecision {
+		panic(asset.Decimals)
+	}
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
+	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
+	} else if deposited != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	rpc, assetId := node.ethereumParams(deposit.Chain)
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, safeBalance, err)
+	if err != nil {
+		return err
+	}
+	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
+
+	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -ethereum.ValuePrecision).String(), nil, req.Id)
+	if err != nil {
+		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+	}
+
+	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", deposit.Hash, etx, err)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, etx.From)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {

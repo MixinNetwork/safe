@@ -160,7 +160,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = db.WriteAccountantKeys(ctx, keeper.BitcoinChainCurve(chain), keys)
+	err = db.WriteAccountantKeys(ctx, keeper.SafeChainCurve(chain), keys)
 	if err != nil {
 		return err
 	}

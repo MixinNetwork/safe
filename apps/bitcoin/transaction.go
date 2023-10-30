@@ -242,7 +242,8 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		outputSatoshi = outputSatoshi + out.Satoshi
 	}
 	if outputSatoshi > mainSatoshi {
-		return nil, buildInsufficientInputError("main", mainSatoshi, outputSatoshi)
+		err := BuildInsufficientInputError("main", fmt.Sprint(mainSatoshi), fmt.Sprint(outputSatoshi))
+		return nil, err
 	}
 	mainChange := mainSatoshi - outputSatoshi
 	if mainChange > ValueDust(chain) {

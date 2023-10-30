@@ -1,12 +1,18 @@
 package ethereum
 
 import (
+	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
+	"sort"
 	"strings"
+	"time"
 
+	mc "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common/abi"
-	commonAbi "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -16,8 +22,80 @@ import (
 // with safe guard to do time lock of observer
 // with deploy2 to determine exact contract address
 
-// owners should be in the order of hold, signer and observer
-func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock int64, tx *SafeTransaction) (*common.Address, error) {
+type GnosisSafe struct {
+	Sequence uint32
+	Address  string
+	TxHash   string
+}
+
+func (gs *GnosisSafe) Marshal() []byte {
+	enc := mc.NewEncoder()
+	enc.WriteUint32(gs.Sequence)
+	bitcoin.WriteBytes(enc, []byte(gs.Address))
+	bitcoin.WriteBytes(enc, []byte(gs.TxHash))
+	return enc.Bytes()
+}
+
+func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
+	dec := mc.NewDecoder(extra)
+	sequence, err := dec.ReadUint32()
+	if err != nil {
+		return nil, err
+	}
+	addr, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := dec.ReadBytes()
+	if err != nil {
+		return nil, err
+	}
+	return &GnosisSafe{
+		Sequence: sequence,
+		Address:  string(addr),
+		TxHash:   string(hash),
+	}, nil
+}
+
+func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
+	owners, _ := GetSortedSafeOwners(holder, signer, observer)
+	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
+
+	if lock < TimeLockMinimum || lock > TimeLockMaximum {
+		return nil, nil, fmt.Errorf("time lock out of range %s", lock.String())
+	}
+	sequence := lock / time.Hour
+
+	chainID := GetEvmChainID(int64(chain))
+	t, err := CreateTransaction(ctx, true, chainID, safeAddress, safeAddress, "0", new(big.Int).SetUint64(0))
+	logger.Printf("CreateTransaction(%d, %s, %s, %d) => %v", chainID, safeAddress, safeAddress, 0, err)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &GnosisSafe{
+		Sequence: uint32(sequence),
+		Address:  safeAddress,
+		TxHash:   t.Hash(rid),
+	}, t, nil
+}
+
+func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
+	var owners []string
+	var pubs []string
+	for _, public := range []string{holder, signer, observer} {
+		pub, err := parseEthereumCompressedPublicKey(public)
+		if err != nil {
+			panic(public)
+		}
+		owners = append(owners, pub.Hex())
+		pubs = append(pubs, public)
+	}
+	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
+	return owners, pubs
+}
+
+func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
 	addr := GetSafeAccountAddress(owners, threshold)
 
 	isGuarded, isDeployed, err := CheckSafeAccountDeployed(rpc, addr.String())
@@ -31,7 +109,7 @@ func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, t
 		}
 	}
 	if !isGuarded {
-		err = EnableGuard(rpc, key, timelock, owners[2], addr.Hash().String(), tx)
+		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hex(), tx)
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +180,7 @@ func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error 
 	}
 	defer conn.Close()
 
-	signer, err := commonAbi.SignerInit(key)
+	signer, err := abi.SignerInit(key)
 	if err != nil {
 		return err
 	}
@@ -122,15 +200,59 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 		return err
 	}
 	defer conn.Close()
+
 	signer, err := abi.SignerInit(key)
 	if err != nil {
 		return err
 	}
 	_, err = guardAbi.GuardSafe(signer, common.HexToAddress(safeAddress), common.HexToAddress(observer), new(big.Int).SetInt64(timelock))
+	return err
+}
+
+func ProcessSignature(signature []byte) []byte {
+	// Golang returns the recovery ID in the last byte instead of v
+	// v = 27 + rid
+	signature[64] += 27
+	// Sign with prefix
+	signature[64] += 4
+	return signature
+}
+
+func VerifyHolderKey(public string) error {
+	_, err := parseEthereumCompressedPublicKey(public)
+	return err
+}
+
+func VerifyMessageSignature(public string, msg, sig []byte) error {
+	hash := HashMessageForSignature(hex.EncodeToString(msg))
+	return VerifyHashSignature(public, hash, sig)
+}
+
+func VerifyHashSignature(public string, hash, sig []byte) error {
+	pub, err := hex.DecodeString(public)
 	if err != nil {
-		return err
+		panic(public)
 	}
-	return nil
+	signed := crypto.VerifySignature(pub, hash, sig[:64])
+	if signed {
+		return nil
+	}
+	return fmt.Errorf("crypto.VerifySignature(%s, %x, %x)", public, hash, sig)
+}
+
+func parseEthereumCompressedPublicKey(public string) (*common.Address, error) {
+	pub, err := hex.DecodeString(public)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey, err := crypto.DecompressPubkey(pub)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := crypto.PubkeyToAddress(*publicKey)
+	return &addr, nil
 }
 
 func getInitializer(owners []string, threshold int64) []byte {

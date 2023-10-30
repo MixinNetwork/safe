@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -214,9 +216,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	case common.OperationTypeSignInput:
 		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
 			op := session.asOperation()
-			extra := []byte{byte(len(op.Extra))}
-			extra = append(extra, op.Extra...)
-			extra = append(extra, sig...)
+			extra := node.concatMessageAndSignature(op.Extra, sig)
 			err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
 			logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
 			if err != nil {
@@ -259,7 +259,7 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (strin
 
 func (node *Node) deriveByPath(ctx context.Context, crv byte, share, path []byte) ([]byte, []byte) {
 	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
 		conf := cmp.EmptyConfig(curve.Secp256k1{})
 		err := conf.UnmarshalBinary(share)
 		if err != nil {
@@ -294,10 +294,14 @@ func (node *Node) deriveByPath(ctx context.Context, crv byte, share, path []byte
 
 func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder string) bool {
 	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin,
-		common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSABitcoin:
 		err := bitcoin.VerifyHolderKey(holder)
 		logger.Printf("bitcoin.VerifyHolderKey(%s) => %v", holder, err)
+		return err == nil
+	case common.CurveSecp256k1ECDSAEthereum,
+		common.CurveSecp256k1ECDSAMVM:
+		err := ethereum.VerifyHolderKey(holder)
+		logger.Printf("ethereum.VerifyHolderKey(%s) => %v", holder, err)
 		return err == nil
 	case common.CurveSecp256k1SchnorrBitcoin:
 		var point secp256k1.JacobianPoint
@@ -313,18 +317,30 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 	}
 }
 
+func (node *Node) concatMessageAndSignature(msg, sig []byte) []byte {
+	extra := binary.BigEndian.AppendUint32(nil, uint32(len(msg)))
+	extra = append(extra, msg...)
+	extra = append(extra, sig...)
+	return extra
+}
+
 func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
-	if len(extra) < int(extra[0])+32 {
+	el := binary.BigEndian.Uint32(extra[:4])
+	if len(extra) < int(el)+32 {
 		return false, nil
 	}
-	msg := extra[1 : 1+extra[0]]
-	sig := extra[1+extra[0]:]
+	msg := extra[4 : 4+el]
+	sig := extra[4+el:]
 	public, _ := node.deriveByPath(ctx, crv, share, path)
 
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		err := bitcoin.VerifySignatureDER(hex.EncodeToString(public), msg, sig)
 		logger.Printf("bitcoin.VerifySignatureDER(%x, %x, %x) => %v", public, msg, sig, err)
+		return err == nil, sig
+	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
+		err := ethereum.VerifyHashSignature(hex.EncodeToString(public), msg, sig)
+		logger.Printf("ethereum.VerifyHashSignature(%x, %x, %x) => %v", public, msg, sig, err)
 		return err == nil, sig
 	case common.CurveEdwards25519Mixin:
 		if len(msg) < 32 || len(sig) != 64 {
@@ -352,7 +368,6 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		logger.Printf("mixin.Verify(%x, %x) => %t", msg[32:], msig[:], res)
 		return res, sig
 	case common.CurveEdwards25519Default,
-		common.CurveSecp256k1ECDSAEthereum,
 		common.CurveSecp256k1SchnorrBitcoin:
 		return common.CheckTestEnvironment(ctx), sig // TODO
 	default:
@@ -428,7 +443,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	var err error
 	var res *KeygenResult
 	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
 		res, err = node.cmpKeygen(ctx, op.IdBytes(), op.Curve)
 		logger.Verbosef("node.cmpKeygen(%v) => %v", op, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
@@ -477,7 +492,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 
 	var res *SignResult
 	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
 		res, err = node.cmpSign(ctx, members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
 		logger.Verbosef("node.cmpSign(%v) => %v %v", op, res, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
@@ -496,9 +511,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	if err != nil {
 		return node.store.FailSession(ctx, op.Id)
 	}
-	extra := []byte{byte(len(op.Extra))}
-	extra = append(extra, op.Extra...)
-	extra = append(extra, res.Signature...)
+	extra := node.concatMessageAndSignature(op.Extra, res.Signature)
 	err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
 	logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
 	return err
@@ -536,7 +549,11 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash)
 		if err != nil {
 			panic(err)
 		}
-		return v
+		data, err := common.Base91Decode(string(v))
+		if err != nil || len(data) < 32 {
+			panic(stx.String())
+		}
+		return data
 	}
 
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
@@ -607,7 +624,7 @@ func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Oper
 	}
 
 	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
 	case common.CurveSecp256k1SchnorrBitcoin:
 	case common.CurveEdwards25519Mixin, common.CurveEdwards25519Default:
 	default:
