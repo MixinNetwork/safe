@@ -758,6 +758,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	closeBalance := balance.Balance.Sub(balance.Balance, t.Value)
 	if closeBalance.Cmp(big.NewInt(0)) < 0 {
 		logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 	err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, assetId)
 	logger.Printf("store.CreateOrUpdateEthereumBalanceWithCloseBalance(%s, %s, %s) => %v", safe.Address, assetId, closeBalance.String(), err)
@@ -781,6 +782,15 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		err = node.sendObserverResponseWithAssetAndReferences(ctx, id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 		if err != nil {
 			return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
+		}
+
+		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
+		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(gt.Data, t.Data) {
+			return fmt.Errorf("invalid safe guard transaction %x %x", gt.Data, t.Data)
 		}
 
 		return node.store.FinishSafeWithRequest(ctx, old.TransactionHash, raw, req, safe)
