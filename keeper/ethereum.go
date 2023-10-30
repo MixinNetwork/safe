@@ -578,10 +578,10 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	// TODO func multicall encoding
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	rpc, assetId := node.ethereumParams(safe.Chain)
-	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
-	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
-		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
+	_, assetId = node.ethereumParams(safe.Chain)
+	t, err := ethereum.CreateTransaction(ctx, false, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
+	logger.Printf("ethereum.CreateTransaction(%d, %s, %s, %d, %d) => %v %v",
+		chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}

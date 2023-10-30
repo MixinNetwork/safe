@@ -45,7 +45,10 @@ type Output struct {
 	Nonce       int64
 }
 
-func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chainID int64, safeAddress, destination, amount string, nonce *big.Int) (*SafeTransaction, error) {
+func CreateTransaction(ctx context.Context, enableGuardTx bool, chainID int64, safeAddress, destination, amount string, nonce *big.Int) (*SafeTransaction, error) {
+	if nonce == nil {
+		return nil, fmt.Errorf("Invalid ethereum transaction nonce")
+	}
 	value, ok := new(big.Int).SetString(amount, 10)
 	if !ok {
 		return nil, fmt.Errorf("Fail to parse value to big.Int")
@@ -63,21 +66,6 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, rpc string, chai
 		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
 		Nonce:          nonce,
 		Signatures:     make([][]byte, 3),
-	}
-	if tx.Nonce == nil && rpc != "" {
-		conn, safeAbi, err := safeInit(rpc, safeAddress)
-		if err != nil {
-			return nil, err
-		}
-		defer conn.Close()
-		n, err := safeAbi.Nonce(nil)
-		if err != nil {
-			return nil, err
-		}
-		tx.Nonce = n
-	}
-	if tx.Nonce == nil {
-		return nil, fmt.Errorf("Invalid ethereum transaction nonce")
 	}
 	if enableGuardTx {
 		tx.Data = tx.GetEnableGuradData(EthereumSafeGuardAddress)

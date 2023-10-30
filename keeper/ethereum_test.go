@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -135,12 +136,11 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
 
-	rpc, _ := node.ethereumParams(SafeChainMVM)
+	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
-	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", nil)
+	st, err := ethereum.CreateTransaction(ctx, false, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", big.NewInt(safe.Nonce))
 	require.Nil(err)
 
-	safe, _ := node.store.ReadSafe(ctx, holder)
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
 		if pub == observer {
