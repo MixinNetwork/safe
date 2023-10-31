@@ -345,89 +345,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 
-	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	switch safe.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		if wsa.Address != safe.Address {
-			common.RenderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
-			return
-		}
-		_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":    safe.Chain,
-			"id":       safe.RequestId,
-			"address":  safe.Address,
-			"outputs":  viewOutputs(mainInputs),
-			"pendings": viewOutputs(pendings),
-			"script":   hex.EncodeToString(wsa.Script),
-			"keys":     node.viewSafeXPubs(r.Context(), safe),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
-		})
-	case keeper.SafeChainMVM:
-		_, assetId := node.ethereumParams(safe.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), assetId, safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		balance, err := node.keeperStore.ReadEthereumBalance(r.Context(), safe.Address, assetId)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendings, err := node.keeperStore.ReadUnfinishedTransactionsByHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendingBalance := big.NewInt(0)
-		for _, tx := range pendings {
-			raw := common.DecodeHexOrPanic(tx.RawTransaction)
-			st, _ := ethereum.UnmarshalSafeTransaction(raw)
-			pendingBalance = pendingBalance.Add(pendingBalance, st.Value)
-		}
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":          safe.Chain,
-			"id":             safe.RequestId,
-			"address":        safe.Address,
-			"balance":        balance.Balance.Sub(balance.Balance, pendingBalance).String(),
-			"pendingbalance": pendingBalance.String(),
-			"keys":           node.viewSafeXPubs(r.Context(), safe),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
-		})
-	default:
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "4chain4"})
-	}
+	node.renderAccount(r.Context(), w, r, safe)
 }
 
 func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -484,89 +402,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 
-	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	switch safe.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		if wsa.Address != safe.Address {
-			common.RenderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
-			return
-		}
-		_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":    safe.Chain,
-			"id":       safe.RequestId,
-			"address":  safe.Address,
-			"outputs":  viewOutputs(mainInputs),
-			"pendings": viewOutputs(pendings),
-			"script":   hex.EncodeToString(wsa.Script),
-			"keys":     node.viewSafeXPubs(r.Context(), safe),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
-		})
-	case keeper.SafeChainMVM:
-		_, assetId := node.ethereumParams(safe.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), assetId, safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		balance, err := node.keeperStore.ReadEthereumBalance(r.Context(), safe.Address, assetId)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendings, err := node.keeperStore.ReadUnfinishedTransactionsByHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendingBalance := big.NewInt(0)
-		for _, tx := range pendings {
-			raw := common.DecodeHexOrPanic(tx.RawTransaction)
-			st, _ := ethereum.UnmarshalSafeTransaction(raw)
-			pendingBalance = pendingBalance.Add(pendingBalance, st.Value)
-		}
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":          safe.Chain,
-			"id":             safe.RequestId,
-			"address":        safe.Address,
-			"balance":        balance.Balance.Sub(balance.Balance, pendingBalance).String(),
-			"pendingbalance": pendingBalance.String(),
-			"keys":           node.viewSafeXPubs(r.Context(), safe),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
-		})
-	default:
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
-	}
+	node.renderAccount(r.Context(), w, r, safe)
 }
 
 func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -603,89 +439,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 
-	status, err := node.getSafeStatus(r.Context(), safe.RequestId)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	switch safe.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), safe)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		if wsa.Address != safe.Address {
-			common.RenderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", safe, wsa))
-			return
-		}
-		_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":    safe.Chain,
-			"id":       safe.RequestId,
-			"address":  safe.Address,
-			"outputs":  viewOutputs(mainInputs),
-			"pendings": viewOutputs(pendings),
-			"script":   hex.EncodeToString(wsa.Script),
-			"keys":     node.viewSafeXPubs(r.Context(), safe),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
-		})
-	case keeper.SafeChainMVM:
-		_, assetId := node.ethereumParams(safe.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), assetId, safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		balance, err := node.keeperStore.ReadEthereumBalance(r.Context(), safe.Address, assetId)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendings, err := node.keeperStore.ReadUnfinishedTransactionsByHolder(r.Context(), safe.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		pendingBalance := big.NewInt(0)
-		for _, tx := range pendings {
-			raw := common.DecodeHexOrPanic(tx.RawTransaction)
-			st, _ := ethereum.UnmarshalSafeTransaction(raw)
-			pendingBalance = pendingBalance.Add(pendingBalance, st.Value)
-		}
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":          safe.Chain,
-			"id":             safe.RequestId,
-			"address":        safe.Address,
-			"balance":        balance.Balance.Sub(balance.Balance, pendingBalance).String(),
-			"pendingbalance": pendingBalance.String(),
-			"keys":           node.viewSafeXPubs(r.Context(), safe),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
-		})
-	default:
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
-	}
+	node.renderAccount(r.Context(), w, r, safe)
 }
 
 func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -995,4 +749,100 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 		})
 	}
 	return view
+}
+
+func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *http.Request, sp *store.SafeProposal) {
+	status, err := node.getSafeStatus(ctx, sp.RequestId)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	switch sp.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), sp)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		if wsa.Address != sp.Address {
+			common.RenderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", sp, wsa))
+			return
+		}
+		_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
+		_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, sp.Holder)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), sp.Holder)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), sp.Holder)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		common.RenderJSON(w, r, http.StatusOK, map[string]any{
+			"chain":    sp.Chain,
+			"id":       sp.RequestId,
+			"address":  sp.Address,
+			"outputs":  viewOutputs(mainInputs),
+			"pendings": viewOutputs(pendings),
+			"script":   hex.EncodeToString(wsa.Script),
+			"keys":     node.viewSafeXPubs(r.Context(), sp),
+			"bond": map[string]any{
+				"id": bondId,
+			},
+			"state": status,
+		})
+	case keeper.SafeChainMVM:
+		_, assetId := node.ethereumParams(sp.Chain)
+		_, _, bondId, err := node.fetchBondAsset(r.Context(), assetId, sp.Holder)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		balance, err := node.keeperStore.ReadEthereumBalance(r.Context(), sp.Address, assetId)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		pendings, err := node.keeperStore.ReadUnfinishedTransactionsByHolder(r.Context(), sp.Holder)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		pendingBalance := big.NewInt(0)
+		for _, tx := range pendings {
+			raw := common.DecodeHexOrPanic(tx.RawTransaction)
+			st, _ := ethereum.UnmarshalSafeTransaction(raw)
+			pendingBalance = pendingBalance.Add(pendingBalance, st.Value)
+		}
+		safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		nonce := 0
+		if safe != nil {
+			nonce = int(safe.Nonce)
+		}
+		common.RenderJSON(w, r, http.StatusOK, map[string]any{
+			"chain":          sp.Chain,
+			"id":             sp.RequestId,
+			"address":        sp.Address,
+			"balance":        balance.Balance.Sub(balance.Balance, pendingBalance).String(),
+			"pendingbalance": pendingBalance.String(),
+			"nonce":          nonce,
+			"keys":           node.viewSafeXPubs(r.Context(), sp),
+			"bond": map[string]any{
+				"id": bondId,
+			},
+			"state": status,
+		})
+	default:
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "4chain4"})
+	}
 }
