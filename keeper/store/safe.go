@@ -38,17 +38,18 @@ type Safe struct {
 	Receivers []string
 	Threshold byte
 	RequestId string
+	Nonce     int64
 	State     byte
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "state", "created_at", "updated_at"}
+var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "created_at", "updated_at"}
 
 var safeProposalCols = []string{"request_id", "chain", "holder", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "created_at", "updated_at"}
 
 func (s *Safe) values() []any {
-	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.State, s.CreatedAt, s.UpdatedAt}
+	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.Nonce, s.State, s.CreatedAt, s.UpdatedAt}
 }
 
 func (s *SafeProposal) values() []any {
@@ -58,7 +59,7 @@ func (s *SafeProposal) values() []any {
 func safeFromRow(row *sql.Row) (*Safe, error) {
 	var s Safe
 	var receivers string
-	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.State, &s.CreatedAt, &s.UpdatedAt)
+	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.CreatedAt, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -135,32 +136,6 @@ func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) erro
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishedSafeWithRequest(ctx context.Context, safe *Safe, requestId string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if safe.State != common.RequestStatePending {
-		panic(safe.State)
-	}
-	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=?",
-		common.RequestStateDone, time.Now().UTC(), safe.Holder)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-		common.RequestStateDone, time.Now().UTC(), requestId)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	return tx.Commit()
-}
-
 func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -186,7 +161,7 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) err
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, safe *Safe, requestId string) error {
+func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHash, raw string, req *common.Request, safe *Safe) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -199,16 +174,30 @@ func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, safe *Safe, re
 	if safe.State != common.RequestStatePending {
 		panic(safe.State)
 	}
-	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=?",
-		common.RequestStateDone, time.Now().UTC(), safe.Holder)
+	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, state=?, updated_at=? WHERE holder=? AND nonce=? AND state=?",
+		safe.Nonce+1, common.RequestStateDone, time.Now().UTC(), safe.Holder, safe.Nonce, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("UPDATE safes %v", err)
 	}
+
+	_, err = tx.ExecContext(ctx, "UPDATE signature_requests SET state=?, updated_at=? WHERE transaction_hash=?",
+		common.RequestStateDone, req.CreatedAt, transactionHash)
+	if err != nil {
+		return fmt.Errorf("UPDATE signature_requests %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=?",
+		raw, common.RequestStateDone, req.CreatedAt, transactionHash)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-		common.RequestStateDone, time.Now().UTC(), requestId)
+		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
+
 	return tx.Commit()
 }
 

@@ -42,13 +42,13 @@ const (
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
 
-func HashMessageForSignature(msg string) ([]byte, error) {
-	msgB, err := hex.DecodeString(msg)
+func HashMessageForSignature(msg string) []byte {
+	b, err := hex.DecodeString(msg)
 	if err != nil {
-		return nil, err
+		panic(msg)
 	}
-	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(msgB), msgB)))
-	return hash.Bytes(), nil
+	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(b), b)))
+	return hash.Bytes()
 }
 
 func ParseWei(amount string) *big.Int {
@@ -80,6 +80,14 @@ func GetEvmChainID(chain int64) int64 {
 	}
 }
 
+func NormalizeAddress(addr string) string {
+	norm := common.HexToAddress(addr).Hex()
+	if norm == EthereumEmptyAddress || norm != addr {
+		return ""
+	}
+	return norm
+}
+
 func PrivToAddress(priv string) (*common.Address, error) {
 	privateKey, err := crypto.HexToECDSA(priv)
 	if err != nil {
@@ -91,52 +99,6 @@ func PrivToAddress(priv string) (*common.Address, error) {
 
 	addr := crypto.PubkeyToAddress(*publicKeyECDSA)
 	return &addr, nil
-}
-
-func UnpackSafeTransactionInput(rpc string, tx *RPCTransaction, chain byte) (*SafeTransaction, error) {
-	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
-	if err != nil {
-		return nil, err
-	}
-
-	input := tx.Input
-	if strings.HasPrefix(input, "0x") {
-		input = input[2:]
-	}
-	if !strings.HasPrefix(input, "6a761202") {
-		return nil, nil
-	}
-	raw, err := hex.DecodeString(input[8:])
-	if err != nil {
-		return nil, err
-	}
-
-	method := safeAbi.Methods["execTransaction"]
-	v, err := method.Inputs.Unpack(raw)
-	if err != nil {
-		return nil, err
-	}
-	n, err := GetNonceAtBlock(rpc, tx.To, new(big.Int).SetUint64(tx.BlockHeight))
-	if err != nil {
-		return nil, err
-	}
-	t := &SafeTransaction{
-		ChainID:        GetEvmChainID(int64(chain)),
-		SafeAddress:    tx.To,
-		Destination:    v[0].(common.Address),
-		Value:          v[1].(*big.Int),
-		Data:           v[2].([]byte),
-		Operation:      v[3].(uint8),
-		SafeTxGas:      v[4].(*big.Int),
-		BaseGas:        v[5].(*big.Int),
-		GasPrice:       v[6].(*big.Int),
-		GasToken:       v[7].(common.Address),
-		RefundReceiver: v[8].(common.Address),
-		Nonce:          n,
-		Signature:      v[9].([]byte),
-	}
-	t.Message = t.GetTransactionHash()
-	return t, nil
 }
 
 func packSetupArguments(ownersAddrs []string, threshold int64, data []byte, to, fallbackHandler, paymentToken, paymentReceiver common.Address, payment *big.Int) []byte {

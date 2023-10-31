@@ -13,7 +13,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common/abi"
-	ca "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -31,7 +30,7 @@ type GnosisSafe struct {
 
 func (gs *GnosisSafe) Marshal() []byte {
 	enc := mc.NewEncoder()
-	enc.WriteUint64(uint64(gs.Sequence))
+	enc.WriteUint32(gs.Sequence)
 	bitcoin.WriteBytes(enc, []byte(gs.Address))
 	bitcoin.WriteBytes(enc, []byte(gs.TxHash))
 	return enc.Bytes()
@@ -39,7 +38,7 @@ func (gs *GnosisSafe) Marshal() []byte {
 
 func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 	dec := mc.NewDecoder(extra)
-	sequence, err := dec.ReadUint64()
+	sequence, err := dec.ReadUint32()
 	if err != nil {
 		return nil, err
 	}
@@ -52,17 +51,14 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 		return nil, err
 	}
 	return &GnosisSafe{
-		Sequence: uint32(sequence),
+		Sequence: sequence,
 		Address:  string(addr),
 		TxHash:   string(hash),
 	}, nil
 }
 
 func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
-	owners, _, err := GetSortedSafeOwners(holder, signer, observer)
-	if err != nil {
-		return nil, nil, err
-	}
+	owners, _ := GetSortedSafeOwners(holder, signer, observer)
 	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
 
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
@@ -71,8 +67,8 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	sequence := lock / time.Hour
 
 	chainID := GetEvmChainID(int64(chain))
-	t, err := CreateTransaction(ctx, true, rpc, chainID, rid, safeAddress, safeAddress, "0", new(big.Int).SetUint64(0))
-	logger.Printf("CreateTransaction(%s, %d, %s, %s, %s, %d) => %v", rpc, chainID, rid, safeAddress, safeAddress, 0, err)
+	t, err := CreateTransaction(ctx, true, chainID, rid, safeAddress, safeAddress, "0", new(big.Int).SetUint64(0))
+	logger.Printf("CreateTransaction(%d, %s, %s, %s, %d) => %v", chainID, rid, safeAddress, safeAddress, 0, err)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -84,19 +80,19 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	}, t, nil
 }
 
-func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string, error) {
+func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 	var owners []string
 	var pubs []string
 	for _, public := range []string{holder, signer, observer} {
 		pub, err := parseEthereumCompressedPublicKey(public)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parseEthereumCompressedPublicKey(%s) => %v", public, err)
+			panic(public)
 		}
 		owners = append(owners, pub.Hex())
 		pubs = append(pubs, public)
 	}
 	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
-	return owners, pubs, nil
+	return owners, pubs
 }
 
 func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
@@ -113,7 +109,7 @@ func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, t
 		}
 	}
 	if !isGuarded {
-		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hash().String(), tx)
+		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hex(), tx)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +180,7 @@ func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error 
 	}
 	defer conn.Close()
 
-	signer, err := ca.SignerInit(key)
+	signer, err := abi.SignerInit(key)
 	if err != nil {
 		return err
 	}
@@ -204,15 +200,13 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 		return err
 	}
 	defer conn.Close()
+
 	signer, err := abi.SignerInit(key)
 	if err != nil {
 		return err
 	}
 	_, err = guardAbi.GuardSafe(signer, common.HexToAddress(safeAddress), common.HexToAddress(observer), new(big.Int).SetInt64(timelock))
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func ProcessSignature(signature []byte) []byte {
@@ -230,17 +224,14 @@ func VerifyHolderKey(public string) error {
 }
 
 func VerifyMessageSignature(public string, msg, sig []byte) error {
-	hash, err := HashMessageForSignature(hex.EncodeToString(msg))
-	if err != nil {
-		return err
-	}
+	hash := HashMessageForSignature(hex.EncodeToString(msg))
 	return VerifyHashSignature(public, hash, sig)
 }
 
 func VerifyHashSignature(public string, hash, sig []byte) error {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
-		return err
+		panic(public)
 	}
 	signed := crypto.VerifySignature(pub, hash, sig[:64])
 	if signed {

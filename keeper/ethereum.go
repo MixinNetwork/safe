@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -43,36 +44,24 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	raw := node.readStorageExtraFromObserver(ctx, ref)
 
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
-	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, t, err)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", safe.Holder, safe.Signer, safe.Observer, pubs, err)
+	signedByObserver, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Observer)
+	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Observer, signedByObserver, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	signedByObserver := false
-	for i, pub := range pubs {
-		if pub == safe.Observer {
-			sig := t.Signatures[i]
-			err = ethereum.VerifyMessageSignature(safe.Observer, t.Message, sig)
-			logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", safe.Observer, t.Message, sig, err)
-			if err == nil {
-				signedByObserver = true
-			}
-		}
-	}
-	if !signedByObserver {
+		return err
+	} else if !signedByObserver {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	if t.Destination.Hex() == safe.Address {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	rpc, asset_id := node.ethereumParams(safe.Chain)
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
+	rpc, assetId := node.ethereumParams(safe.Chain)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -104,7 +93,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return err
 	}
 	if block.Time.IsZero() || latest.Time.IsZero() || block.Time.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
-		return node.store.FailRequest(ctx, req.Id)
+		return fmt.Errorf("invalid timelock to close account %s %s", block.Time, latest.Time)
 	}
 
 	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
@@ -139,8 +128,8 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	proposedTx, _ := ethereum.UnmarshalSafeTransaction(b)
-	if hex.EncodeToString(t.Message) != hex.EncodeToString(proposedTx.Message) {
-		logger.Printf("Inconsistent safe tx message: %s %s", hex.EncodeToString(t.Message), hex.EncodeToString(proposedTx.Message))
+	if !bytes.Equal(t.Message, proposedTx.Message) {
+		logger.Printf("Inconsistent safe tx message: %x %x", t.Message, proposedTx.Message)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -153,11 +142,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
@@ -190,23 +175,11 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 
 func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, receiver string) error {
 	t, _ := ethereum.UnmarshalSafeTransaction(raw)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", safe.Holder, safe.Signer, safe.Observer, pubs, err)
+	signedByHolder, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
+	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Holder, signedByHolder, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	signedByHolder := false
-	for i, pub := range pubs {
-		if pub == safe.Holder {
-			sig := t.Signatures[i]
-			err = ethereum.VerifyMessageSignature(safe.Holder, t.Message, sig)
-			logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", safe.Holder, t.Message, sig, err)
-			if err == nil {
-				signedByHolder = true
-			}
-		}
-	}
-	if !signedByHolder {
+		return err
+	} else if !signedByHolder {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -393,21 +366,18 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
 	logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", sp.Extra, gs, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 	tx, err := node.store.ReadTransaction(ctx, gs.TxHash)
 	logger.Printf("store.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	rawB, err := hex.DecodeString(tx.RawTransaction)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	rawB := common.DecodeHexOrPanic(tx.RawTransaction)
 	t, err := ethereum.UnmarshalSafeTransaction(rawB)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", rawB, t, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 
 	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:])
@@ -415,11 +385,8 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	_, pubs, err := ethereum.GetSortedSafeOwners(sp.Holder, sp.Signer, sp.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v, %v", sp.Holder, sp.Signer, sp.Observer, pubs, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	_, pubs := ethereum.GetSortedSafeOwners(sp.Holder, sp.Signer, sp.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v", sp.Holder, sp.Signer, sp.Observer, pubs)
 	for i, pub := range pubs {
 		if pub == sp.Holder {
 			t.Signatures[i] = extra[16:]
@@ -444,6 +411,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		Threshold: sp.Threshold,
 		RequestId: req.Id,
 		State:     SafeStatePending,
+		Nonce:     0,
 		CreatedAt: req.CreatedAt,
 		UpdatedAt: req.CreatedAt,
 	}
@@ -453,11 +421,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
@@ -517,11 +481,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil {
+	if err != nil || deployed.Sign() <= 0 {
 		return fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
-	}
-	if deployed.Sign() <= 0 {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	if id.String() != assetId {
@@ -566,14 +527,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	rpc, asset_id := node.ethereumParams(safe.Chain)
-	nonce, err := ethereum.GetNonce(rpc, safe.Address)
-	logger.Printf("ethereum.GetNonce(%s) => %d %v", safe.Address, nonce, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
 	var outputs []*ethereum.Output
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
 	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
@@ -584,9 +537,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		var total decimal.Decimal
-		n := nonce
-		for _, rp := range recipients {
+		for i, rp := range recipients {
 			amt, err := decimal.NewFromString(rp[1])
 			if err != nil {
 				return node.store.FailRequest(ctx, req.Id)
@@ -594,28 +545,27 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			if amt.Cmp(plan.TransactionMinimum) < 0 {
 				return node.store.FailRequest(ctx, req.Id)
 			}
-			total = total.Add(amt)
 			outputs = append(outputs, &ethereum.Output{
-				Destination: string(extra[16:]),
+				Destination: rp[0],
 				Wei:         ethereum.ParseWei(req.Amount.String()),
-				Nonce:       n,
+				Nonce:       safe.Nonce + int64(i),
 			})
-			n += 1
-		}
-		if !total.Equal(req.Amount) {
-			return node.store.FailRequest(ctx, req.Id)
 		}
 	} else {
 		outputs = []*ethereum.Output{{
 			Destination: string(extra[16:]),
 			Wei:         ethereum.ParseWei(req.Amount.String()),
-			Nonce:       nonce,
+			Nonce:       safe.Nonce,
 		}}
 	}
 
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
+		norm := ethereum.NormalizeAddress(out.Destination)
+		if norm == "" || norm == safe.Address {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 		amt := decimal.NewFromBigInt(out.Wei, -ethereum.ValuePrecision)
 		recipients[i] = map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
@@ -626,15 +576,17 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	// todo: func multicall encoding
-	t, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, req.Id, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
-	logger.Printf("ethereum.CreateTransaction(%s, %d, %s, %s, %d, %d) => %v %v",
-		rpc, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
+	// TODO func multicall encoding
+	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
+	_, assetId = node.ethereumParams(safe.Chain)
+	t, err := ethereum.CreateTransaction(ctx, false, chainId, req.Id, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
+	logger.Printf("ethereum.CreateTransaction(%d, %s, %s, %d, %d) => %v %v",
+		chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset_id)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset_id, balance, err)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -667,92 +619,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 	var transacionInputs []*store.TransactionInput
 	return node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs)
-}
-
-func (node *Node) processEthereumSafeRevokeTransaction(ctx context.Context, req *common.Request) error {
-	if req.Role != common.RequestRoleObserver {
-		panic(req.Role)
-	}
-	chain := SafeCurveChain(req.Curve)
-	safe, err := node.store.ReadSafe(ctx, req.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
-	}
-	if safe == nil || safe.Chain != chain {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	assetId := SafeEthereumChainId
-	switch safe.Chain {
-	case SafeChainEthereum:
-	case SafeChainMVM:
-		assetId = SafeMVMChainId
-	default:
-		panic(safe.Chain)
-	}
-
-	extra, _ := hex.DecodeString(req.Extra)
-	if len(extra) < 64 {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	rid, err := uuid.FromBytes(extra[:16])
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
-	if err != nil {
-		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
-	} else if tx == nil {
-		return node.store.FailRequest(ctx, req.Id)
-	} else if tx.Holder != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
-	} else if tx.State != common.RequestStateInitial {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	msg := []byte(fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash))
-	err = ethereum.VerifyMessageSignature(req.Holder, msg, extra[16:])
-	logger.Printf("holder: ethereum.VerifyMessageSignature(%v) => %v", req, err)
-	if err != nil {
-		err = ethereum.VerifyMessageSignature(safe.Observer, msg, extra[16:])
-		logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", req, err)
-		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-	}
-
-	bondId, _, err := node.getBondAsset(ctx, assetId, safe.Holder)
-	logger.Printf("node.getBondAsset(%s, %s) => %s %v", assetId, req.Holder, bondId, err)
-	if err != nil {
-		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", assetId, req.Holder, err)
-	}
-	var transfers []map[string]string
-	err = json.Unmarshal([]byte(tx.Data), &transfers)
-	if err != nil {
-		panic(err)
-	}
-	amount := decimal.Zero
-	for _, t := range transfers {
-		ta := decimal.RequireFromString(t["amount"])
-		if ta.Cmp(decimal.NewFromFloat(0.0001)) < 0 {
-			panic(tx.Data)
-		}
-		amount = amount.Add(ta)
-	}
-	meta, err := node.fetchAssetMeta(ctx, bondId.String())
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", bondId.String(), meta, err)
-	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
-	}
-	if meta.Chain != SafeChainMVM {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
-	if err != nil {
-		return err
-	}
-
-	return node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
 }
 
 func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req *common.Request) error {
@@ -789,32 +655,16 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	copy(ref[:], extra[16:])
 	raw := node.readStorageExtraFromObserver(ctx, ref)
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
-	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", hex.EncodeToString(raw), t, err)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%s %s %s) => %v %v", safe.Holder, safe.Signer, safe.Observer, pubs, err)
+	signed, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
+	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Holder, signed, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	signed := false
-	for i, pub := range pubs {
-		if pub == safe.Holder {
-			if t.Signatures[i] == nil {
-				logger.Printf("Holder not sign this tx")
-				continue
-			}
-			err = ethereum.VerifyMessageSignature(pub, t.Message, t.Signatures[i])
-			logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v",
-				pub, hex.EncodeToString(t.Message), hex.EncodeToString(t.Signatures[i]), err)
-			if err == nil {
-				signed = true
-			}
-		}
-	}
-	if !signed {
+		return err
+	} else if !signed {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -824,11 +674,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	hash, err := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
-	logger.Printf("ethereum.HashMessageForSignature(%s) => %v %s %v", hex.EncodeToString(t.Message), hash, hex.EncodeToString(hash), err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
 		InputIndex:      0,
@@ -853,33 +699,14 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	return nil
 }
 
-func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req *common.Request) error {
+func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) error {
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
-	}
-	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
-	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
-	if err != nil {
-		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
-	}
-	if old == nil || old.State == common.RequestStateDone {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
-	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
-	}
-	safe, err := node.store.ReadSafe(ctx, tx.Holder)
-	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
-	}
-	if safe.Signer != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	sig, _ := hex.DecodeString(req.Extra)
 	msg := common.DecodeHexOrPanic(old.Message)
-	err = ethereum.VerifyHashSignature(safe.Signer, msg, sig)
+	err := ethereum.VerifyHashSignature(safe.Signer, msg, sig)
 	logger.Printf("node.VerifyHashSignature(%v) => %v", req, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
@@ -890,22 +717,13 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return fmt.Errorf("store.FinishSignatureRequest(%s) => %v", req.Id, err)
 	}
 
-	rawB, err := hex.DecodeString(tx.RawTransaction)
-	logger.Printf("hex.DecodeString(%v) => %v %v", tx, rawB, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
+	rawB := common.DecodeHexOrPanic(tx.RawTransaction)
 	t, err := ethereum.UnmarshalSafeTransaction(rawB)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", rawB, t, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		panic(err)
 	}
 
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v %v", safe, pubs, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, old.TransactionHash, common.RequestStatePending)
 	logger.Printf("store.ListAllSignaturesForTransaction(%s) => %d %v", old.TransactionHash, len(requests), err)
 	if err != nil {
@@ -914,20 +732,35 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	if len(requests) != 1 {
 		return fmt.Errorf("Invalid signature requests len: %d", len(requests))
 	}
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v", safe, pubs)
 	for i, pub := range pubs {
-		if pub == safe.Signer {
-			sig := common.DecodeHexOrPanic(requests[0].Signature.String)
-			sig = ethereum.ProcessSignature(sig)
-			err = ethereum.VerifyMessageSignature(safe.Signer, t.Message, sig)
-			if err != nil {
-				panic(requests[0].Signature.String)
-			}
-			t.Signatures[i] = sig
+		if pub != safe.Signer {
+			continue
 		}
+		sig := common.DecodeHexOrPanic(requests[0].Signature.String)
+		sig = ethereum.ProcessSignature(sig)
+		err = ethereum.VerifyMessageSignature(safe.Signer, t.Message, sig)
+		if err != nil {
+			panic(requests[0].Signature.String)
+		}
+		t.Signatures[i] = sig
 	}
 	raw := hex.EncodeToString(t.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, tx.Chain)
-	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
+
+	_, assetId := node.ethereumParams(safe.Chain)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	closeBalance := balance.Balance.Sub(balance.Balance, t.Value)
+	if closeBalance.Cmp(big.NewInt(0)) < 0 {
+		logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, assetId)
+	logger.Printf("store.CreateOrUpdateEthereumBalanceWithCloseBalance(%s, %s, %s) => %v", safe.Address, assetId, closeBalance.String(), err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -950,7 +783,16 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 		}
 
-		return node.store.FinishedSafeWithRequest(ctx, safe, req.Id)
+		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
+		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(gt.Data, t.Data) {
+			return fmt.Errorf("invalid safe guard transaction %x %x", gt.Data, t.Data)
+		}
+
+		return node.store.FinishSafeWithRequest(ctx, old.TransactionHash, raw, req, safe)
 	}
 
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(t.Marshal())))
@@ -961,5 +803,23 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}
-	return nil
+
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe)
+	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
+	return err
+}
+
+func (node *Node) checkEthereumTransactionSignedBy(safe *store.Safe, t *ethereum.SafeTransaction, public string) (bool, error) {
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	logger.Printf("ethereum.GetSortedSafeOwners(%s, %s, %s) => %v", safe.Holder, safe.Signer, safe.Observer, pubs)
+	for i, k := range pubs {
+		sig := t.Signatures[i]
+		if k != public || sig == nil {
+			continue
+		}
+		err := ethereum.VerifyMessageSignature(public, t.Message, sig)
+		logger.Printf("ethereum.VerifyMessageSignature(%s, %x, %x) => %v", safe.Holder, t.Message, sig, err)
+		return err == nil, nil
+	}
+	return false, nil
 }

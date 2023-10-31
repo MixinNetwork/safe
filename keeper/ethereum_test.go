@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -35,44 +36,11 @@ const (
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )
 
-func TestUnpackSafeTransactionInput(t *testing.T) {
-	require := require.New(t)
-	hash := "0xd030120e4840dff693e85cb2d82c35a46917e0703de774f909e7ba6eaca40fbf"
-	tx, _ := ethereum.RPCGetTransactionByHash("https://geth.mvm.dev", hash)
-	st, err := ethereum.UnpackSafeTransactionInput("https://geth.mvm.dev", tx, SafeChainMVM)
-	require.Nil(err)
-	require.NotNil(st)
-
-	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
-	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
-	require.Nil(err)
-
-	offset := 0
-	length := 65
-	pubs := []string{holder, observer}
-	sigs := make(map[string][]byte, 2)
-	for offset+length <= len(st.Signature) {
-		end := offset + length
-		sig := st.Signature[offset:end]
-		for _, pub := range pubs {
-			err = ethereum.VerifyMessageSignature(pub, st.Message, sig)
-			if err == nil {
-				sigs[pub] = sig
-			}
-		}
-		offset += length
-	}
-	require.NotNil(sigs[holder])
-	require.NotNil(sigs[observer])
-}
-
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testEthereumPrepare(require)
 
-	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
-	require.Nil(err)
+	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
 
@@ -89,8 +57,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 43690750, "b133d48e366f40e97d8f63aa7a28fa31f477aa1dc87f9bd09795138c1540366a")
 	}
 
-	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
-	require.Nil(err)
+	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
 
@@ -103,12 +70,10 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	st, err := ethereum.UnmarshalSafeTransaction(raw)
 
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
 		if pub == observer {
-			sig, err := testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
-			require.Nil(err)
+			sig := testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
 			st.Signatures[i] = sig
 		}
 	}
@@ -140,6 +105,9 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Len(requests, 1)
 	tx, _ = node.store.ReadTransaction(ctx, tx.TransactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
+	safe, err = node.store.ReadSafe(ctx, tx.Holder)
+	require.Nil(err)
+	require.Equal(common.RequestStateFailed, int(safe.State))
 
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
 	exk := mc.Blake3Hash([]byte(common.Base91Encode(mb)))
@@ -147,11 +115,13 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeApproveTransaction)
 	require.Equal(mb, b)
 
-	rpc, _ := node.ethereumParams(SafeChainMVM)
-	st, _ = ethereum.UnmarshalSafeTransaction(mb)
-	success, err := st.ValidTransaction(rpc)
+	_, assetId := node.ethereumParams(SafeChainMVM)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
 	require.Nil(err)
-	require.True(success)
+	require.Equal(int64(0), balance.Balance.Int64())
+
+	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
+	require.Equal(int64(2), safe.Nonce)
 }
 
 func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
@@ -161,32 +131,25 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 43690750, "b133d48e366f40e97d8f63aa7a28fa31f477aa1dc87f9bd09795138c1540366a")
 	}
 
-	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
-	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
-	require.Nil(err)
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
+	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
 
-	rpc, _ := node.ethereumParams(SafeChainMVM)
+	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
 	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
-	st, err := ethereum.CreateTransaction(ctx, false, rpc, chainId, id, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", nil)
+	st, err := ethereum.CreateTransaction(ctx, false, chainId, id, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", big.NewInt(safe.Nonce))
 	require.Nil(err)
 
-	safe, _ := node.store.ReadSafe(ctx, holder)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
-		var sig []byte
 		if pub == observer {
-			sig, err = testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
-			require.Nil(err)
+			sig := testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
 			st.Signatures[i] = sig
 		}
 		if pub == holder {
-			sig, err = testEthereumSignMessage(require, testEthereumKeyHolder, st.Message)
-			require.Nil(err)
+			sig := testEthereumSignMessage(require, testEthereumKeyHolder, st.Message)
 			st.Signatures[i] = sig
 		}
 	}
@@ -207,12 +170,6 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	safe, err = node.store.ReadSafe(ctx, tx.Holder)
 	require.Nil(err)
 	require.Equal(common.RequestStateFailed, int(safe.State))
-
-	raw, _ = hex.DecodeString(tx.RawTransaction)
-	stx, _ := ethereum.UnmarshalSafeTransaction(raw)
-	success, err := stx.ValidTransaction(rpc)
-	require.Nil(err)
-	require.True(success)
 }
 
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
@@ -241,8 +198,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	testSpareKeys(ctx, require, node, 0, 1, 0, common.CurveSecp256k1ECDSAEthereum)
 
 	id = uuid.Must(uuid.NewV4()).String()
-	observer, err := testEthereumPublicKey(testEthereumKeyObserver)
-	require.Nil(err)
+	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	occ := make([]byte, 32)
 	extra = append([]byte{common.RequestRoleObserver}, occ...)
 	extra = append(extra, common.RequestFlagNone)
@@ -255,8 +211,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 
 	batch := byte(64)
 	id = uuid.Must(uuid.NewV4()).String()
-	dummy, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
+	dummy := testEthereumPublicKey(testEthereumKeyHolder)
 	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSAMVM)
 	testStep(ctx, require, node, out)
 	for i := byte(0); i < batch; i++ {
@@ -276,13 +231,17 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	for i := 0; i < 10; i++ {
 		testEthereumUpdateAccountPrice(ctx, require, node)
 	}
-	rid, safe := testEthereumProposeAccount(ctx, require, node, mpc, observer)
+	rid, gs := testEthereumProposeAccount(ctx, require, node, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
-	testEthereumApproveAccount(ctx, require, node, rid, safe, signers, mpc, observer)
+	testEthereumApproveAccount(ctx, require, node, rid, gs, signers, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAMVM)
 	for i := 0; i < 10; i++ {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 43446223, "977f74ac401f5dd6803e883eec8fe35e3d90b83c869aada7cf77791c4c46004e")
 	}
+
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
+	safe, _ := node.store.ReadSafe(ctx, holder)
+	require.Equal(int64(1), safe.Nonce)
 	return ctx, node, mpc, signers
 }
 
@@ -325,8 +284,7 @@ func testEthereumRevokeTransaction(ctx context.Context, require *require.Asserti
 		key = testEthereumKeyObserver
 	}
 	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
-	sig, err := testEthereumSignMessage(require, key, []byte(ms))
-	require.Nil(err)
+	sig := testEthereumSignMessage(require, key, []byte(ms))
 
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	extra = append(extra, sig...)
@@ -351,15 +309,12 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	require.Nil(err)
 
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
-	_, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 
-	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
 	for i, pub := range pubs {
 		if pub == holder {
-			sig, err := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
-			require.Nil(err)
+			sig := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
 			t.Signatures[i] = sig
 		}
 	}
@@ -396,19 +351,18 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
 
-	rpc, _ := node.ethereumParams(SafeChainMVM)
-	raw, _ = hex.DecodeString(tx.RawTransaction)
-	t, _ = ethereum.UnmarshalSafeTransaction(raw)
-
-	valid, err := t.ValidTransaction(rpc)
+	_, assetId := node.ethereumParams(SafeChainMVM)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
 	require.Nil(err)
-	require.True(valid)
+	require.Equal(int64(0), balance.Balance.Int64())
+
+	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
+	require.Equal(int64(2), safe.Nonce)
 }
 
 func testEthereumProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, *ethereum.GnosisSafe) {
 	id := uuid.Must(uuid.NewV4()).String()
-	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
 	extra := testRecipient()
 	price := decimal.NewFromFloat(testAccountPriceAmount)
 	out := testBuildHolderRequest(node, id, holder, common.ActionEthereumSafeProposeAccount, testAccountPriceAssetId, extra, price)
@@ -425,8 +379,7 @@ func testEthereumProposeAccount(ctx context.Context, require *require.Assertions
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
 
-	owners, _, err := ethereum.GetSortedSafeOwners(holder, signer, observer)
-	require.Nil(err)
+	owners, _ := ethereum.GetSortedSafeOwners(holder, signer, observer)
 	addr := ethereum.GetSafeAccountAddress(owners, 2)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, addr.Hex())
@@ -440,8 +393,7 @@ func testEthereumProposeAccount(ctx context.Context, require *require.Assertions
 
 func testEthereumApproveAccount(ctx context.Context, require *require.Assertions, node *Node, rid string, gs *ethereum.GnosisSafe, signers []*signer.Node, safeSigner, safeObserver string) {
 	approveRequestId := uuid.Must(uuid.NewV4()).String()
-	holder, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
 	sp, err := node.store.ReadSafeProposalByAddress(ctx, gs.Address)
 	require.Nil(err)
 
@@ -451,8 +403,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Nil(err)
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
 	require.Nil(err)
-	signature, err := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
-	require.Nil(err)
+	signature := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
 
 	extra := uuid.FromStringOrNil(rid).Bytes()
 	extra = append(extra, signature[:]...)
@@ -493,8 +444,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, SafeMVMChainId)
 	require.Equal(testEthereumBondAssetId, bondId)
 
-	owners, pubs, err := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
-	require.Nil(err)
+	owners, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	rpc, _ := node.ethereumParams(safe.Chain)
 	raw, err = hex.DecodeString(tx.RawTransaction)
 	require.Nil(err)
@@ -511,7 +461,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(testEthereumSafeAddress, safeaddress.Hex())
 }
 
-func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, asset_id, balance string) {
+func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, assetId, balance string) {
 	id := uuid.Must(uuid.NewV4()).String()
 	amt, err := decimal.NewFromString(balance)
 	require.Nil(err)
@@ -542,8 +492,7 @@ func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Asser
 	extra = binary.BigEndian.AppendUint64(extra, uint64(fee))
 	extra = binary.BigEndian.AppendUint64(extra, height)
 	extra = append(extra, hash[:]...)
-	dummy, err := testEthereumPublicKey(testEthereumKeyDummyHolder)
-	require.Nil(err)
+	dummy := testEthereumPublicKey(testEthereumKeyDummyHolder)
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSAMVM)
 	testStep(ctx, require, node, out)
 
@@ -563,8 +512,7 @@ func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assert
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
-	dummy, err := testEthereumPublicKey(testEthereumKeyHolder)
-	require.Nil(err)
+	dummy := testEthereumPublicKey(testEthereumKeyHolder)
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSAMVM)
 	testStep(ctx, require, node, out)
 
@@ -575,20 +523,15 @@ func testEthereumUpdateAccountPrice(ctx context.Context, require *require.Assert
 	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
-func testEthereumSignMessage(require *require.Assertions, priv string, message []byte) ([]byte, error) {
-	private, err := crypto.HexToECDSA(priv)
-	if err != nil {
-		return nil, err
-	}
+func testEthereumSignMessage(require *require.Assertions, priv string, message []byte) []byte {
+	private, _ := crypto.HexToECDSA(priv)
 	publicKey := private.Public()
 	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 	pub := crypto.CompressPubkey(publicKeyECDSA)
 
 	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message)))
 	signature, err := crypto.Sign(hash.Bytes(), private)
-	if err != nil {
-		return nil, err
-	}
+	require.Nil(err)
 	signed := crypto.VerifySignature(pub, hash.Bytes(), signature[:64])
 	require.True(signed)
 
@@ -599,7 +542,7 @@ func testEthereumSignMessage(require *require.Assertions, priv string, message [
 	if hasPrefix {
 		signature[64] += 4
 	}
-	return signature, nil
+	return signature
 }
 
 func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
@@ -612,34 +555,19 @@ func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
 		return true
 	}
 	recoveredAddress := crypto.PubkeyToAddress(*recoveredPub).Hex()
-	address, err := ethereumAddressFromPriv(priv)
-	if err != nil {
-		return true
-	}
+	address := ethereumAddressFromPriv(priv)
 	return recoveredAddress != address
 }
 
-func ethereumAddressFromPriv(priv string) (string, error) {
-	privateKey, err := crypto.HexToECDSA(priv)
-	if err != nil {
-		return "", err
-	}
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
-
-	addr := crypto.PubkeyToAddress(*publicKeyECDSA)
-	return addr.String(), nil
+func ethereumAddressFromPriv(priv string) string {
+	addr, _ := ethereum.PrivToAddress(priv)
+	return addr.Hex()
 }
 
-func testEthereumPublicKey(priv string) (string, error) {
-	privateKey, err := crypto.HexToECDSA(priv)
-	if err != nil {
-		return "", err
-	}
-
+func testEthereumPublicKey(priv string) string {
+	privateKey, _ := crypto.HexToECDSA(priv)
 	publicKey := privateKey.Public()
 	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 
-	return hex.EncodeToString(crypto.CompressPubkey(publicKeyECDSA)), nil
+	return hex.EncodeToString(crypto.CompressPubkey(publicKeyECDSA))
 }

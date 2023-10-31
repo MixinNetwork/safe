@@ -323,7 +323,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	case common.ActionBitcoinSafeApproveAccount:
 		return true, node.deployBitcoinSafeBond(ctx, data)
 	case common.ActionEthereumSafeApproveAccount:
-		return true, node.deployEthereumSafeBond(ctx, data)
+		return true, node.deployEthereumGnosisSafeAccount(ctx, data)
 	}
 	return true, nil
 }

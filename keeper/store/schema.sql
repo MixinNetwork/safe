@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS safes (
   receivers        VARCHAR NOT NULL,
   threshold        INTEGER NOT NULL,
   request_id       VARCHAR NOT NULL,
+  nonce            INTEGER NOT NULL,
   state            INTEGER NOT NULL,
   created_at       TIMESTAMP NOT NULL,
   updated_at       TIMESTAMP NOT NULL,
