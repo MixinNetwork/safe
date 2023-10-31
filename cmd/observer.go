@@ -3,6 +3,9 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -10,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/config"
@@ -18,6 +22,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/fox-one/mixin-sdk-go"
@@ -155,7 +160,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = db.WriteAccountantKeys(ctx, keeper.BitcoinChainCurve(chain), keys)
+	err = db.WriteAccountantKeys(ctx, keeper.SafeChainCurve(chain), keys)
 	if err != nil {
 		return err
 	}
@@ -204,7 +209,7 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 	for scanner.Scan() {
 		hd := scanner.Text()
 		hdp := strings.Split(hd, ":")
-		if len(hdp) != 2 {
+		if len(hdp) != 3 {
 			return nil, fmt.Errorf("invalid pair %s", hd)
 		}
 		pub, code := hdp[0], hdp[1]
@@ -233,4 +238,121 @@ func generateAccountantKey(chain byte) (*btcec.PrivateKey, string, error) {
 		return nil, "", err
 	}
 	return priv, awpkh.EncodeAddress(), nil
+}
+
+func GenerateObserverKeys(c *cli.Context) error {
+	chain := c.Int("chain")
+	switch chain {
+	case keeper.SafeChainBitcoin:
+	default:
+		return fmt.Errorf("invalid chain %d", chain)
+	}
+
+	pubF, err := os.Create(c.String("list") + ".pub")
+	if err != nil {
+		return err
+	}
+	defer pubF.Close()
+
+	const harden = uint(0x80000000)
+	seed := c.String("seed")
+
+	offset, count := c.Uint("offset"), c.Uint("count")
+	if offset <= 0 || offset >= harden/1024 {
+		panic(offset)
+	}
+	if count <= 0 || count >= 1024*16 {
+		panic(count)
+	}
+	for i := uint(0); i < count; i++ {
+		index := uint32(offset + i)
+		if index > uint32(harden/2) {
+			panic(index)
+		}
+		account, err := generateObserverAccount(byte(chain), index, seed)
+		if err != nil {
+			panic(err)
+		}
+		line := fmt.Sprintf("%x:%x:%s", account.Public, account.ChainCode, account.Fingerprint)
+		_, err = pubF.WriteString(line + "\n")
+		if err != nil {
+			panic(err)
+		}
+	}
+	return nil
+}
+
+type Account struct {
+	Private     []byte
+	Public      []byte
+	ChainCode   []byte
+	Fingerprint string
+}
+
+// seed = m'/1396786757'/coin'/account'
+func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Account, error) {
+	seed, err := hex.DecodeString(masterSeed)
+	if err != nil {
+		panic(err)
+	}
+
+	// important to always use the bitcoin params for any chains
+	master, err := hdkeychain.NewMaster(seed, bitcoin.NetConfig(bitcoin.ChainBitcoin))
+	if err != nil {
+		panic(err)
+	}
+	if !master.IsPrivate() {
+		panic(master.String())
+	}
+
+	base := uint32(hdkeychain.HardenedKeyStart)
+	priv44, err := master.Derive(base + 1396786757)
+	if err != nil {
+		panic(err)
+	}
+	privCoin, err := priv44.Derive(base + uint32(chain))
+	if err != nil {
+		panic(err)
+	}
+	privAcc, err := privCoin.Derive(base + account)
+	if err != nil {
+		return nil, err
+	}
+
+	epriv, err := privAcc.ECPrivKey()
+	if err != nil {
+		panic(err)
+	}
+
+	ash := crypto.Blake3Hash(epriv.Serialize())
+	hmac512 := hmac.New(sha512.New, privAcc.ChainCode())
+	_, _ = hmac512.Write(ash[:])
+	ilr := hmac512.Sum(nil)
+	if len(ilr) != 64 {
+		panic(len(ilr))
+	}
+
+	priv := crypto.NewHash(ilr[:len(ilr)/2])
+	chainCode := crypto.Blake3Hash(ilr[len(ilr)/2:])
+	finger := btcutil.Hash160([]byte(masterSeed))[:4]
+	finger = binary.BigEndian.AppendUint32(finger, account)
+	res := &Account{
+		Private:     priv[:],
+		ChainCode:   chainCode[:],
+		Fingerprint: fmt.Sprintf("%X", finger),
+	}
+
+	switch chain {
+	case bitcoin.ChainBitcoin:
+		_, publicKey := btcec.PrivKeyFromBytes(res.Private)
+		res.Public = publicKey.SerializeCompressed()
+		err = bitcoin.CheckDerivation(hex.EncodeToString(res.Public), res.ChainCode, 100)
+		if err != nil {
+			panic(err)
+		}
+	default:
+		panic(chain)
+	}
+
+	return res, nil
 }

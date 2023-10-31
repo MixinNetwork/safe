@@ -23,6 +23,7 @@ const (
 
 	CurveSecp256k1ECDSALitecoin    = 100 + CurveSecp256k1ECDSABitcoin
 	CurveSecp256k1ECDSABitcoinCash = 110 + CurveSecp256k1ECDSABitcoin
+	CurveSecp256k1ECDSAMVM         = 100 + CurveSecp256k1ECDSAEthereum
 )
 
 type Operation struct {

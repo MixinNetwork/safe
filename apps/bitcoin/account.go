@@ -23,8 +23,8 @@ type WitnessScriptAccount struct {
 func (wsa *WitnessScriptAccount) Marshal() []byte {
 	enc := common.NewEncoder()
 	enc.WriteUint64(uint64(wsa.Sequence))
-	writeBytes(enc, wsa.Script)
-	writeBytes(enc, []byte(wsa.Address))
+	WriteBytes(enc, wsa.Script)
+	WriteBytes(enc, []byte(wsa.Address))
 	return enc.Bytes()
 }
 

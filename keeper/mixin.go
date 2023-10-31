@@ -688,7 +688,7 @@ func (node *Node) processMixinKernelSafeSignatureResponse(ctx context.Context, r
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}
 	signed := hex.EncodeToString(psbt.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, signed, req, int64(len(psbt.Inputs)), tx.Chain)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, signed, req, int64(len(psbt.Inputs)), safe)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, signed, req, err)
 	return err
 }

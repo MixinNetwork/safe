@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
@@ -55,31 +56,55 @@ func (node *Node) Boot(ctx context.Context) {
 	for _, chain := range []byte{
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
+		keeper.SafeChainMVM,
 	} {
-		err := node.sendBitcoinPriceInfo(ctx, chain)
+		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
-		go node.bitcoinNetworkInfoLoop(ctx, chain)
-		go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
-		go node.bitcoinRPCBlocksLoop(ctx, chain)
-		go node.bitcoinDepositConfirmLoop(ctx, chain)
-		go node.bitcoinTransactionApprovalLoop(ctx, chain)
-		go node.bitcoinTransactionSpendLoop(ctx, chain)
+
+		switch chain {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			go node.bitcoinNetworkInfoLoop(ctx, chain)
+			go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
+			go node.bitcoinRPCBlocksLoop(ctx, chain)
+			go node.bitcoinDepositConfirmLoop(ctx, chain)
+			go node.bitcoinTransactionApprovalLoop(ctx, chain)
+			go node.bitcoinTransactionSpendLoop(ctx, chain)
+		case keeper.SafeChainMVM:
+			go node.ethereumNetworkInfoLoop(ctx, chain)
+			go node.ethereumMixinWithdrawalsLoop(ctx, chain)
+			go node.ethereumRPCBlocksLoop(ctx, chain)
+			go node.ethereumDepositConfirmLoop(ctx, chain)
+			go node.ethereumTransactionApprovalLoop(ctx, chain)
+			go node.ethereumTransactionSpendLoop(ctx, chain)
+		}
 	}
-	go node.bitcoinKeyLoop(ctx)
+	go node.safeKeyLoop(ctx, keeper.SafeChainBitcoin)
+	go node.safeKeyLoop(ctx, keeper.SafeChainEthereum)
 	node.snapshotsLoop(ctx)
 }
 
-func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
-	_, bitcoinAssetId := node.bitcoinParams(chain)
+func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
+	var assetId string
+	var dust int64
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		_, assetId = node.bitcoinParams(chain)
+		dust = bitcoin.ValueDust(chain)
+	case keeper.SafeChainMVM:
+		_, assetId = node.ethereumParams(chain)
+		dust = ethereum.ValueDust
+	default:
+		panic(chain)
+	}
 	asset, err := node.fetchAssetMeta(ctx, node.conf.OperationPriceAssetId)
 	if err != nil {
 		return err
 	}
 	amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
-	logger.Printf("node.sendBitcoinPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
+	logger.Printf("node.sendPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
 		panic(node.conf.OperationPriceAmount)
@@ -88,12 +113,12 @@ func (node *Node) sendBitcoinPriceInfo(ctx context.Context, chain byte) error {
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
 		panic(node.conf.TransactionMinimum)
 	}
-	if minimum.IntPart() < bitcoin.ValueDust(chain) {
+	if minimum.IntPart() < dust {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := mixin.UniqueConversationID("ActionObserverSetOperationParams", dummy)
-	id = mixin.UniqueConversationID(id, bitcoinAssetId)
+	id = mixin.UniqueConversationID(id, assetId)
 	id = mixin.UniqueConversationID(id, asset.AssetId)
 	id = mixin.UniqueConversationID(id, amount.String())
 	id = mixin.UniqueConversationID(id, minimum.String())
@@ -176,8 +201,10 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 	if len(extra) != 66 {
 		return false, nil
 	}
+
 	switch extra[0] {
 	case common.CurveSecp256k1ECDSABitcoin:
+	case common.CurveSecp256k1ECDSAEthereum:
 	default:
 		return false, nil
 	}
@@ -201,10 +228,11 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return true, nil
 	}
 
+	chain := keeper.SafeCurveChain(extra[0])
 	id := mixin.UniqueConversationID(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
-	err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, keeper.SafeChainBitcoin, id, extra)
+	err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, chain, id, extra)
 	if err != nil {
 		return false, err
 	}
@@ -226,7 +254,7 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 	if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
 		return true, nil
 	}
-	return true, node.holderPayTransactionApproval(ctx, s.Memo)
+	return true, node.holderPayTransactionApproval(ctx, approval.Chain, s.Memo)
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
@@ -240,7 +268,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	if err != nil || len(op.Extra) != 32 {
 		return false, err
 	}
-	chain := keeper.BitcoinCurveChain(op.Curve)
+	chain := keeper.SafeCurveChain(op.Curve)
 	params, err := node.keeperStore.ReadLatestOperationParams(ctx, chain, s.CreatedAt)
 	if err != nil || params == nil {
 		return false, err
@@ -248,14 +276,17 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 
 	switch s.AssetID {
 	case node.conf.AssetId:
-		if op.Type == common.ActionBitcoinSafeApproveAccount {
+		switch op.Type {
+		case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
 			return false, nil
 		}
 		if s.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			return false, nil
 		}
 	case params.OperationPriceAsset:
-		if op.Type != common.ActionBitcoinSafeApproveAccount {
+		switch op.Type {
+		case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
+		default:
 			return false, nil
 		}
 		if s.Amount.Cmp(params.OperationPriceAmount) < 0 {
@@ -281,14 +312,18 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	}
 
 	switch op.Type {
-	case common.ActionBitcoinSafeProposeTransaction:
-		return true, node.keeperSaveTransactionProposal(ctx, data, s.CreatedAt)
+	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction:
+		return true, node.keeperSaveTransactionProposal(ctx, chain, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveTransaction:
 		return true, node.keeperCombineBitcoinTransactionSignatures(ctx, data)
-	case common.ActionBitcoinSafeProposeAccount:
-		return true, node.keeperSaveAccountProposal(ctx, data, s.CreatedAt)
+	case common.ActionEthereumSafeApproveTransaction:
+		return true, node.keeperVerifyEthereumTransactionSignatures(ctx, data)
+	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:
+		return true, node.keeperSaveAccountProposal(ctx, chain, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveAccount:
 		return true, node.deployBitcoinSafeBond(ctx, data)
+	case common.ActionEthereumSafeApproveAccount:
+		return true, node.deployEthereumGnosisSafeAccount(ctx, data)
 	}
 	return true, nil
 }

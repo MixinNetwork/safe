@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
@@ -53,8 +54,12 @@ const (
 	ActionMixinKernelSafeCloseAccount       = 125
 
 	// For all Ethereum like chains
-	ActionEthereumSafeProposeAccount = 130
-	ActionEthereumSafeApproveAccount = 131
+	ActionEthereumSafeProposeAccount     = 130
+	ActionEthereumSafeApproveAccount     = 131
+	ActionEthereumSafeProposeTransaction = 132
+	ActionEthereumSafeApproveTransaction = 133
+	ActionEthereumSafeRevokeTransaction  = 134
+	ActionEthereumSafeCloseAccount       = 135
 
 	FlagProposeNormalTransaction   = 0
 	FlagProposeRecoveryTransaction = 1
@@ -167,7 +172,12 @@ func (req *Request) ParseMixinRecipient(extra []byte) (*AccountProposal, error) 
 		return nil, fmt.Errorf("extra size %x %v", extra, arp)
 	}
 	arp.Observer = hex.EncodeToString(extra[offset:])
-	err = bitcoin.VerifyHolderKey(arp.Observer)
+	switch req.Action {
+	case ActionBitcoinSafeProposeAccount:
+		err = bitcoin.VerifyHolderKey(arp.Observer)
+	case ActionEthereumSafeProposeAccount:
+		err = ethereum.VerifyHolderKey(arp.Observer)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
 	}
@@ -196,6 +206,8 @@ func (r *Request) VerifyFormat() error {
 		return bitcoin.VerifyHolderKey(r.Holder)
 	case CurveEdwards25519Mixin:
 		return mixin.VerifyPublicKey(r.Holder)
+	case CurveSecp256k1ECDSAEthereum, CurveSecp256k1ECDSAMVM:
+		return ethereum.VerifyHolderKey(r.Holder)
 	default:
 		return fmt.Errorf("invalid request curve %v", r)
 	}

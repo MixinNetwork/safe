@@ -168,7 +168,7 @@ func BuildInsufficientInputError(cat, inSatoshi, outSatoshi string) error {
 	return fmt.Errorf("insufficient %s %s %s", cat, inSatoshi, outSatoshi)
 }
 
-func writeBytes(enc *common.Encoder, b []byte) {
+func WriteBytes(enc *common.Encoder, b []byte) {
 	enc.WriteInt(len(b))
 	enc.Write(b)
 }

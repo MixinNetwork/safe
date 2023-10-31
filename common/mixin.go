@@ -62,14 +62,6 @@ func DecodeMixinObjectExtra(extra []byte) []byte {
 	return b
 }
 
-func CheckMixinDomainAddress(rpc string, chainId, address string) (bool, error) {
-	inAddress, err := bot.ExternalAdddressCheck(context.Background(), chainId, address, "")
-	if err != nil && !strings.Contains(err.Error(), "30102") {
-		return false, fmt.Errorf("bot.ExternalAdddressCheck(%s) => %v", address, err)
-	}
-	return inAddress != nil && inAddress.Fee == "0", nil
-}
-
 func CreateObjectUntilSufficient(ctx context.Context, memo, traceId string, uid, sid, priv, pin, pinToken string) (*bot.Snapshot, error) {
 	fee := bot.EstimateObjectFee(memo)
 	in := &bot.ObjectInput{
@@ -128,7 +120,7 @@ func SendTransaction(ctx context.Context, client *mixin.Client, assetId string, 
 
 func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
 	raw, err := callMixinRPC(rpc, "gettransaction", []any{tx.String()})
-	if err != nil {
+	if err != nil || raw == nil {
 		return nil, err
 	}
 	var signed map[string]any
@@ -198,6 +190,9 @@ func callMixinRPC(node, method string, params []any) ([]byte, error) {
 	}
 	if result.Error != nil {
 		return nil, fmt.Errorf("ERROR %s", result.Error)
+	}
+	if result.Data == nil {
+		return nil, nil
 	}
 
 	return json.Marshal(result.Data)
