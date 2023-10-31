@@ -67,8 +67,8 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	sequence := lock / time.Hour
 
 	chainID := GetEvmChainID(int64(chain))
-	t, err := CreateTransaction(ctx, true, chainID, safeAddress, safeAddress, "0", new(big.Int).SetUint64(0))
-	logger.Printf("CreateTransaction(%d, %s, %s, %d) => %v", chainID, safeAddress, safeAddress, 0, err)
+	t, err := CreateTransaction(ctx, TypeInitGuardTx, chainID, safeAddress, safeAddress, "", "0", new(big.Int).SetUint64(0))
+	logger.Printf("CreateTransaction(%d, %d, %s, %s, %d) => %v", TypeInitGuardTx, chainID, safeAddress, safeAddress, 0, err)
 	if err != nil {
 		return nil, nil, err
 	}

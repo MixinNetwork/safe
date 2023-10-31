@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"golang.org/x/crypto/sha3"
 )
 
 // gnosis safe
@@ -45,7 +46,7 @@ type Output struct {
 	Nonce       int64
 }
 
-func CreateTransaction(ctx context.Context, enableGuardTx bool, chainID int64, safeAddress, destination, amount string, nonce *big.Int) (*SafeTransaction, error) {
+func CreateTransaction(ctx context.Context, typ int, chainID int64, safeAddress, destination, tokenAddress, amount string, nonce *big.Int) (*SafeTransaction, error) {
 	if nonce == nil {
 		return nil, fmt.Errorf("Invalid ethereum transaction nonce")
 	}
@@ -59,16 +60,32 @@ func CreateTransaction(ctx context.Context, enableGuardTx bool, chainID int64, s
 		Destination:    common.HexToAddress(destination),
 		Value:          value,
 		Operation:      operationTypeCall,
-		SafeTxGas:      new(big.Int).SetInt64(0),
-		BaseGas:        new(big.Int).SetInt64(0),
-		GasPrice:       new(big.Int).SetInt64(0),
+		SafeTxGas:      big.NewInt(0),
+		BaseGas:        big.NewInt(0),
+		GasPrice:       big.NewInt(0),
 		GasToken:       common.HexToAddress(EthereumEmptyAddress),
 		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
 		Nonce:          nonce,
 		Signatures:     make([][]byte, 3),
 	}
-	if enableGuardTx {
+	switch typ {
+	case TypeETHTx:
+	case TypeInitGuardTx:
+		tx.Destination = common.HexToAddress(safeAddress)
+		tx.Value = big.NewInt(0)
 		tx.Data = tx.GetEnableGuradData(EthereumSafeGuardAddress)
+	case TypeERC20Tx:
+		norm := NormalizeAddress(tokenAddress)
+		if norm == "" {
+			return nil, fmt.Errorf("invalid ERC20 address %s for TypeERC20Tx", tokenAddress)
+		}
+		tx.Destination = common.HexToAddress(norm)
+		tx.Value = big.NewInt(0)
+		tx.Data = tx.GetERC20TxData(destination, value)
+	case TypeMultiSendTx:
+		tx.Operation = operationTypeDelegateCall
+	default:
+		return nil, fmt.Errorf("invalid safe transaction type: %d", typ)
 	}
 	tx.Message = tx.GetTransactionHash()
 	return tx, nil
@@ -274,6 +291,22 @@ func (tx *SafeTransaction) GetEnableGuradData(address string) []byte {
 		panic(err)
 	}
 	return args
+}
+
+func (tx *SafeTransaction) GetERC20TxData(receiver string, amount *big.Int) []byte {
+	transferFnSignature := []byte("transfer(address,uint256)")
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write(transferFnSignature)
+	methodID := hash.Sum(nil)[:4]
+
+	paddedAddress := common.LeftPadBytes(common.HexToAddress(receiver).Bytes(), 32)
+	paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
+
+	var data []byte
+	data = append(data, methodID...)
+	data = append(data, paddedAddress...)
+	data = append(data, paddedAmount...)
+	return data
 }
 
 func GetNonce(rpc, address string) (int64, error) {

@@ -50,6 +50,31 @@ var (
 	timelock = 1
 )
 
+func TestCMPEthereumERC20Transaction(t *testing.T) {
+	ctx := context.Background()
+	require := require.New(t)
+	accountAddress := testPrepareEthereumAccount(ctx, require)
+
+	assetAddress := "0x910Fb1751B946C7D691905349eC5dD250EFBF40a"
+	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
+	value := "100000000"
+	n, err := ethereum.GetNonce(rpc, accountAddress)
+	require.Nil(err)
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeERC20Tx, int64(chainID), accountAddress, destination, assetAddress, value, new(big.Int).SetInt64(int64(n)))
+	require.Nil(err)
+
+	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+	require.Nil(err)
+	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
+	require.Nil(err)
+	tx.Signatures[1] = sigHolder
+	tx.Signatures[2] = sigSigner
+
+	success, err := tx.ValidTransaction(rpc)
+	require.Nil(err)
+	require.True(success)
+}
+
 func TestCMPEthereumTransaction(t *testing.T) {
 	ctx := context.Background()
 	require := require.New(t)
@@ -58,7 +83,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 	value := "10000000000"
 	n := 6
-	tx, err := ethereum.CreateTransaction(ctx, false, int64(chainID), accountAddress, destination, value, new(big.Int).SetInt64(int64(n)))
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -79,7 +104,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 		require.Nil(err)
 
 		time.Sleep(1 * time.Minute)
-		tx, err := ethereum.CreateTransaction(ctx, false, int64(chainID), accountAddress, destination, value, new(big.Int).SetInt64(int64(n+1)))
+		tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n+1)))
 		require.Nil(err)
 
 		// signatures should follow the asc order of addresses of owners
@@ -113,7 +138,7 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 	addrStr := addr.Hex()
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 
-	tx, err := ethereum.CreateTransaction(ctx, true, int64(chainID), addrStr, addrStr, "0", new(big.Int).SetInt64(0))
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, int64(chainID), addrStr, addrStr, "", "0", new(big.Int).SetInt64(0))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)

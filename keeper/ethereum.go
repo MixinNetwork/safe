@@ -579,7 +579,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	// TODO func multicall encoding
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	_, assetId = node.ethereumParams(safe.Chain)
-	t, err := ethereum.CreateTransaction(ctx, false, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
+	t, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, safe.Address, outputs[0].Destination, "", outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
 	logger.Printf("ethereum.CreateTransaction(%d, %s, %s, %d, %d) => %v %v",
 		chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
 	if err != nil {
@@ -785,7 +785,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
-		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
+		gt, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, chainId, sp.Address, sp.Address, "", "0", new(big.Int).SetUint64(0))
 		if err != nil {
 			return err
 		}

@@ -138,7 +138,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
-	st, err := ethereum.CreateTransaction(ctx, false, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", big.NewInt(safe.Nonce))
+	st, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, testEthereumSafeAddress, testEthereumTransactionReceiver, "", "100000000000000", big.NewInt(safe.Nonce))
 	require.Nil(err)
 
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
