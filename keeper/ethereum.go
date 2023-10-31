@@ -784,7 +784,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
-		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
+		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.RequestId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
 		if err != nil {
 			return err
 		}
