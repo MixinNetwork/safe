@@ -284,13 +284,6 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, assetId, deposit.Sender)
-	if err != nil {
-		return fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", deposit.Sender, err)
-	}
-	if isDomain {
-		confirmations = 1000000
-	}
 	isSafe, err := node.checkSafeInternalAddress(ctx, deposit.Sender)
 	if err != nil {
 		return fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", deposit.Sender, err)
