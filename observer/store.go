@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
@@ -141,7 +142,15 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 
 	pubs := []string{t.Holder, spk, opk}
 	for idx, pub := range pubs {
-		isSigned := bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
+		isSigned := false
+		switch safe.Chain {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			isSigned = bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
+		case keeper.SafeChainMVM:
+			isSigned = ethereum.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
+		default:
+			panic(safe.Chain)
+		}
 		if isSigned {
 			switch idx {
 			case 0:
