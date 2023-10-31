@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/blockchain"
@@ -106,6 +107,46 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	raw := hex.EncodeToString(hpsbt.Marshal())
 	err = node.store.FinishTransactionSignatures(ctx, hpsbt.Hash(), raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", hpsbt.Hash(), err)
+	return err
+}
+
+func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context, extra []byte) error {
+	logger.Printf("node.keeperVerifyEthereumTransactionSignatures(%x)", extra)
+	st, _ := ethereum.UnmarshalSafeTransaction(extra)
+	raw := hex.EncodeToString(st.Marshal())
+
+	tx, err := node.store.ReadTransactionApproval(ctx, st.TxHash)
+	if err != nil || tx.State >= common.RequestStateDone {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return err
+	}
+	switch safe.Chain {
+	case keeper.SafeChainEthereum:
+	case keeper.SafeChainMVM:
+	default:
+		panic(st.TxHash)
+	}
+
+	signedByHolder := ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder)
+	signedByObserver := ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer)
+	if !signedByHolder && !signedByObserver {
+		return fmt.Errorf("Ethereum safe transaction %v should signed by holder or observer: %t %t", st, signedByHolder, signedByObserver)
+	}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Signer) {
+		return fmt.Errorf("Ethereum safe transaction %v should signed by signer", st)
+	}
+
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
+	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
+	if err != nil {
+		return err
+	}
+
+	err = node.store.FinishTransactionSignatures(ctx, st.TxHash, raw)
+	logger.Printf("store.FinishTransactionSignatures(%s) => %v", st.TxHash, err)
 	return err
 }
 
@@ -315,6 +356,44 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 	}, node.store.WriteBitcoinFeeOutput(ctx, msgTx, receiver, tx)
 }
 
+func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) {
+	rpc, _ := node.ethereumParams(chain)
+
+	for {
+		time.Sleep(3 * time.Second)
+		txs, err := node.store.ListFullySignedTransactionApprovals(ctx, chain)
+		if err != nil {
+			panic(err)
+		}
+		for _, tx := range txs {
+			spentHash, err := node.ethereumSpendFullySignedTransaction(ctx, tx)
+			logger.Verbosef("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
+			if err != nil {
+				break
+			}
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction)
+			if err != nil {
+				panic(err)
+			}
+			etx, err := ethereum.RPCGetTransactionByHash(rpc, spentHash)
+			if err != nil || tx == nil {
+				panic(fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", spentHash, tx, err))
+			}
+			err = node.ethereumProcessTransaction(ctx, etx, chain)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
+func (node *Node) ethereumSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (string, error) {
+	b := common.DecodeHexOrPanic(tx.RawTransaction)
+	st, _ := ethereum.UnmarshalSafeTransaction(b)
+
+	return node.ethereumBroadcastTransactionAndWriteDeposit(ctx, st, tx.Chain)
+}
+
 func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -485,6 +564,25 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 		return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
 	}
 	return node.bitcoinProcessTransaction(ctx, tx, chain)
+}
+
+func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, st *ethereum.SafeTransaction, chain byte) (string, error) {
+	rpc, _ := node.ethereumParams(chain)
+	hash, err := st.ExecTransaction(rpc, node.conf.EVMKey)
+	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
+	if err != nil || tx == nil {
+		return "", fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, tx, err)
+	}
+	err = node.ethereumProcessTransaction(ctx, tx, chain)
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {

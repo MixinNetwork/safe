@@ -189,7 +189,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		"amount":   amt.String(),
 	}})
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(safe.Address),
+		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
@@ -282,7 +282,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(req.Id),
+		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           chain,
@@ -579,7 +579,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	// TODO func multicall encoding
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	_, assetId = node.ethereumParams(safe.Chain)
-	t, err := ethereum.CreateTransaction(ctx, false, chainId, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
+	t, err := ethereum.CreateTransaction(ctx, false, chainId, req.Id, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
 	logger.Printf("ethereum.CreateTransaction(%d, %s, %s, %d, %d) => %v %v",
 		chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
 	if err != nil {
@@ -595,8 +595,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra = uuid.Must(uuid.FromString(req.Id)).Bytes()
-	extra = append(extra, t.Marshal()...)
+	extra = t.Marshal()
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
@@ -607,7 +606,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
-		TransactionHash: t.Hash(req.Id),
+		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
@@ -785,7 +784,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
-		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
+		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.RequestId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
 		if err != nil {
 			return err
 		}

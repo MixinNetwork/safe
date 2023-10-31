@@ -293,13 +293,6 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if err != nil {
 		return nil, fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
 	}
-	isDomain, err := common.CheckMixinDomainAddress(node.conf.MixinRPC, asset, sender)
-	if err != nil {
-		return nil, fmt.Errorf("common.CheckMixinDomainAddress(%s) => %v", sender, err)
-	}
-	if isDomain {
-		confirmations = 1000000
-	}
 	isSafe, err := node.checkSafeInternalAddress(ctx, sender)
 	if err != nil {
 		return nil, fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", sender, err)
