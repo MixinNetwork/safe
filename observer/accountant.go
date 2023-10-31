@@ -119,16 +119,24 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	if err != nil || tx.State >= common.RequestStateDone {
 		return err
 	}
-	switch tx.Chain {
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return err
+	}
+	switch safe.Chain {
 	case keeper.SafeChainEthereum:
 	case keeper.SafeChainMVM:
 	default:
 		panic(st.TxHash)
 	}
 
-	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
-	if err != nil {
-		return err
+	signedByHolder := ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder)
+	signedByObserver := ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer)
+	if !signedByHolder && !signedByObserver {
+		return fmt.Errorf("Ethereum safe transaction %v should signed by holder or observer: %t %t", st, signedByHolder, signedByObserver)
+	}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Signer) {
+		return fmt.Errorf("Ethereum safe transaction %v should signed by signer", st)
 	}
 
 	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
