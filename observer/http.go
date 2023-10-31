@@ -539,38 +539,18 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	switch body.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		switch body.Action {
-		case "approve":
-			err = node.httpApproveBitcoinTransaction(r.Context(), body.Raw)
-			if err != nil {
-				common.RenderError(w, r, err)
-				return
-			}
-		case "revoke":
-			err = node.httpRevokeBitcoinTransaction(r.Context(), tx.TransactionHash, body.Signature)
-			if err != nil {
-				common.RenderError(w, r, err)
-				return
-			}
-		default:
+	switch body.Action {
+	case "approve":
+		err = node.httpApproveSafeTransaction(r.Context(), byte(body.Chain), body.Raw)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
 		}
-	case keeper.SafeChainMVM:
-		switch body.Action {
-		case "approve":
-			err = node.httpApproveEthereumTransaction(r.Context(), tx.TransactionHash, body.Raw)
-			if err != nil {
-				common.RenderError(w, r, err)
-				return
-			}
-		case "revoke":
-			err = node.httpRevokeEthereumTransaction(r.Context(), tx.TransactionHash, body.Signature)
-			if err != nil {
-				common.RenderError(w, r, err)
-				return
-			}
-		default:
+	case "revoke":
+		err = node.httpRevokeSafeTransaction(r.Context(), byte(body.Chain), tx.TransactionHash, body.Signature)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
 		}
 	default:
 		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "chain"})

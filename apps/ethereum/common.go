@@ -20,7 +20,7 @@ const (
 	ChainEthereum = 2
 	ChainMVM      = 4
 
-	TransactionConfirmations = 1
+	TransactionConfirmations = 32
 
 	ValuePrecision = 18
 	ValueDust      = 100000000000000
