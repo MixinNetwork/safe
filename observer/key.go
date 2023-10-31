@@ -7,7 +7,6 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
-	"github.com/fox-one/mixin-sdk-go"
 )
 
 func (node *Node) safeKeyLoop(ctx context.Context, chain byte) {
@@ -46,7 +45,7 @@ func (node *Node) safeAddObserverKeys(ctx context.Context, chain byte) error {
 		if observer == "" {
 			return nil
 		}
-		id := mixin.UniqueConversationID(observer, observer)
+		id := common.UniqueId(observer, observer)
 		extra := append([]byte{common.RequestRoleObserver}, chainCode...)
 		extra = append(extra, common.RequestFlagNone)
 		err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, chain, id, extra)
@@ -79,7 +78,7 @@ func (node *Node) safeRequestSignerKeys(ctx context.Context, chain byte) error {
 		return err
 	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID(requested.String(), requested.String())
+	id := common.UniqueId(requested.String(), requested.String())
 	err = node.sendKeeperResponse(ctx, dummy, common.ActionObserverRequestSignerKeys, chain, id, []byte{64})
 	if err != nil {
 		return err

@@ -10,7 +10,6 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	sc "github.com/MixinNetwork/safe/common"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +72,7 @@ func TestFROSTMixinSign(t *testing.T) {
 }
 
 func writeTransactionReferences(ctx context.Context, nodes []*Node, crv byte, msg, ref []byte) {
-	sid := mixin.UniqueConversationID("sign", fmt.Sprintf("%d:%x", crv, msg))
+	sid := sc.UniqueId("sign", fmt.Sprintf("%d:%x", crv, msg))
 	hash := crypto.NewHash([]byte(sid))
 	k := hex.EncodeToString(hash[:])
 	v := hex.EncodeToString(ref)

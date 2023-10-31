@@ -22,7 +22,6 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 )
 
@@ -652,7 +651,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
-	traceId := mixin.UniqueConversationID(node.group.GenesisId(), op.Id)
+	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	err := node.group.BuildTransaction(ctx, node.conf.KeeperAssetId, members, threshold, "1", string(extra), traceId, "")
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %v", op, traceId, extra, err)
 	return err

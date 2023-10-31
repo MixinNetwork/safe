@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +27,7 @@ func TestFROSTSigner(t *testing.T) {
 }
 
 func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {
-	sid := mixin.UniqueConversationID("keygen", fmt.Sprint(curve))
+	sid := common.UniqueId("keygen", fmt.Sprint(curve))
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
 		op := &common.Operation{
@@ -68,7 +67,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 
 func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv uint8) []byte {
 	node := nodes[0]
-	sid := mixin.UniqueConversationID("sign", fmt.Sprintf("%d:%x", crv, msg))
+	sid := common.UniqueId("sign", fmt.Sprintf("%d:%x", crv, msg))
 	fingerPath := append(common.Fingerprint(public), []byte{0, 0, 0, 0}...)
 	sop := &common.Operation{
 		Type:   common.OperationTypeSignInput,

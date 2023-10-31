@@ -117,11 +117,11 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
-	id := mixin.UniqueConversationID("ActionObserverSetOperationParams", dummy)
-	id = mixin.UniqueConversationID(id, assetId)
-	id = mixin.UniqueConversationID(id, asset.AssetId)
-	id = mixin.UniqueConversationID(id, amount.String())
-	id = mixin.UniqueConversationID(id, minimum.String())
+	id := common.UniqueId("ActionObserverSetOperationParams", dummy)
+	id = common.UniqueId(id, assetId)
+	id = common.UniqueId(id, asset.AssetId)
+	id = common.UniqueId(id, amount.String())
+	id = common.UniqueId(id, minimum.String())
 	extra := []byte{chain}
 	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
@@ -229,7 +229,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 	}
 
 	chain := keeper.SafeCurveChain(extra[0])
-	id := mixin.UniqueConversationID(observer, observer)
+	id := common.UniqueId(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
 	err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, chain, id, extra)
@@ -364,9 +364,9 @@ func (node *Node) writeSnapshotsCheckpoint(ctx context.Context, offset time.Time
 }
 
 func (node *Node) safeTraceId(params ...string) string {
-	traceId := mixin.UniqueConversationID(node.conf.PrivateKey, node.conf.PrivateKey)
+	traceId := common.UniqueId(node.conf.PrivateKey, node.conf.PrivateKey)
 	for _, id := range params {
-		traceId = mixin.UniqueConversationID(traceId, id)
+		traceId = common.UniqueId(traceId, id)
 	}
 	return traceId
 }
