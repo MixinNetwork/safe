@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,7 +61,8 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 	value := "100000000"
 	n, err := ethereum.GetNonce(rpc, accountAddress)
 	require.Nil(err)
-	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeERC20Tx, int64(chainID), accountAddress, destination, assetAddress, value, new(big.Int).SetInt64(int64(n)))
+	id := uuid.Must(uuid.NewV4()).String()
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeERC20Tx, int64(chainID), id, accountAddress, destination, assetAddress, value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -83,7 +85,8 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 	value := "10000000000"
 	n := 6
-	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
+	id := uuid.Must(uuid.NewV4()).String()
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -104,7 +107,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 		require.Nil(err)
 
 		time.Sleep(1 * time.Minute)
-		tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n+1)))
+		tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n+1)))
 		require.Nil(err)
 
 		// signatures should follow the asc order of addresses of owners
@@ -138,7 +141,8 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 	addrStr := addr.Hex()
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 
-	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, int64(chainID), addrStr, addrStr, "", "0", new(big.Int).SetInt64(0))
+	id := uuid.Must(uuid.NewV4()).String()
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, int64(chainID), id, addrStr, addrStr, "", "0", new(big.Int).SetInt64(0))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)

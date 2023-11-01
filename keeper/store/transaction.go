@@ -104,6 +104,26 @@ func (s *SQLite3Store) CountUnfinishedTransactionsByHolder(ctx context.Context, 
 	return count, err
 }
 
+func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, holder string) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions WHERE holder=? AND state IN (?, ?)", strings.Join(transactionCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, holder, common.RequestStateInitial, common.RequestStatePending)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var txs []*Transaction
+	for rows.Next() {
+		var tx Transaction
+		err = rows.Scan(&tx.TransactionHash, &tx.RawTransaction, &tx.Holder, &tx.Chain, &tx.AssetId, &tx.State, &tx.Data, &tx.RequestId, &tx.CreatedAt, &tx.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, &tx)
+	}
+	return txs, nil
+}
+
 func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
