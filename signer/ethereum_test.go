@@ -77,6 +77,39 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 	require.True(success)
 }
 
+func TestCMPEthereumMultiSendTransaction(t *testing.T) {
+	ctx := context.Background()
+	require := require.New(t)
+	accountAddress := testPrepareEthereumAccount(ctx, require)
+
+	var outputs []*ethereum.Output
+	outputs = append(outputs, &ethereum.Output{
+		Destination: "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
+		Amount:      big.NewInt(100000000000000),
+	})
+	outputs = append(outputs, &ethereum.Output{
+		TokenAddress: "0x910Fb1751B946C7D691905349eC5dD250EFBF40a",
+		Destination:  "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
+		Amount:       big.NewInt(100000000),
+	})
+	n, err := ethereum.GetNonce(rpc, accountAddress)
+	require.Nil(err)
+	id := uuid.Must(uuid.NewV4()).String()
+	tx, err := ethereum.CreateMultiSendTransaction(ctx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
+	require.Nil(err)
+
+	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
+	require.Nil(err)
+	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
+	require.Nil(err)
+	tx.Signatures[1] = sigHolder
+	tx.Signatures[2] = sigSigner
+
+	success, err := tx.ValidTransaction(rpc)
+	require.Nil(err)
+	require.True(success)
+}
+
 func TestCMPEthereumTransaction(t *testing.T) {
 	ctx := context.Background()
 	require := require.New(t)

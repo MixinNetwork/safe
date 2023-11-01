@@ -34,12 +34,12 @@ const (
 	TypeInitGuardTx = 0
 	TypeETHTx       = 1
 	TypeERC20Tx     = 2
-	TypeMultiSendTx = 3
 
 	EthereumEmptyAddress                        = "0x0000000000000000000000000000000000000000"
 	EthereumSafeProxyFactoryAddress             = "0xC00abA7FbB0d1e7f02082E346fe1B80EFA16Dc5D"
 	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
 	EthereumCompatibilityFallbackHandlerAddress = "0x52Bb11433e9C993Cc320B659bdd3F0699AEa678d"
+	EthereumMultiSendAddress                    = "0x22a4Ac16965F7C5446A28E3aaA91D06409bF5637"
 	EthereumSafeGuardAddress                    = "0x29e29a21B51Bb5B7a3b5F813687514D17140Ba2d"
 
 	predeterminedSaltNonce  = "0xb1073742015cbcf5a3a4d9d1ae33ecf619439710b89475f92e2abd2117e90f90"
@@ -236,7 +236,7 @@ func packSafeTransactionArguments(tx *SafeTransaction) []byte {
 		tx.Destination,
 		tx.Value,
 		toBytes32(crypto.Keccak256(tx.Data)),
-		new(big.Int).SetInt64(operationTypeCall),
+		new(big.Int).SetInt64(int64(tx.Operation)),
 		tx.SafeTxGas,
 		tx.BaseGas,
 		tx.GasPrice,
