@@ -95,7 +95,7 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	n, err := ethereum.GetNonce(rpc, accountAddress)
 	require.Nil(err)
 	id := uuid.Must(uuid.NewV4()).String()
-	tx, err := ethereum.CreateMultiSendTransaction(ctx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
+	tx, err := ethereum.CreateTransactionFromOutputs(ctx, ethereum.TypeMultiSendTx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)

@@ -34,6 +34,7 @@ const (
 	TypeInitGuardTx = 0
 	TypeETHTx       = 1
 	TypeERC20Tx     = 2
+	TypeMultiSendTx = 3
 
 	EthereumEmptyAddress                        = "0x0000000000000000000000000000000000000000"
 	EthereumSafeProxyFactoryAddress             = "0xC00abA7FbB0d1e7f02082E346fe1B80EFA16Dc5D"

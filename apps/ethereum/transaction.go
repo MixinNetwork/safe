@@ -49,7 +49,7 @@ type Output struct {
 
 func CreateTransactionFromOutputs(ctx context.Context, typ int, chainId int64, id, safeAddress string, outputs []*Output, nonce *big.Int) (*SafeTransaction, error) {
 	switch {
-	case len(outputs) > 1:
+	case len(outputs) > 1 && typ == TypeMultiSendTx:
 		return CreateMultiSendTransaction(ctx, chainId, id, safeAddress, outputs, nonce)
 	case len(outputs) == 1:
 		o := outputs[0]

@@ -577,6 +577,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	_, assetId = node.ethereumParams(safe.Chain)
 	txType := ethereum.TypeETHTx
+	if len(outputs) > 1 {
+		txType = ethereum.TypeMultiSendTx
+	}
 	t, err := ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
 	logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
 		txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
