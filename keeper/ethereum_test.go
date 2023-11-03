@@ -456,7 +456,8 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 			index = int64(i)
 		}
 	}
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, 2, int64(safe.Timelock/time.Hour), index, t)
+	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), chainId, owners, 2, int64(safe.Timelock/time.Hour), index, t)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, safeaddress.Hex())
 }

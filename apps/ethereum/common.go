@@ -10,6 +10,7 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -289,6 +290,15 @@ func packDomainSeparatorArguments(chainID int64, safeAddress string) []byte {
 		panic(err)
 	}
 	return args
+}
+
+func signerInit(key string, evmChainId int64) (*bind.TransactOpts, error) {
+	chainId := new(big.Int).SetInt64(evmChainId)
+	priv, err := crypto.HexToECDSA(key)
+	if err != nil {
+		return nil, err
+	}
+	return bind.NewKeyedTransactorWithChainID(priv, chainId)
 }
 
 func safeInit(rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {

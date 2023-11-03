@@ -12,7 +12,6 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -95,7 +94,7 @@ func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 	return owners, pubs
 }
 
-func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
+func GetOrDeploySafeAccount(rpc, key string, chainId int64, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
 	addr := GetSafeAccountAddress(owners, threshold)
 
 	isGuarded, isDeployed, err := CheckSafeAccountDeployed(rpc, addr.String())
@@ -103,13 +102,13 @@ func GetOrDeploySafeAccount(rpc, key string, owners []string, threshold int64, t
 		return nil, err
 	}
 	if !isDeployed {
-		err = DeploySafeAccount(rpc, key, owners, threshold)
+		err = DeploySafeAccount(rpc, key, chainId, owners, threshold)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if !isGuarded {
-		err = EnableGuard(rpc, key, timelock, owners[observerIndex], addr.Hex(), tx)
+		err = EnableGuard(rpc, key, chainId, timelock, owners[observerIndex], addr.Hex(), tx)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +168,7 @@ func GetSafeAccountAddress(owners []string, threshold int64) common.Address {
 	return common.BytesToAddress(crypto.Keccak256(input))
 }
 
-func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error {
+func DeploySafeAccount(rpc, key string, chainId int64, owners []string, threshold int64) error {
 	initializer := getInitializer(owners, threshold)
 	nonce := new(big.Int)
 	nonce.SetString(predeterminedSaltNonce[2:], 16)
@@ -180,7 +179,7 @@ func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error 
 	}
 	defer conn.Close()
 
-	signer, err := abi.SignerInit(key)
+	signer, err := signerInit(key, chainId)
 	if err != nil {
 		return err
 	}
@@ -189,7 +188,7 @@ func DeploySafeAccount(rpc, key string, owners []string, threshold int64) error 
 	return err
 }
 
-func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, tx *SafeTransaction) error {
+func EnableGuard(rpc, key string, chainId, timelock int64, observer, safeAddress string, tx *SafeTransaction) error {
 	_, err := tx.ExecTransaction(rpc, key)
 	if err != nil {
 		return err
@@ -201,7 +200,7 @@ func EnableGuard(rpc, key string, timelock int64, observer, safeAddress string, 
 	}
 	defer conn.Close()
 
-	signer, err := abi.SignerInit(key)
+	signer, err := signerInit(key, chainId)
 	if err != nil {
 		return err
 	}

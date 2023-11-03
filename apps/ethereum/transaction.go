@@ -10,7 +10,6 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	ca "github.com/MixinNetwork/safe/common/abi"
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -270,7 +269,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 }
 
 func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
-	signer, err := ca.SignerInit(key)
+	signer, err := signerInit(key, tx.ChainID)
 	if err != nil {
 		return "", err
 	}
