@@ -139,7 +139,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
 	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
-	st, err := ethereum.CreateTransaction(ctx, false, chainId, id, testEthereumSafeAddress, testEthereumTransactionReceiver, "100000000000000", big.NewInt(safe.Nonce))
+	st, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, id, testEthereumSafeAddress, testEthereumTransactionReceiver, "", "100000000000000", big.NewInt(safe.Nonce))
 	require.Nil(err)
 
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
@@ -456,7 +456,8 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 			index = int64(i)
 		}
 	}
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), owners, 2, int64(safe.Timelock/time.Hour), index, t)
+	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), chainId, owners, 2, int64(safe.Timelock/time.Hour), index, t)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, safeaddress.Hex())
 }

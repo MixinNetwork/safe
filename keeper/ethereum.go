@@ -537,7 +537,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		for i, rp := range recipients {
+		for _, rp := range recipients {
 			amt, err := decimal.NewFromString(rp[1])
 			if err != nil {
 				return node.store.FailRequest(ctx, req.Id)
@@ -547,15 +547,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			}
 			outputs = append(outputs, &ethereum.Output{
 				Destination: rp[0],
-				Wei:         ethereum.ParseWei(req.Amount.String()),
-				Nonce:       safe.Nonce + int64(i),
+				Amount:      ethereum.ParseWei(amt.String()),
 			})
 		}
 	} else {
 		outputs = []*ethereum.Output{{
 			Destination: string(extra[16:]),
-			Wei:         ethereum.ParseWei(req.Amount.String()),
-			Nonce:       safe.Nonce,
+			Amount:      ethereum.ParseWei(req.Amount.String()),
 		}}
 	}
 
@@ -566,7 +564,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if norm == "" || norm == safe.Address {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		amt := decimal.NewFromBigInt(out.Wei, -ethereum.ValuePrecision)
+		amt := decimal.NewFromBigInt(out.Amount, -ethereum.ValuePrecision)
 		recipients[i] = map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
 		}
@@ -576,12 +574,15 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	// TODO func multicall encoding
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	_, assetId = node.ethereumParams(safe.Chain)
-	t, err := ethereum.CreateTransaction(ctx, false, chainId, req.Id, safe.Address, outputs[0].Destination, outputs[0].Wei.String(), big.NewInt(outputs[0].Nonce))
-	logger.Printf("ethereum.CreateTransaction(%d, %s, %s, %d, %d) => %v %v",
-		chainId, safe.Address, outputs[0].Destination, outputs[0].Wei, outputs[0].Nonce, t, err)
+	txType := ethereum.TypeETHTx
+	if len(outputs) > 1 {
+		txType = ethereum.TypeMultiSendTx
+	}
+	t, err := ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
+	logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
+		txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -784,7 +785,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
-		gt, err := ethereum.CreateTransaction(ctx, true, chainId, sp.RequestId, sp.Address, sp.Address, "0", new(big.Int).SetUint64(0))
+		gt, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, chainId, sp.RequestId, sp.Address, sp.Address, "", "0", new(big.Int).SetUint64(0))
 		if err != nil {
 			return err
 		}
