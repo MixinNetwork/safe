@@ -323,6 +323,66 @@ func (tx *SafeTransaction) GetTransactionHash() []byte {
 	return hash
 }
 
+func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
+	if tx.Operation != operationTypeDelegateCall {
+		return nil, fmt.Errorf("invalid tx operation: %d", tx.Operation)
+	}
+	abi, err := ga.JSON(strings.NewReader(abi.MultiSendMetaData.ABI))
+	if err != nil {
+		panic(err)
+	}
+	args, err := abi.Methods["multiSend"].Inputs.Unpack(
+		tx.Data[4:],
+	)
+	if err != nil || len(args) != 1 {
+		return nil, err
+	}
+	multiSendData := args[0].([]byte)
+
+	var os []*Output
+	offset := 0
+	for {
+		if offset == len(multiSendData) {
+			break
+		}
+
+		offset += 1
+		bytesTo := multiSendData[offset : offset+20]
+		to := common.BytesToAddress(bytesTo)
+		offset += 20
+		bytesAmount := multiSendData[offset : offset+32]
+		amount := new(big.Int).SetBytes(bytesAmount)
+		offset += 32
+		bytesLen := multiSendData[offset : offset+32]
+		dataLen := new(big.Int).SetBytes(bytesLen).Uint64()
+		offset += 32
+
+		o := &Output{
+			Destination: to.Hex(),
+			Amount:      amount,
+		}
+		switch {
+		case dataLen == 0:
+		case int(dataLen) == 68:
+			metaData := multiSendData[offset : offset+int(dataLen)]
+			strData := hex.EncodeToString(metaData)
+			if !strings.HasPrefix(strData, "a9059cbb") {
+				return nil, fmt.Errorf("invalid meta tx data: %x", metaData)
+			}
+			bytesTo := metaData[4:36]
+			bytesAmount := metaData[36:68]
+			o.TokenAddress = o.Destination
+			o.Destination = common.BytesToAddress(bytesTo).Hex()
+			o.Amount = new(big.Int).SetBytes(bytesAmount)
+			offset += int(dataLen)
+		default:
+			return nil, fmt.Errorf("invalid meta tx data len: %d", dataLen)
+		}
+		os = append(os, o)
+	}
+	return os, nil
+}
+
 func GetEnableGuradData(address string) []byte {
 	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {

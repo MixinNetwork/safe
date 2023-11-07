@@ -98,6 +98,16 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	tx, err := ethereum.CreateTransactionFromOutputs(ctx, ethereum.TypeMultiSendTx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
+	parsedOutputs, err := tx.ParseMultiSendData()
+	require.Nil(err)
+	require.Len(parsedOutputs, 2)
+	for i, po := range parsedOutputs {
+		o := outputs[i]
+		require.True(po.Amount.Cmp(o.Amount) == 0)
+		require.Equal(po.Destination, o.Destination)
+		require.Equal(po.TokenAddress, o.TokenAddress)
+	}
+
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
 	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
