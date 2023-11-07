@@ -187,7 +187,6 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Transfer, chain byte) error {
-	_, assetId := node.ethereumParams(chain)
 	amount := decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
 
 	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: transfer.Hash}})
@@ -199,10 +198,10 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Tra
 		return nil
 	}
 
-	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index, assetId, transfer.Receiver)
-	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, assetId, transfer.Receiver, old, err)
+	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver)
+	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
 	if err != nil {
-		return fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, assetId, transfer.Receiver, old, err)
+		return fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
 	} else if old != nil {
 		return nil
 	}
@@ -215,11 +214,16 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Tra
 		return nil
 	}
 
+	_, err = node.checkOrDeployKeeperBond(ctx, transfer.AssetId, safe.Holder)
+	if err != nil {
+		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
+	}
+
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: transfer.Hash,
 		OutputIndex:     transfer.Index,
-		AssetId:         assetId,
+		AssetId:         transfer.AssetId,
 		Amount:          amount.String(),
 		Receiver:        transfer.Receiver,
 		Sender:          transfer.Sender,
