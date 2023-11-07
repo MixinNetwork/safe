@@ -2,8 +2,10 @@ package ethereum
 
 import (
 	"crypto/ecdsa"
+	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math/big"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -51,6 +54,50 @@ const (
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
 
+func GenerateAssetId(chain byte, assetKey string) string {
+	err := VerifyAssetKey(assetKey)
+	if err != nil {
+		panic(assetKey)
+	}
+
+	base := GetMixinChainID(int64(chain))
+	return BuildChainAssetId(base, assetKey)
+}
+
+func VerifyAssetKey(assetKey string) error {
+	if len(assetKey) != 42 {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	if !strings.HasPrefix(assetKey, "0x") {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	if assetKey != strings.ToLower(assetKey) {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	k, err := hex.DecodeString(assetKey[2:])
+	if err != nil {
+		return fmt.Errorf("invalid mvm asset key %s %s", assetKey, err.Error())
+	}
+	if len(k) != 20 {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	return nil
+}
+
+func BuildChainAssetId(base, asset string) string {
+	h := md5.New()
+	io.WriteString(h, base)
+	io.WriteString(h, asset)
+	sum := h.Sum(nil)
+	sum[6] = (sum[6] & 0x0f) | 0x30
+	sum[8] = (sum[8] & 0x3f) | 0x80
+	id, err := uuid.FromBytes(sum)
+	if err != nil {
+		panic(hex.EncodeToString(sum))
+	}
+	return id.String()
+}
+
 func HashMessageForSignature(msg string) []byte {
 	b, err := hex.DecodeString(msg)
 	if err != nil {
@@ -84,6 +131,17 @@ func GetEvmChainID(chain int64) int64 {
 		return 1
 	case ChainMVM:
 		return 73927
+	default:
+		panic(chain)
+	}
+}
+
+func GetMixinChainID(chain int64) string {
+	switch chain {
+	case ChainEthereum:
+		return "43d61dcd-e413-450d-80b8-101d5e903357"
+	case ChainMVM:
+		return "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
 	default:
 		panic(chain)
 	}

@@ -48,8 +48,12 @@ type RPCTransaction struct {
 	BlockHeight uint64
 }
 
+type RPCBlockCallTrace struct {
+	Result *RPCTransactionCallTrace `json:"result"`
+}
 type RPCTransactionCallTrace struct {
 	Calls   []*RPCTransactionCallTrace `json:"calls"`
+	Error   string                     `json:"error"`
 	From    string                     `json:"from"`
 	Gas     string                     `json:"gas"`
 	GasUsed string                     `json:"gasUsed"`
@@ -208,6 +212,19 @@ func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace,
 		return nil, err
 	}
 	return &t, err
+}
+
+func RPCDebugTraceBlockByHash(rpc, hash string) ([]*RPCBlockCallTrace, error) {
+	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByHash", []any{hash, map[string]any{"tracer": "callTracer"}})
+	if err != nil {
+		return nil, err
+	}
+	var txs []*RPCBlockCallTrace
+	err = json.Unmarshal(res, &txs)
+	if err != nil {
+		return nil, err
+	}
+	return txs, err
 }
 
 func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, error) {
