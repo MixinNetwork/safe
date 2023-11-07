@@ -119,3 +119,30 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 	sb.Balance = balance
 	return &sb, nil
 }
+
+func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address string) ([]*SafeBalance, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT address,asset_id,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
+	rows, err := s.db.QueryContext(ctx, query, address)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sbs []*SafeBalance
+	for rows.Next() {
+		var b SafeBalance
+		var bStr string
+		err = rows.Scan(&b.Address, &b.AssetId, &bStr, &b.LatestTxHash, &b.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		sbs = append(sbs, &b)
+	}
+	return sbs, nil
+}
