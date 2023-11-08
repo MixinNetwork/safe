@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"net/http"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid/v5"
 )
@@ -284,23 +284,17 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }
 
-func (deposit *Deposit) encodeKeeperExtra() []byte {
+func (deposit *Deposit) encodeKeeperExtra(assetAddress string) []byte {
 	hash, err := crypto.HashFromString(deposit.TransactionHash)
 	if err != nil {
 		panic(deposit.TransactionHash)
 	}
-	var amount *big.Int
-	switch deposit.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		satoshi := bitcoin.ParseSatoshi(deposit.Amount)
-		amount = new(big.Int).SetInt64(satoshi)
-	case keeper.SafeChainMVM:
-		amount = ethereum.ParseWei(deposit.Amount)
-	}
+
 	extra := []byte{deposit.Chain}
 	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
 	extra = append(extra, hash[:]...)
+	extra = append(extra, gc.HexToAddress(assetAddress).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
-	extra = append(extra, amount.Bytes()...)
+	extra = append(extra, deposit.BigAmount.Bytes()...)
 	return extra
 }

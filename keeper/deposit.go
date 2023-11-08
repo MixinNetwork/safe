@@ -7,22 +7,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
+	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
 type Deposit struct {
-	Chain  byte
-	Asset  string
-	Hash   string
-	Index  uint64
-	Amount *big.Int
+	Chain        byte
+	Asset        string
+	AssetAddress string
+	Hash         string
+	Index        uint64
+	Amount       *big.Int
 }
 
 func parseDepositExtra(req *common.Request) (*Deposit, error) {
@@ -48,8 +52,9 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		}
 	case SafeChainEthereum, SafeChainMVM:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
-		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
-		deposit.Amount = new(big.Int).SetBytes(extra[40:])
+		deposit.AssetAddress = strings.ToLower(gc.BytesToAddress(extra[32:52]).Hex())
+		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
+		deposit.Amount = new(big.Int).SetBytes(extra[60:])
 	default:
 		return nil, fmt.Errorf("invalid deposit chain %d", deposit.Chain)
 	}
@@ -100,8 +105,39 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if err != nil {
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
 	}
-	if asset.Chain != safe.Chain {
-		panic(asset.AssetId)
+	switch deposit.Chain {
+	case SafeChainBitcoin, SafeChainLitecoin:
+		if asset.Chain != deposit.Chain {
+			panic(asset.AssetId)
+		}
+	case SafeChainEthereum, SafeChainMVM:
+		rpc, chainAssetId := node.ethereumParams(deposit.Chain)
+		switch {
+		case deposit.Asset == chainAssetId && deposit.AssetAddress == ethereum.EthereumEmptyAddress:
+			if asset == nil || asset.Chain != deposit.Chain {
+				panic(deposit.Asset)
+			}
+		case deposit.Asset == chainAssetId || deposit.AssetAddress == ethereum.EthereumEmptyAddress:
+			panic(deposit)
+		default:
+			tokenAsset, err := ethereum.FetchAsset(deposit.Chain, rpc, deposit.AssetAddress)
+			if err != nil {
+				return err
+			}
+			asset = &store.Asset{
+				AssetId:   tokenAsset.Id,
+				AssetKey:  tokenAsset.Address,
+				Symbol:    tokenAsset.Symbol,
+				Name:      tokenAsset.Name,
+				Decimals:  tokenAsset.Decimals,
+				Chain:     tokenAsset.Chain,
+				CreatedAt: time.Now().UTC(),
+			}
+			err = node.store.WriteAssetMeta(ctx, asset)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, deposit.Chain, req.CreatedAt)
@@ -185,7 +221,8 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 }
 
 func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
-	if asset.Decimals != ethereum.ValuePrecision {
+	rpc, chainId := node.ethereumParams(deposit.Chain)
+	if asset.AssetId == chainId && asset.Decimals != ethereum.ValuePrecision {
 		panic(asset.Decimals)
 	}
 	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
@@ -196,17 +233,33 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	rpc, assetId := node.ethereumParams(deposit.Chain)
-	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, safeBalance, err)
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset.AssetId)
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset.AssetId, safeBalance, err)
 	if err != nil {
 		return err
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
-	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -ethereum.ValuePrecision).String(), nil, req.Id)
+	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if err != nil {
 		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+	}
+
+	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.Hash)
+	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", deposit.Hash, err)
+	if err != nil {
+		return err
+	}
+	transfers := ethereum.LoopCalls(deposit.Chain, chainId, traces, 0, 0)
+	match := false
+	for _, t := range transfers {
+		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
+			match = true
+		}
+	}
+	if !match {
+		logger.Printf("deposit %v has no match: %v", deposit, transfers)
+		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
@@ -214,7 +267,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if err != nil {
 		return err
 	}
-	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, etx.From)
+	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, etx.From)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {

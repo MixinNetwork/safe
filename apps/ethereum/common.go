@@ -63,6 +63,16 @@ type Asset struct {
 	Chain    byte
 }
 
+type Transfer struct {
+	Hash         string
+	Index        int64
+	TokenAddress string
+	AssetId      string
+	Sender       string
+	Receiver     string
+	Value        *big.Int
+}
+
 func GenerateAssetId(chain byte, assetKey string) string {
 	err := VerifyAssetKey(assetKey)
 	if err != nil {
@@ -116,21 +126,84 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-func ParseWei(amount string) *big.Int {
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []string) []*Transfer {
+	if len(txs) != len(traces) {
+		panic(len(txs))
+	}
+
+	var transfers []*Transfer
+	for i, t := range traces {
+		txTransfers := LoopCalls(chain, chainId, t.Result, 0, 0)
+		hash := txs[i]
+		for _, tTransfer := range txTransfers {
+			tTransfer.Hash = hash
+			tTransfer.Sender = t.Result.From
+			transfers = append(transfers, tTransfer)
+		}
+	}
+	return transfers
+}
+
+func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer, index int) []*Transfer {
+	depositIndex := int64(layer*10 + index)
+
+	var transfers []*Transfer
+	switch {
+	case trace.Error != "" || trace.Type == "STATICCALL":
+		return transfers
+	case trace.Value != "" && trace.Input == "0x": // ETH transfer
+		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
+		to := strings.ToLower(trace.To)
+		if value.Cmp(big.NewInt(0)) > 0 {
+			transfers = append(transfers, &Transfer{
+				Index:        depositIndex,
+				Value:        value,
+				Receiver:     to,
+				TokenAddress: EthereumEmptyAddress,
+				AssetId:      chainId,
+			})
+		}
+	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
+		input := trace.Input[10:]
+		to := strings.ToLower(common.HexToAddress(input[0:64]).Hex())
+		value, _ := new(big.Int).SetString(input[65:128], 16)
+		tokenAddress := strings.ToLower(trace.To)
+		assetId := GenerateAssetId(chain, tokenAddress)
+		if value.Cmp(big.NewInt(0)) > 0 {
+			transfers = append(transfers, &Transfer{
+				Index:        depositIndex,
+				Value:        value,
+				Receiver:     to,
+				TokenAddress: tokenAddress,
+				AssetId:      assetId,
+			})
+		}
+	}
+
+	for i, c := range trace.Calls {
+		ts := LoopCalls(chain, chainId, c, layer+1, i)
+		for _, t := range ts {
+			transfers = append(transfers, t)
+		}
+	}
+	return transfers
+}
+
+func ParseAmount(amount string, decimals int32) *big.Int {
 	amt, err := decimal.NewFromString(amount)
 	if err != nil {
 		panic(amount)
 	}
-	amt = amt.Mul(decimal.New(1, ValuePrecision))
+	amt = amt.Mul(decimal.New(1, decimals))
 	if !amt.IsInteger() {
 		panic(amount)
 	}
 	return amt.BigInt()
 }
 
-func UnitWei(amount *big.Int) string {
+func UnitAmount(amount *big.Int, decimals int32) string {
 	amt := decimal.NewFromBigInt(amount, 0)
-	amt = amt.Div(decimal.New(1, ValuePrecision))
+	amt = amt.Div(decimal.New(1, decimals))
 	return amt.String()
 }
 

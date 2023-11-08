@@ -760,7 +760,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, assetId)
+	err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, "", assetId)
 	logger.Printf("store.CreateOrUpdateEthereumBalanceWithCloseBalance(%s, %s, %s) => %v", safe.Address, assetId, closeBalance.String(), err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)

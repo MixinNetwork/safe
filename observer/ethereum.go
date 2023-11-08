@@ -18,7 +18,6 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
-	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
@@ -27,16 +26,6 @@ import (
 const (
 	ethereumKeygenRequestTimeKey = "ethereum-keygen-request-time"
 )
-
-type Transfer struct {
-	Hash         string
-	Index        int64
-	TokenAddress string
-	AssetId      string
-	Sender       string
-	Receiver     string
-	Value        *big.Int
-}
 
 func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 	switch chain {
@@ -186,9 +175,7 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	return node.ethereumProcessBlock(ctx, chain, num, hash, blockTraces, block)
 }
 
-func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Transfer, chain byte) error {
-	amount := decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
-
+func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
 	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: transfer.Hash}})
 	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", transfer.Hash, sent, err)
 	if err != nil {
@@ -219,6 +206,19 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Tra
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
 	}
 
+	var amount decimal.Decimal
+	rpc, chainAssetId := node.ethereumParams(chain)
+	switch transfer.AssetId {
+	case chainAssetId:
+		amount = decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
+	default:
+		asset, err := ethereum.FetchAsset(chain, rpc, transfer.AssetId)
+		if err != nil {
+			return err
+		}
+		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
+	}
+
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: transfer.Hash,
@@ -243,7 +243,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *Tra
 }
 
 func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
-	rpc, _ := node.ethereumParams(deposit.Chain)
+	rpc, ethereumAssetId := node.ethereumParams(deposit.Chain)
 
 	asset, err := node.store.ReadAssetMeta(ctx, deposit.AssetId)
 	if err != nil || asset == nil {
@@ -254,6 +254,12 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
 		return nil
+	}
+	decimals := int32(ethereum.ValuePrecision)
+	switch asset.AssetId {
+	case ethereumAssetId:
+	default:
+		decimals = int32(asset.Decimals)
 	}
 
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, deposit.Chain, time.Now())
@@ -277,10 +283,10 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil {
 		return err
 	}
-	transfers := node.ethereumLoopCalls(ctx, deposit.Chain, traces, 0, 0)
+	transfers := ethereum.LoopCalls(deposit.Chain, ethereumAssetId, traces, 0, 0)
 	match := false
 	for _, t := range transfers {
-		if t.Receiver == deposit.Receiver && ethereum.ParseWei(deposit.Amount).Cmp(t.Value) == 0 {
+		if t.Receiver == deposit.Receiver && ethereum.ParseAmount(deposit.Amount, decimals).Cmp(t.Value) == 0 {
 			match = true
 		}
 	}
@@ -302,7 +308,8 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		return nil
 	}
 
-	extra := deposit.encodeKeeperExtra()
+	deposit.BigAmount = ethereum.ParseAmount(deposit.Amount, decimals)
+	extra := deposit.encodeKeeperExtra(asset.AssetKey)
 	id := mixin.UniqueConversationID(deposit.AssetId, deposit.Holder)
 	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
 	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
@@ -432,13 +439,13 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 }
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, hash string, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlock) error {
-	transfers, err := node.ethereumLoopBlockTraces(ctx, chain, blockTraces, block.Tx)
+	rpc, ethAssetId := node.ethereumParams(chain)
+	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
+	deposits, err := node.GetBlockDeposits(ctx, transfers)
 	if err != nil {
 		return err
 	}
-	deposits := GetBlockDeposits(transfers)
 
-	rpc, ethAssetId := node.ethereumParams(chain)
 	for k := range deposits {
 		items := strings.Split(k, ":")
 		if len(items) != 2 {
@@ -480,12 +487,12 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number i
 }
 
 func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.RPCTransaction, chain byte) error {
-	rpc, _ := node.ethereumParams(chain)
+	rpc, ethereumAssetId := node.ethereumParams(chain)
 	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, tx.Hash)
 	if err != nil {
 		return err
 	}
-	transfers := node.ethereumLoopCalls(ctx, chain, traces, 0, 0)
+	transfers := ethereum.LoopCalls(chain, ethereumAssetId, traces, 0, 0)
 	for _, transfer := range transfers {
 		transfer.Hash = tx.Hash
 		transfer.Sender = tx.From
@@ -497,88 +504,24 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	return nil
 }
 
-func (node *Node) ethereumLoopBlockTraces(ctx context.Context, chain byte, traces []*ethereum.RPCBlockCallTrace, txs []string) ([]*Transfer, error) {
-	if len(txs) != len(traces) {
-		panic(len(txs))
-	}
-	var transfers []*Transfer
-	for i, t := range traces {
-		txTransfers := node.ethereumLoopCalls(ctx, chain, t.Result, 0, 0)
-		hash := txs[i]
-		for _, tTransfer := range txTransfers {
-			tTransfer.Hash = hash
-			tTransfer.Sender = t.Result.From
-
-			safe, err := node.keeperStore.ReadSafeByAddress(ctx, tTransfer.Receiver)
-			logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", tTransfer.Receiver, safe, err)
-			if err != nil {
-				return nil, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", tTransfer.Receiver, safe, err)
-			} else if safe == nil {
-				continue
-			}
-			old, err := node.keeperStore.ReadDeposit(ctx, hash, tTransfer.Index, tTransfer.AssetId, tTransfer.Receiver)
-			logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", tTransfer.Hash, tTransfer.Index, tTransfer.AssetId, tTransfer.Receiver, old, err)
-			if err != nil {
-				return nil, fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", tTransfer.Hash, tTransfer.Index, tTransfer.AssetId, tTransfer.Receiver, old, err)
-			} else if old != nil {
-				continue
-			}
-
-			transfers = append(transfers, tTransfer)
-		}
-	}
-	return transfers, nil
-}
-
-func (node *Node) ethereumLoopCalls(ctx context.Context, chain byte, trace *ethereum.RPCTransactionCallTrace, layer, index int) []*Transfer {
-	_, ethereumAssetId := node.ethereumParams(chain)
-	var transfers []*Transfer
-
-	depositIndex := int64(layer*10 + index)
-	switch {
-	case trace.Error != "" || trace.Type == "STATICCALL":
-		return transfers
-	case trace.Value != "" && trace.Input == "0x": // ETH transfer
-		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
-		to := strings.ToLower(trace.To)
-		if value.Cmp(big.NewInt(0)) > 0 {
-			transfers = append(transfers, &Transfer{
-				Index:        depositIndex,
-				Value:        value,
-				Receiver:     to,
-				TokenAddress: ethereum.EthereumEmptyAddress,
-				AssetId:      ethereumAssetId,
-			})
-		}
-	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
-		input := trace.Input[10:]
-		to := strings.ToLower(gc.HexToAddress(input[0:64]).Hex())
-		value, _ := new(big.Int).SetString(input[65:128], 16)
-		tokenAddress := strings.ToLower(trace.To)
-		assetId := ethereum.GenerateAssetId(chain, tokenAddress)
-		if value.Cmp(big.NewInt(0)) > 0 {
-			transfers = append(transfers, &Transfer{
-				Index:        depositIndex,
-				Value:        value,
-				Receiver:     to,
-				TokenAddress: tokenAddress,
-				AssetId:      assetId,
-			})
-		}
-	}
-
-	for i, c := range trace.Calls {
-		ts := node.ethereumLoopCalls(ctx, chain, c, layer+1, i)
-		for _, t := range ts {
-			transfers = append(transfers, t)
-		}
-	}
-	return transfers
-}
-
-func GetBlockDeposits(ts []*Transfer) map[string]*big.Int {
+func (node *Node) GetBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
 	deposits := make(map[string]*big.Int)
 	for _, t := range ts {
+		safe, err := node.keeperStore.ReadSafeByAddress(ctx, t.Receiver)
+		logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
+		if err != nil {
+			return nil, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
+		} else if safe == nil {
+			continue
+		}
+		old, err := node.keeperStore.ReadDeposit(ctx, t.Hash, t.Index, t.AssetId, t.Receiver)
+		logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", t.Hash, t.Index, t.AssetId, t.Receiver, old, err)
+		if err != nil {
+			return nil, fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", t.Hash, t.Index, t.AssetId, t.Receiver, old, err)
+		} else if old != nil {
+			continue
+		}
+
 		assetAddress := t.TokenAddress
 		key := fmt.Sprintf("%s:%s", t.Receiver, assetAddress)
 		_, existed := deposits[key]
@@ -589,7 +532,7 @@ func GetBlockDeposits(ts []*Transfer) map[string]*big.Int {
 		}
 		deposits[key] = t.Value
 	}
-	return deposits
+	return deposits, nil
 }
 
 func (node *Node) ethereumReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {

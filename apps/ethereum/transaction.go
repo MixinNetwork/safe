@@ -371,7 +371,7 @@ func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
 			}
 			bytesTo := metaData[4:36]
 			bytesAmount := metaData[36:68]
-			o.TokenAddress = o.Destination
+			o.TokenAddress = strings.ToLower(o.Destination)
 			o.Destination = common.BytesToAddress(bytesTo).Hex()
 			o.Amount = new(big.Int).SetBytes(bytesAmount)
 			offset += int(dataLen)

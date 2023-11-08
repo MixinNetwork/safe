@@ -13,12 +13,13 @@ import (
 type SafeBalance struct {
 	Address      string
 	AssetId      string
+	AssetAddress string
 	Balance      *big.Int
 	LatestTxHash string
 	UpdatedAt    time.Time
 }
 
-func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, safe *Safe, txHash string, index int64, amount *big.Int, req *common.Request, assetId, sender string) error {
+func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, safe *Safe, txHash string, index int64, amount *big.Int, req *common.Request, assetId, assetAddress, sender string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -32,8 +33,8 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 	if err != nil {
 		return err
 	} else if !existed {
-		cols := []string{"address", "asset_id", "balance", "latest_tx_hash", "updated_at"}
-		vals := []any{safe.Address, assetId, amount.String(), txHash, time.Now().UTC()}
+		cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at"}
+		vals := []any{safe.Address, assetId, assetAddress, amount.String(), txHash, time.Now().UTC()}
 		err = s.execOne(ctx, tx, buildInsertionSQL("ethereum_balances", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
@@ -58,7 +59,7 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) CreateOrUpdateEthereumBalanceWithCloseBalance(ctx context.Context, safe *Safe, balance *big.Int, assetId string) error {
+func (s *SQLite3Store) CreateOrUpdateEthereumBalanceWithCloseBalance(ctx context.Context, safe *Safe, balance *big.Int, assetId, assetAddress string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -72,8 +73,8 @@ func (s *SQLite3Store) CreateOrUpdateEthereumBalanceWithCloseBalance(ctx context
 	if err != nil {
 		return err
 	} else if !existed {
-		cols := []string{"address", "asset_id", "balance", "latest_tx_hash", "updated_at"}
-		vals := []any{safe.Address, assetId, balance.String(), "", time.Now().UTC()}
+		cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at"}
+		vals := []any{safe.Address, assetId, assetAddress, balance.String(), "", time.Now().UTC()}
 		err = s.execOne(ctx, tx, buildInsertionSQL("ethereum_balances", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
@@ -100,7 +101,7 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 
 	var sb SafeBalance
 	var bStr string
-	err = row.Scan(&sb.Address, &sb.AssetId, &bStr, &sb.LatestTxHash, &sb.UpdatedAt)
+	err = row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &bStr, &sb.LatestTxHash, &sb.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return &SafeBalance{
 			Address:      address,
@@ -138,7 +139,7 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 	for rows.Next() {
 		var b SafeBalance
 		var bStr string
-		err = rows.Scan(&b.Address, &b.AssetId, &bStr, &b.LatestTxHash, &b.UpdatedAt)
+		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &bStr, &b.LatestTxHash, &b.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
