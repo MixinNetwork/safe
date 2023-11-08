@@ -461,15 +461,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if safe.State != SafeStateApproved {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-
-	assetId := SafeEthereumChainId
-	switch safe.Chain {
-	case SafeChainEthereum:
-	case SafeChainMVM:
-		assetId = SafeMVMChainId
-	default:
-		panic(safe.Chain)
-	}
+	_, ethereumAssetId := node.ethereumParams(safe.Chain)
 
 	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
 	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
@@ -485,7 +477,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
-	if id.String() != assetId {
+	if id.String() != ethereumAssetId {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -526,10 +518,31 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if info == nil || info.Chain != safe.Chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	assetId, err := uuid.FromBytes(extra[16:32])
+	if err != nil || assetId.String() == uuid.Nil.String() {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId.String())
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId.String(), balance, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	if balance.AssetAddress == "" {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	decimals := int32(ethereum.ValuePrecision)
+	if balance.AssetAddress != ethereum.EthereumEmptyAddress {
+		asset, err := node.store.ReadAssetMeta(ctx, assetId.String())
+		logger.Printf("store.ReadAssetMeta(%s) => %v %v", assetId.String(), asset, err)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		decimals = int32(asset.Decimals)
+	}
 
 	var outputs []*ethereum.Output
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
-	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
+	if len(extra[32:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[32:]) {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
 		extra := common.DecodeMixinObjectExtra(stx.Extra)
 		var recipients [][2]string // TODO better encoding
@@ -545,16 +558,23 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			if amt.Cmp(plan.TransactionMinimum) < 0 {
 				return node.store.FailRequest(ctx, req.Id)
 			}
-			outputs = append(outputs, &ethereum.Output{
+			o := &ethereum.Output{
 				Destination: rp[0],
-				Amount:      ethereum.ParseWei(amt.String()),
-			})
+				Amount:      ethereum.ParseAmount(amt.String(), decimals),
+			}
+			if balance.AssetAddress != ethereum.EthereumEmptyAddress {
+				o.TokenAddress = balance.AssetAddress
+			}
+			outputs = append(outputs, o)
 		}
 	} else {
 		outputs = []*ethereum.Output{{
 			Destination: string(extra[16:]),
-			Amount:      ethereum.ParseWei(req.Amount.String()),
+			Amount:      ethereum.ParseAmount(req.Amount.String(), decimals),
 		}}
+		if balance.AssetAddress != ethereum.EthereumEmptyAddress {
+			outputs[0].TokenAddress = balance.AssetAddress
+		}
 	}
 
 	total := decimal.Zero
@@ -564,7 +584,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if norm == "" || norm == safe.Address {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-		amt := decimal.NewFromBigInt(out.Amount, -ethereum.ValuePrecision)
+		amt := decimal.NewFromBigInt(out.Amount, -decimals)
 		recipients[i] = map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
 		}
@@ -575,19 +595,16 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	_, assetId = node.ethereumParams(safe.Chain)
 	txType := ethereum.TypeETHTx
-	if len(outputs) > 1 {
+	switch {
+	case len(outputs) > 1:
 		txType = ethereum.TypeMultiSendTx
+	case balance.AssetAddress != ethereum.EthereumEmptyAddress:
+		txType = ethereum.TypeERC20Tx
 	}
 	t, err := ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
 	logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
 		txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
 	if err != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -611,7 +628,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
-		AssetId:         assetId,
+		AssetId:         assetId.String(),
 		State:           common.RequestStateInitial,
 		Data:            string(data),
 		RequestId:       req.Id,
