@@ -311,6 +311,31 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 	return txResponse.Hash().Hex(), nil
 }
 
+func (tx *SafeTransaction) ExtractOutputs() ([]*Output, error) {
+	outputs, err := tx.ParseMultiSendData()
+	if err == nil {
+		return outputs, err
+	}
+	switch {
+	case len(tx.Data) == 0:
+		return []*Output{{
+			Destination: strings.ToLower(tx.Destination.Hex()),
+			Amount:      tx.Value,
+		}}, nil
+	default:
+		if hex.EncodeToString(tx.Data[0:4]) != "a9059cbb" || len(tx.Data) != 68 {
+			return nil, fmt.Errorf("invalid safe transaction data")
+		}
+		destination := tx.Data[4:36]
+		value := tx.Data[36:68]
+		return []*Output{{
+			TokenAddress: strings.ToLower(tx.Destination.Hex()),
+			Destination:  strings.ToLower(common.BytesToAddress(destination).Hex()),
+			Amount:       new(big.Int).SetBytes(value),
+		}}, nil
+	}
+}
+
 func (tx *SafeTransaction) GetTransactionHash() []byte {
 	safeTxHash := crypto.Keccak256(packSafeTransactionArguments(tx))
 	domain := packDomainSeparatorArguments(tx.ChainID, tx.SafeAddress)
@@ -358,7 +383,7 @@ func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
 		offset += 32
 
 		o := &Output{
-			Destination: to.Hex(),
+			Destination: strings.ToLower(to.Hex()),
 			Amount:      amount,
 		}
 		switch {
@@ -372,7 +397,7 @@ func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
 			bytesTo := metaData[4:36]
 			bytesAmount := metaData[36:68]
 			o.TokenAddress = strings.ToLower(o.Destination)
-			o.Destination = common.BytesToAddress(bytesTo).Hex()
+			o.Destination = strings.ToLower(common.BytesToAddress(bytesTo).Hex())
 			o.Amount = new(big.Int).SetBytes(bytesAmount)
 			offset += int(dataLen)
 		default:
