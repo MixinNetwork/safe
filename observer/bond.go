@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
 )
@@ -27,13 +28,13 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, safe.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	return err
 }
 
-func (node *Node) checkOrDeployKeeperBond(ctx context.Context, assetId, holder string) (bool, error) {
-	asset, bond, _, err := node.fetchBondAsset(ctx, assetId, holder)
+func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder string) (bool, error) {
+	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder)
 	if err != nil {
 		return false, fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, holder, err)
 	}
@@ -44,10 +45,36 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, assetId, holder s
 	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, holder)
 }
 
-func (node *Node) fetchBondAsset(ctx context.Context, assetId, holder string) (*Asset, *Asset, string, error) {
+func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
+	}
+
+	if asset == nil {
+		switch assetId {
+		case keeper.SafeBitcoinChainId, keeper.SafeLitecoinChainId, keeper.SafeEthereumChainId, keeper.SafeMVMChainId:
+			return nil, nil, "", fmt.Errorf("fail to fetchBondAsset: %s", assetId)
+		default:
+			rpc, _ := node.ethereumParams(chain)
+			tokenAsset, err := ethereum.FetchAsset(chain, rpc, assetAddress)
+			if err != nil {
+				return nil, nil, "", err
+			}
+			asset = &Asset{
+				AssetId:   tokenAsset.Id,
+				AssetKey:  tokenAsset.Address,
+				Symbol:    tokenAsset.Symbol,
+				Name:      tokenAsset.Name,
+				Decimals:  tokenAsset.Decimals,
+				Chain:     tokenAsset.Chain,
+				CreatedAt: time.Now().UTC(),
+			}
+			err = node.store.WriteAssetMeta(ctx, asset)
+			if err != nil {
+				return nil, nil, "", err
+			}
+		}
 	}
 
 	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)

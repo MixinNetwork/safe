@@ -54,6 +54,15 @@ const (
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
 
+type Asset struct {
+	Address  string
+	Id       string
+	Symbol   string
+	Name     string
+	Decimals uint32
+	Chain    byte
+}
+
 func GenerateAssetId(chain byte, assetKey string) string {
 	err := VerifyAssetKey(assetKey)
 	if err != nil {
@@ -145,6 +154,42 @@ func GetMixinChainID(chain int64) string {
 	default:
 		panic(chain)
 	}
+}
+
+func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
+	addr := common.HexToAddress(address)
+	assetId := GenerateAssetId(chain, address)
+
+	conn, err := ethclient.Dial(rpc)
+	defer conn.Close()
+	if err != nil {
+		return nil, err
+	}
+	token, err := abi.NewAsset(addr, conn)
+	if err != nil {
+		return nil, err
+	}
+	name, err := token.Name(nil)
+	if err != nil {
+		return nil, err
+	}
+	symbol, err := token.Symbol(nil)
+	if err != nil {
+		return nil, err
+	}
+	decimals, err := token.Decimals(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Asset{
+		Address:  address,
+		Id:       assetId,
+		Name:     name,
+		Symbol:   symbol,
+		Decimals: uint32(decimals),
+		Chain:    chain,
+	}, nil
 }
 
 func NormalizeAddress(addr string) string {

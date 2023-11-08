@@ -749,7 +749,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			return
 		}
 		_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), bitcoinAssetId, sp.Holder)
+		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, bitcoinAssetId, "", sp.Holder)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
@@ -779,7 +779,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		})
 	case keeper.SafeChainMVM:
 		_, assetId := node.ethereumParams(sp.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), assetId, sp.Holder)
+		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, assetId, "", sp.Holder)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return

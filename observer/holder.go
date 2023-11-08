@@ -67,7 +67,7 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
 		_, assetId = node.ethereumParams(sp.Chain)
 	}
-	_, err = node.checkOrDeployKeeperBond(ctx, assetId, sp.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, chain, assetId, "", sp.Holder)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", assetId, sp.Holder, err)
 	if err != nil {
 		return err
