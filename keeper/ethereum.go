@@ -593,7 +593,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 	} else {
 		outputs = []*ethereum.Output{{
-			Destination: string(extra[16:]),
+			Destination: string(extra[32:]),
 			Amount:      ethereum.ParseAmount(req.Amount.String(), decimals),
 		}}
 		if balance.AssetAddress != ethereum.EthereumEmptyAddress {
@@ -606,6 +606,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)
 		if norm == "" || norm == safe.Address {
+			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		amt := decimal.NewFromBigInt(out.Amount, -decimals)
@@ -615,6 +616,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		total = total.Add(amt)
 	}
 	if !total.Equal(req.Amount) {
+		logger.Printf("inconsistent amount between total outputs %d and %d", total, req.Amount)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -790,35 +792,6 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 	raw := hex.EncodeToString(t.Marshal())
 
-	_, ethereumAssetId := node.ethereumParams(safe.Chain)
-	outputs, err := t.ExtractOutputs()
-	logger.Printf("ethereum.ExtractOutputs(%v) => %v %v", t, outputs, err)
-	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
-		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-		closeBalance := balance.Balance.Sub(balance.Balance, t.Value)
-		if closeBalance.Cmp(big.NewInt(0)) < 0 {
-			logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
-			return node.store.FailRequest(ctx, req.Id)
-		}
-		err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, balance.AssetAddress, assetId)
-		logger.Printf("store.CreateOrUpdateEthereumBalanceWithCloseBalance(%v, %s, %s, %s) => %v", safe, closeBalance.String(), assetId, balance.AssetAddress, err)
-		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
-		}
-	}
-
 	if safe.State == common.RequestStatePending {
 		sp, err := node.store.ReadSafeProposalByAddress(ctx, safe.Address)
 		if err != nil {
@@ -847,6 +820,35 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		return node.store.FinishSafeWithRequest(ctx, old.TransactionHash, raw, req, safe)
+	}
+
+	_, ethereumAssetId := node.ethereumParams(safe.Chain)
+	outputs, err := t.ExtractOutputs()
+	logger.Printf("ethereum.ExtractOutputs(%v) => %v %v", t, outputs, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	for _, o := range outputs {
+		assetId := ethereumAssetId
+		if o.TokenAddress != "" {
+			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
+		}
+
+		balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+		logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		closeBalance := balance.Balance.Sub(balance.Balance, t.Value)
+		if closeBalance.Cmp(big.NewInt(0)) < 0 {
+			logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		err = node.store.CreateOrUpdateEthereumBalanceWithCloseBalance(ctx, safe, closeBalance, assetId, balance.AssetAddress)
+		logger.Printf("store.CreateOrUpdateEthereumBalanceWithCloseBalance(%v, %s, %s, %s) => %v", safe, closeBalance.String(), assetId, balance.AssetAddress, err)
+		if err != nil {
+			return node.store.FailRequest(ctx, req.Id)
+		}
 	}
 
 	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(t.Marshal())))

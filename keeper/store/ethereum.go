@@ -96,7 +96,7 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 	}
 	defer tx.Rollback()
 
-	query := "SELECT address,asset_id,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=? AND asset_id=?"
+	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=? AND asset_id=?"
 	row := tx.QueryRowContext(ctx, query, address, assetId)
 
 	var sb SafeBalance
@@ -128,7 +128,7 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 	}
 	defer tx.Rollback()
 
-	query := "SELECT address,asset_id,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
+	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
 	rows, err := s.db.QueryContext(ctx, query, address)
 	if err != nil {
 		return nil, err

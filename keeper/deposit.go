@@ -252,8 +252,9 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 	transfers := ethereum.LoopCalls(deposit.Chain, chainId, traces, 0, 0)
 	match := false
-	for _, t := range transfers {
-		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
+	for i, t := range transfers {
+		logger.Printf("transfer %d: %v", i, t)
+		if t.Index == int64(deposit.Index) && strings.ToLower(t.Receiver) == strings.ToLower(safe.Address) && deposit.Amount.Cmp(t.Value) == 0 {
 			match = true
 		}
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gofrs/uuid/v5"
@@ -42,7 +43,7 @@ func TestEthereumKeeper(t *testing.T) {
 
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
 	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
@@ -59,7 +60,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
 
@@ -134,7 +135,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	holder := testEthereumPublicKey(testEthereumKeyHolder)
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, "100000000000000")
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", testEthereumBondAssetId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
@@ -251,6 +252,7 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	require.Nil(err)
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
+	extra = append(extra, uuid.Must(uuid.FromString(SafeMVMChainId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))
 	testStep(ctx, require, node, out)
@@ -462,7 +464,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(testEthereumSafeAddress, safeaddress.Hex())
 }
 
-func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, assetId, balance string) {
+func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, assetId, assetAddress, balance string) {
 	id := uuid.Must(uuid.NewV4()).String()
 	amt, err := decimal.NewFromString(balance)
 	require.Nil(err)
@@ -471,6 +473,7 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 	extra := []byte{SafeChainMVM}
 	extra = append(extra, uuid.Must(uuid.FromString(SafeMVMChainId)).Bytes()...)
 	extra = append(extra, b...)
+	extra = append(extra, gc.HexToAddress(assetAddress).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(0))
 	extra = append(extra, amt.BigInt().Bytes()...)
 

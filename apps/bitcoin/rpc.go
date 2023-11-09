@@ -267,7 +267,15 @@ func fixLitecoinLegacyScriptPubKeyRPC(chain byte, tx *RPCTransaction) {
 func callBitcoinRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {
 	for {
 		res, err := callBitcoinRPC(rpc, method, params)
-		if err != nil && strings.Contains(err.Error(), "Client.Timeout") {
+		if err != nil {
+			reason := strings.ToLower(err.Error())
+			switch {
+			case strings.Contains(reason, "timeout"):
+			case strings.Contains(reason, "eof"):
+			case strings.Contains(reason, "handshake"):
+			default:
+				return res, err
+			}
 			time.Sleep(7 * time.Second)
 			continue
 		}
