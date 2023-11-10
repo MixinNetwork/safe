@@ -113,10 +113,7 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 	} else if err != nil {
 		return nil, err
 	}
-	balance, ok := new(big.Int).SetString(bStr, 10)
-	if !ok {
-		return nil, fmt.Errorf("Fail to parse value to big.Int")
-	}
+	balance, _ := new(big.Int).SetString(bStr, 10)
 	sb.Balance = balance
 	return &sb, nil
 }
@@ -143,6 +140,8 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 		if err != nil {
 			return nil, err
 		}
+		balance, _ := new(big.Int).SetString(bStr, 10)
+		b.Balance = balance
 		sbs = append(sbs, &b)
 	}
 	return sbs, nil

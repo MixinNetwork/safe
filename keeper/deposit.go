@@ -119,7 +119,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 			}
 		case deposit.Asset == chainAssetId || deposit.AssetAddress == ethereum.EthereumEmptyAddress:
 			panic(deposit)
-		default:
+		case asset == nil:
 			tokenAsset, err := ethereum.FetchAsset(deposit.Chain, rpc, deposit.AssetAddress)
 			if err != nil {
 				return err

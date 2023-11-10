@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS ethereum_balances (
   balance            VARCHAR NOT NULL,
   latest_tx_hash     VARCHAR NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
-  PRIMARY KEY ('address')
+  PRIMARY KEY ('address', 'asset_id')
 );
 
 
