@@ -53,6 +53,7 @@ func TestEthereumKeeper(t *testing.T) {
 	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
 	txHash = testEthereumProposeTransaction(ctx, require, node, mpc, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
 	testEthereumApproveTransaction(ctx, require, node, txHash, signers)
+	testEthereumRefundTransaction(ctx, require, node, txHash)
 }
 
 func TestEthereumKeeperERC20(t *testing.T) {
@@ -461,6 +462,23 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 
 	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
 	require.Equal(int64(2), safe.Nonce)
+}
+
+func testEthereumRefundTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string) {
+	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStateDone, tx.State)
+	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
+	oldNonce := safe.Nonce
+
+	id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
+	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	out := testBuildObserverRequest(node, id, testPublicKey(testEthereumKeyHolder), common.ActionEthereumSafeRefundTransaction, extra, common.CurveSecp256k1ECDSAMVM)
+	testStep(ctx, require, node, out)
+
+	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
+	require.Equal(oldNonce-1, safe.Nonce)
+	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStateFailed, tx.State)
 }
 
 func testEthereumProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, *ethereum.GnosisSafe) {

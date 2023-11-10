@@ -310,6 +310,25 @@ func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) RefundFullySignedTransactionApproval(ctx context.Context, hash string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=? AND spent_hash IS NULL"
+	err = s.execOne(ctx, tx, query, common.RequestStateFailed, time.Now().UTC(), hash, common.RequestStateDone)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) ListFullySignedTransactionApprovals(ctx context.Context, chain byte) ([]*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE chain=? AND state=? AND spent_hash IS NULL ORDER BY created_at ASC", strings.Join(transactionCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, chain, common.RequestStateDone)

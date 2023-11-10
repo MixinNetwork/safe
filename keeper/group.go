@@ -50,6 +50,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	case common.ActionEthereumSafeApproveTransaction:
 	case common.ActionEthereumSafeRevokeTransaction:
 	case common.ActionEthereumSafeCloseAccount:
+	case common.ActionEthereumSafeRefundTransaction:
 	default:
 		return false
 	}
@@ -99,6 +100,8 @@ func (node *Node) getActionRole(act byte) byte {
 	case common.ActionBitcoinSafeRevokeTransaction, common.ActionEthereumSafeRevokeTransaction:
 		return common.RequestRoleObserver
 	case common.ActionBitcoinSafeCloseAccount, common.ActionEthereumSafeCloseAccount:
+		return common.RequestRoleObserver
+	case common.ActionEthereumSafeRefundTransaction:
 		return common.RequestRoleObserver
 	default:
 		return 0
@@ -244,6 +247,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processEthereumSafeApproveTransaction(ctx, req)
 	case common.ActionEthereumSafeCloseAccount:
 		return node.processEthereumSafeCloseAccount(ctx, req)
+	case common.ActionEthereumSafeRefundTransaction:
+		return node.processEthereumSafeRefundTransaction(ctx, req)
 	default:
 		panic(req.Action)
 	}

@@ -59,7 +59,7 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) CreateOrUpdateEthereumBalanceWithCloseBalance(ctx context.Context, safe *Safe, balance *big.Int, assetId, assetAddress string) error {
+func (s *SQLite3Store) CreateOrUpdateEthereumBalance(ctx context.Context, safe *Safe, balance *big.Int, assetId, assetAddress string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
