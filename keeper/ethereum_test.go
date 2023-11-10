@@ -145,10 +145,31 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", SafeMVMChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
+	cnbAssetId := ethereum.GenerateAssetId(SafeChainMVM, strings.ToLower(testEthereumCNBAddress))
+	require.Equal(testEthereumCNBAssetId, cnbAssetId)
+	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
+	node.ProcessOutput(ctx, &mtg.Output{AssetID: cnbBondId, Amount: decimal.NewFromInt(100000000), CreatedAt: time.Now()})
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "58f75e642e14410d900a9f207cce63d64e76903e7259fd2c974774f4761febc2", cnbAssetId, testEthereumCNBAddress, "100000000")
+
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainMVM)
+	_, ethereumAssetId := node.ethereumParams(safe.Chain)
 	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
-	st, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, id, testEthereumSafeAddress, testEthereumTransactionReceiver, "", "100000000000000", big.NewInt(safe.Nonce))
+
+	safeBalances, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
+	require.Nil(err)
+	var outputs []*ethereum.Output
+	for _, b := range safeBalances {
+		output := &ethereum.Output{
+			Destination: testEthereumTransactionReceiver,
+			Amount:      b.Balance,
+		}
+		if b.AssetId != ethereumAssetId {
+			output.TokenAddress = b.AssetAddress
+		}
+		outputs = append(outputs, output)
+	}
+	st, err := ethereum.CreateTransactionFromOutputs(ctx, ethereum.TypeMultiSendTx, chainId, id, testEthereumSafeAddress, outputs, big.NewInt(safe.Nonce))
 	require.Nil(err)
 
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
