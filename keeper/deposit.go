@@ -112,14 +112,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		}
 	case SafeChainEthereum, SafeChainMVM:
 		rpc, chainAssetId := node.ethereumParams(deposit.Chain)
-		switch {
-		case deposit.Asset == chainAssetId && deposit.AssetAddress == ethereum.EthereumEmptyAddress:
-			if asset == nil || asset.Chain != deposit.Chain {
-				panic(deposit.Asset)
-			}
-		case deposit.Asset == chainAssetId || deposit.AssetAddress == ethereum.EthereumEmptyAddress:
-			panic(deposit)
-		case asset == nil:
+		if asset == nil {
 			tokenAsset, err := ethereum.FetchAsset(deposit.Chain, rpc, deposit.AssetAddress)
 			if err != nil {
 				return err
@@ -137,6 +130,14 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 			if err != nil {
 				return err
 			}
+		}
+		switch {
+		case deposit.Asset == chainAssetId && deposit.AssetAddress == ethereum.EthereumEmptyAddress:
+			if asset.Chain != deposit.Chain {
+				panic(deposit.Asset)
+			}
+		case deposit.Asset == chainAssetId || deposit.AssetAddress == ethereum.EthereumEmptyAddress:
+			panic(deposit)
 		}
 	}
 

@@ -66,8 +66,7 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeERC20Tx, int64(chainID), id, accountAddress, destination, assetAddress, value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
-	outputs, err := tx.ExtractOutputs()
-	require.Nil(err)
+	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
 	require.Equal(strings.ToLower(assetAddress), outputs[0].TokenAddress)
 	require.Equal(strings.ToLower(destination), outputs[0].Destination)
@@ -106,8 +105,7 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	tx, err := ethereum.CreateTransactionFromOutputs(ctx, ethereum.TypeMultiSendTx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
-	parsedOutputs, err := tx.ExtractOutputs()
-	require.Nil(err)
+	parsedOutputs := tx.ExtractOutputs()
 	require.Len(parsedOutputs, 2)
 	for i, po := range parsedOutputs {
 		o := outputs[i]
@@ -140,8 +138,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
-	outputs, err := tx.ExtractOutputs()
-	require.Nil(err)
+	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
 	require.Equal("", outputs[0].TokenAddress)
 	require.Equal(strings.ToLower(destination), outputs[0].Destination)

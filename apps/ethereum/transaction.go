@@ -311,20 +311,20 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 	return txResponse.Hash().Hex(), nil
 }
 
-func (tx *SafeTransaction) ExtractOutputs() ([]*Output, error) {
+func (tx *SafeTransaction) ExtractOutputs() []*Output {
 	outputs, err := tx.ParseMultiSendData()
 	if err == nil {
-		return outputs, err
+		return outputs
 	}
 	switch {
 	case len(tx.Data) == 0:
 		return []*Output{{
 			Destination: strings.ToLower(tx.Destination.Hex()),
 			Amount:      tx.Value,
-		}}, nil
+		}}
 	default:
 		if hex.EncodeToString(tx.Data[0:4]) != "a9059cbb" || len(tx.Data) != 68 {
-			return nil, fmt.Errorf("invalid safe transaction data")
+			panic("invalid safe transaction data")
 		}
 		destination := tx.Data[4:36]
 		value := tx.Data[36:68]
@@ -332,7 +332,7 @@ func (tx *SafeTransaction) ExtractOutputs() ([]*Output, error) {
 			TokenAddress: strings.ToLower(tx.Destination.Hex()),
 			Destination:  strings.ToLower(common.BytesToAddress(destination).Hex()),
 			Amount:       new(big.Int).SetBytes(value),
-		}}, nil
+		}}
 	}
 }
 
