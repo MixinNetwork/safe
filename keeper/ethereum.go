@@ -83,12 +83,11 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 
 		if destination == "" {
 			destination = o.Destination
-		} else {
-			same := destination == o.Destination
-			if !same {
-				logger.Printf("invalid close outputs destination: %d, %v", i, o)
-				return node.store.FailRequest(ctx, req.Id)
-			}
+		}
+		same := destination == o.Destination
+		if !same {
+			logger.Printf("invalid close outputs destination: %d, %v", i, o)
+			return node.store.FailRequest(ctx, req.Id)
 		}
 
 		b, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
@@ -549,6 +548,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil || assetId.String() == uuid.Nil.String() {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	if id.String() != assetId.String() {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId.String())
 	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId.String(), balance, err)
 	if err != nil {
@@ -687,6 +689,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			return node.store.FailRequest(ctx, req.Id)
 		}
 	default:
+		logger.Printf("invalid transaction flag: %d", flag)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
