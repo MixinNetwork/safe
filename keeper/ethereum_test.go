@@ -49,10 +49,11 @@ func TestEthereumKeeper(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "9d990e0a07c4f45489f9e03ab28a0f1f14ff5deb06de6dd85da20255753ff3ef", SafeMVMChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
+	_, assetId := node.ethereumParams(SafeChainMVM)
 	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
 	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
 	txHash = testEthereumProposeTransaction(ctx, require, node, mpc, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
-	testEthereumApproveTransaction(ctx, require, node, txHash, signers)
+	testEthereumApproveTransaction(ctx, require, node, txHash, assetId, signers)
 	testEthereumRefundTransaction(ctx, require, node, txHash)
 }
 
@@ -71,8 +72,8 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	node.ProcessOutput(ctx, &mtg.Output{AssetID: cnbBondId, Amount: decimal.NewFromInt(100000000), CreatedAt: time.Now()})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "58f75e642e14410d900a9f207cce63d64e76903e7259fd2c974774f4761febc2", cnbAssetId, testEthereumCNBAddress, "100000000")
 
-	txHash := testEthereumProposeTransaction(ctx, require, node, mpc, testEthereumCNBBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
-	testEthereumApproveTransaction(ctx, require, node, txHash, signers)
+	txHash := testEthereumProposeERC20Transaction(ctx, require, node, mpc, testEthereumCNBBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
+	testEthereumApproveTransaction(ctx, require, node, txHash, cnbAssetId, signers)
 }
 
 func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
@@ -342,7 +343,7 @@ func testEthereumProposeERC20Transaction(ctx context.Context, require *require.A
 	t, err := ethereum.UnmarshalSafeTransaction(b)
 	require.Nil(err)
 	require.Equal(int64(0), t.Value.Int64())
-	require.Equal(ethereum.EthereumMultiSendAddress, t.Destination.Hex())
+	require.Equal(testEthereumCNBAddress, t.Destination.Hex())
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
 	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
@@ -402,7 +403,7 @@ func testEthereumRevokeTransaction(ctx context.Context, require *require.Asserti
 	require.Equal(common.RequestStateFailed, tx.State)
 }
 
-func testEthereumApproveTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string, signers []*signer.Node) {
+func testEthereumApproveTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash, assetId string, signers []*signer.Node) {
 	id := uuid.Must(uuid.NewV4()).String()
 
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
@@ -455,7 +456,6 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
 
-	_, assetId := node.ethereumParams(SafeChainMVM)
 	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
 	require.Nil(err)
 	require.Equal(int64(0), balance.Balance.Int64())
