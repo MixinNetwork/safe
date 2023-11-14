@@ -55,7 +55,12 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 		switch assetId {
 		case keeper.SafeBitcoinChainId, keeper.SafeLitecoinChainId, keeper.SafeEthereumChainId, keeper.SafeMVMChainId:
 			return nil, nil, "", fmt.Errorf("fail to fetchBondAsset: %s", assetId)
-		default:
+		}
+		switch chain {
+		case keeper.SafeChainEthereum, keeper.SafeChainMVM:
+			if assetAddress == "" {
+				return nil, nil, "", fmt.Errorf("no asset address provided")
+			}
 			rpc, _ := node.ethereumParams(chain)
 			tokenAsset, err := ethereum.FetchAsset(chain, rpc, assetAddress)
 			if err != nil {

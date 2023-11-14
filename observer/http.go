@@ -872,6 +872,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"state": status,
 		})
 	default:
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "4chain4"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
 	}
 }
