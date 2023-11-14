@@ -32,6 +32,7 @@ type Deposit struct {
 	TransactionHash string
 	OutputIndex     int64
 	AssetId         string
+	AssetAddress    string
 	Amount          string
 	Receiver        string
 	Sender          string
@@ -85,10 +86,10 @@ type Recovery struct {
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
-var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "amount", "receiver", "sender", "state", "chain", "holder", "category", "created_at", "updated_at"}
+var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "created_at", "updated_at"}
 
 func (d *Deposit) values() []any {
-	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
+	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
 }
 
 var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "state", "spent_hash", "spent_raw", "created_at", "updated_at"}
@@ -218,7 +219,7 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	var deposits []*Deposit
 	for rows.Next() {
 		var d Deposit
-		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.CreatedAt, &d.UpdatedAt)
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.CreatedAt, &d.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

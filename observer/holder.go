@@ -284,7 +284,7 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }
 
-func (deposit *Deposit) encodeKeeperExtra(assetAddress string) []byte {
+func (deposit *Deposit) encodeKeeperExtra() []byte {
 	hash, err := crypto.HashFromString(deposit.TransactionHash)
 	if err != nil {
 		panic(deposit.TransactionHash)
@@ -293,7 +293,7 @@ func (deposit *Deposit) encodeKeeperExtra(assetAddress string) []byte {
 	extra := []byte{deposit.Chain}
 	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
 	extra = append(extra, hash[:]...)
-	extra = append(extra, gc.HexToAddress(assetAddress).Bytes()...)
+	extra = append(extra, gc.HexToAddress(deposit.AssetAddress).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
 	extra = append(extra, deposit.BigAmount.Bytes()...)
 	return extra

@@ -224,6 +224,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		TransactionHash: transfer.Hash,
 		OutputIndex:     transfer.Index,
 		AssetId:         transfer.AssetId,
+		AssetAddress:    transfer.TokenAddress,
 		Amount:          amount.String(),
 		Receiver:        transfer.Receiver,
 		Sender:          transfer.Sender,
@@ -309,7 +310,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	}
 
 	deposit.BigAmount = ethereum.ParseAmount(deposit.Amount, decimals)
-	extra := deposit.encodeKeeperExtra(asset.AssetKey)
+	extra := deposit.encodeKeeperExtra()
 	id := mixin.UniqueConversationID(deposit.AssetId, deposit.Holder)
 	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
 	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)

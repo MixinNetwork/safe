@@ -298,7 +298,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 
 	satoshi := bitcoin.ParseSatoshi(deposit.Amount)
 	deposit.BigAmount = new(big.Int).SetInt64(satoshi)
-	extra := deposit.encodeKeeperExtra("")
+	extra := deposit.encodeKeeperExtra()
 	id := mixin.UniqueConversationID(assetId, deposit.Holder)
 	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
 	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
