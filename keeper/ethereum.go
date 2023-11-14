@@ -217,11 +217,38 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	amt := decimal.New(t.Value.Int64(), -ethereum.ValuePrecision)
-	data := common.MarshalJSONOrPanic([]map[string]string{{
-		"receiver": receiver,
-		"amount":   amt.String(),
-	}})
+	outputs := t.ExtractOutputs()
+	recipients := make([]map[string]string, len(outputs))
+	for i, out := range outputs {
+		norm := ethereum.NormalizeAddress(out.Destination)
+		if norm == "" || norm == safe.Address {
+			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
+			return node.store.FailRequest(ctx, req.Id)
+		}
+		decimals := int32(ethereum.ValuePrecision)
+		if out.TokenAddress != "" {
+			assetId := ethereum.GenerateAssetId(safe.Chain, out.TokenAddress)
+			asset, err := node.store.ReadAssetMeta(ctx, assetId)
+			logger.Printf("store.ReadAssetMeta(%s) => %v %v", assetId, asset, err)
+			if err != nil {
+				return err
+			}
+			if asset == nil {
+				return node.store.FailRequest(ctx, req.Id)
+			}
+			decimals = int32(asset.Decimals)
+		}
+		amt := decimal.NewFromBigInt(out.Amount, -decimals)
+		r := map[string]string{
+			"receiver": out.Destination, "amount": amt.String(),
+		}
+		if out.TokenAddress != "" {
+			r["token"] = out.TokenAddress
+		}
+		recipients[i] = r
+	}
+	data := common.MarshalJSONOrPanic(recipients)
+
 	tx := &store.Transaction{
 		TransactionHash: t.TxHash,
 		RawTransaction:  hex.EncodeToString(raw),
@@ -618,9 +645,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		amt := decimal.NewFromBigInt(out.Amount, -decimals)
-		recipients[i] = map[string]string{
+		r := map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
 		}
+		if out.TokenAddress != "" {
+			r["token"] = out.TokenAddress
+		}
+		recipients[i] = r
 		total = total.Add(amt)
 	}
 	if !total.Equal(req.Amount) {
@@ -677,9 +708,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				return node.store.FailRequest(ctx, req.Id)
 			}
 			amt := decimal.NewFromBigInt(output.Amount, int32(-asset.Decimals))
-			recipients = append(recipients, map[string]string{
+			r := map[string]string{
 				"receiver": output.Destination, "amount": amt.String(),
-			})
+			}
+			if output.TokenAddress != "" {
+				r["token"] = output.TokenAddress
+			}
+			recipients = append(recipients, r)
 		}
 		txType = ethereum.TypeMultiSendTx
 		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
