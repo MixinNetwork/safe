@@ -35,6 +35,38 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
+	if err != nil {
+		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
+	}
+	if meta.Chain != SafeChainMVM {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	logger.Printf("ethereum.GetSafeLastTxTime(%s) => %v %v", safe.Address, latestTxTime, err)
+	if err != nil {
+		return err
+	}
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
+	if err != nil {
+		return err
+	}
+	if latest.Time.IsZero() || latestTxTime.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
+		return fmt.Errorf("safe %s is locked", safe.Address)
+	}
+
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) != 48 {
 		return node.store.FailRequest(ctx, req.Id)
@@ -59,7 +91,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
 	safeBalances, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
 	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
 	if err != nil {
@@ -73,7 +104,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	var latestTxTime time.Time
 	var destination string
 	for i, o := range outputs {
 		assetId := ethereumAssetId
@@ -99,38 +129,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 			logger.Printf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
 			return node.store.FailRequest(ctx, req.Id)
 		}
-
-		transaction, err := ethereum.RPCGetTransactionByHash(rpc, b.LatestTxHash)
-		logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, b.LatestTxHash, transaction, err)
-		if err != nil {
-			return err
-		}
-		block, err := ethereum.RPCGetBlock(rpc, transaction.BlockHash)
-		logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, transaction.BlockHash, block, err)
-		if err != nil || block.Time.IsZero() {
-			return err
-		}
-		if block.Time.Before(latestTxTime) {
-			continue
-		}
-		latestTxTime = block.Time
-	}
-
-	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
-	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
-	if err != nil {
-		return err
-	}
-	if info == nil {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
-	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
-	if err != nil {
-		return err
-	}
-	if latest.Time.IsZero() || latestTxTime.Add(safe.Timelock+1*time.Hour).After(latest.Time) {
-		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
 	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
@@ -167,15 +165,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	proposedTx, _ := ethereum.UnmarshalSafeTransaction(b)
 	if !bytes.Equal(t.Message, proposedTx.Message) {
 		logger.Printf("Inconsistent safe tx message: %x %x", t.Message, proposedTx.Message)
-		return node.store.FailRequest(ctx, req.Id)
-	}
-
-	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
-	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
-	}
-	if meta.Chain != SafeChainMVM {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 

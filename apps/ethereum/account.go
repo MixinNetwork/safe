@@ -12,9 +12,11 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 // create a gnosis safe contract with 2/3 multisig
@@ -208,13 +210,77 @@ func EnableGuard(rpc, key string, chainId, timelock int64, observer, safeAddress
 	return err
 }
 
-func ProcessSignature(signature []byte) []byte {
-	// Golang returns the recovery ID in the last byte instead of v
-	// v = 27 + rid
-	signature[64] += 27
-	// Sign with prefix
-	signature[64] += 4
-	return signature
+func GetNonce(rpc, address string) (int64, error) {
+	conn, abi, err := safeInit(rpc, address)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	nonce, err := abi.Nonce(nil)
+	if err != nil {
+		return 0, err
+	}
+	return nonce.Int64(), nil
+}
+
+func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error) {
+	data, err := hex.DecodeString("affed0e0")
+	if err != nil {
+		return nil, err
+	}
+	addr := common.HexToAddress(address)
+	callMsg := ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}
+	conn, err := ethclient.Dial(rpc)
+	defer conn.Close()
+	if err != nil {
+		return nil, err
+	}
+	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
+	n := new(big.Int).SetBytes(response)
+	return new(big.Int).Sub(n, big.NewInt(1)), nil
+}
+
+func GetTokenBalanceAtBlock(rpc, tokenAddress, address string, blockNumber *big.Int) (*big.Int, error) {
+	tokenAddr := common.HexToAddress(tokenAddress)
+	addr := common.HexToAddress(address)
+
+	data, err := hex.DecodeString("70a08231")
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, common.LeftPadBytes(addr.Bytes(), 32)...)
+	callMsg := ethereum.CallMsg{
+		To:   &tokenAddr,
+		Data: data,
+	}
+	conn, err := ethclient.Dial(rpc)
+	defer conn.Close()
+	if err != nil {
+		return nil, err
+	}
+	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
+	n := new(big.Int).SetBytes(response)
+	return n, nil
+}
+
+func GetSafeLastTxTime(rpc, address string) (time.Time, error) {
+	conn, abi, err := guardInit(rpc)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer conn.Close()
+
+	addr := common.HexToAddress(address)
+	timestamp, err := abi.SafeLastTxTime(nil, addr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	t := time.Unix(timestamp.Int64(), 0)
+	return t, nil
 }
 
 func VerifyHolderKey(public string) error {

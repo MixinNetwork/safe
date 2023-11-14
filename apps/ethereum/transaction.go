@@ -10,11 +10,9 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -480,6 +478,15 @@ func GetMetaTxData(to common.Address, amount *big.Int, data []byte) []byte {
 	return meta
 }
 
+func ProcessSignature(signature []byte) []byte {
+	// Golang returns the recovery ID in the last byte instead of v
+	// v = 27 + rid
+	signature[64] += 27
+	// Sign with prefix
+	signature[64] += 4
+	return signature
+}
+
 func CheckTransactionPartiallySignedBy(raw, public string) bool {
 	b, _ := hex.DecodeString(raw)
 	st, _ := UnmarshalSafeTransaction(b)
@@ -493,61 +500,4 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 		}
 	}
 	return false
-}
-
-func GetNonce(rpc, address string) (int64, error) {
-	conn, abi, err := safeInit(rpc, address)
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
-
-	nonce, err := abi.Nonce(nil)
-	if err != nil {
-		return 0, err
-	}
-	return nonce.Int64(), nil
-}
-
-func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error) {
-	data, err := hex.DecodeString("affed0e0")
-	if err != nil {
-		return nil, err
-	}
-	addr := common.HexToAddress(address)
-	callMsg := ethereum.CallMsg{
-		To:   &addr,
-		Data: data,
-	}
-	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
-	if err != nil {
-		return nil, err
-	}
-	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
-	n := new(big.Int).SetBytes(response)
-	return new(big.Int).Sub(n, big.NewInt(1)), nil
-}
-
-func GetTokenBalanceAtBlock(rpc, tokenAddress, address string, blockNumber *big.Int) (*big.Int, error) {
-	tokenAddr := common.HexToAddress(tokenAddress)
-	addr := common.HexToAddress(address)
-
-	data, err := hex.DecodeString("70a08231")
-	if err != nil {
-		return nil, err
-	}
-	data = append(data, common.LeftPadBytes(addr.Bytes(), 32)...)
-	callMsg := ethereum.CallMsg{
-		To:   &tokenAddr,
-		Data: data,
-	}
-	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
-	if err != nil {
-		return nil, err
-	}
-	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
-	n := new(big.Int).SetBytes(response)
-	return n, nil
 }

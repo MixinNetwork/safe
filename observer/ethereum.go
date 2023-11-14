@@ -713,6 +713,15 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
+	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
+	if err != nil {
+		return err
+	}
+	if latestTxTime.Add(safe.Timelock + 1*time.Hour).After(latest.Time) {
+		return fmt.Errorf("safe %s is locked", safe.Address)
+	}
+
 	safeBalances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
 	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
 	if err != nil {
@@ -720,14 +729,10 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	} else if len(safeBalances) == 0 {
 		return fmt.Errorf("safe %s is has no balances", safe.Address)
 	}
-	outputs, err := st.ParseMultiSendData()
-	if err != nil {
-		return fmt.Errorf("ParseMultiSendData(%v) => %v %v", st, outputs, err)
-	}
+	outputs := st.ExtractOutputs()
 	if len(outputs) != len(safeBalances) {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(safeBalances))
 	}
-	var latestTxTime time.Time
 	for _, o := range outputs {
 		assetId := ethereumAssetId
 		if o.TokenAddress != "" {
@@ -742,27 +747,6 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		if b.Balance.Cmp(o.Amount) != 0 {
 			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
 		}
-
-		transaction, err := ethereum.RPCGetTransactionByHash(rpc, b.LatestTxHash)
-		logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, b.LatestTxHash, transaction, err)
-		if err != nil {
-			return err
-		}
-		block, err := ethereum.RPCGetBlock(rpc, transaction.BlockHash)
-		logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, transaction.BlockHash, block, err)
-		if err != nil {
-			return err
-		}
-		if block.Time.IsZero() {
-			return fmt.Errorf("safe %s is locked", safe.Address)
-		}
-		if block.Time.Before(latestTxTime) {
-			continue
-		}
-		latestTxTime = block.Time
-	}
-	if latestTxTime.Add(safe.Timelock + 1*time.Hour).After(latest.Time) {
-		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
 	if approval == nil {
@@ -838,6 +822,15 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
+	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
+	if err != nil {
+		return err
+	}
+	if latestTxTime.Add(safe.Timelock + 1*time.Hour).After(latest.Time) {
+		return fmt.Errorf("safe %s is locked", safe.Address)
+	}
+
 	safeBalances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
 	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
 	if err != nil {
@@ -845,14 +838,10 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	} else if len(safeBalances) == 0 {
 		return fmt.Errorf("safe %s is has no balances", safe.Address)
 	}
-	outputs, err := st.ParseMultiSendData()
-	if err != nil {
-		return fmt.Errorf("ParseMultiSendData(%v) => %v %v", st, outputs, err)
-	}
+	outputs := st.ExtractOutputs()
 	if len(outputs) != len(safeBalances) {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(safeBalances))
 	}
-	var latestTxTime time.Time
 	for _, o := range outputs {
 		assetId := ethereumAssetId
 		if o.TokenAddress != "" {
@@ -867,27 +856,6 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		if b.Balance.Cmp(o.Amount) != 0 {
 			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
 		}
-
-		transaction, err := ethereum.RPCGetTransactionByHash(rpc, b.LatestTxHash)
-		logger.Printf("ethereum.RPCGetTransactionByHash(%s %s) => %v %v", rpc, b.LatestTxHash, transaction, err)
-		if err != nil {
-			return err
-		}
-		block, err := ethereum.RPCGetBlock(rpc, transaction.BlockHash)
-		logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, transaction.BlockHash, block, err)
-		if err != nil {
-			return err
-		}
-		if block.Time.IsZero() {
-			return fmt.Errorf("safe %s is locked", safe.Address)
-		}
-		if block.Time.Before(latestTxTime) {
-			continue
-		}
-		latestTxTime = block.Time
-	}
-	if latestTxTime.Add(safe.Timelock + 1*time.Hour).After(latest.Time) {
-		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
