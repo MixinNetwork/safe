@@ -80,7 +80,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testEthereumPrepare(require)
 	for i := 0; i < 10; i++ {
-		testEthereumUpdateNetworkStatus(ctx, require, node, 45585462, "ae7b574b67011f9bd3cf8f5202ef9052be138ccee5929f7069dbdac34e19ab11")
+		testEthereumUpdateNetworkStatus(ctx, require, node, 45959627, "7f2745a81dc7bfb6073f3222ff544bd1685c16ba8ad05de2e9e1f974c9e9b394")
 	}
 
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
@@ -160,7 +160,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, _ := testEthereumPrepare(require)
 	for i := 0; i < 10; i++ {
-		testEthereumUpdateNetworkStatus(ctx, require, node, 45585462, "ae7b574b67011f9bd3cf8f5202ef9052be138ccee5929f7069dbdac34e19ab11")
+		testEthereumUpdateNetworkStatus(ctx, require, node, 45959627, "7f2745a81dc7bfb6073f3222ff544bd1685c16ba8ad05de2e9e1f974c9e9b394")
 	}
 
 	holder := testEthereumPublicKey(testEthereumKeyHolder)

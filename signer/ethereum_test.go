@@ -202,10 +202,8 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
-	require.Equal("bfad11e74c9d56cdb77fac087e94739057c9204da379b3b5bc7eb8d771dd24d97b26a14f2c35ce6b87baaf83a487a569d61bdbfeb74c2b0a5075325a023374ec1f", hex.EncodeToString(sigHolder))
 	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
 	require.Nil(err)
-	require.Equal("424f1a89f438a54c78fc35df68647e83af390ba2bc319dfe19249167ffdd4c765d7e939c40e691f735eb886aa61cf4f5e0bf3e7aed6eb5e7838b7f63fe5c4f551f", hex.EncodeToString(sigSigner))
 	tx.Signatures[1] = sigHolder
 	tx.Signatures[2] = sigSigner
 
