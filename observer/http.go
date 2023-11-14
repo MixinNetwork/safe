@@ -731,6 +731,61 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 	return view
 }
 
+func viewBalances(bs []*store.SafeBalance, tx *store.Transaction) []map[string]any {
+	raw := common.DecodeHexOrPanic(tx.RawTransaction)
+	st, _ := ethereum.UnmarshalSafeTransaction(raw)
+	outputs := st.ExtractOutputs()
+	chainAssetId := ethereum.GetMixinChainID(int64(tx.Chain))
+
+	view := make([]map[string]any, 0)
+	for _, b := range bs {
+		amount := b.Balance
+		for _, o := range outputs {
+			assetId := chainAssetId
+			if o.TokenAddress != "" {
+				assetId = ethereum.GenerateAssetId(tx.Chain, o.TokenAddress)
+			}
+			if assetId != b.AssetId {
+				continue
+			}
+			amount = new(big.Int).Sub(amount, o.Amount)
+		}
+		if amount.Cmp(big.NewInt(0)) < 1 {
+			continue
+		}
+
+		view = append(view, map[string]any{
+			"balance":       amount,
+			"asset_id":      b.AssetId,
+			"asset_address": b.AssetAddress,
+		})
+	}
+	return view
+}
+
+func viewPendingBalances(tx *store.Transaction) []map[string]any {
+	raw := common.DecodeHexOrPanic(tx.RawTransaction)
+	st, _ := ethereum.UnmarshalSafeTransaction(raw)
+	chainAssetId := ethereum.GetMixinChainID(int64(tx.Chain))
+
+	outputs := st.ExtractOutputs()
+	view := make([]map[string]any, 0)
+	for _, out := range outputs {
+		assetAddress := ethereum.EthereumEmptyAddress
+		assetId := chainAssetId
+		if out.TokenAddress != "" {
+			assetAddress = out.TokenAddress
+			assetId = ethereum.GenerateAssetId(tx.Chain, out.TokenAddress)
+		}
+		view = append(view, map[string]any{
+			"balance":       out.Amount.String,
+			"asset_id":      assetId,
+			"asset_address": assetAddress,
+		})
+	}
+	return view
+}
+
 func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *http.Request, sp *store.SafeProposal) {
 	status, err := node.getSafeStatus(ctx, sp.RequestId)
 	if err != nil {
@@ -784,7 +839,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			common.RenderError(w, r, err)
 			return
 		}
-		balance, err := node.keeperStore.ReadEthereumBalance(r.Context(), sp.Address, assetId)
+		balances, err := node.keeperStore.ReadEthereumAllBalance(r.Context(), sp.Address)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
@@ -793,12 +848,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
-		}
-		pendingBalance := big.NewInt(0)
-		for _, tx := range pendings {
-			raw := common.DecodeHexOrPanic(tx.RawTransaction)
-			st, _ := ethereum.UnmarshalSafeTransaction(raw)
-			pendingBalance = pendingBalance.Add(pendingBalance, st.Value)
 		}
 		safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
 		if err != nil {
@@ -813,8 +862,8 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"chain":          sp.Chain,
 			"id":             sp.RequestId,
 			"address":        sp.Address,
-			"balance":        balance.Balance.Sub(balance.Balance, pendingBalance).String(),
-			"pendingbalance": pendingBalance.String(),
+			"balances":       viewBalances(balances, pendings[0]),
+			"pendingbalance": viewPendingBalances(pendings[0]),
 			"nonce":          nonce,
 			"keys":           node.viewSafeXPubs(r.Context(), sp),
 			"bond": map[string]any{
