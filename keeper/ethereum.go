@@ -508,6 +508,12 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
+	pendings, err := node.store.ReadUnfinishedTransactionsByHolder(ctx, safe.Holder)
+	logger.Printf("store.ReadUnfinishedTransactionsByHolder(%s) => %v %v", safe.Holder, len(pendings), err)
+	if len(pendings) > 0 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
 	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
 	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
 	if err != nil {
