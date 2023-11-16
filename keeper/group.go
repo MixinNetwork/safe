@@ -413,7 +413,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if meta.Chain != SafeChainMVM {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
+	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), amount.String(), []byte("refund"), req.Id)
 	if err != nil {
 		return err
 	}
