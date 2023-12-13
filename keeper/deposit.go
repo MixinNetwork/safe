@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -101,44 +100,12 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if bond == nil || bond.Decimals != 18 {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	asset, err := node.fetchAssetMeta(ctx, deposit.Asset)
+	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, deposit.Asset, deposit.AssetAddress, deposit.Chain)
 	if err != nil {
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
 	}
-	switch deposit.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
-		if asset.Chain != deposit.Chain {
-			panic(asset.AssetId)
-		}
-	case SafeChainEthereum, SafeChainMVM:
-		rpc, chainAssetId := node.ethereumParams(deposit.Chain)
-		if asset == nil {
-			tokenAsset, err := ethereum.FetchAsset(deposit.Chain, rpc, deposit.AssetAddress)
-			if err != nil {
-				return err
-			}
-			asset = &store.Asset{
-				AssetId:   tokenAsset.Id,
-				AssetKey:  tokenAsset.Address,
-				Symbol:    tokenAsset.Symbol,
-				Name:      tokenAsset.Name,
-				Decimals:  tokenAsset.Decimals,
-				Chain:     tokenAsset.Chain,
-				CreatedAt: time.Now().UTC(),
-			}
-			err = node.store.WriteAssetMeta(ctx, asset)
-			if err != nil {
-				return err
-			}
-		}
-		switch {
-		case deposit.Asset == chainAssetId && deposit.AssetAddress == ethereum.EthereumEmptyAddress:
-			if asset.Chain != deposit.Chain {
-				panic(deposit.Asset)
-			}
-		case deposit.Asset == chainAssetId || deposit.AssetAddress == ethereum.EthereumEmptyAddress:
-			panic(deposit)
-		}
+	if asset.Chain != deposit.Chain {
+		panic(asset.AssetId)
 	}
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, deposit.Chain, req.CreatedAt)

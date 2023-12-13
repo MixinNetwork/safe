@@ -46,40 +46,9 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 }
 
 func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
-	asset, err := node.fetchAssetMeta(ctx, assetId)
+	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, assetId, assetAddress, chain)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
-	}
-
-	if asset == nil {
-		switch assetId {
-		case keeper.SafeBitcoinChainId, keeper.SafeLitecoinChainId, keeper.SafeEthereumChainId, keeper.SafeMVMChainId:
-			return nil, nil, "", fmt.Errorf("fail to fetchBondAsset: %s", assetId)
-		}
-		switch chain {
-		case keeper.SafeChainEthereum, keeper.SafeChainMVM:
-			if assetAddress == "" {
-				return nil, nil, "", fmt.Errorf("no asset address provided")
-			}
-			rpc, _ := node.ethereumParams(chain)
-			tokenAsset, err := ethereum.FetchAsset(chain, rpc, assetAddress)
-			if err != nil {
-				return nil, nil, "", err
-			}
-			asset = &Asset{
-				AssetId:   tokenAsset.Id,
-				AssetKey:  tokenAsset.Address,
-				Symbol:    tokenAsset.Symbol,
-				Name:      tokenAsset.Name,
-				Decimals:  tokenAsset.Decimals,
-				Chain:     tokenAsset.Chain,
-				CreatedAt: time.Now().UTC(),
-			}
-			err = node.store.WriteAssetMeta(ctx, asset)
-			if err != nil {
-				return nil, nil, "", err
-			}
-		}
 	}
 
 	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
@@ -92,6 +61,35 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 	bondId := mvm.GenerateAssetId(assetKey)
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
 	return asset, bond, bondId.String(), err
+}
+
+func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id, assetContract string, chain byte) (*Asset, error) {
+	meta, err := node.fetchAssetMeta(ctx, id)
+	if err != nil || meta != nil {
+		return meta, err
+	}
+	switch chain {
+	case keeper.SafeChainMVM:
+	case keeper.SafeChainEthereum:
+	default:
+		panic(chain)
+	}
+	rpc, _ := node.ethereumParams(chain)
+	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
+	if err != nil {
+		return nil, err
+	}
+	asset := &Asset{
+		AssetId:   token.Id,
+		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		AssetKey:  token.Address,
+		Symbol:    token.Symbol,
+		Name:      token.Name,
+		Decimals:  token.Decimals,
+		Chain:     token.Chain,
+		CreatedAt: time.Now().UTC(),
+	}
+	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error) {
