@@ -104,7 +104,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if err != nil {
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
 	}
-	if asset.Chain != deposit.Chain {
+	if asset.Chain != safe.Chain {
 		panic(asset.AssetId)
 	}
 

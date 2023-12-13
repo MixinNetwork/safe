@@ -309,8 +309,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		return nil
 	}
 
-	deposit.BigAmount = ethereum.ParseAmount(deposit.Amount, decimals)
-	extra := deposit.encodeKeeperExtra()
+	extra := deposit.encodeKeeperExtra(decimals)
 	id := mixin.UniqueConversationID(deposit.AssetId, deposit.Holder)
 	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
 	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)

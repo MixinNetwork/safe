@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -42,8 +41,6 @@ type Deposit struct {
 	Category        byte
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-
-	BigAmount *big.Int
 }
 
 type Transaction struct {

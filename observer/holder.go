@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -284,7 +285,7 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }
 
-func (deposit *Deposit) encodeKeeperExtra() []byte {
+func (deposit *Deposit) encodeKeeperExtra(decimals int32) []byte {
 	hash, err := crypto.HashFromString(deposit.TransactionHash)
 	if err != nil {
 		panic(deposit.TransactionHash)
@@ -295,6 +296,20 @@ func (deposit *Deposit) encodeKeeperExtra() []byte {
 	extra = append(extra, hash[:]...)
 	extra = append(extra, gc.HexToAddress(deposit.AssetAddress).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
-	extra = append(extra, deposit.BigAmount.Bytes()...)
+	extra = append(extra, deposit.bigAmount(decimals).Bytes()...)
 	return extra
+}
+
+func (d *Deposit) bigAmount(decimals int32) *big.Int {
+	switch d.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		if decimals != bitcoin.ValuePrecision {
+			panic(decimals)
+		}
+		satoshi := bitcoin.ParseSatoshi(d.Amount)
+		return new(big.Int).SetInt64(satoshi)
+	case keeper.SafeChainMVM, keeper.SafeChainEthereum:
+		return ethereum.ParseAmount(d.Amount, decimals)
+	}
+	panic(0)
 }
