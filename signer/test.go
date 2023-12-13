@@ -20,7 +20,6 @@ import (
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -64,7 +63,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 
 func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {
 	const public = "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b"
-	sid := mixin.UniqueConversationID("prepare", public)
+	sid := common.UniqueId("prepare", public)
 	for _, node := range nodes {
 		parts := strings.Split(testFROSTKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
@@ -83,7 +82,7 @@ func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, string) {
 	const public = "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
 	const chainCode = "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
-	sid := mixin.UniqueConversationID("prepare", public)
+	sid := common.UniqueId("prepare", public)
 	for _, node := range nodes {
 		parts := strings.Split(testCMPKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
@@ -133,8 +132,8 @@ func testCMPSign(ctx context.Context, require *require.Assertions, nodes []*Node
 
 func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte, path []byte) []byte {
 	node := nodes[0]
-	sid := mixin.UniqueConversationID("sign", hex.EncodeToString(msg))
-	sid = mixin.UniqueConversationID(sid, hex.EncodeToString(path))
+	sid := common.UniqueId("sign", hex.EncodeToString(msg))
+	sid = common.UniqueId(sid, hex.EncodeToString(path))
 	fingerPath := append(common.Fingerprint(public), path...)
 	sop := &common.Operation{
 		Type:   common.OperationTypeSignInput,

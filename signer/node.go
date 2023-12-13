@@ -498,7 +498,7 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 	members := node.conf.MTG.Genesis.Members
 	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", op.Id, string(node.id))
-	traceId = mixin.UniqueConversationID(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
+	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
 	logger.Printf("node.sendSignerPrepareTransaction(%v) => %s %x %v", op, op.Id, extra, err)
 	return err
@@ -512,7 +512,7 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 	members := node.conf.MTG.Genesis.Members
 	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
-	traceId = mixin.UniqueConversationID(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
+	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
 	logger.Printf("node.sendSignerResultTransaction(%v) => %s %x %v", op, op.Id, extra, err)
 	return err

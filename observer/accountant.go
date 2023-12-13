@@ -21,8 +21,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
@@ -581,7 +580,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		if err != nil {
 			return "", err
 		}
-		id := mixin.UniqueConversationID(tx.TransactionHash, tx.RawTransaction)
+		id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
 		extra := uuid.Must(uuid.FromString(t.RequestId)).Bytes()
 		err = node.sendKeeperResponse(ctx, tx.Holder, byte(common.ActionEthereumSafeRefundTransaction), tx.Chain, id, extra)
 		if err != nil {

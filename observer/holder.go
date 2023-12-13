@@ -17,7 +17,6 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	gc "github.com/ethereum/go-ethereum/common"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -164,7 +163,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	id := mixin.UniqueConversationID(addr, sigBase64)
+	id := common.UniqueId(addr, sigBase64)
 	rid := uuid.Must(uuid.FromString(sp.RequestId))
 	extra := append(rid.Bytes(), sig...)
 	return node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)

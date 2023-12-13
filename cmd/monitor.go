@@ -204,7 +204,7 @@ func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, 
 			ConversationId: conv.ConversationId,
 			RecipientId:    s.UserId,
 			Category:       bot.MessageCategoryPlainText,
-			MessageId:      mixin.UniqueConversationID(msg, s.UserId),
+			MessageId:      common.UniqueId(msg, s.UserId),
 			Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
 		})
 	}
