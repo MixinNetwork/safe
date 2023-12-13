@@ -2,7 +2,6 @@ package ethereum
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,8 +104,8 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 }
 
 func RPCGetBlockHash(rpc string, height int64) (string, error) {
-	h := "0x" + hex.EncodeToString(new(big.Int).SetInt64(height).Bytes())
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h})
+	h := fmt.Sprintf("0x%x", height)
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, false})
 	if err != nil {
 		return "", err
 	}

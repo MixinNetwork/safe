@@ -133,10 +133,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("ethereum.RPCGetBlockHash(%d, %d) => %v", chain, height, err)
 			continue
 		}
-		if strings.HasSuffix(blockHash, "0x") {
-			blockHash = blockHash[2:]
-		}
-		hash, err := crypto.HashFromString(blockHash)
+		hash, err := crypto.HashFromString(blockHash[2:])
 		if err != nil {
 			panic(err)
 		}
