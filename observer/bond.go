@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
 )
@@ -27,13 +28,13 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, bitcoinAssetId, safe.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	return err
 }
 
-func (node *Node) checkOrDeployKeeperBond(ctx context.Context, assetId, holder string) (bool, error) {
-	asset, bond, _, err := node.fetchBondAsset(ctx, assetId, holder)
+func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder string) (bool, error) {
+	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder)
 	if err != nil {
 		return false, fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, holder, err)
 	}
@@ -44,8 +45,8 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, assetId, holder s
 	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, holder)
 }
 
-func (node *Node) fetchBondAsset(ctx context.Context, assetId, holder string) (*Asset, *Asset, string, error) {
-	asset, err := node.fetchAssetMeta(ctx, assetId)
+func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
+	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, assetId, assetAddress, chain)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
@@ -60,6 +61,35 @@ func (node *Node) fetchBondAsset(ctx context.Context, assetId, holder string) (*
 	bondId := mvm.GenerateAssetId(assetKey)
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
 	return asset, bond, bondId.String(), err
+}
+
+func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id, assetContract string, chain byte) (*Asset, error) {
+	meta, err := node.fetchAssetMeta(ctx, id)
+	if err != nil || meta != nil {
+		return meta, err
+	}
+	switch chain {
+	case keeper.SafeChainMVM:
+	case keeper.SafeChainEthereum:
+	default:
+		panic(chain)
+	}
+	rpc, _ := node.ethereumParams(chain)
+	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
+	if err != nil {
+		return nil, err
+	}
+	asset := &Asset{
+		AssetId:   token.Id,
+		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		AssetKey:  token.Address,
+		Symbol:    token.Symbol,
+		Name:      token.Name,
+		Decimals:  token.Decimals,
+		Chain:     token.Chain,
+		CreatedAt: time.Now().UTC(),
+	}
+	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error) {

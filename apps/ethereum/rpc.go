@@ -48,8 +48,12 @@ type RPCTransaction struct {
 	BlockHeight uint64
 }
 
+type RPCBlockCallTrace struct {
+	Result *RPCTransactionCallTrace `json:"result"`
+}
 type RPCTransactionCallTrace struct {
 	Calls   []*RPCTransactionCallTrace `json:"calls"`
+	Error   string                     `json:"error"`
 	From    string                     `json:"from"`
 	Gas     string                     `json:"gas"`
 	GasUsed string                     `json:"gasUsed"`
@@ -210,6 +214,19 @@ func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace,
 	return &t, err
 }
 
+func RPCDebugTraceBlockByHash(rpc, hash string) ([]*RPCBlockCallTrace, error) {
+	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByHash", []any{hash, map[string]any{"tracer": "callTracer"}})
+	if err != nil {
+		return nil, err
+	}
+	var txs []*RPCBlockCallTrace
+	err = json.Unmarshal(res, &txs)
+	if err != nil {
+		return nil, err
+	}
+	return txs, err
+}
+
 func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, error) {
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, blockHash})
 	if err != nil {
@@ -230,7 +247,15 @@ func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, erro
 func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {
 	for {
 		res, err := callEthereumRPC(rpc, method, params)
-		if err != nil && strings.Contains(err.Error(), "Client.Timeout") {
+		if err != nil {
+			reason := strings.ToLower(err.Error())
+			switch {
+			case strings.Contains(reason, "timeout"):
+			case strings.Contains(reason, "eof"):
+			case strings.Contains(reason, "handshake"):
+			default:
+				return res, err
+			}
 			time.Sleep(7 * time.Second)
 			continue
 		}

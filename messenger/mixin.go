@@ -233,5 +233,5 @@ func (mm *MixinMessenger) sendMessagesWithoutTimeout(ctx context.Context, batch 
 
 func uniqueMessageId(receiver string, b []byte) string {
 	s := hex.EncodeToString(b)
-	return mixin.UniqueConversationID(receiver, s)
+	return common.UniqueId(receiver, s)
 }

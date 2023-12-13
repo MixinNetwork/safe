@@ -10,11 +10,9 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -311,6 +309,31 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 	return txResponse.Hash().Hex(), nil
 }
 
+func (tx *SafeTransaction) ExtractOutputs() []*Output {
+	outputs, err := tx.ParseMultiSendData()
+	if err == nil {
+		return outputs
+	}
+	switch {
+	case len(tx.Data) == 0:
+		return []*Output{{
+			Destination: strings.ToLower(tx.Destination.Hex()),
+			Amount:      tx.Value,
+		}}
+	default:
+		if hex.EncodeToString(tx.Data[0:4]) != "a9059cbb" || len(tx.Data) != 68 {
+			panic("invalid safe transaction data")
+		}
+		destination := tx.Data[4:36]
+		value := tx.Data[36:68]
+		return []*Output{{
+			TokenAddress: strings.ToLower(tx.Destination.Hex()),
+			Destination:  strings.ToLower(common.BytesToAddress(destination).Hex()),
+			Amount:       new(big.Int).SetBytes(value),
+		}}
+	}
+}
+
 func (tx *SafeTransaction) GetTransactionHash() []byte {
 	safeTxHash := crypto.Keccak256(packSafeTransactionArguments(tx))
 	domain := packDomainSeparatorArguments(tx.ChainID, tx.SafeAddress)
@@ -321,6 +344,66 @@ func (tx *SafeTransaction) GetTransactionHash() []byte {
 	txData = append(txData, safeTxHash...)
 	hash := crypto.Keccak256(txData)
 	return hash
+}
+
+func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
+	if tx.Operation != operationTypeDelegateCall {
+		return nil, fmt.Errorf("invalid tx operation: %d", tx.Operation)
+	}
+	abi, err := ga.JSON(strings.NewReader(abi.MultiSendMetaData.ABI))
+	if err != nil {
+		panic(err)
+	}
+	args, err := abi.Methods["multiSend"].Inputs.Unpack(
+		tx.Data[4:],
+	)
+	if err != nil || len(args) != 1 {
+		return nil, err
+	}
+	multiSendData := args[0].([]byte)
+
+	var os []*Output
+	offset := 0
+	for {
+		if offset == len(multiSendData) {
+			break
+		}
+
+		offset += 1
+		bytesTo := multiSendData[offset : offset+20]
+		to := common.BytesToAddress(bytesTo)
+		offset += 20
+		bytesAmount := multiSendData[offset : offset+32]
+		amount := new(big.Int).SetBytes(bytesAmount)
+		offset += 32
+		bytesLen := multiSendData[offset : offset+32]
+		dataLen := new(big.Int).SetBytes(bytesLen).Uint64()
+		offset += 32
+
+		o := &Output{
+			Destination: strings.ToLower(to.Hex()),
+			Amount:      amount,
+		}
+		switch {
+		case dataLen == 0:
+		case int(dataLen) == 68:
+			metaData := multiSendData[offset : offset+int(dataLen)]
+			strData := hex.EncodeToString(metaData)
+			if !strings.HasPrefix(strData, "a9059cbb") {
+				return nil, fmt.Errorf("invalid meta tx data: %x", metaData)
+			}
+			bytesTo := metaData[4:36]
+			bytesAmount := metaData[36:68]
+			o.TokenAddress = strings.ToLower(o.Destination)
+			o.Destination = strings.ToLower(common.BytesToAddress(bytesTo).Hex())
+			o.Amount = new(big.Int).SetBytes(bytesAmount)
+			offset += int(dataLen)
+		default:
+			return nil, fmt.Errorf("invalid meta tx data len: %d", dataLen)
+		}
+		os = append(os, o)
+	}
+	return os, nil
 }
 
 func GetEnableGuradData(address string) []byte {
@@ -395,6 +478,15 @@ func GetMetaTxData(to common.Address, amount *big.Int, data []byte) []byte {
 	return meta
 }
 
+func ProcessSignature(signature []byte) []byte {
+	// Golang returns the recovery ID in the last byte instead of v
+	// v = 27 + rid
+	signature[64] += 27
+	// Sign with prefix
+	signature[64] += 4
+	return signature
+}
+
 func CheckTransactionPartiallySignedBy(raw, public string) bool {
 	b, _ := hex.DecodeString(raw)
 	st, _ := UnmarshalSafeTransaction(b)
@@ -408,38 +500,4 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 		}
 	}
 	return false
-}
-
-func GetNonce(rpc, address string) (int64, error) {
-	conn, abi, err := safeInit(rpc, address)
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
-
-	nonce, err := abi.Nonce(nil)
-	if err != nil {
-		return 0, err
-	}
-	return nonce.Int64(), nil
-}
-
-func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error) {
-	data, err := hex.DecodeString("affed0e0")
-	if err != nil {
-		return nil, err
-	}
-	addr := common.HexToAddress(address)
-	callMsg := ethereum.CallMsg{
-		To:   &addr,
-		Data: data,
-	}
-	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
-	if err != nil {
-		return nil, err
-	}
-	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
-	n := new(big.Int).SetBytes(response)
-	return new(big.Int).Sub(n, big.NewInt(1)), nil
 }

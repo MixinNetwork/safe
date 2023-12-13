@@ -9,7 +9,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/fox-one/mixin-sdk-go"
 )
 
 const (
@@ -40,8 +39,8 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 			Type:  common.OperationTypeKeygenInput,
 			Curve: crv,
 		}
-		op.Id = mixin.UniqueConversationID(req.Id, fmt.Sprintf("%8d", i))
-		op.Id = mixin.UniqueConversationID(op.Id, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
+		op.Id = common.UniqueId(req.Id, fmt.Sprintf("%8d", i))
+		op.Id = common.UniqueId(op.Id, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
 		err := node.buildSignerTransaction(ctx, op)
 		if err != nil {
 			return err

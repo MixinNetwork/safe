@@ -15,7 +15,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -81,7 +80,7 @@ func TestSSID(t *testing.T) {
 }
 
 func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, []byte) {
-	sid := mixin.UniqueConversationID("keygen", fmt.Sprint(400))
+	sid := common.UniqueId("keygen", fmt.Sprint(400))
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
 		op := &common.Operation{

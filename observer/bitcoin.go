@@ -19,8 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -99,8 +98,8 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		extra = binary.BigEndian.AppendUint64(extra, uint64(fvb))
 		extra = binary.BigEndian.AppendUint64(extra, uint64(height))
 		extra = append(extra, hash[:]...)
-		id := mixin.UniqueConversationID(assetId, fmt.Sprintf("%s:%d", blockHash, height))
-		id = mixin.UniqueConversationID(id, fmt.Sprintf("%d:%d", time.Now().UnixNano(), fvb))
+		id := common.UniqueId(assetId, fmt.Sprintf("%s:%d", blockHash, height))
+		id = common.UniqueId(id, fmt.Sprintf("%d:%d", time.Now().UnixNano(), fvb))
 		logger.Printf("node.bitcoinNetworkInfoLoop(%d) => %d %d %s %s", chain, height, fvb, blockHash, id)
 
 		dummy := node.bitcoinDummyHolder()
@@ -253,7 +252,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
 
-	bonded, err := node.checkOrDeployKeeperBond(ctx, assetId, deposit.Holder)
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
@@ -295,9 +294,9 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 
-	extra := deposit.encodeKeeperExtra()
-	id := mixin.UniqueConversationID(assetId, deposit.Holder)
-	id = mixin.UniqueConversationID(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
+	extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
+	id := common.UniqueId(assetId, deposit.Holder)
+	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
 	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
 	if err != nil {
 		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
@@ -508,12 +507,12 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 		panic(approval.RawTransaction)
 	}
 
-	rawId := mixin.UniqueConversationID(approval.RawTransaction, approval.RawTransaction)
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
 	raw := common.DecodeHexOrPanic(approval.RawTransaction)
 	raw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), raw...)
 	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
-	traceId := mixin.UniqueConversationID(msg, msg)
+	traceId := common.UniqueId(msg, msg)
 	conf := node.conf.App
 	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
 	if err != nil {
@@ -528,7 +527,7 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	if err != nil {
 		return err
 	}
-	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
+	id := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
 	rid := uuid.Must(uuid.FromString(tx.RequestId))
 	extra := append(rid.Bytes(), ref[:]...)
 	references := []crypto.Hash{ref}
@@ -542,7 +541,7 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
 		return nil
 	}
-	id = mixin.UniqueConversationID(id, approval.UpdatedAt.String())
+	id = common.UniqueId(id, approval.UpdatedAt.String())
 	err = node.sendKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
 	if err != nil {
@@ -788,7 +787,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 	}
 
 	var extra []byte
-	id := mixin.UniqueConversationID(safe.Address, receiver)
+	id := common.UniqueId(safe.Address, receiver)
 	switch {
 	case !isHolderSigned: // Close account with safeBTC
 		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
@@ -809,11 +808,11 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 	}
 
 	objectRaw := signedRaw
-	rawId := mixin.UniqueConversationID(raw, raw)
+	rawId := common.UniqueId(raw, raw)
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
 	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
-	traceId := mixin.UniqueConversationID(msg, msg)
+	traceId := common.UniqueId(msg, msg)
 	conf := node.conf.App
 	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
 	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
@@ -930,7 +929,7 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 		}
 	}
 
-	id := mixin.UniqueConversationID(approval.TransactionHash, approval.TransactionHash)
+	id := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
 	rid := uuid.Must(uuid.FromString(tx.RequestId))
 	extra := append(rid.Bytes(), sig...)
 	action := common.ActionBitcoinSafeRevokeTransaction
