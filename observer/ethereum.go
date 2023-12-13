@@ -47,7 +47,7 @@ func ethereumDepositCheckpointKey(chain byte) string {
 func ethereumDepositCheckpointDefault(chain byte) int64 {
 	switch chain {
 	case keeper.SafeChainMVM:
-		return 43690750
+		return 48464900
 	default:
 		panic(chain)
 	}
