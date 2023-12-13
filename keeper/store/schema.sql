@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   category           INTEGER NOT NULL,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
-  PRIMARY KEY ('transaction_hash', 'output_index', 'asset_id', 'receiver')
+  PRIMARY KEY ('transaction_hash', 'output_index')
 );
 
 

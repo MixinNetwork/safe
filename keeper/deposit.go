@@ -138,7 +138,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	} else if old != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index))
 	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
@@ -193,7 +193,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if asset.AssetId == chainId && asset.Decimals != ethereum.ValuePrecision {
 		panic(asset.Decimals)
 	}
-	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address)
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index))
 	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)

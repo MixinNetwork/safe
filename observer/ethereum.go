@@ -184,7 +184,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return nil
 	}
 
-	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver)
+	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index)
 	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
@@ -513,7 +513,7 @@ func (node *Node) GetBlockDeposits(ctx context.Context, ts []*ethereum.Transfer)
 		} else if safe == nil {
 			continue
 		}
-		old, err := node.keeperStore.ReadDeposit(ctx, t.Hash, t.Index, t.AssetId, t.Receiver)
+		old, err := node.keeperStore.ReadDeposit(ctx, t.Hash, t.Index)
 		logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", t.Hash, t.Index, t.AssetId, t.Receiver, old, err)
 		if err != nil {
 			return nil, fmt.Errorf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", t.Hash, t.Index, t.AssetId, t.Receiver, old, err)
