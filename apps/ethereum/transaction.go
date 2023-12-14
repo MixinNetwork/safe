@@ -321,7 +321,12 @@ func (tx *SafeTransaction) ExtractOutputs() []*Output {
 			Amount:      tx.Value,
 		}}
 	default:
-		if hex.EncodeToString(tx.Data[0:4]) != "a9059cbb" || len(tx.Data) != 68 {
+		method := hex.EncodeToString(tx.Data[0:4])
+		// setGuard Tx
+		if method == "e19a9dd9" {
+			return []*Output{}
+		}
+		if method != "a9059cbb" || len(tx.Data) != 68 {
 			panic("invalid safe transaction data")
 		}
 		destination := tx.Data[4:36]
