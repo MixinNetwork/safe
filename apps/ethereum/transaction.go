@@ -326,7 +326,7 @@ func (tx *SafeTransaction) ExtractOutputs() []*Output {
 		if method == "e19a9dd9" {
 			return []*Output{}
 		}
-		if hex.EncodeToString(tx.Data[0:4]) != "a9059cbb" || len(tx.Data) != 68 {
+		if method != "a9059cbb" || len(tx.Data) != 68 {
 			panic("invalid safe transaction data")
 		}
 		destination := tx.Data[4:36]
