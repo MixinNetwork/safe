@@ -731,59 +731,66 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 	return view
 }
 
-func viewBalances(bs []*store.SafeBalance, tx *store.Transaction) []map[string]any {
-	raw := common.DecodeHexOrPanic(tx.RawTransaction)
-	st, _ := ethereum.UnmarshalSafeTransaction(raw)
-	outputs := st.ExtractOutputs()
-	chainAssetId := ethereum.GetMixinChainID(int64(tx.Chain))
+type AssetBalance struct {
+	AssetAddress string `json:"asset_address"`
+	Amount       string `json:"amount"`
+}
 
-	view := make([]map[string]any, 0)
+func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]*AssetBalance {
+	pendingBalances := viewPendingBalances(txs)
+
+	assetBalance := make(map[string]*AssetBalance, 0)
 	for _, b := range bs {
 		amount := b.Balance
-		for _, o := range outputs {
-			assetId := chainAssetId
-			if o.TokenAddress != "" {
-				assetId = ethereum.GenerateAssetId(tx.Chain, o.TokenAddress)
-			}
-			if assetId != b.AssetId {
-				continue
-			}
-			amount = new(big.Int).Sub(amount, o.Amount)
+		balance := pendingBalances[b.AssetId]
+		if balance != nil {
+			pending, _ := new(big.Int).SetString(balance.Amount, 10)
+			amount = new(big.Int).Sub(amount, pending)
 		}
 		if amount.Cmp(big.NewInt(0)) < 1 {
 			continue
 		}
-
-		view = append(view, map[string]any{
-			"balance":       amount,
-			"asset_id":      b.AssetId,
-			"asset_address": b.AssetAddress,
-		})
+		assetBalance[b.AssetId] = &AssetBalance{
+			Amount:       amount.String(),
+			AssetAddress: b.AssetAddress,
+		}
 	}
-	return view
+	return assetBalance
 }
 
-func viewPendingBalances(tx *store.Transaction) []map[string]any {
-	raw := common.DecodeHexOrPanic(tx.RawTransaction)
-	st, _ := ethereum.UnmarshalSafeTransaction(raw)
-	chainAssetId := ethereum.GetMixinChainID(int64(tx.Chain))
+func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
+	assetBalance := make(map[string]*AssetBalance)
+	for _, tx := range txs {
+		raw := common.DecodeHexOrPanic(tx.RawTransaction)
+		st, _ := ethereum.UnmarshalSafeTransaction(raw)
+		chainAssetId := ethereum.GetMixinChainID(int64(tx.Chain))
 
-	outputs := st.ExtractOutputs()
-	view := make([]map[string]any, 0)
-	for _, out := range outputs {
-		assetAddress := ethereum.EthereumEmptyAddress
-		assetId := chainAssetId
-		if out.TokenAddress != "" {
-			assetAddress = out.TokenAddress
-			assetId = ethereum.GenerateAssetId(tx.Chain, out.TokenAddress)
+		outputs := st.ExtractOutputs()
+		for _, out := range outputs {
+			assetAddress := ethereum.EthereumEmptyAddress
+			assetId := chainAssetId
+			if out.TokenAddress != "" {
+				assetAddress = out.TokenAddress
+				assetId = ethereum.GenerateAssetId(tx.Chain, out.TokenAddress)
+			}
+			amount := out.Amount
+			if amount.Cmp(big.NewInt(0)) < 1 {
+				continue
+			}
+
+			balance := assetBalance[assetId]
+			if balance != nil {
+				old, _ := new(big.Int).SetString(balance.Amount, 10)
+				amount = new(big.Int).Add(amount, old)
+			}
+			assetBalance[assetId] = &AssetBalance{
+				Amount:       amount.String(),
+				AssetAddress: assetAddress,
+			}
 		}
-		view = append(view, map[string]any{
-			"balance":       out.Amount.String,
-			"asset_id":      assetId,
-			"asset_address": assetAddress,
-		})
 	}
-	return view
+
+	return assetBalance
 }
 
 func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *http.Request, sp *store.SafeProposal) {
@@ -862,8 +869,8 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"chain":          sp.Chain,
 			"id":             sp.RequestId,
 			"address":        sp.Address,
-			"balances":       viewBalances(balances, pendings[0]),
-			"pendingbalance": viewPendingBalances(pendings[0]),
+			"balances":       viewBalances(balances, pendings),
+			"pendingbalance": viewPendingBalances(pendings),
 			"nonce":          nonce,
 			"keys":           node.viewSafeXPubs(r.Context(), sp),
 			"bond": map[string]any{
