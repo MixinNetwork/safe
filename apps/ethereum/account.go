@@ -83,16 +83,25 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 
 func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 	var owners []string
-	var pubs []string
-	for _, public := range []string{holder, signer, observer} {
-		pub, err := parseEthereumCompressedPublicKey(public)
+	for _, pub := range []string{holder, signer, observer} {
+		addr, err := parseEthereumCompressedPublicKey(pub)
 		if err != nil {
-			panic(public)
+			panic(pub)
 		}
-		owners = append(owners, pub.Hex())
-		pubs = append(pubs, public)
+		owners = append(owners, addr.Hex())
 	}
 	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
+	addressMap := make(map[string]int)
+	for i, a := range owners {
+		addressMap[a] = i
+	}
+
+	pubs := make([]string, 3)
+	for _, pub := range []string{holder, signer, observer} {
+		addr, _ := parseEthereumCompressedPublicKey(pub)
+		index := addressMap[addr.Hex()]
+		pubs[index] = pub
+	}
 	return owners, pubs
 }
 
