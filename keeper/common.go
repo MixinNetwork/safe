@@ -83,7 +83,7 @@ func SafeChainCurve(chain byte) byte {
 
 func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
 	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), nil, req.Id)
+	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
 	if err != nil {
 		return err
 	}

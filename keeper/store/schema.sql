@@ -185,10 +185,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS mixin_outputs_by_request_id ON mixin_outputs(r
 CREATE TABLE IF NOT EXISTS ethereum_balances (
   address            VARCHAR NOT NULL,
   asset_id           VARCHAR NOT NULL,
+  asset_address      VARCHAR NOT NULL,
   balance            VARCHAR NOT NULL,
   latest_tx_hash     VARCHAR NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
-  PRIMARY KEY ('address')
+  PRIMARY KEY ('address', 'asset_id')
 );
 
 
@@ -210,7 +211,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   category           INTEGER NOT NULL,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
-  PRIMARY KEY ('transaction_hash', 'output_index', 'asset_id', 'receiver')
+  PRIMARY KEY ('transaction_hash', 'output_index')
 );
 
 

@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -252,7 +252,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
 
-	bonded, err := node.checkOrDeployKeeperBond(ctx, assetId, deposit.Holder)
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
@@ -294,7 +294,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 
-	extra := deposit.encodeKeeperExtra()
+	extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
 	id := common.UniqueId(assetId, deposit.Holder)
 	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
 	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)

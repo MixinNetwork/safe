@@ -196,6 +196,35 @@ func (node *Node) ethereumParams(chain byte) (string, string) {
 	}
 }
 
+func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id, assetContract string, chain byte) (*store.Asset, error) {
+	meta, err := node.fetchAssetMeta(ctx, id)
+	if err != nil || meta != nil {
+		return meta, err
+	}
+	switch chain {
+	case SafeChainMVM:
+	case SafeChainEthereum:
+	default:
+		panic(chain)
+	}
+	rpc, _ := node.ethereumParams(chain)
+	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
+	if err != nil {
+		return nil, err
+	}
+	asset := &store.Asset{
+		AssetId:   token.Id,
+		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		AssetKey:  token.Address,
+		Symbol:    token.Symbol,
+		Name:      token.Name,
+		Decimals:  token.Decimals,
+		Chain:     token.Chain,
+		CreatedAt: time.Now().UTC(),
+	}
+	return asset, node.store.WriteAssetMeta(ctx, asset)
+}
+
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, error) {
 	meta, err := node.store.ReadAssetMeta(ctx, id)
 	if err != nil || meta != nil {

@@ -2,8 +2,10 @@ package ethereum
 
 import (
 	"crypto/ecdsa"
+	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math/big"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -42,7 +45,7 @@ const (
 	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
 	EthereumCompatibilityFallbackHandlerAddress = "0x52Bb11433e9C993Cc320B659bdd3F0699AEa678d"
 	EthereumMultiSendAddress                    = "0x22a4Ac16965F7C5446A28E3aaA91D06409bF5637"
-	EthereumSafeGuardAddress                    = "0x29e29a21B51Bb5B7a3b5F813687514D17140Ba2d"
+	EthereumSafeGuardAddress                    = "0xD312393D540b0A91947b021d85652371249D58C4"
 
 	predeterminedSaltNonce  = "0xb1073742015cbcf5a3a4d9d1ae33ecf619439710b89475f92e2abd2117e90f90"
 	accountContractCode     = "0x608060405234801561001057600080fd5b506040516101e63803806101e68339818101604052602081101561003357600080fd5b8101908080519060200190929190505050600073ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1614156100ca576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260228152602001806101c46022913960400191505060405180910390fd5b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505060ab806101196000396000f3fe608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea264697066735822122003d1488ee65e08fa41e58e888a9865554c535f2c77126a82cb4c0f917f31441364736f6c63430007060033496e76616c69642073696e676c65746f6e20616464726573732070726f7669646564"
@@ -50,6 +53,69 @@ const (
 	domainSeparatorTypehash = "0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218"
 	guardStorageSlot        = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8"
 )
+
+type Asset struct {
+	Address  string
+	Id       string
+	Symbol   string
+	Name     string
+	Decimals uint32
+	Chain    byte
+}
+
+type Transfer struct {
+	Hash         string
+	Index        int64
+	TokenAddress string
+	AssetId      string
+	Sender       string
+	Receiver     string
+	Value        *big.Int
+}
+
+func GenerateAssetId(chain byte, assetKey string) string {
+	err := VerifyAssetKey(assetKey)
+	if err != nil {
+		panic(assetKey)
+	}
+
+	base := GetMixinChainID(int64(chain))
+	return BuildChainAssetId(base, assetKey)
+}
+
+func VerifyAssetKey(assetKey string) error {
+	if len(assetKey) != 42 {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	if !strings.HasPrefix(assetKey, "0x") {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	if assetKey != strings.ToLower(assetKey) {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	k, err := hex.DecodeString(assetKey[2:])
+	if err != nil {
+		return fmt.Errorf("invalid mvm asset key %s %s", assetKey, err.Error())
+	}
+	if len(k) != 20 {
+		return fmt.Errorf("invalid mvm asset key %s", assetKey)
+	}
+	return nil
+}
+
+func BuildChainAssetId(base, asset string) string {
+	h := md5.New()
+	io.WriteString(h, base)
+	io.WriteString(h, asset)
+	sum := h.Sum(nil)
+	sum[6] = (sum[6] & 0x0f) | 0x30
+	sum[8] = (sum[8] & 0x3f) | 0x80
+	id, err := uuid.FromBytes(sum)
+	if err != nil {
+		panic(hex.EncodeToString(sum))
+	}
+	return id.String()
+}
 
 func HashMessageForSignature(msg string) []byte {
 	b, err := hex.DecodeString(msg)
@@ -60,21 +126,84 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-func ParseWei(amount string) *big.Int {
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []string) []*Transfer {
+	if len(txs) != len(traces) {
+		panic(len(txs))
+	}
+
+	var transfers []*Transfer
+	for i, t := range traces {
+		txTransfers := LoopCalls(chain, chainId, t.Result, 0, 0)
+		hash := txs[i]
+		for _, tTransfer := range txTransfers {
+			tTransfer.Hash = hash
+			tTransfer.Sender = t.Result.From
+			transfers = append(transfers, tTransfer)
+		}
+	}
+	return transfers
+}
+
+func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer, index int) []*Transfer {
+	depositIndex := int64(layer*10 + index)
+
+	var transfers []*Transfer
+	switch {
+	case trace.Error != "" || trace.Type == "STATICCALL":
+		return transfers
+	case trace.Value != "" && trace.Input == "0x": // ETH transfer
+		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
+		to := strings.ToLower(trace.To)
+		if value.Cmp(big.NewInt(0)) > 0 {
+			transfers = append(transfers, &Transfer{
+				Index:        depositIndex,
+				Value:        value,
+				Receiver:     to,
+				TokenAddress: EthereumEmptyAddress,
+				AssetId:      chainId,
+			})
+		}
+	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
+		input := trace.Input[10:]
+		to := strings.ToLower(common.HexToAddress(input[0:64]).Hex())
+		value, _ := new(big.Int).SetString(input[64:128], 16)
+		tokenAddress := strings.ToLower(trace.To)
+		assetId := GenerateAssetId(chain, tokenAddress)
+		if value.Cmp(big.NewInt(0)) > 0 {
+			transfers = append(transfers, &Transfer{
+				Index:        depositIndex,
+				Value:        value,
+				Receiver:     to,
+				TokenAddress: tokenAddress,
+				AssetId:      assetId,
+			})
+		}
+	}
+
+	for i, c := range trace.Calls {
+		ts := LoopCalls(chain, chainId, c, layer+1, i)
+		for _, t := range ts {
+			transfers = append(transfers, t)
+		}
+	}
+	return transfers
+}
+
+func ParseAmount(amount string, decimals int32) *big.Int {
 	amt, err := decimal.NewFromString(amount)
 	if err != nil {
 		panic(amount)
 	}
-	amt = amt.Mul(decimal.New(1, ValuePrecision))
+	amt = amt.Mul(decimal.New(1, decimals))
 	if !amt.IsInteger() {
 		panic(amount)
 	}
 	return amt.BigInt()
 }
 
-func UnitWei(amount *big.Int) string {
+func UnitAmount(amount *big.Int, decimals int32) string {
 	amt := decimal.NewFromBigInt(amount, 0)
-	amt = amt.Div(decimal.New(1, ValuePrecision))
+	amt = amt.Div(decimal.New(1, decimals))
 	return amt.String()
 }
 
@@ -89,9 +218,56 @@ func GetEvmChainID(chain int64) int64 {
 	}
 }
 
+func GetMixinChainID(chain int64) string {
+	switch chain {
+	case ChainEthereum:
+		return "43d61dcd-e413-450d-80b8-101d5e903357"
+	case ChainMVM:
+		return "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
+	default:
+		panic(chain)
+	}
+}
+
+func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
+	addr := common.HexToAddress(address)
+	assetId := GenerateAssetId(chain, address)
+
+	conn, err := ethclient.Dial(rpc)
+	defer conn.Close()
+	if err != nil {
+		return nil, err
+	}
+	token, err := abi.NewAsset(addr, conn)
+	if err != nil {
+		return nil, err
+	}
+	name, err := token.Name(nil)
+	if err != nil {
+		return nil, err
+	}
+	symbol, err := token.Symbol(nil)
+	if err != nil {
+		return nil, err
+	}
+	decimals, err := token.Decimals(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Asset{
+		Address:  address,
+		Id:       assetId,
+		Name:     name,
+		Symbol:   symbol,
+		Decimals: uint32(decimals),
+		Chain:    chain,
+	}, nil
+}
+
 func NormalizeAddress(addr string) string {
 	norm := common.HexToAddress(addr).Hex()
-	if norm == EthereumEmptyAddress || norm != addr {
+	if norm == EthereumEmptyAddress || strings.ToLower(norm) != strings.ToLower(addr) {
 		return ""
 	}
 	return norm

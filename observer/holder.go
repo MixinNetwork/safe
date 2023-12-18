@@ -16,6 +16,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -66,7 +67,7 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 	case keeper.SafeChainEthereum, keeper.SafeChainMVM:
 		_, assetId = node.ethereumParams(sp.Chain)
 	}
-	_, err = node.checkOrDeployKeeperBond(ctx, assetId, sp.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, chain, assetId, "", sp.Holder)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", assetId, sp.Holder, err)
 	if err != nil {
 		return err
@@ -283,23 +284,31 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }
 
-func (deposit *Deposit) encodeKeeperExtra() []byte {
+func (deposit *Deposit) encodeKeeperExtra(decimals int32) []byte {
 	hash, err := crypto.HashFromString(deposit.TransactionHash)
 	if err != nil {
 		panic(deposit.TransactionHash)
 	}
-	var amount *big.Int
-	switch deposit.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		satoshi := bitcoin.ParseSatoshi(deposit.Amount)
-		amount = new(big.Int).SetInt64(satoshi)
-	case keeper.SafeChainMVM:
-		amount = ethereum.ParseWei(deposit.Amount)
-	}
+
 	extra := []byte{deposit.Chain}
 	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
 	extra = append(extra, hash[:]...)
+	extra = append(extra, gc.HexToAddress(deposit.AssetAddress).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
-	extra = append(extra, amount.Bytes()...)
+	extra = append(extra, deposit.bigAmount(decimals).Bytes()...)
 	return extra
+}
+
+func (d *Deposit) bigAmount(decimals int32) *big.Int {
+	switch d.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		if decimals != bitcoin.ValuePrecision {
+			panic(decimals)
+		}
+		satoshi := bitcoin.ParseSatoshi(d.Amount)
+		return new(big.Int).SetInt64(satoshi)
+	case keeper.SafeChainMVM, keeper.SafeChainEthereum:
+		return ethereum.ParseAmount(d.Amount, decimals)
+	}
+	panic(0)
 }

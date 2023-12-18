@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
@@ -87,14 +86,11 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	var assetId string
-	var dust int64
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-		dust = bitcoin.ValueDust(chain)
 	case keeper.SafeChainMVM:
 		_, assetId = node.ethereumParams(chain)
-		dust = ethereum.ValueDust
 	default:
 		panic(chain)
 	}
@@ -113,7 +109,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
 		panic(node.conf.TransactionMinimum)
 	}
-	if minimum.IntPart() < dust {
+	if minimum.IntPart() < 10000 {
 		panic(node.conf.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()

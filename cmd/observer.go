@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	ce "crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/sha512"
 	"encoding/binary"
@@ -16,6 +17,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
@@ -25,6 +27,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	gc "github.com/ethereum/go-ethereum/crypto"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/urfave/cli/v2"
 )
@@ -201,6 +204,7 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 
 	switch chain {
 	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainEthereum:
 	default:
 		return nil, fmt.Errorf("invalid chain %d", chain)
 	}
@@ -244,6 +248,7 @@ func GenerateObserverKeys(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
 	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainEthereum:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}
@@ -350,6 +355,17 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 		if err != nil {
 			panic(err)
 		}
+	case ethereum.ChainEthereum:
+		privateKey, err := gc.ToECDSA(res.Private)
+		if err != nil {
+			panic(err)
+		}
+		publicKey := privateKey.Public()
+		publicKeyECDSA, ok := publicKey.(*ce.PublicKey)
+		if !ok {
+			panic("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+		}
+		res.Public = gc.CompressPubkey(publicKeyECDSA)
 	default:
 		panic(chain)
 	}

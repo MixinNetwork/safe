@@ -60,6 +60,7 @@ const (
 	ActionEthereumSafeApproveTransaction = 133
 	ActionEthereumSafeRevokeTransaction  = 134
 	ActionEthereumSafeCloseAccount       = 135
+	ActionEthereumSafeRefundTransaction  = 136
 
 	FlagProposeNormalTransaction   = 0
 	FlagProposeRecoveryTransaction = 1

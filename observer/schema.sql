@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   transaction_hash   VARCHAR NOT NULL,
   output_index       VARCHAR NOT NULL,
   asset_id           VARCHAR NOT NULL,
+  asset_address      VARCHAR NOT NULL,
   amount             VARCHAR NOT NULL,
   receiver           VARCHAR NOT NULL,
   sender             VARCHAR NOT NULL,

@@ -21,6 +21,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
@@ -391,7 +392,7 @@ func (node *Node) ethereumSpendFullySignedTransaction(ctx context.Context, tx *T
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	st, _ := ethereum.UnmarshalSafeTransaction(b)
 
-	return node.ethereumBroadcastTransactionAndWriteDeposit(ctx, st, tx.Chain)
+	return node.ethereumBroadcastTransactionAndWriteDeposit(ctx, tx, st)
 }
 
 func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Context, min, max uint64, tx *Transaction) (*Output, error) {
@@ -566,19 +567,39 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 	return node.bitcoinProcessTransaction(ctx, tx, chain)
 }
 
-func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, st *ethereum.SafeTransaction, chain byte) (string, error) {
-	rpc, _ := node.ethereumParams(chain)
+func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
+	rpc, _ := node.ethereumParams(tx.Chain)
+	success, err := st.ValidTransaction(rpc)
+	if err != nil || !success {
+		err := node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
+		if err != nil {
+			return "", err
+		}
+
+		t, err := node.keeperStore.ReadTransaction(ctx, tx.TransactionHash)
+		if err != nil {
+			return "", err
+		}
+		id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
+		extra := uuid.Must(uuid.FromString(t.RequestId)).Bytes()
+		err = node.sendKeeperResponse(ctx, tx.Holder, byte(common.ActionEthereumSafeRefundTransaction), tx.Chain, id, extra)
+		if err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("ValidTransaction => %t, %v", success, err)
+	}
+
 	hash, err := st.ExecTransaction(rpc, node.conf.EVMKey)
 	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
 	if err != nil {
 		return "", err
 	}
 
-	tx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
+	etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 	if err != nil || tx == nil {
 		return "", fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, tx, err)
 	}
-	err = node.ethereumProcessTransaction(ctx, tx, chain)
+	err = node.ethereumProcessTransaction(ctx, etx, tx.Chain)
 	if err != nil {
 		return "", err
 	}

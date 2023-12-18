@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,12 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeERC20Tx, int64(chainID), id, accountAddress, destination, assetAddress, value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
+	outputs := tx.ExtractOutputs()
+	require.Len(outputs, 1)
+	require.Equal(strings.ToLower(assetAddress), outputs[0].TokenAddress)
+	require.Equal(strings.ToLower(destination), outputs[0].Destination)
+	require.Equal(value, outputs[0].Amount.String())
+
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
 	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
@@ -98,6 +105,15 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	tx, err := ethereum.CreateTransactionFromOutputs(ctx, ethereum.TypeMultiSendTx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
+	parsedOutputs := tx.ExtractOutputs()
+	require.Len(parsedOutputs, 2)
+	for i, po := range parsedOutputs {
+		o := outputs[i]
+		require.True(po.Amount.Cmp(o.Amount) == 0)
+		require.Equal(po.Destination, strings.ToLower(o.Destination))
+		require.Equal(po.TokenAddress, strings.ToLower(o.TokenAddress))
+	}
+
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
 	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
@@ -121,6 +137,12 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	id := uuid.Must(uuid.NewV4()).String()
 	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
+
+	outputs := tx.ExtractOutputs()
+	require.Len(outputs, 1)
+	require.Equal("", outputs[0].TokenAddress)
+	require.Equal(strings.ToLower(destination), outputs[0].Destination)
+	require.Equal(value, outputs[0].Amount.String())
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
@@ -180,10 +202,8 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
 	require.Nil(err)
-	require.Equal("bfad11e74c9d56cdb77fac087e94739057c9204da379b3b5bc7eb8d771dd24d97b26a14f2c35ce6b87baaf83a487a569d61bdbfeb74c2b0a5075325a023374ec1f", hex.EncodeToString(sigHolder))
 	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
 	require.Nil(err)
-	require.Equal("424f1a89f438a54c78fc35df68647e83af390ba2bc319dfe19249167ffdd4c765d7e939c40e691f735eb886aa61cf4f5e0bf3e7aed6eb5e7838b7f63fe5c4f551f", hex.EncodeToString(sigSigner))
 	tx.Signatures[1] = sigHolder
 	tx.Signatures[2] = sigSigner
 

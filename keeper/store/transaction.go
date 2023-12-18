@@ -281,6 +281,37 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Transaction, safe *Safe, req *common.Request) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+		common.RequestStateFailed, req.CreatedAt, trx.TransactionHash, common.RequestStateDone)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=? AND state=?",
+		safe.Nonce-1, time.Now().UTC(), safe.Holder, safe.Nonce, common.RequestStateDone)
+	if err != nil {
+		return fmt.Errorf("UPDATE safes %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+		common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) readTransaction(ctx context.Context, tx *sql.Tx, transactionHash string) (*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE transaction_hash=?", strings.Join(transactionCols, ","))
 	row := tx.QueryRowContext(ctx, query, transactionHash)
