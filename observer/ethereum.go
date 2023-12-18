@@ -163,6 +163,9 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	if err != nil {
 		return err
 	}
+	if len(blockTraces) == 0 {
+		return nil
+	}
 	block, err := ethereum.RPCGetBlock(rpc, hash)
 	if err != nil {
 		return err
@@ -399,7 +402,15 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
 
 	for {
-		time.Sleep(3 * time.Second)
+		duration := 3 * time.Second
+		switch chain {
+		case ethereum.ChainMVM:
+			duration = 100 * time.Millisecond
+		case ethereum.ChainEthereum:
+			duration = 1 * time.Second
+		}
+		time.Sleep(duration)
+
 		checkpoint, err := node.ethereumReadDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
