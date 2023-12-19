@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -285,9 +286,10 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 }
 
 func (deposit *Deposit) encodeKeeperExtra(decimals int32) []byte {
-	hash, err := crypto.HashFromString(deposit.TransactionHash)
+	txHash := strings.TrimPrefix(deposit.TransactionHash, "0x")
+	hash, err := crypto.HashFromString(txHash)
 	if err != nil {
-		panic(deposit.TransactionHash)
+		panic(txHash)
 	}
 
 	extra := []byte{deposit.Chain}

@@ -211,7 +211,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	case chainAssetId:
 		amount = decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
 	default:
-		asset, err := ethereum.FetchAsset(chain, rpc, transfer.AssetId)
+		asset, err := ethereum.FetchAsset(chain, rpc, transfer.TokenAddress)
 		if err != nil {
 			return err
 		}
