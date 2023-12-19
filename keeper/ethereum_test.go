@@ -317,7 +317,7 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	amt := decimal.NewFromBigInt(t.Value, -ethereum.ValuePrecision)
 	require.Equal("0.0001", amt.String())
 	require.Equal(testEthereumTransactionReceiver, t.Destination.Hex())
-	require.Equal(testEthereumSafeAddress, t.SafeAddress)
+	require.Equal(strings.ToLower(testEthereumSafeAddress), t.SafeAddress)
 
 	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
 	require.Nil(err)
@@ -344,7 +344,7 @@ func testEthereumProposeERC20Transaction(ctx context.Context, require *require.A
 	require.Nil(err)
 	require.Equal(int64(0), t.Value.Int64())
 	require.Equal(testEthereumCNBAddress, t.Destination.Hex())
-	require.Equal(testEthereumSafeAddress, t.SafeAddress)
+	require.Equal(strings.ToLower(testEthereumSafeAddress), t.SafeAddress)
 
 	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
 	require.Nil(err)
@@ -369,7 +369,7 @@ func testEthereumProposeRecoveryTransaction(ctx context.Context, require *requir
 	require.Nil(err)
 	require.Equal(int64(0), t.Value.Int64())
 	require.Equal(ethereum.EthereumMultiSendAddress, t.Destination.Hex())
-	require.Equal(testEthereumSafeAddress, t.SafeAddress)
+	require.Equal(strings.ToLower(testEthereumSafeAddress), t.SafeAddress)
 
 	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
 	require.Nil(err)
@@ -504,7 +504,7 @@ func testEthereumProposeAccount(ctx context.Context, require *require.Assertions
 	addr := ethereum.GetSafeAccountAddress(owners, 2)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, addr.Hex())
-	require.Equal(addr.Hex(), safe.Address)
+	require.Equal(strings.ToLower(addr.Hex()), safe.Address)
 	require.Equal(byte(1), safe.Threshold)
 	require.Len(safe.Receivers, 1)
 	require.Equal(testSafeBondReceiverId, safe.Receivers[0])
