@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	testEthereumSafeAddress    = "0x0cDb2d45335bDaf2c915Ec409956356571b9cA5B"
+	testEthereumSafeAddress    = "0x0cdb2d45335bdaf2c915ec409956356571b9ca5b"
 	testEthereumKeyHolder      = "6421d5ce0fd415397fdd2978733852cee7ad44f28d87cd96038460907e2ffb18"
 	testEthereumKeyObserver    = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
 	testEthereumKeyDummyHolder = "169b5ed2deaa8ea7171e60598332560b1d01e8a28243510335196acd62fd3a71"
@@ -503,7 +503,7 @@ func testEthereumProposeAccount(ctx context.Context, require *require.Assertions
 	owners, _ := ethereum.GetSortedSafeOwners(holder, signer, observer)
 	addr := ethereum.GetSafeAccountAddress(owners, 2)
 	require.Nil(err)
-	require.Equal(testEthereumSafeAddress, addr.Hex())
+	require.Equal(testEthereumSafeAddress, strings.ToLower(addr.Hex()))
 	require.Equal(strings.ToLower(addr.Hex()), safe.Address)
 	require.Equal(byte(1), safe.Threshold)
 	require.Len(safe.Receivers, 1)
@@ -580,9 +580,9 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 		}
 	}
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), chainId, owners, 2, int64(safe.Timelock/time.Hour), index, t)
+	safeAddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), chainId, owners, 2, int64(safe.Timelock/time.Hour), index, t)
 	require.Nil(err)
-	require.Equal(testEthereumSafeAddress, safeaddress.Hex())
+	require.Equal(testEthereumSafeAddress, strings.ToLower(safeAddress.Hex()))
 }
 
 func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer, txHash, assetId, assetAddress, balance string) {
