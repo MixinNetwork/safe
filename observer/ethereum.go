@@ -129,7 +129,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		blockHash, err := ethereum.RPCGetBlockHash(rpc, height)
-		if err != nil {
+		if err != nil || blockHash == "" {
 			logger.Printf("ethereum.RPCGetBlockHash(%d, %d) => %v", chain, height, err)
 			continue
 		}
@@ -158,6 +158,9 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	hash, err := ethereum.RPCGetBlockHash(rpc, num)
 	if err != nil {
 		return err
+	}
+	if hash == "" {
+		return fmt.Errorf("empty hash for height: %d", num)
 	}
 	blockTraces, err := ethereum.RPCDebugTraceBlockByHash(rpc, hash)
 	if err != nil {
