@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -68,8 +67,8 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 
 	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
-	require.Equal(strings.ToLower(assetAddress), outputs[0].TokenAddress)
-	require.Equal(strings.ToLower(destination), outputs[0].Destination)
+	require.Equal(assetAddress, outputs[0].TokenAddress)
+	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -110,8 +109,8 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	for i, po := range parsedOutputs {
 		o := outputs[i]
 		require.True(po.Amount.Cmp(o.Amount) == 0)
-		require.Equal(po.Destination, strings.ToLower(o.Destination))
-		require.Equal(po.TokenAddress, strings.ToLower(o.TokenAddress))
+		require.Equal(po.Destination, o.Destination)
+		require.Equal(po.TokenAddress, o.TokenAddress)
 	}
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -141,7 +140,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
 	require.Equal("", outputs[0].TokenAddress)
-	require.Equal(strings.ToLower(destination), outputs[0].Destination)
+	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
