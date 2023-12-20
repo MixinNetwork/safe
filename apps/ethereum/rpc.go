@@ -111,7 +111,7 @@ func RPCGetBlockHash(rpc string, height int64) (string, error) {
 	}
 	var b *RPCBlock
 	err = json.Unmarshal(res, &b)
-	if err != nil {
+	if err != nil || b == nil {
 		return "", err
 	}
 	return b.Hash, err
