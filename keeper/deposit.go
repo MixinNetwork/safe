@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -51,7 +50,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		}
 	case SafeChainEthereum, SafeChainMVM:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
-		deposit.AssetAddress = strings.ToLower(gc.BytesToAddress(extra[32:52]).Hex())
+		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
 		deposit.Amount = new(big.Int).SetBytes(extra[60:])
 	default:
@@ -222,7 +221,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	match := false
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)
-		if t.Index == int64(deposit.Index) && strings.ToLower(t.Receiver) == strings.ToLower(safe.Address) && deposit.Amount.Cmp(t.Value) == 0 {
+		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
 			match = true
 		}
 	}

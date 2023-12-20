@@ -60,7 +60,7 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 
 func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
 	owners, _ := GetSortedSafeOwners(holder, signer, observer)
-	safeAddress := strings.ToLower(GetSafeAccountAddress(owners, 2).Hex())
+	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
 
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
 		return nil, nil, fmt.Errorf("time lock out of range %s", lock.String())

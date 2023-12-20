@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -367,7 +366,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		Observer:  observer,
 		Timelock:  arp.Timelock,
 		Path:      hex.EncodeToString(path),
-		Address:   strings.ToLower(gs.Address),
+		Address:   gs.Address,
 		Extra:     extra,
 		Receivers: arp.Receivers,
 		Threshold: arp.Threshold,

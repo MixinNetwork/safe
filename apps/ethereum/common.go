@@ -74,6 +74,7 @@ type Transfer struct {
 }
 
 func GenerateAssetId(chain byte, assetKey string) string {
+	assetKey = strings.ToLower(assetKey)
 	err := VerifyAssetKey(assetKey)
 	if err != nil {
 		panic(assetKey)
@@ -153,21 +154,21 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 		return transfers
 	case trace.Value != "" && trace.Input == "0x": // ETH transfer
 		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
-		to := strings.ToLower(trace.To)
+		to := common.HexToAddress(trace.To)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
 				Index:        depositIndex,
 				Value:        value,
-				Receiver:     to,
+				Receiver:     to.Hex(),
 				TokenAddress: EthereumEmptyAddress,
 				AssetId:      chainId,
 			})
 		}
 	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
 		input := trace.Input[10:]
-		to := strings.ToLower(common.HexToAddress(input[0:64]).Hex())
+		to := common.HexToAddress(input[0:64]).Hex()
 		value, _ := new(big.Int).SetString(input[64:128], 16)
-		tokenAddress := strings.ToLower(trace.To)
+		tokenAddress := trace.To
 		assetId := GenerateAssetId(chain, tokenAddress)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
@@ -182,9 +183,7 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 
 	for i, c := range trace.Calls {
 		ts := LoopCalls(chain, chainId, c, layer+1, i)
-		for _, t := range ts {
-			transfers = append(transfers, t)
-		}
+		transfers = append(transfers, ts...)
 	}
 	return transfers
 }
@@ -231,13 +230,13 @@ func GetMixinChainID(chain int64) string {
 
 func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 	addr := common.HexToAddress(address)
-	assetId := GenerateAssetId(chain, address)
+	assetId := GenerateAssetId(chain, strings.ToLower(address))
 
 	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
 	token, err := abi.NewAsset(addr, conn)
 	if err != nil {
 		return nil, err
