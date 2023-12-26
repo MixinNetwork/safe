@@ -304,7 +304,6 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	require.Nil(err)
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
-	extra = append(extra, uuid.Must(uuid.FromString(SafeMVMChainId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))
 	testStep(ctx, require, node, out)
@@ -333,7 +332,6 @@ func testEthereumProposeERC20Transaction(ctx context.Context, require *require.A
 	require.Nil(err)
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
-	extra = append(extra, uuid.Must(uuid.FromString(testEthereumCNBAssetId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(1))
 	testStep(ctx, require, node, out)
@@ -358,7 +356,6 @@ func testEthereumProposeRecoveryTransaction(ctx context.Context, require *requir
 	require.Nil(err)
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
-	extra = append(extra, uuid.Must(uuid.FromString(testEthereumCNBAssetId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(1))
 	testStep(ctx, require, node, out)
