@@ -974,8 +974,8 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string
 	return err
 }
 
-func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash string, sigBase64 string) error {
-	logger.Printf("node.httpRevokeEthereumTransaction(%s, %s)", txHash, sigBase64)
+func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash string, sigHex string) error {
+	logger.Printf("node.httpRevokeEthereumTransaction(%s, %s)", txHash, sigHex)
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
@@ -994,7 +994,7 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 		return err
 	}
 
-	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
+	sig, err := hex.DecodeString(sigHex)
 	if err != nil {
 		return err
 	}
@@ -1023,7 +1023,7 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 		return err
 	}
 
-	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64+":"+approval.RawTransaction)
+	err = node.store.RevokeTransactionApproval(ctx, txHash, sigHex+":"+approval.RawTransaction)
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
 }
