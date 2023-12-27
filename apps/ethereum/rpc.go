@@ -189,11 +189,13 @@ func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
-	if err != nil {
-		return nil, err
+	if b.BlockNumber != "" {
+		blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
+		if err != nil {
+			return nil, err
+		}
+		b.BlockHeight = blockHeight
 	}
-	b.BlockHeight = blockHeight
 	return &b, err
 }
 
