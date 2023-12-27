@@ -97,7 +97,7 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	}
 	timelock := int64(safe.Timelock / time.Hour)
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	sa, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, chainId, owners, 2, timelock, index, t)
+	sa, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, node.conf.EVMKey, chainId, owners, 2, timelock, index, t)
 	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %d, %v, %d, %d, %v) => %s %v", rpc, chainId, owners, 2, timelock, t, sa, err)
 	return err
 }

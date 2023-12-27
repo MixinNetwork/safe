@@ -521,7 +521,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
 	require.Nil(err)
 	outputs := t.ExtractOutputs()
-	require.Len(outputs, 0)
+	require.Len(outputs, 2)
 	signature := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
 
 	extra := uuid.FromStringOrNil(rid).Bytes()
@@ -576,7 +576,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 		}
 	}
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	safeAddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), chainId, owners, 2, int64(safe.Timelock/time.Hour), index, t)
+	safeAddress, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, os.Getenv("MVM_DEPLOYER"), chainId, owners, 2, int64(safe.Timelock/time.Hour), index, t)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, safeAddress.Hex())
 }

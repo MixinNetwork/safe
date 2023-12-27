@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -61,6 +62,10 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid string, lock time.Duration, chain byte) (*GnosisSafe, *SafeTransaction, error) {
 	owners, _ := GetSortedSafeOwners(holder, signer, observer)
 	safeAddress := GetSafeAccountAddress(owners, 2).Hex()
+	ob, err := ParseEthereumCompressedPublicKey(observer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ethereum.ParseEthereumCompressedPublicKey(%s) => %v %v", observer, ob, err)
+	}
 
 	if lock < TimeLockMinimum || lock > TimeLockMaximum {
 		return nil, nil, fmt.Errorf("time lock out of range %s", lock.String())
@@ -68,8 +73,8 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	sequence := lock / time.Hour
 
 	chainID := GetEvmChainID(int64(chain))
-	t, err := CreateTransaction(ctx, TypeInitGuardTx, chainID, rid, safeAddress, safeAddress, "", "0", new(big.Int).SetUint64(0))
-	logger.Printf("CreateTransaction(%d, %d, %s, %s, %s, %d) => %v", TypeInitGuardTx, chainID, rid, safeAddress, safeAddress, 0, err)
+	t, err := CreateEnableGuardTransaction(ctx, chainID, rid, safeAddress, ob.Hex(), new(big.Int).SetUint64(uint64(sequence)))
+	logger.Printf("CreateEnableGuardTransaction(%d, %s, %s, %s, %d) => %v", chainID, rid, safeAddress, ob.Hex(), sequence, err)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -84,7 +89,7 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 	var owners []string
 	for _, pub := range []string{holder, signer, observer} {
-		addr, err := parseEthereumCompressedPublicKey(pub)
+		addr, err := ParseEthereumCompressedPublicKey(pub)
 		if err != nil {
 			panic(pub)
 		}
@@ -98,14 +103,14 @@ func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 
 	pubs := make([]string, 3)
 	for _, pub := range []string{holder, signer, observer} {
-		addr, _ := parseEthereumCompressedPublicKey(pub)
+		addr, _ := ParseEthereumCompressedPublicKey(pub)
 		index := addressMap[addr.Hex()]
 		pubs[index] = pub
 	}
 	return owners, pubs
 }
 
-func GetOrDeploySafeAccount(rpc, key string, chainId int64, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
+func GetOrDeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
 	addr := GetSafeAccountAddress(owners, threshold)
 
 	isGuarded, isDeployed, err := CheckSafeAccountDeployed(rpc, addr.String())
@@ -113,13 +118,13 @@ func GetOrDeploySafeAccount(rpc, key string, chainId int64, owners []string, thr
 		return nil, err
 	}
 	if !isDeployed {
-		err = DeploySafeAccount(rpc, key, chainId, owners, threshold)
+		err = DeploySafeAccount(ctx, rpc, key, chainId, owners, threshold)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if !isGuarded {
-		err = EnableGuard(rpc, key, chainId, timelock, owners[observerIndex], addr.Hex(), tx)
+		_, err := tx.ExecTransaction(ctx, rpc, key)
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +184,7 @@ func GetSafeAccountAddress(owners []string, threshold int64) common.Address {
 	return common.BytesToAddress(crypto.Keccak256(input))
 }
 
-func DeploySafeAccount(rpc, key string, chainId int64, owners []string, threshold int64) error {
+func DeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owners []string, threshold int64) error {
 	initializer := getInitializer(owners, threshold)
 	nonce := new(big.Int)
 	nonce.SetString(predeterminedSaltNonce[2:], 16)
@@ -195,28 +200,26 @@ func DeploySafeAccount(rpc, key string, chainId int64, owners []string, threshol
 		return err
 	}
 
-	_, err = factoryAbi.CreateProxyWithNonce(signer, common.HexToAddress(EthereumSafeL2Address), initializer, nonce)
+	t, err := factoryAbi.CreateProxyWithNonce(signer, common.HexToAddress(EthereumSafeL2Address), initializer, nonce)
+	if err != nil {
+		return err
+	}
+	_, err = bind.WaitMined(ctx, conn, t)
 	return err
 }
 
-func EnableGuard(rpc, key string, chainId, timelock int64, observer, safeAddress string, tx *SafeTransaction) error {
-	_, err := tx.ExecTransaction(rpc, key)
+func GetOwners(rpc, address string) ([]common.Address, error) {
+	conn, abi, err := safeInit(rpc, address)
 	if err != nil {
-		return err
-	}
-
-	conn, guardAbi, err := guardInit(rpc)
-	if err != nil {
-		return err
+		return nil, err
 	}
 	defer conn.Close()
 
-	signer, err := signerInit(key, chainId)
+	os, err := abi.GetOwners(nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = guardAbi.GuardSafe(signer, common.HexToAddress(safeAddress), common.HexToAddress(observer), new(big.Int).SetInt64(timelock))
-	return err
+	return os, nil
 }
 
 func GetNonce(rpc, address string) (int64, error) {
@@ -293,7 +296,7 @@ func GetSafeLastTxTime(rpc, address string) (time.Time, error) {
 }
 
 func VerifyHolderKey(public string) error {
-	_, err := parseEthereumCompressedPublicKey(public)
+	_, err := ParseEthereumCompressedPublicKey(public)
 	return err
 }
 
@@ -314,7 +317,7 @@ func VerifyHashSignature(public string, hash, sig []byte) error {
 	return fmt.Errorf("crypto.VerifySignature(%s, %x, %x)", public, hash, sig)
 }
 
-func parseEthereumCompressedPublicKey(public string) (*common.Address, error) {
+func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
 		return nil, err

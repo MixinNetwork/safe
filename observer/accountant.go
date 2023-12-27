@@ -589,7 +589,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		return "", fmt.Errorf("ValidTransaction => %t, %v", success, err)
 	}
 
-	hash, err := st.ExecTransaction(rpc, node.conf.EVMKey)
+	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)
 	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
 	if err != nil {
 		return "", err

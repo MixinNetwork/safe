@@ -973,7 +973,12 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
-		gt, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, chainId, sp.RequestId, sp.Address, sp.Address, "", "0", new(big.Int).SetUint64(0))
+		timelock := uint64(sp.Timelock / time.Hour)
+		observer, err := ethereum.ParseEthereumCompressedPublicKey(sp.Observer)
+		if err != nil {
+			return fmt.Errorf("ethereum.ParseEthereumCompressedPublicKey(%s) => %v %v", sp.Observer, observer, err)
+		}
+		gt, err := ethereum.CreateEnableGuardTransaction(ctx, chainId, sp.RequestId, sp.Address, observer.Hex(), new(big.Int).SetUint64(timelock))
 		if err != nil {
 			panic(err)
 		}
