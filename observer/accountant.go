@@ -594,15 +594,6 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	if err != nil {
 		return "", err
 	}
-
-	etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
-	if err != nil || etx == nil {
-		return "", fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
-	}
-	err = node.ethereumProcessTransaction(ctx, etx, tx.Chain)
-	if err != nil {
-		return "", err
-	}
 	return hash, nil
 }
 
