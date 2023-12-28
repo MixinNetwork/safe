@@ -17,7 +17,7 @@ To deploy safe contracts in the next step, it's better to push changes of `artif
 
 ## 2 Deploy Safe Contracts
 
-- Run `git clone https://github.com/safe-global/safe-contracts.git` 
+- Run `git clone https://github.com/MixinNetwork/safe-contracts.git` 
 - Run `git checkout feature/mixin-safe-guard` (contracts version: v1.4.1)
 - Run `yarn install` (Do this every time before deploying contracts if `@gnosis.pm/safe-singleton-factory` in package.json is your own fork)
 - Set `MNEMONIC` in the `.env` file
