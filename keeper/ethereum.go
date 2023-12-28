@@ -566,15 +566,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if info == nil || info.Chain != safe.Chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	assetId, err := uuid.FromBytes(extra[16:32])
-	if err != nil || assetId.String() == uuid.Nil.String() {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	if id.String() != assetId.String() {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId.String())
-	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId.String(), balance, err)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, id.String())
+	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, id.String(), balance, err)
 	if err != nil {
 		return err
 	}
@@ -583,8 +576,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 	decimals := int32(ethereum.ValuePrecision)
 	if balance.AssetAddress != ethereum.EthereumEmptyAddress {
-		asset, err := node.store.ReadAssetMeta(ctx, assetId.String())
-		logger.Printf("store.ReadAssetMeta(%s) => %v %v", assetId.String(), asset, err)
+		asset, err := node.store.ReadAssetMeta(ctx, id.String())
+		logger.Printf("store.ReadAssetMeta(%s) => %v %v", id.String(), asset, err)
 		if err != nil {
 			return err
 		}
@@ -596,7 +589,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	var outputs []*ethereum.Output
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
-	if len(extra[32:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[32:]) {
+	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
 		extra := common.DecodeMixinObjectExtra(stx.Extra)
 		var recipients [][2]string // TODO better encoding
@@ -623,7 +616,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 	} else {
 		outputs = []*ethereum.Output{{
-			Destination: string(extra[32:]),
+			Destination: string(extra[16:]),
 			Amount:      ethereum.ParseAmount(req.Amount.String(), decimals),
 		}}
 		if balance.AssetAddress != ethereum.EthereumEmptyAddress {
@@ -686,7 +679,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				continue
 			}
 			output := &ethereum.Output{
-				Destination: string(extra[32:]),
+				Destination: string(extra[16:]),
 				Amount:      b.Balance,
 			}
 			if b.AssetAddress != ethereum.EthereumEmptyAddress {
@@ -738,7 +731,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
-		AssetId:         assetId.String(),
+		AssetId:         id.String(),
 		State:           common.RequestStateInitial,
 		Data:            string(data),
 		RequestId:       req.Id,
@@ -980,7 +973,12 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
-		gt, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, chainId, sp.RequestId, sp.Address, sp.Address, "", "0", new(big.Int).SetUint64(0))
+		timelock := uint64(sp.Timelock / time.Hour)
+		observer, err := ethereum.ParseEthereumCompressedPublicKey(sp.Observer)
+		if err != nil {
+			return fmt.Errorf("ethereum.ParseEthereumCompressedPublicKey(%s) => %v %v", sp.Observer, observer, err)
+		}
+		gt, err := ethereum.CreateEnableGuardTransaction(ctx, chainId, sp.RequestId, sp.Address, observer.Hex(), new(big.Int).SetUint64(timelock))
 		if err != nil {
 			panic(err)
 		}

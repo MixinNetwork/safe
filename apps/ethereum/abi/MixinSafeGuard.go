@@ -31,7 +31,7 @@ var (
 
 // MixinSafeGuardMetaData contains all meta data concerning the MixinSafeGuard contract.
 var MixinSafeGuardMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"name\":\"checkAfterExecution\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"enumEnum.Operation\",\"name\":\"operation\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"safeTxGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"baseGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"gasPrice\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"gasToken\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"refundReceiver\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"signatures\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"checkTransaction\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"safeAddress\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"observerAddress\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"timelock\",\"type\":\"uint256\"}],\"name\":\"guardSafe\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"safeLastTxTime\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"safeObserver\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"safeTimelock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"name\":\"checkAfterExecution\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"enumEnum.Operation\",\"name\":\"operation\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"safeTxGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"baseGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"gasPrice\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"gasToken\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"refundReceiver\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"signatures\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"checkTransaction\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"observerAddress\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"timelock\",\"type\":\"uint256\"}],\"name\":\"guardSafe\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"safeLastTxTime\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"safeObserver\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"safeTimelock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes4\",\"name\":\"interfaceId\",\"type\":\"bytes4\"}],\"name\":\"supportsInterface\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // MixinSafeGuardABI is the input ABI used to generate the binding from.
@@ -273,6 +273,37 @@ func (_MixinSafeGuard *MixinSafeGuardCallerSession) SafeTimelock(arg0 common.Add
 	return _MixinSafeGuard.Contract.SafeTimelock(&_MixinSafeGuard.CallOpts, arg0)
 }
 
+// SupportsInterface is a free data retrieval call binding the contract method 0x01ffc9a7.
+//
+// Solidity: function supportsInterface(bytes4 interfaceId) view returns(bool)
+func (_MixinSafeGuard *MixinSafeGuardCaller) SupportsInterface(opts *bind.CallOpts, interfaceId [4]byte) (bool, error) {
+	var out []interface{}
+	err := _MixinSafeGuard.contract.Call(opts, &out, "supportsInterface", interfaceId)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// SupportsInterface is a free data retrieval call binding the contract method 0x01ffc9a7.
+//
+// Solidity: function supportsInterface(bytes4 interfaceId) view returns(bool)
+func (_MixinSafeGuard *MixinSafeGuardSession) SupportsInterface(interfaceId [4]byte) (bool, error) {
+	return _MixinSafeGuard.Contract.SupportsInterface(&_MixinSafeGuard.CallOpts, interfaceId)
+}
+
+// SupportsInterface is a free data retrieval call binding the contract method 0x01ffc9a7.
+//
+// Solidity: function supportsInterface(bytes4 interfaceId) view returns(bool)
+func (_MixinSafeGuard *MixinSafeGuardCallerSession) SupportsInterface(interfaceId [4]byte) (bool, error) {
+	return _MixinSafeGuard.Contract.SupportsInterface(&_MixinSafeGuard.CallOpts, interfaceId)
+}
+
 // CheckAfterExecution is a paid mutator transaction binding the contract method 0x93271368.
 //
 // Solidity: function checkAfterExecution(bytes32 , bool ) returns()
@@ -315,23 +346,23 @@ func (_MixinSafeGuard *MixinSafeGuardTransactorSession) CheckTransaction(to comm
 	return _MixinSafeGuard.Contract.CheckTransaction(&_MixinSafeGuard.TransactOpts, to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures, arg10)
 }
 
-// GuardSafe is a paid mutator transaction binding the contract method 0xef1f3ced.
+// GuardSafe is a paid mutator transaction binding the contract method 0x59335aa2.
 //
-// Solidity: function guardSafe(address safeAddress, address observerAddress, uint256 timelock) returns()
-func (_MixinSafeGuard *MixinSafeGuardTransactor) GuardSafe(opts *bind.TransactOpts, safeAddress common.Address, observerAddress common.Address, timelock *big.Int) (*types.Transaction, error) {
-	return _MixinSafeGuard.contract.Transact(opts, "guardSafe", safeAddress, observerAddress, timelock)
+// Solidity: function guardSafe(address observerAddress, uint256 timelock) returns()
+func (_MixinSafeGuard *MixinSafeGuardTransactor) GuardSafe(opts *bind.TransactOpts, observerAddress common.Address, timelock *big.Int) (*types.Transaction, error) {
+	return _MixinSafeGuard.contract.Transact(opts, "guardSafe", observerAddress, timelock)
 }
 
-// GuardSafe is a paid mutator transaction binding the contract method 0xef1f3ced.
+// GuardSafe is a paid mutator transaction binding the contract method 0x59335aa2.
 //
-// Solidity: function guardSafe(address safeAddress, address observerAddress, uint256 timelock) returns()
-func (_MixinSafeGuard *MixinSafeGuardSession) GuardSafe(safeAddress common.Address, observerAddress common.Address, timelock *big.Int) (*types.Transaction, error) {
-	return _MixinSafeGuard.Contract.GuardSafe(&_MixinSafeGuard.TransactOpts, safeAddress, observerAddress, timelock)
+// Solidity: function guardSafe(address observerAddress, uint256 timelock) returns()
+func (_MixinSafeGuard *MixinSafeGuardSession) GuardSafe(observerAddress common.Address, timelock *big.Int) (*types.Transaction, error) {
+	return _MixinSafeGuard.Contract.GuardSafe(&_MixinSafeGuard.TransactOpts, observerAddress, timelock)
 }
 
-// GuardSafe is a paid mutator transaction binding the contract method 0xef1f3ced.
+// GuardSafe is a paid mutator transaction binding the contract method 0x59335aa2.
 //
-// Solidity: function guardSafe(address safeAddress, address observerAddress, uint256 timelock) returns()
-func (_MixinSafeGuard *MixinSafeGuardTransactorSession) GuardSafe(safeAddress common.Address, observerAddress common.Address, timelock *big.Int) (*types.Transaction, error) {
-	return _MixinSafeGuard.Contract.GuardSafe(&_MixinSafeGuard.TransactOpts, safeAddress, observerAddress, timelock)
+// Solidity: function guardSafe(address observerAddress, uint256 timelock) returns()
+func (_MixinSafeGuard *MixinSafeGuardTransactorSession) GuardSafe(observerAddress common.Address, timelock *big.Int) (*types.Transaction, error) {
+	return _MixinSafeGuard.Contract.GuardSafe(&_MixinSafeGuard.TransactOpts, observerAddress, timelock)
 }

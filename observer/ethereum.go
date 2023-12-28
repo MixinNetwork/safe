@@ -97,7 +97,7 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	}
 	timelock := int64(safe.Timelock / time.Hour)
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
-	sa, err := ethereum.GetOrDeploySafeAccount(rpc, node.conf.EVMKey, chainId, owners, 2, timelock, index, t)
+	sa, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, node.conf.EVMKey, chainId, owners, 2, timelock, index, t)
 	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %d, %v, %d, %d, %v) => %s %v", rpc, chainId, owners, 2, timelock, t, sa, err)
 	return err
 }
@@ -974,8 +974,8 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string
 	return err
 }
 
-func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash string, sigBase64 string) error {
-	logger.Printf("node.httpRevokeEthereumTransaction(%s, %s)", txHash, sigBase64)
+func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash string, sigHex string) error {
+	logger.Printf("node.httpRevokeEthereumTransaction(%s, %s)", txHash, sigHex)
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
 	if err != nil || approval == nil {
@@ -994,20 +994,20 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 		return err
 	}
 
-	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
+	sig, err := hex.DecodeString(sigHex)
 	if err != nil {
 		return err
 	}
 	msg := []byte(fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash))
-	err = ethereum.VerifyHashSignature(tx.Holder, msg, sig)
-	logger.Printf("holder: ethereum.VerifyHashSignature(%v) => %v", tx, err)
+	err = ethereum.VerifyMessageSignature(tx.Holder, msg, sig)
+	logger.Printf("holder: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 	if err != nil {
 		safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
 		if err != nil {
 			return err
 		}
-		err = ethereum.VerifyHashSignature(safe.Observer, msg, sig)
-		logger.Printf("observer: ethereum.VerifyHashSignature(%v) => %v", tx, err)
+		err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+		logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 		if err != nil {
 			return err
 		}
@@ -1023,7 +1023,7 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 		return err
 	}
 
-	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64+":"+approval.RawTransaction)
+	err = node.store.RevokeTransactionApproval(ctx, txHash, sigHex+":"+approval.RawTransaction)
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
 }

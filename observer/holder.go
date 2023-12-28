@@ -108,8 +108,8 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 	return node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
 }
 
-func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 string) error {
-	logger.Printf("node.httpApproveSafeAccount(%s, %s)", addr, sigBase64)
+func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature string) error {
+	logger.Printf("node.httpApproveSafeAccount(%s, %s)", addr, signature)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -119,13 +119,14 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 		return err
 	}
 
-	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
-	if err != nil {
-		return err
-	}
 	var action int
+	var sig []byte
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		sig, err = base64.RawURLEncoding.DecodeString(signature)
+		if err != nil {
+			return err
+		}
 		action = common.ActionBitcoinSafeApproveAccount
 		ms := fmt.Sprintf("APPROVE:%s:%s", sp.RequestId, sp.Address)
 		hash := bitcoin.HashMessageForSignature(ms, sp.Chain)
@@ -135,6 +136,10 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 			return err
 		}
 	case keeper.SafeChainMVM:
+		sig, err = hex.DecodeString(signature)
+		if err != nil {
+			return err
+		}
 		action = common.ActionEthereumSafeApproveAccount
 		gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
 		logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", hex.EncodeToString(sp.Extra), gs, err)
@@ -164,7 +169,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, sigBase64 st
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	id := common.UniqueId(addr, sigBase64)
+	id := common.UniqueId(addr, signature)
 	rid := uuid.Must(uuid.FromString(sp.RequestId))
 	extra := append(rid.Bytes(), sig...)
 	return node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
@@ -251,12 +256,12 @@ func (node *Node) httpApproveSafeTransaction(ctx context.Context, chain byte, ra
 	}
 }
 
-func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, hash, sigBase64 string) error {
+func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, hash, sig string) error {
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		return node.httpRevokeBitcoinTransaction(ctx, hash, sigBase64)
+		return node.httpRevokeBitcoinTransaction(ctx, hash, sig)
 	case keeper.SafeChainMVM:
-		return node.httpRevokeEthereumTransaction(ctx, hash, sigBase64)
+		return node.httpRevokeEthereumTransaction(ctx, hash, sig)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}

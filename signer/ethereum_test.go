@@ -157,7 +157,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 		require.Nil(err)
 		require.True(isValid)
 
-		_, err = tx.ExecTransaction(rpc, os.Getenv("MVM_DEPLOYER"))
+		_, err = tx.ExecTransaction(ctx, rpc, os.Getenv("MVM_DEPLOYER"))
 		require.Nil(err)
 
 		time.Sleep(1 * time.Minute)
@@ -196,7 +196,7 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, int64(chainID), id, addrStr, addrStr, "", "0", new(big.Int).SetInt64(0))
+	tx, err := ethereum.CreateEnableGuardTransaction(ctx, int64(chainID), id, addrStr, ao, new(big.Int).SetUint64(uint64(timelock)))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -208,7 +208,7 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 
 	testSafeTransactionMarshal(require, tx)
 
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), int64(chainID), owners, int64(threshold), int64(timelock), 2, tx)
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, os.Getenv("MVM_DEPLOYER"), int64(chainID), owners, int64(threshold), int64(timelock), 2, tx)
 	require.Nil(err)
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 	return safeaddress.String()
