@@ -22,7 +22,6 @@ To deploy safe contracts in the next step, it's better to push changes of `artif
 - Run `yarn install` (Do this every time before deploying contracts if `@gnosis.pm/safe-singleton-factory` in package.json is your own fork)
 - Set `MNEMONIC` in the `.env` file
 - Set `CUSTOM_DETERMINISTIC_DEPLOYMENT = true` in the `.env` file
-- Set `MANAGER` in the `.env` file (This address is the manager of MixinSafeGuard contract that sends transaction to call `guardSafe` func in MixinSafeGuard contract)
 - Run `rm -r deployments` if needed
 
 ### For custom network like mvm
@@ -34,7 +33,7 @@ To deploy safe contracts in the next step, it's better to push changes of `artif
 - Run `yarn deploy-all <network>`
 
 
-For some networks or custom network, you might need to add network rpc host in the `submitSources` function of `node_modules/hardhat-deploy/dist/src/etherscan.js`
+For some networks or custom network, you might need to add network rpc host in the `submitSources` function of `node_modules/hardhat-deploy/dist/src/etherscan.js` in contract verification step.
 ```
 // add mvm rpc host
 case '73927':
