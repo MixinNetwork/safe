@@ -91,7 +91,7 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	var outputs []*ethereum.Output
 	outputs = append(outputs, &ethereum.Output{
 		Destination: "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
-		Amount:      big.NewInt(100000000000000),
+		Amount:      big.NewInt(10000000000000),
 	})
 	outputs = append(outputs, &ethereum.Output{
 		TokenAddress: "0x910Fb1751B946C7D691905349eC5dD250EFBF40a",
