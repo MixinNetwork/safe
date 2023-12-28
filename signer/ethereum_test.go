@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -68,8 +67,8 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 
 	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
-	require.Equal(strings.ToLower(assetAddress), outputs[0].TokenAddress)
-	require.Equal(strings.ToLower(destination), outputs[0].Destination)
+	require.Equal(assetAddress, outputs[0].TokenAddress)
+	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -92,7 +91,7 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	var outputs []*ethereum.Output
 	outputs = append(outputs, &ethereum.Output{
 		Destination: "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
-		Amount:      big.NewInt(100000000000000),
+		Amount:      big.NewInt(10000000000000),
 	})
 	outputs = append(outputs, &ethereum.Output{
 		TokenAddress: "0x910Fb1751B946C7D691905349eC5dD250EFBF40a",
@@ -110,8 +109,8 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	for i, po := range parsedOutputs {
 		o := outputs[i]
 		require.True(po.Amount.Cmp(o.Amount) == 0)
-		require.Equal(po.Destination, strings.ToLower(o.Destination))
-		require.Equal(po.TokenAddress, strings.ToLower(o.TokenAddress))
+		require.Equal(po.Destination, o.Destination)
+		require.Equal(po.TokenAddress, o.TokenAddress)
 	}
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -141,7 +140,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
 	require.Equal("", outputs[0].TokenAddress)
-	require.Equal(strings.ToLower(destination), outputs[0].Destination)
+	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -158,7 +157,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 		require.Nil(err)
 		require.True(isValid)
 
-		_, err = tx.ExecTransaction(rpc, os.Getenv("MVM_DEPLOYER"))
+		_, err = tx.ExecTransaction(ctx, rpc, os.Getenv("MVM_DEPLOYER"))
 		require.Nil(err)
 
 		time.Sleep(1 * time.Minute)
@@ -197,7 +196,7 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeInitGuardTx, int64(chainID), id, addrStr, addrStr, "", "0", new(big.Int).SetInt64(0))
+	tx, err := ethereum.CreateEnableGuardTransaction(ctx, int64(chainID), id, addrStr, ao, new(big.Int).SetUint64(uint64(timelock)))
 	require.Nil(err)
 
 	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
@@ -209,7 +208,7 @@ func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions
 
 	testSafeTransactionMarshal(require, tx)
 
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(rpc, os.Getenv("MVM_DEPLOYER"), int64(chainID), owners, int64(threshold), int64(timelock), 2, tx)
+	safeaddress, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, os.Getenv("MVM_DEPLOYER"), int64(chainID), owners, int64(threshold), int64(timelock), 2, tx)
 	require.Nil(err)
 	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
 	return safeaddress.String()

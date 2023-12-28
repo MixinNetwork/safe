@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/sha3"
@@ -80,10 +81,6 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 	}
 	switch typ {
 	case TypeETHTx:
-	case TypeInitGuardTx:
-		tx.Destination = common.HexToAddress(safeAddress)
-		tx.Value = big.NewInt(0)
-		tx.Data = GetEnableGuradData(EthereumSafeGuardAddress)
 	case TypeERC20Tx:
 		norm := NormalizeAddress(tokenAddress)
 		if norm == "" {
@@ -119,6 +116,31 @@ func CreateMultiSendTransaction(ctx context.Context, chainID int64, id, safeAddr
 		Nonce:          nonce,
 		Signatures:     make([][]byte, 3),
 	}
+	tx.Message = tx.GetTransactionHash()
+	tx.TxHash = tx.Hash(id)
+	return tx, nil
+}
+
+func CreateEnableGuardTransaction(ctx context.Context, chainID int64, id, safeAddress, observerAddress string, timelock *big.Int) (*SafeTransaction, error) {
+	if timelock == nil {
+		return nil, fmt.Errorf("invalid timelock: %d", timelock)
+	}
+	zero := big.NewInt(0)
+	tx := &SafeTransaction{
+		ChainID:        chainID,
+		SafeAddress:    safeAddress,
+		Destination:    common.HexToAddress(EthereumMultiSendAddress),
+		Value:          zero,
+		Operation:      operationTypeDelegateCall,
+		SafeTxGas:      zero,
+		BaseGas:        zero,
+		GasPrice:       zero,
+		GasToken:       common.HexToAddress(EthereumEmptyAddress),
+		RefundReceiver: common.HexToAddress(EthereumEmptyAddress),
+		Nonce:          zero,
+		Signatures:     make([][]byte, 3),
+	}
+	tx.Data = tx.GetEnableGuradData(observerAddress, timelock)
 	tx.Message = tx.GetTransactionHash()
 	tx.TxHash = tx.Hash(id)
 	return tx, nil
@@ -266,7 +288,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 	return isValid, nil
 }
 
-func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
+func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
 	signer, err := signerInit(key, tx.ChainID)
 	if err != nil {
 		return "", err
@@ -290,7 +312,7 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 		return "", fmt.Errorf("SafeTransaction has insufficient signatures")
 	}
 
-	txResponse, err := safeAbi.ExecTransaction(
+	t, err := safeAbi.ExecTransaction(
 		signer,
 		tx.Destination,
 		tx.Value,
@@ -306,7 +328,11 @@ func (tx *SafeTransaction) ExecTransaction(rpc, key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return txResponse.Hash().Hex(), nil
+	_, err = bind.WaitMined(ctx, conn, t)
+	if err != nil {
+		return "", err
+	}
+	return t.Hash().Hex(), nil
 }
 
 func (tx *SafeTransaction) ExtractOutputs() []*Output {
@@ -317,23 +343,19 @@ func (tx *SafeTransaction) ExtractOutputs() []*Output {
 	switch {
 	case len(tx.Data) == 0:
 		return []*Output{{
-			Destination: strings.ToLower(tx.Destination.Hex()),
+			Destination: tx.Destination.Hex(),
 			Amount:      tx.Value,
 		}}
 	default:
 		method := hex.EncodeToString(tx.Data[0:4])
-		// setGuard Tx
-		if method == "e19a9dd9" {
-			return []*Output{}
-		}
 		if method != "a9059cbb" || len(tx.Data) != 68 {
 			panic("invalid safe transaction data")
 		}
 		destination := tx.Data[4:36]
 		value := tx.Data[36:68]
 		return []*Output{{
-			TokenAddress: strings.ToLower(tx.Destination.Hex()),
-			Destination:  strings.ToLower(common.BytesToAddress(destination).Hex()),
+			TokenAddress: tx.Destination.Hex(),
+			Destination:  common.BytesToAddress(destination).Hex(),
 			Amount:       new(big.Int).SetBytes(value),
 		}}
 	}
@@ -386,7 +408,7 @@ func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
 		offset += 32
 
 		o := &Output{
-			Destination: strings.ToLower(to.Hex()),
+			Destination: to.Hex(),
 			Amount:      amount,
 		}
 		switch {
@@ -394,32 +416,66 @@ func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
 		case int(dataLen) == 68:
 			metaData := multiSendData[offset : offset+int(dataLen)]
 			strData := hex.EncodeToString(metaData)
-			if !strings.HasPrefix(strData, "a9059cbb") {
+			method := strData[0:8]
+			switch method {
+			case "59335aa2": // guardSafe
+				offset += int(dataLen)
+			case "a9059cbb": // erc20 transfer
+				bytesTo := metaData[4:36]
+				bytesAmount := metaData[36:68]
+				o.TokenAddress = o.Destination
+				o.Destination = common.BytesToAddress(bytesTo).Hex()
+				o.Amount = new(big.Int).SetBytes(bytesAmount)
+				offset += int(dataLen)
+			default:
 				return nil, fmt.Errorf("invalid meta tx data: %x", metaData)
 			}
-			bytesTo := metaData[4:36]
-			bytesAmount := metaData[36:68]
-			o.TokenAddress = strings.ToLower(o.Destination)
-			o.Destination = strings.ToLower(common.BytesToAddress(bytesTo).Hex())
-			o.Amount = new(big.Int).SetBytes(bytesAmount)
-			offset += int(dataLen)
 		default:
-			return nil, fmt.Errorf("invalid meta tx data len: %d", dataLen)
+			offset += int(dataLen)
 		}
 		os = append(os, o)
 	}
 	return os, nil
 }
 
-func GetEnableGuradData(address string) []byte {
+func (tx *SafeTransaction) GetEnableGuradData(observer string, timelock *big.Int) []byte {
 	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
 	}
-
 	args, err := safeAbi.Pack(
 		"setGuard",
-		common.HexToAddress(address),
+		common.HexToAddress(EthereumSafeGuardAddress),
+	)
+	if err != nil {
+		panic(err)
+	}
+	setGuardData := GetMetaTxData(common.HexToAddress(tx.SafeAddress), big.NewInt(0), args)
+
+	guardAbi, err := ga.JSON(strings.NewReader(abi.MixinSafeGuardMetaData.ABI))
+	if err != nil {
+		panic(err)
+	}
+	args, err = guardAbi.Pack(
+		"guardSafe",
+		common.HexToAddress(observer),
+		timelock,
+	)
+	if err != nil {
+		panic(err)
+	}
+	guardSafeData := GetMetaTxData(common.HexToAddress(EthereumSafeGuardAddress), big.NewInt(0), args)
+
+	data := []byte{}
+	data = append(data, setGuardData...)
+	data = append(data, guardSafeData...)
+	abi, err := ga.JSON(strings.NewReader(abi.MultiSendMetaData.ABI))
+	if err != nil {
+		panic(err)
+	}
+	args, err = abi.Pack(
+		"multiSend",
+		data,
 	)
 	if err != nil {
 		panic(err)

@@ -111,7 +111,7 @@ func RPCGetBlockHash(rpc string, height int64) (string, error) {
 	}
 	var b *RPCBlock
 	err = json.Unmarshal(res, &b)
-	if err != nil {
+	if err != nil || b == nil {
 		return "", err
 	}
 	return b.Hash, err
@@ -189,11 +189,13 @@ func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
-	if err != nil {
-		return nil, err
+	if b.BlockNumber != "" {
+		blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
+		if err != nil {
+			return nil, err
+		}
+		b.BlockHeight = blockHeight
 	}
-	b.BlockHeight = blockHeight
 	return &b, err
 }
 

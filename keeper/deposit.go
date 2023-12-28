@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -61,7 +60,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 	case SafeChainEthereum, SafeChainMVM:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
-		deposit.AssetAddress = strings.ToLower(gc.BytesToAddress(extra[32:52]).Hex())
+		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
 		deposit.Amount = new(big.Int).SetBytes(extra[60:])
 	default:
@@ -221,11 +220,6 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
-	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
-	if err != nil {
-		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
-	}
-
 	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.Hash)
 	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", deposit.Hash, err)
 	if err != nil {
@@ -235,13 +229,18 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	match := false
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)
-		if t.Index == int64(deposit.Index) && strings.ToLower(t.Receiver) == strings.ToLower(safe.Address) && deposit.Amount.Cmp(t.Value) == 0 {
+		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
 			match = true
 		}
 	}
 	if !match {
 		logger.Printf("deposit %v has no match: %v", deposit, transfers)
 		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	if err != nil {
+		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
 	}
 
 	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)

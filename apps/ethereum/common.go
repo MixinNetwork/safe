@@ -35,7 +35,6 @@ const (
 	operationTypeCall         = 0
 	operationTypeDelegateCall = 1
 
-	TypeInitGuardTx = 0
 	TypeETHTx       = 1
 	TypeERC20Tx     = 2
 	TypeMultiSendTx = 3
@@ -45,7 +44,7 @@ const (
 	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
 	EthereumCompatibilityFallbackHandlerAddress = "0x52Bb11433e9C993Cc320B659bdd3F0699AEa678d"
 	EthereumMultiSendAddress                    = "0x22a4Ac16965F7C5446A28E3aaA91D06409bF5637"
-	EthereumSafeGuardAddress                    = "0xD312393D540b0A91947b021d85652371249D58C4"
+	EthereumSafeGuardAddress                    = "0x2409439756fc06A9553dFb78C69ba37C24e5c3B7"
 
 	predeterminedSaltNonce  = "0xb1073742015cbcf5a3a4d9d1ae33ecf619439710b89475f92e2abd2117e90f90"
 	accountContractCode     = "0x608060405234801561001057600080fd5b506040516101e63803806101e68339818101604052602081101561003357600080fd5b8101908080519060200190929190505050600073ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1614156100ca576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260228152602001806101c46022913960400191505060405180910390fd5b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505060ab806101196000396000f3fe608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea264697066735822122003d1488ee65e08fa41e58e888a9865554c535f2c77126a82cb4c0f917f31441364736f6c63430007060033496e76616c69642073696e676c65746f6e20616464726573732070726f7669646564"
@@ -74,6 +73,7 @@ type Transfer struct {
 }
 
 func GenerateAssetId(chain byte, assetKey string) string {
+	assetKey = strings.ToLower(assetKey)
 	err := VerifyAssetKey(assetKey)
 	if err != nil {
 		panic(assetKey)
@@ -153,21 +153,21 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 		return transfers
 	case trace.Value != "" && trace.Input == "0x": // ETH transfer
 		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
-		to := strings.ToLower(trace.To)
+		to := common.HexToAddress(trace.To)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
 				Index:        depositIndex,
 				Value:        value,
-				Receiver:     to,
+				Receiver:     to.Hex(),
 				TokenAddress: EthereumEmptyAddress,
 				AssetId:      chainId,
 			})
 		}
 	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
 		input := trace.Input[10:]
-		to := strings.ToLower(common.HexToAddress(input[0:64]).Hex())
+		to := common.HexToAddress(input[0:64]).Hex()
 		value, _ := new(big.Int).SetString(input[64:128], 16)
-		tokenAddress := strings.ToLower(trace.To)
+		tokenAddress := trace.To
 		assetId := GenerateAssetId(chain, tokenAddress)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
@@ -182,9 +182,7 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 
 	for i, c := range trace.Calls {
 		ts := LoopCalls(chain, chainId, c, layer+1, i)
-		for _, t := range ts {
-			transfers = append(transfers, t)
-		}
+		transfers = append(transfers, ts...)
 	}
 	return transfers
 }
@@ -231,13 +229,13 @@ func GetMixinChainID(chain int64) string {
 
 func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 	addr := common.HexToAddress(address)
-	assetId := GenerateAssetId(chain, address)
+	assetId := GenerateAssetId(chain, strings.ToLower(address))
 
 	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
 	token, err := abi.NewAsset(addr, conn)
 	if err != nil {
 		return nil, err
