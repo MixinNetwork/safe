@@ -999,15 +999,15 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 		return err
 	}
 	msg := []byte(fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash))
-	err = ethereum.VerifyHashSignature(tx.Holder, msg, sig)
-	logger.Printf("holder: ethereum.VerifyHashSignature(%v) => %v", tx, err)
+	err = ethereum.VerifyMessageSignature(tx.Holder, msg, sig)
+	logger.Printf("holder: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 	if err != nil {
 		safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
 		if err != nil {
 			return err
 		}
-		err = ethereum.VerifyHashSignature(safe.Observer, msg, sig)
-		logger.Printf("observer: ethereum.VerifyHashSignature(%v) => %v", tx, err)
+		err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+		logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 		if err != nil {
 			return err
 		}
