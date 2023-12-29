@@ -19,7 +19,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/signer"
@@ -32,8 +31,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	gc "github.com/ethereum/go-ethereum/common"
-	gcy "github.com/ethereum/go-ethereum/crypto"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -58,31 +55,6 @@ const (
 	testSignerObserver = 1
 	testHolderObserver = 2
 )
-
-func parseEthereumCompressedPublicKey(public string) (*gc.Address, error) {
-	pub, err := hex.DecodeString(public)
-	if err != nil {
-		return nil, err
-	}
-
-	publicKey, err := gcy.DecompressPubkey(pub)
-	if err != nil {
-		return nil, err
-	}
-
-	addr := gcy.PubkeyToAddress(*publicKey)
-	return &addr, nil
-}
-func TestExtra(t *testing.T) {
-	require := require.New(t)
-
-	sig, err := base64.RawURLEncoding.DecodeString("RwnkpthM-JV1t6NaV49tgeLbi5B_NNJzcIK8bBf9MkJWk_MeJlv0qlSdCKTjyBZlSSlycuXTrepK2Mpx9gXtmyA")
-	require.Nil(err)
-	msg := []byte(fmt.Sprintf("REVOKE:%s:%s", "06ff3ccd-d10a-4e91-a83e-7c00ba9d438c", "2c4ca3bcd4b23d23399dcf1bf1e9d06eb2d63a40a4c411ffb58491d8f6af2a09"))
-	err = ethereum.VerifyMessageSignature("0220c5d4117436d3123ef8adb1030a325f3022a7595f6eeb186a30a1588deefb0e", msg, sig)
-
-	fmt.Println(err)
-}
 
 func TestKeeper(t *testing.T) {
 	require := require.New(t)
