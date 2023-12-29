@@ -318,7 +318,7 @@ func transactionHasOutputs(chain byte) bool {
 	switch chain {
 	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
 		return true
-	case ethereum.ChainEthereum, ethereum.ChainMVM:
+	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
 		return false
 	default:
 		panic(chain)

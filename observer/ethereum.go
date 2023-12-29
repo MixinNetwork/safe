@@ -29,6 +29,7 @@ const (
 func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 	switch chain {
 	case keeper.SafeChainMVM:
+	case keeper.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -38,6 +39,7 @@ func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 func ethereumDepositCheckpointKey(chain byte) string {
 	switch chain {
 	case keeper.SafeChainMVM:
+	case keeper.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -48,6 +50,8 @@ func ethereumDepositCheckpointDefault(chain byte) int64 {
 	switch chain {
 	case keeper.SafeChainMVM:
 		return 48464900
+	case keeper.SafeChainPolygon:
+		return 51698448
 	default:
 		panic(chain)
 	}
@@ -108,6 +112,8 @@ func (node *Node) ethereumParams(chain byte) (string, string) {
 		return node.conf.EthereumRPC, keeper.SafeEthereumChainId
 	case keeper.SafeChainMVM:
 		return node.conf.MVMRPC, keeper.SafeMVMChainId
+	case keeper.SafeChainPolygon:
+		return node.conf.PolygonRPC, keeper.SafePolygonChainId
 	default:
 		panic(chain)
 	}
@@ -407,7 +413,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	for {
 		duration := 3 * time.Second
 		switch chain {
-		case ethereum.ChainMVM:
+		case ethereum.ChainMVM, ethereum.ChainPolygon:
 			duration = 100 * time.Millisecond
 		case ethereum.ChainEthereum:
 			duration = 1 * time.Second

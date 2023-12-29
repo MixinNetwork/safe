@@ -55,6 +55,8 @@ func (node *Node) sendKeeperResponseWithReferences(ctx context.Context, holder s
 		crv = common.CurveSecp256k1ECDSAEthereum
 	case keeper.SafeChainMVM:
 		crv = common.CurveSecp256k1ECDSAMVM
+	case keeper.SafeChainPolygon:
+		crv = common.CurveSecp256k1ECDSAPolygon
 	default:
 		panic(chain)
 	}

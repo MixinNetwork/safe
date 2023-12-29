@@ -56,6 +56,7 @@ func (node *Node) Boot(ctx context.Context) {
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
 		keeper.SafeChainMVM,
+		keeper.SafeChainPolygon,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
@@ -70,7 +71,7 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case keeper.SafeChainMVM:
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumMixinWithdrawalsLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
@@ -89,7 +90,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case keeper.SafeChainMVM:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)
