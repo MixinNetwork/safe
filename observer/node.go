@@ -66,14 +66,12 @@ func (node *Node) Boot(ctx context.Context) {
 		switch chain {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 			go node.bitcoinNetworkInfoLoop(ctx, chain)
-			go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
 			go node.bitcoinRPCBlocksLoop(ctx, chain)
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
 		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
-			go node.ethereumMixinWithdrawalsLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
 			go node.ethereumTransactionApprovalLoop(ctx, chain)
