@@ -165,7 +165,7 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 				AssetId:      chainId,
 			})
 		}
-	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
+	case strings.HasPrefix(trace.Input, "0xa9059cbb") && len(trace.Input) == 138: // ERC20 transfer(address,uint256)
 		input := trace.Input[10:]
 		to := common.HexToAddress(input[0:64]).Hex()
 		value, _ := new(big.Int).SetString(input[64:128], 16)
