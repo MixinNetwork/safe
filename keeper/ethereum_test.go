@@ -99,6 +99,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(common.RequestStateInitial, tx.State)
 	raw, _ := hex.DecodeString(tx.RawTransaction)
 	st, err := ethereum.UnmarshalSafeTransaction(raw)
+	require.Nil(err)
 
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
@@ -124,9 +125,9 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(common.RequestStatePending, tx.State)
 
 	msg, _ := hex.DecodeString(requests[0].Message)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, tx.TransactionHash, common.RequestStatePending)
 	require.Len(requests, 0)
@@ -228,7 +229,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
 	logger.SetLevel(logger.VERBOSE)
 	ctx, signers := signer.TestPrepare(require)
-	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSAMVM)
+	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSAEthereum)
 	chainCode := common.DecodeHexOrPanic(cc)
 
 	root, err := os.MkdirTemp("", "safe-keeper-test-")
@@ -238,7 +239,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
 	require.Equal(time.Unix(0, node.conf.MTG.Genesis.Timestamp), timestamp)
-	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAMVM)
+	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
 
 	id := uuid.Must(uuid.NewV4()).String()
 	extra := append([]byte{common.RequestRoleSigner}, chainCode...)
@@ -265,7 +266,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	batch := byte(64)
 	id = uuid.Must(uuid.NewV4()).String()
 	dummy := testEthereumPublicKey(testEthereumKeyHolder)
-	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSAEthereum)
 	testStep(ctx, require, node, out)
 	for i := byte(0); i < batch; i++ {
 		pid := common.UniqueId(id, fmt.Sprintf("%8d", i))
@@ -287,7 +288,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	rid, gs := testEthereumProposeAccount(ctx, require, node, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
 	testEthereumApproveAccount(ctx, require, node, rid, gs, signers, mpc, observer)
-	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAMVM)
+	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
 	for i := 0; i < 10; i++ {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 45585462, "ae7b574b67011f9bd3cf8f5202ef9052be138ccee5929f7069dbdac34e19ab11")
 	}
@@ -436,9 +437,9 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	require.Equal(common.RequestStatePending, tx.State)
 
 	msg, _ := hex.DecodeString(requests[0].Message)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
 	testStep(ctx, require, node, out)
 
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
@@ -535,9 +536,9 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(common.RequestStatePending, tx.State)
 
 	msg, _ := hex.DecodeString(requests[0].Message)
-	out = testBuildSignerOutput(node, requests[0].RequestId, sp.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildSignerOutput(node, requests[0].RequestId, sp.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
-	out = testBuildSignerOutput(node, requests[0].RequestId, sp.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAMVM)
+	out = testBuildSignerOutput(node, requests[0].RequestId, sp.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, gs.TxHash, common.RequestStateDone)
 	require.Len(requests, 1)
@@ -545,6 +546,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	id := common.UniqueId(requests[0].RequestId, gs.Address)
 	r := testReadObserverResponse(ctx, require, node, id, common.ActionEthereumSafeApproveAccount)
 	gs, err = ethereum.UnmarshalGnosisSafe(r)
+	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, gs.Address)
 	tx, _ = node.store.ReadTransaction(ctx, gs.TxHash)
 	require.Equal(common.RequestStateDone, tx.State)

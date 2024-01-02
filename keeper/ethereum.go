@@ -257,7 +257,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		panic(req.Role)
 	}
 	switch req.Curve {
-	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
+	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 	default:
 		panic(req.Curve)
 	}
@@ -381,7 +381,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		panic(req.Role)
 	}
 	switch req.Curve {
-	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
+	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 	default:
 		panic(req.Curve)
 	}

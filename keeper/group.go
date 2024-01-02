@@ -293,7 +293,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
+	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 		err = ethereum.VerifyHolderKey(req.Holder)
 		logger.Printf("ethereum.VerifyHolderKey(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
@@ -331,7 +331,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	switch safe.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
-	case SafeChainEthereum, SafeChainMVM:
+	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
 	default:
 		panic(safe.Chain)
@@ -360,6 +360,8 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		assetId = SafeEthereumChainId
 	case SafeChainMVM:
 		assetId = SafeMVMChainId
+	case SafeChainPolygon:
+		assetId = SafePolygonChainId
 	default:
 		panic(safe.Chain)
 	}

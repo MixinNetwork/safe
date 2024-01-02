@@ -127,6 +127,7 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	switch safe.Chain {
 	case keeper.SafeChainEthereum:
 	case keeper.SafeChainMVM:
+	case keeper.SafeChainPolygon:
 	default:
 		panic(st.TxHash)
 	}

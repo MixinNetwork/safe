@@ -779,6 +779,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, id, common.ActionBitcoinSafeApproveAccount)
 	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(b)
+	require.Nil(err)
 	require.Equal(testSafeAddress, wsa.Address)
 	require.Equal(uint32(6), wsa.Sequence)
 

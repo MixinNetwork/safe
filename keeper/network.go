@@ -64,7 +64,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		} else if !valid {
 			return node.store.FailRequest(ctx, req.Id)
 		}
-	case SafeChainEthereum, SafeChainMVM:
+	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
@@ -98,6 +98,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	case SafeChainLitecoin:
 	case SafeChainEthereum:
 	case SafeChainMVM:
+	case SafeChainPolygon:
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -168,6 +169,8 @@ func (node *Node) ethereumParams(chain byte) (string, string) {
 		return node.conf.EthereumRPC, SafeEthereumChainId
 	case SafeChainMVM:
 		return node.conf.MVMRPC, SafeMVMChainId
+	case SafeChainPolygon:
+		return node.conf.PolygonRPC, SafePolygonChainId
 	default:
 		panic(chain)
 	}
@@ -179,8 +182,9 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		return meta, err
 	}
 	switch chain {
-	case SafeChainMVM:
 	case SafeChainEthereum:
+	case SafeChainMVM:
+	case SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -243,6 +247,8 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 		chain = SafeChainEthereum
 	case SafeMVMChainId:
 		chain = SafeChainMVM
+	case SafePolygonChainId:
+		chain = SafeChainPolygon
 	default:
 		panic(asset.ChainId)
 	}
