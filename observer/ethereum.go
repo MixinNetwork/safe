@@ -457,14 +457,7 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, hash string, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
 
-	txs := []*ethereum.RPCTransaction{}
-	for _, tx := range block.Tx {
-		if tx.From == ethereum.EthereumEmptyAddress {
-			continue
-		}
-		txs = append(txs, tx)
-	}
-	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, txs)
+	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
 	deposits, err := node.GetBlockDeposits(ctx, transfers)
 	if err != nil {
 		return err
