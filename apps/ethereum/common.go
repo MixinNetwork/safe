@@ -127,7 +127,15 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []string) []*Transfer {
+// TODO cross-chain deposits might be lost, which are sended from emtpy address and not included in the block traces in polygon
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
+	txs := []*RPCTransaction{}
+	for _, tx := range blockTxs {
+		if tx.From == EthereumEmptyAddress {
+			continue
+		}
+		txs = append(txs, tx)
+	}
 	if len(txs) != len(traces) {
 		panic(len(txs))
 	}
@@ -135,7 +143,7 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, tx
 	var transfers []*Transfer
 	for i, t := range traces {
 		txTransfers := LoopCalls(chain, chainId, t.Result, 0, 0)
-		hash := txs[i]
+		hash := txs[i].Hash
 		for _, tTransfer := range txTransfers {
 			tTransfer.Hash = hash
 			tTransfer.Sender = t.Result.From
@@ -164,7 +172,7 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 				AssetId:      chainId,
 			})
 		}
-	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
+	case strings.HasPrefix(trace.Input, "0xa9059cbb") && len(trace.Input) == 138: // ERC20 transfer(address,uint256)
 		input := trace.Input[10:]
 		to := common.HexToAddress(input[0:64]).Hex()
 		value, _ := new(big.Int).SetString(input[64:128], 16)
