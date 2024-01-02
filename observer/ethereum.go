@@ -538,15 +538,13 @@ func (node *Node) GetBlockDeposits(ctx context.Context, ts []*ethereum.Transfer)
 			continue
 		}
 
-		assetAddress := t.TokenAddress
-		key := fmt.Sprintf("%s:%s", t.Receiver, assetAddress)
-		_, existed := deposits[key]
-		if existed {
-			close := new(big.Int).Add(deposits[key], t.Value)
-			deposits[key] = close
-			continue
+		key := fmt.Sprintf("%s:%s", t.Receiver, t.TokenAddress)
+		total := deposits[key]
+		if total != nil {
+			deposits[key] = new(big.Int).Add(total, t.Value)
+		} else {
+			deposits[key] = t.Value
 		}
-		deposits[key] = t.Value
 	}
 	return deposits, nil
 }
