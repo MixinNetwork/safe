@@ -127,6 +127,7 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
+// TODO cross-chain deposits might be lost, which are sended from emtpy address and not included in the block traces in polygon
 func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []*RPCTransaction) []*Transfer {
 	if len(txs) != len(traces) {
 		panic(len(txs))
