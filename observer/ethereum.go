@@ -175,7 +175,7 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	if len(blockTraces) == 0 {
 		return nil
 	}
-	block, err := ethereum.RPCGetBlock(rpc, hash)
+	block, err := ethereum.RPCGetBlockWithTransactions(rpc, hash)
 	if err != nil {
 		return err
 	}
@@ -454,9 +454,17 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 	return time.Parse(time.RFC3339Nano, ckt)
 }
 
-func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, hash string, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlock) error {
+func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, hash string, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
-	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
+
+	txs := []*ethereum.RPCTransaction{}
+	for _, tx := range block.Tx {
+		if tx.From == ethereum.EthereumEmptyAddress {
+			continue
+		}
+		txs = append(txs, tx)
+	}
+	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, txs)
 	deposits, err := node.GetBlockDeposits(ctx, transfers)
 	if err != nil {
 		return err

@@ -127,7 +127,7 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []string) []*Transfer {
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []*RPCTransaction) []*Transfer {
 	if len(txs) != len(traces) {
 		panic(len(txs))
 	}
@@ -135,7 +135,7 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, tx
 	var transfers []*Transfer
 	for i, t := range traces {
 		txTransfers := LoopCalls(chain, chainId, t.Result, 0, 0)
-		hash := txs[i]
+		hash := txs[i].Hash
 		for _, tTransfer := range txTransfers {
 			tTransfer.Hash = hash
 			tTransfer.Sender = t.Result.From
