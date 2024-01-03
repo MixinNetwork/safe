@@ -189,9 +189,11 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 		}
 	}
 
-	for i, c := range trace.Calls {
-		ts := LoopCalls(chain, chainId, c, layer+1, i)
-		transfers = append(transfers, ts...)
+	if len(transfers) == 0 {
+		for i, c := range trace.Calls {
+			ts := LoopCalls(chain, chainId, c, layer+1, i)
+			transfers = append(transfers, ts...)
+		}
 	}
 	return transfers
 }
