@@ -117,8 +117,9 @@ func RPCGetBlockHash(rpc string, height int64) (string, error) {
 	return b.Hash, err
 }
 
-func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, true})
+func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransactions, error) {
+	h := fmt.Sprintf("0x%x", height)
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, true})
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +134,7 @@ func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, e
 	}
 	b.Height = blockHeight
 	for _, tx := range b.Tx {
-		tx.BlockHash = hash
+		tx.BlockHash = b.Hash
 	}
 	return &b, err
 }
@@ -215,8 +216,9 @@ func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace,
 	return &t, err
 }
 
-func RPCDebugTraceBlockByHash(rpc, hash string) ([]*RPCBlockCallTrace, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByHash", []any{hash, map[string]any{"tracer": "callTracer"}})
+func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace, error) {
+	h := fmt.Sprintf("0x%x", height)
+	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByNumber", []any{h, map[string]any{"tracer": "callTracer"}})
 	if err != nil {
 		return nil, err
 	}
