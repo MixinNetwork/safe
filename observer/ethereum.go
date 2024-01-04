@@ -172,8 +172,12 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	if err != nil {
 		return err
 	}
+	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
+	if err != nil {
+		return err
+	}
 
-	return node.ethereumProcessBlock(ctx, chain, num, blockTraces, block)
+	return node.ethereumProcessBlock(ctx, chain, num, blockTraces, block, erc20Transfers)
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
@@ -438,10 +442,11 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 	return time.Parse(time.RFC3339Nano, ckt)
 }
 
-func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions) error {
+func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions, ts []*ethereum.Transfer) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
 
 	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
+	transfers = append(transfers, ts...)
 	deposits, err := node.GetBlockDeposits(ctx, transfers)
 	if err != nil {
 		return err
