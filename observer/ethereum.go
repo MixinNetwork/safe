@@ -177,15 +177,6 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
-	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: transfer.Hash}})
-	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", transfer.Hash, sent, err)
-	if err != nil {
-		return fmt.Errorf("store.QueryDepositSentHashes(%s) => %v", transfer.Hash, err)
-	}
-	if sent[transfer.Hash] != "" {
-		return nil
-	}
-
 	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index)
 	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
 	if err != nil {
