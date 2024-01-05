@@ -172,6 +172,21 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 				AssetId:      chainId,
 			})
 		}
+	case strings.HasPrefix(trace.Input, "0xa9059cbb") && len(trace.Input) == 138: // ERC20 transfer(address,uint256)
+		input := trace.Input[10:]
+		to := common.HexToAddress(input[0:64]).Hex()
+		value, _ := new(big.Int).SetString(input[64:128], 16)
+		tokenAddress := trace.To
+		assetId := GenerateAssetId(chain, tokenAddress)
+		if value.Cmp(big.NewInt(0)) > 0 {
+			transfers = append(transfers, &Transfer{
+				Index:        depositIndex,
+				Value:        value,
+				Receiver:     to,
+				TokenAddress: tokenAddress,
+				AssetId:      assetId,
+			})
+		}
 	}
 
 	for i, c := range trace.Calls {
@@ -179,6 +194,23 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 		transfers = append(transfers, ts...)
 	}
 	return transfers
+}
+
+func MergeTransfers(traceTransfers []*Transfer, erc20TransferMap map[string]*Transfer) []*Transfer {
+	mergedTransfers := []*Transfer{}
+	for _, t := range traceTransfers {
+		switch t.TokenAddress {
+		case EthereumEmptyAddress:
+			mergedTransfers = append(mergedTransfers, t)
+		default:
+			key := fmt.Sprintf("%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver)
+			et := erc20TransferMap[key]
+			if et != nil {
+				mergedTransfers = append(mergedTransfers, t)
+			}
+		}
+	}
+	return mergedTransfers
 }
 
 func ParseAmount(amount string, decimals int32) *big.Int {
@@ -263,7 +295,7 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 
 func NormalizeAddress(addr string) string {
 	norm := common.HexToAddress(addr).Hex()
-	if norm == EthereumEmptyAddress || strings.ToLower(norm) != strings.ToLower(addr) {
+	if norm == EthereumEmptyAddress || !strings.EqualFold(norm, addr) {
 		return ""
 	}
 	return norm

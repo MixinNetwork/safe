@@ -207,42 +207,21 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
+	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.Hash)
+	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", deposit.Hash, err)
+	if err != nil {
+		return err
+	}
+	transfers := ethereum.LoopCalls(deposit.Chain, chainId, traces, 0, 0)
 	match := false
-	transfers := []*ethereum.Transfer{}
-	switch {
-	case asset.AssetId == chainId:
-		traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.Hash)
-		logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", deposit.Hash, err)
-		if err != nil {
-			return err
-		}
-		transfers = ethereum.LoopCalls(deposit.Chain, chainId, traces, 0, 0)
-		for i, t := range transfers {
-			logger.Printf("transfer %d: %v", i, t)
-			if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
-				match = true
-			}
-		}
-	default:
-		etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
-		logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", deposit.Hash, etx, err)
-		if err != nil || etx.BlockHeight == 0 {
-			return err
-		}
-		transfers, err = ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(safe.Chain), int64(etx.BlockHeight))
-		logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d, %d) => %v %v", safe.Chain, int64(etx.BlockHeight), transfers, err)
-		if err != nil {
-			return err
-		}
-		for i, t := range transfers {
-			logger.Printf("transfer %d: %v", i, t)
-			if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
-				match = true
-			}
+	for i, t := range transfers {
+		logger.Printf("transfer %d: %v", i, t)
+		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
+			match = true
 		}
 	}
 	if !match {
-		logger.Printf("deposit %v has no match: %v", deposit, transfers)
+		logger.Printf("deposit %v has no match", deposit)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
