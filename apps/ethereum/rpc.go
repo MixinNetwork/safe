@@ -279,7 +279,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 	ts := make(map[string]*Transfer)
 	for _, vLog := range logs {
 		switch {
-		case vLog.Topics[0].Hex() == logTransferSigHash.Hex() && len(vLog.Data) == 32:
+		case len(vLog.Topics) == 3 && vLog.Topics[0].Hex() == logTransferSigHash.Hex() && len(vLog.Data) == 32:
 			var event abi.AssetTransfer
 			err = contractAbi.UnpackIntoInterface(&event, "Transfer", vLog.Data)
 			if err != nil {
