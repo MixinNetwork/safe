@@ -161,38 +161,26 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) error {
 	rpc, _ := node.ethereumParams(chain)
 
-	hash, err := ethereum.RPCGetBlockHash(rpc, num)
-	if err != nil {
-		return err
-	}
-	if hash == "" {
-		return fmt.Errorf("empty hash for height: %d", num)
-	}
-	blockTraces, err := ethereum.RPCDebugTraceBlockByHash(rpc, hash)
+	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
 	if err != nil {
 		return err
 	}
 	if len(blockTraces) == 0 {
 		return nil
 	}
-	block, err := ethereum.RPCGetBlockWithTransactions(rpc, hash)
+	block, err := ethereum.RPCGetBlockWithTransactions(rpc, num)
+	if err != nil {
+		return err
+	}
+	erc20TransferMap, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
 	if err != nil {
 		return err
 	}
 
-	return node.ethereumProcessBlock(ctx, chain, num, hash, blockTraces, block)
+	return node.ethereumProcessBlock(ctx, chain, num, blockTraces, block, erc20TransferMap)
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
-	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: transfer.Hash}})
-	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", transfer.Hash, sent, err)
-	if err != nil {
-		return fmt.Errorf("store.QueryDepositSentHashes(%s) => %v", transfer.Hash, err)
-	}
-	if sent[transfer.Hash] != "" {
-		return nil
-	}
-
 	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index)
 	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
 	if err != nil {
@@ -454,13 +442,17 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 	return time.Parse(time.RFC3339Nano, ckt)
 }
 
-func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, hash string, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions) error {
+func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions, erc20TransferMap map[string]*ethereum.Transfer) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
 
 	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
+	transfers = ethereum.MergeTransfers(transfers, erc20TransferMap)
 	deposits, err := node.GetBlockDeposits(ctx, transfers)
 	if err != nil {
 		return err
+	}
+	if len(deposits) == 0 {
+		return nil
 	}
 
 	for k := range deposits {
@@ -476,7 +468,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number i
 		switch tokenAddress {
 		case ethereum.EthereumEmptyAddress:
 			assetId = ethAssetId
-			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, hash, address)
+			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Hash, address)
 		default:
 			assetId = ethereum.GenerateAssetId(chain, tokenAddress)
 			balance, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(number))
@@ -490,7 +482,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number i
 		}
 		balanceAfterDeposit := new(big.Int).Add(safeBalance.Balance, deposits[k])
 		if balance.Cmp(balanceAfterDeposit) != 0 {
-			return fmt.Errorf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, hash, balance, safeBalance.Balance, deposits[k])
+			return fmt.Errorf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balance, safeBalance.Balance, deposits[k])
 		}
 	}
 

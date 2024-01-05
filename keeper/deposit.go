@@ -221,7 +221,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		}
 	}
 	if !match {
-		logger.Printf("deposit %v has no match: %v", deposit, transfers)
+		logger.Printf("deposit %v has no match", deposit)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
