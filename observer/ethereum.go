@@ -501,7 +501,12 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	if err != nil {
 		return err
 	}
+	erc20Logs, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(tx.BlockHeight))
+	if err != nil {
+		return err
+	}
 	transfers := ethereum.LoopCalls(chain, ethereumAssetId, traces, 0, 0)
+	transfers = ethereum.MergeTransfers(transfers, erc20Logs)
 	for _, transfer := range transfers {
 		transfer.Hash = tx.Hash
 		transfer.Sender = tx.From
