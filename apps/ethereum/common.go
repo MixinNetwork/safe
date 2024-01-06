@@ -137,7 +137,7 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, bl
 		txs = append(txs, tx)
 	}
 	if len(txs) != len(traces) {
-		panic(len(txs))
+		panic(fmt.Errorf("%d %d %d", chain, len(txs), len(traces)))
 	}
 
 	var transfers []*Transfer
