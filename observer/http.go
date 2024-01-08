@@ -658,7 +658,10 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 		if dm["sent_hash"] == "" {
 			dm["sent_hash"] = d.TransactionHash
 		} else {
-			dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
+			switch d.Chain {
+			case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+				dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
+			}
 		}
 		view = append(view, dm)
 	}
