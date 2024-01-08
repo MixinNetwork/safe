@@ -280,7 +280,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil {
 		return err
 	}
-	transfers := ethereum.LoopCalls(deposit.Chain, ethereumAssetId, traces, 0, 0)
+	transfers := ethereum.LoopCalls(deposit.Chain, deposit.TransactionHash, ethereumAssetId, traces, 0, 0)
 	match := false
 	for _, t := range transfers {
 		if t.Receiver == deposit.Receiver && ethereum.ParseAmount(deposit.Amount, decimals).Cmp(t.Value) == 0 {
@@ -505,10 +505,9 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	if err != nil {
 		return err
 	}
-	transfers := ethereum.LoopCalls(chain, ethereumAssetId, traces, 0, 0)
+	transfers := ethereum.LoopCalls(chain, ethereumAssetId, tx.Hash, traces, 0, 0)
 	transfers = ethereum.MergeTransfers(transfers, erc20Logs)
 	for _, transfer := range transfers {
-		transfer.Hash = tx.Hash
 		transfer.Sender = tx.From
 		err := node.ethereumWritePendingDeposit(ctx, transfer, chain)
 		if err != nil {
