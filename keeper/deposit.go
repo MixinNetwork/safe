@@ -212,7 +212,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if err != nil {
 		return err
 	}
-	transfers := ethereum.LoopCalls(deposit.Chain, chainId, traces, 0, 0)
+	transfers := ethereum.LoopCalls(deposit.Chain, deposit.Hash, chainId, traces, 0, 0)
 	match := false
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)

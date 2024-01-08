@@ -142,10 +142,9 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, bl
 
 	var transfers []*Transfer
 	for i, t := range traces {
-		txTransfers := LoopCalls(chain, chainId, t.Result, 0, 0)
 		hash := txs[i].Hash
+		txTransfers := LoopCalls(chain, chainId, hash, t.Result, 0, 0)
 		for _, tTransfer := range txTransfers {
-			tTransfer.Hash = hash
 			tTransfer.Sender = t.Result.From
 			transfers = append(transfers, tTransfer)
 		}
@@ -153,7 +152,7 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, bl
 	return transfers
 }
 
-func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer, index int) []*Transfer {
+func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace, layer, index int) []*Transfer {
 	depositIndex := int64(layer*10 + index)
 
 	var transfers []*Transfer
@@ -165,6 +164,7 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 		to := common.HexToAddress(trace.To)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
+				Hash:         hash,
 				Index:        depositIndex,
 				Value:        value,
 				Receiver:     to.Hex(),
@@ -176,10 +176,11 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 		input := trace.Input[10:]
 		to := common.HexToAddress(input[0:64]).Hex()
 		value, _ := new(big.Int).SetString(input[64:128], 16)
-		tokenAddress := trace.To
+		tokenAddress := common.HexToAddress(trace.To).Hex()
 		assetId := GenerateAssetId(chain, tokenAddress)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
+				Hash:         hash,
 				Index:        depositIndex,
 				Value:        value,
 				Receiver:     to,
@@ -190,7 +191,7 @@ func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer
 	}
 
 	for i, c := range trace.Calls {
-		ts := LoopCalls(chain, chainId, c, layer+1, i)
+		ts := LoopCalls(chain, chainId, hash, c, layer+1, i)
 		transfers = append(transfers, ts...)
 	}
 	return transfers
