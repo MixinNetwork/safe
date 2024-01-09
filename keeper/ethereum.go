@@ -683,7 +683,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				Amount:      b.Balance,
 			}
 			if b.AssetAddress != ethereum.EthereumEmptyAddress {
-				output.TokenAddress = balance.AssetAddress
+				output.TokenAddress = b.AssetAddress
 			}
 			outputs = append(outputs, output)
 

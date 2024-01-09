@@ -421,7 +421,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		delay := 0
 		switch chain {
 		case keeper.SafeChainPolygon:
-			delay = 5
+			delay = 60
 		}
 		if checkpoint+int64(delay) > height {
 			continue
