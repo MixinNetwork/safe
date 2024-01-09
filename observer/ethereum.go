@@ -418,7 +418,12 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		if checkpoint > height {
+		delay := 0
+		switch chain {
+		case keeper.SafeChainPolygon:
+			delay = 5
+		}
+		if checkpoint+int64(delay) > height {
 			continue
 		}
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)
