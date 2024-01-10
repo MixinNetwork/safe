@@ -31,7 +31,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -715,7 +714,6 @@ func testObserverHolderDeposit(ctx context.Context, require *require.Assertions,
 	extra := []byte{SafeChainBitcoin}
 	extra = append(extra, uuid.Must(uuid.FromString(SafeBitcoinChainId)).Bytes()...)
 	extra = append(extra, hash[:]...)
-	extra = append(extra, gc.HexToAddress("").Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(input.Index))
 	extra = append(extra, big.NewInt(input.Satoshi).Bytes()...)
 

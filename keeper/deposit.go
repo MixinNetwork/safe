@@ -43,8 +43,8 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 	switch deposit.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		deposit.Hash = hex.EncodeToString(extra[0:32])
-		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
-		deposit.Amount = new(big.Int).SetBytes(extra[60:])
+		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
+		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}

@@ -300,7 +300,10 @@ func (deposit *Deposit) encodeKeeperExtra(decimals int32) []byte {
 	extra := []byte{deposit.Chain}
 	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
 	extra = append(extra, hash[:]...)
-	extra = append(extra, gc.HexToAddress(deposit.AssetAddress).Bytes()...)
+	switch deposit.Chain {
+	case keeper.SafeChainEthereum, keeper.SafeChainMVM, keeper.SafeChainPolygon:
+		extra = append(extra, gc.HexToAddress(deposit.AssetAddress).Bytes()...)
+	}
 	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
 	extra = append(extra, deposit.bigAmount(decimals).Bytes()...)
 	return extra
