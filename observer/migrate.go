@@ -29,7 +29,7 @@ func (s *SQLite3Store) migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, "UPDATE deposits SET asset_address=?", "")
+	_, err = tx.ExecContext(ctx, "UPDATE deposits SET asset_address=''")
 	if err != nil {
 		return err
 	}
