@@ -142,34 +142,30 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, bl
 
 	var transfers []*Transfer
 	for i, t := range traces {
-		hash := txs[i].Hash
-		txTransfers := LoopCalls(chain, chainId, hash, t.Result, 0, 0)
-		for _, tTransfer := range txTransfers {
-			tTransfer.Sender = t.Result.From
-			transfers = append(transfers, tTransfer)
-		}
+		hash, sender := txs[i].Hash, txs[i].From
+		txTransfers, _ := LoopCalls(chain, chainId, hash, sender, t.Result, 0)
+		transfers = append(transfers, txTransfers...)
 	}
 	return transfers
 }
 
-func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace, layer, index int) []*Transfer {
-	depositIndex := int64(layer*10 + index)
-
+func LoopCalls(chain byte, chainId, hash, sender string, trace *RPCTransactionCallTrace, index int64) ([]*Transfer, int64) {
 	var transfers []*Transfer
 	switch {
 	case trace.Error != "" || trace.Type == "STATICCALL":
-		return transfers
+		return transfers, index + 1
 	case trace.Value != "" && trace.Input == "0x": // ETH transfer
 		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
 		to := common.HexToAddress(trace.To)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
 				Hash:         hash,
-				Index:        depositIndex,
+				Index:        index,
 				Value:        value,
 				Receiver:     to.Hex(),
 				TokenAddress: EthereumEmptyAddress,
 				AssetId:      chainId,
+				Sender:       sender,
 			})
 		}
 	case strings.HasPrefix(trace.Input, "0xa9059cbb") && len(trace.Input) == 138: // ERC20 transfer(address,uint256)
@@ -181,20 +177,23 @@ func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace,
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
 				Hash:         hash,
-				Index:        depositIndex,
+				Index:        index,
 				Value:        value,
 				Receiver:     to,
 				TokenAddress: tokenAddress,
 				AssetId:      assetId,
+				Sender:       sender,
 			})
 		}
 	}
 
-	for i, c := range trace.Calls {
-		ts := LoopCalls(chain, chainId, hash, c, layer+1, i)
+	index = index + 1
+	for _, c := range trace.Calls {
+		ts, end := LoopCalls(chain, chainId, hash, sender, c, index)
+		index = end
 		transfers = append(transfers, ts...)
 	}
-	return transfers
+	return transfers, index
 }
 
 func MergeTransfers(traceTransfers []*Transfer, erc20TransferMap map[string]*Transfer) []*Transfer {
