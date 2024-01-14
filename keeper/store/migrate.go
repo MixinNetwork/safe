@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 )
 
 // FIXME remove this
@@ -26,8 +28,6 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 
 	query := "ALTER TABLE safes ADD COLUMN nonce INTEGER;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN asset_id VARCHAR;\n"
-	query = query + "CREATE TABLE IF NOT EXISTS ethereum_balances (address VARCHAR NOT NULL, asset_id VARCHAR NOT NULL, asset_address VARCHAR NOT NULL, balance VARCHAR NOT NULL, latest_tx_hash VARCHAR NOT NULL, updated_at TIMESTAMP NOT NULL, PRIMARY KEY ('address', 'asset_id'));\n"
-	query = query + "CREATE TABLE IF NOT EXISTS deposits (transaction_hash VARCHAR NOT NULL, output_index VARCHAR NOT NULL, asset_id VARCHAR NOT NULL, amount VARCHAR NOT NULL, receiver VARCHAR NOT NULL, sender VARCHAR NOT NULL, state INTEGER NOT NULL, chain INTEGER NOT NULL, holder VARCHAR NOT NULL, category INTEGER NOT NULL, created_at TIMESTAMP NOT NULL, updated_at TIMESTAMP NOT NULL, PRIMARY KEY ('transaction_hash', 'output_index'));\n"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
@@ -37,9 +37,16 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, "UPDATE transactions SET asset_id=''")
-	if err != nil {
-		return err
+
+	for _, c := range []byte{bitcoin.ChainBitcoin, bitcoin.ChainLitecoin} {
+		assetId := "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
+		if c == bitcoin.ChainLitecoin {
+			assetId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
+		}
+		_, err = tx.ExecContext(ctx, "UPDATE transactions SET asset_id=? WHERE chain=?", assetId, c)
+		if err != nil {
+			return err
+		}
 	}
 
 	now := time.Now().UTC()
