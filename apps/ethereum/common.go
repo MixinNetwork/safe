@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -211,6 +212,27 @@ func MergeTransfers(traceTransfers []*Transfer, erc20TransferMap map[string]*Tra
 		}
 	}
 	return mergedTransfers
+}
+
+func VerifyDeposit(chain byte, rpc, hash, chainId, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
+	etx, err := RPCGetTransactionByHash(rpc, hash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
+	if err != nil || etx == nil {
+		return false, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
+	}
+	traces, err := RPCDebugTraceTransactionByHash(rpc, hash)
+	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", hash, err)
+	if err != nil {
+		return false, nil, err
+	}
+	transfers, _ := LoopCalls(chain, hash, etx.From, chainId, traces, 0)
+	for i, t := range transfers {
+		logger.Printf("transfer %d: %v", i, t)
+		if t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
+			return true, etx, nil
+		}
+	}
+	return false, nil, nil
 }
 
 func ParseAmount(amount string, decimals int32) *big.Int {
