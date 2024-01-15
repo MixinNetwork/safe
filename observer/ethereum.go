@@ -172,12 +172,12 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	if err != nil {
 		return err
 	}
-	erc20TransferMap, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
+	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
 	if err != nil {
 		return err
 	}
 	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
-	transfers = ethereum.MergeTransfers(transfers, erc20TransferMap)
+	transfers = append(transfers, erc20Transfers...)
 
 	return node.ethereumProcessBlock(ctx, chain, block, transfers)
 }
@@ -274,7 +274,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		panic(fmt.Errorf("malicious ethereum network info %v", info))
 	}
 
-	match, etx, err := ethereum.VerifyDeposit(deposit.Chain, rpc, deposit.TransactionHash, ethereumAssetId, deposit.Receiver, deposit.OutputIndex, ethereum.ParseAmount(deposit.Amount, decimals))
+	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.TransactionHash, ethereumAssetId, deposit.Receiver, deposit.OutputIndex, ethereum.ParseAmount(deposit.Amount, decimals))
 	if err != nil {
 		panic(err)
 	}
@@ -494,12 +494,12 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	if err != nil {
 		return err
 	}
-	erc20Logs, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(tx.BlockHeight))
+	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(tx.BlockHeight))
 	if err != nil {
 		return err
 	}
 	transfers, _ := ethereum.LoopCalls(chain, ethereumAssetId, tx.Hash, tx.From, traces, 0)
-	transfers = ethereum.MergeTransfers(transfers, erc20Logs)
+	transfers = append(transfers, erc20Transfers...)
 	for _, transfer := range transfers {
 		err := node.ethereumWritePendingDeposit(ctx, transfer, chain)
 		if err != nil {

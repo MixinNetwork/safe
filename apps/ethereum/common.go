@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/md5"
 	"encoding/hex"
@@ -169,23 +170,6 @@ func LoopCalls(chain byte, chainId, hash, sender string, trace *RPCTransactionCa
 				Sender:       sender,
 			})
 		}
-	case strings.HasPrefix(trace.Input, "0xa9059cbb") && len(trace.Input) == 138: // ERC20 transfer(address,uint256)
-		input := trace.Input[10:]
-		to := common.HexToAddress(input[0:64]).Hex()
-		value, _ := new(big.Int).SetString(input[64:128], 16)
-		tokenAddress := common.HexToAddress(trace.To).Hex()
-		assetId := GenerateAssetId(chain, tokenAddress)
-		if value.Cmp(big.NewInt(0)) > 0 {
-			transfers = append(transfers, &Transfer{
-				Hash:         hash,
-				Index:        index,
-				Value:        value,
-				Receiver:     to,
-				TokenAddress: tokenAddress,
-				AssetId:      assetId,
-				Sender:       sender,
-			})
-		}
 	}
 
 	index = index + 1
@@ -197,26 +181,7 @@ func LoopCalls(chain byte, chainId, hash, sender string, trace *RPCTransactionCa
 	return transfers, index
 }
 
-func MergeTransfers(traceTransfers []*Transfer, erc20TransferMap map[string]*Transfer) []*Transfer {
-	mergedTransfers := []*Transfer{}
-	for _, t := range traceTransfers {
-		switch t.TokenAddress {
-		case EthereumEmptyAddress:
-			mergedTransfers = append(mergedTransfers, t)
-		default:
-			key := fmt.Sprintf("%s:%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver, t.Value.String())
-			et := erc20TransferMap[key]
-			if et == nil || et.Value.Cmp(t.Value) < 0 {
-				continue
-			}
-			erc20TransferMap[key].Value = big.NewInt(0).Sub(et.Value, t.Value)
-			mergedTransfers = append(mergedTransfers, t)
-		}
-	}
-	return mergedTransfers
-}
-
-func VerifyDeposit(chain byte, rpc, hash, chainId, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
+func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
 	etx, err := RPCGetTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
 	if err != nil || etx == nil {
@@ -228,6 +193,12 @@ func VerifyDeposit(chain byte, rpc, hash, chainId, destination string, index int
 		return false, nil, err
 	}
 	transfers, _ := LoopCalls(chain, hash, etx.From, chainId, traces, 0)
+	erc20Transfers, err := GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(etx.BlockHeight))
+	logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d) => %v", etx.BlockHeight, err)
+	if err != nil {
+		return false, nil, err
+	}
+	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)
 		if t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
