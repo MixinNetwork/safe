@@ -204,11 +204,13 @@ func MergeTransfers(traceTransfers []*Transfer, erc20TransferMap map[string]*Tra
 		case EthereumEmptyAddress:
 			mergedTransfers = append(mergedTransfers, t)
 		default:
-			key := fmt.Sprintf("%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver)
+			key := fmt.Sprintf("%s:%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver, t.Value.String())
 			et := erc20TransferMap[key]
-			if et != nil {
-				mergedTransfers = append(mergedTransfers, t)
+			if et == nil || et.Value.Cmp(t.Value) < 0 {
+				continue
 			}
+			erc20TransferMap[key].Value = big.NewInt(0).Sub(et.Value, t.Value)
+			mergedTransfers = append(mergedTransfers, t)
 		}
 	}
 	return mergedTransfers

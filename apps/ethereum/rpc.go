@@ -297,7 +297,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 				Receiver:     common.HexToAddress(vLog.Topics[2].Hex()).Hex(),
 				Value:        event.Value,
 			}
-			key := fmt.Sprintf("%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver)
+			key := fmt.Sprintf("%s:%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver, t.Value.String())
 			if ts[key] != nil {
 				t.Value = big.NewInt(0).Add(t.Value, ts[key].Value)
 			}
