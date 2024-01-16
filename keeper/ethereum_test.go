@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -589,11 +590,38 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 	require.Nil(err)
 	b, err := hex.DecodeString(txHash)
 	require.Nil(err)
+
+	rpc, _ := node.ethereumParams(SafeChainMVM)
+	if !strings.HasPrefix(txHash, "0x") {
+		txHash = "0x" + txHash
+	}
+	etx, err := ethereum.RPCGetTransactionByHash(rpc, txHash)
+	require.Nil(err)
+	index := 0
+	switch assetId {
+	case SafeMVMChainId:
+		traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, txHash)
+		require.Nil(err)
+		transfers, _ := ethereum.LoopCalls(SafeChainMVM, SafeMVMChainId, txHash, traces, 0)
+		for _, t := range transfers {
+			if t.TokenAddress == ethereum.EthereumEmptyAddress {
+				index = int(t.Index)
+			}
+		}
+	default:
+		transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, SafeChainMVM, int64(etx.BlockHeight))
+		require.Nil(err)
+		for _, t := range transfers {
+			if t.TokenAddress == assetAddress {
+				index = int(t.Index)
+			}
+		}
+	}
 	extra := []byte{SafeChainMVM}
 	extra = append(extra, uuid.Must(uuid.FromString(assetId)).Bytes()...)
 	extra = append(extra, b...)
 	extra = append(extra, gc.HexToAddress(assetAddress).Bytes()...)
-	extra = binary.BigEndian.AppendUint64(extra, uint64(0))
+	extra = binary.BigEndian.AppendUint64(extra, uint64(index))
 	extra = append(extra, amt.BigInt().Bytes()...)
 
 	holder := testPublicKey(testEthereumKeyHolder)

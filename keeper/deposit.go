@@ -207,18 +207,9 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
-	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.Hash)
-	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", deposit.Hash, err)
+	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
 	if err != nil {
 		return err
-	}
-	transfers := ethereum.LoopCalls(deposit.Chain, deposit.Hash, chainId, traces, 0, 0)
-	match := false
-	for i, t := range transfers {
-		logger.Printf("transfer %d: %v", i, t)
-		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
-			match = true
-		}
 	}
 	if !match {
 		logger.Printf("deposit %v has no match", deposit)
@@ -228,12 +219,6 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if err != nil {
 		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
-	}
-
-	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
-	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", deposit.Hash, etx, err)
-	if err != nil {
-		return err
 	}
 	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, etx.From)
 }

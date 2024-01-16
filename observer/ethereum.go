@@ -159,7 +159,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) error {
-	rpc, _ := node.ethereumParams(chain)
+	rpc, ethAssetId := node.ethereumParams(chain)
 
 	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
 	if err != nil {
@@ -172,12 +172,14 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	if err != nil {
 		return err
 	}
-	erc20TransferMap, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
+	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
 	if err != nil {
 		return err
 	}
+	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
+	transfers = append(transfers, erc20Transfers...)
 
-	return node.ethereumProcessBlock(ctx, chain, num, blockTraces, block, erc20TransferMap)
+	return node.ethereumProcessBlock(ctx, chain, block, transfers)
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
@@ -272,26 +274,15 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		panic(fmt.Errorf("malicious ethereum network info %v", info))
 	}
 
-	tx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.TransactionHash)
-	if err != nil || tx == nil {
-		panic(fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", deposit.TransactionHash, err))
-	}
-	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.TransactionHash)
+	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.TransactionHash, ethereumAssetId, deposit.AssetAddress, deposit.Receiver, deposit.OutputIndex, ethereum.ParseAmount(deposit.Amount, decimals))
 	if err != nil {
-		return err
-	}
-	transfers := ethereum.LoopCalls(deposit.Chain, deposit.TransactionHash, ethereumAssetId, traces, 0, 0)
-	match := false
-	for _, t := range transfers {
-		if t.Receiver == deposit.Receiver && ethereum.ParseAmount(deposit.Amount, decimals).Cmp(t.Value) == 0 {
-			match = true
-		}
+		panic(err)
 	}
 	if !match {
 		panic(fmt.Errorf("malicious ethereum deposit %s", deposit.TransactionHash))
 	}
-	confirmations := info.Height - tx.BlockHeight + 1
-	if info.Height < tx.BlockHeight {
+	confirmations := info.Height - etx.BlockHeight + 1
+	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
 	isSafe, err := node.checkSafeInternalAddress(ctx, deposit.Sender)
@@ -447,11 +438,8 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 	return time.Parse(time.RFC3339Nano, ckt)
 }
 
-func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number int64, blockTraces []*ethereum.RPCBlockCallTrace, block *ethereum.RPCBlockWithTransactions, erc20TransferMap map[string]*ethereum.Transfer) error {
+func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
-
-	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
-	transfers = ethereum.MergeTransfers(transfers, erc20TransferMap)
 	deposits, err := node.GetBlockDeposits(ctx, transfers)
 	if err != nil {
 		return err
@@ -476,7 +464,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, number i
 			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Hash, address)
 		default:
 			assetId = ethereum.GenerateAssetId(chain, tokenAddress)
-			balance, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(number))
+			balance, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height)))
 		}
 		if err != nil {
 			return err
@@ -506,14 +494,13 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	if err != nil {
 		return err
 	}
-	erc20Logs, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(tx.BlockHeight))
+	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(tx.BlockHeight))
 	if err != nil {
 		return err
 	}
-	transfers := ethereum.LoopCalls(chain, ethereumAssetId, tx.Hash, traces, 0, 0)
-	transfers = ethereum.MergeTransfers(transfers, erc20Logs)
+	transfers, _ := ethereum.LoopCalls(chain, ethereumAssetId, tx.Hash, traces, 0)
+	transfers = append(transfers, erc20Transfers...)
 	for _, transfer := range transfers {
-		transfer.Sender = tx.From
 		err := node.ethereumWritePendingDeposit(ctx, transfer, chain)
 		if err != nil {
 			panic(err)

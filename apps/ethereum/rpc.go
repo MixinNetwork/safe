@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"math/big"
 	"net/http"
 	"strings"
@@ -256,7 +257,7 @@ func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, erro
 	return balance, err
 }
 
-func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) (map[string]*Transfer, error) {
+func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
 	client, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, err
@@ -276,7 +277,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 	logTransferSig := []byte("Transfer(address,address,uint256)")
 	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 
-	ts := make(map[string]*Transfer)
+	ts := []*Transfer{}
 	for _, vLog := range logs {
 		switch {
 		case len(vLog.Topics) == 3 && vLog.Topics[0].Hex() == logTransferSigHash.Hex() && len(vLog.Data) == 32:
@@ -290,18 +291,14 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 			assetId := GenerateAssetId(byte(chain), tokenAddress)
 			t := &Transfer{
 				Hash:         vLog.TxHash.Hex(),
-				Index:        int64(vLog.Index),
+				Index:        int64(vLog.Index) + int64(math.MaxInt32),
 				TokenAddress: vLog.Address.Hex(),
 				AssetId:      assetId,
 				Sender:       common.HexToAddress(vLog.Topics[1].Hex()).Hex(),
 				Receiver:     common.HexToAddress(vLog.Topics[2].Hex()).Hex(),
 				Value:        event.Value,
 			}
-			key := fmt.Sprintf("%s:%s:%s", t.Hash, t.TokenAddress, t.Receiver)
-			if ts[key] != nil {
-				t.Value = big.NewInt(0).Add(t.Value, ts[key].Value)
-			}
-			ts[key] = t
+			ts = append(ts, t)
 		}
 	}
 	return ts, nil
