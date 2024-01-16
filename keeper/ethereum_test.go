@@ -602,7 +602,7 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 	case SafeMVMChainId:
 		traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, txHash)
 		require.Nil(err)
-		transfers, _ := ethereum.LoopCalls(SafeChainMVM, SafeMVMChainId, txHash, "", traces, 0)
+		transfers, _ := ethereum.LoopCalls(SafeChainMVM, SafeMVMChainId, txHash, traces, 0)
 		for _, t := range transfers {
 			if t.TokenAddress == ethereum.EthereumEmptyAddress {
 				index = int(t.Index)

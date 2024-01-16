@@ -207,7 +207,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
-	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, safe.Address, int64(deposit.Index), deposit.Amount)
+	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
 	if err != nil {
 		return err
 	}

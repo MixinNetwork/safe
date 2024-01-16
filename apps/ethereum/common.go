@@ -144,21 +144,22 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, bl
 
 	var transfers []*Transfer
 	for i, t := range traces {
-		hash, sender := txs[i].Hash, txs[i].From
-		txTransfers, _ := LoopCalls(chain, chainId, hash, sender, t.Result, 0)
+		hash := txs[i].Hash
+		txTransfers, _ := LoopCalls(chain, chainId, hash, t.Result, 0)
 		transfers = append(transfers, txTransfers...)
 	}
 	return transfers
 }
 
-func LoopCalls(chain byte, chainId, hash, sender string, trace *RPCTransactionCallTrace, index int64) ([]*Transfer, int64) {
+func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace, index int64) ([]*Transfer, int64) {
 	var transfers []*Transfer
 	switch {
 	case trace.Error != "" || trace.Type == "STATICCALL":
 		return transfers, index + 1
-	case trace.Value != "" && trace.Input == "0x": // ETH transfer
+	case trace.Value != "": // ETH transfer
 		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
 		to := common.HexToAddress(trace.To)
+		sender := common.HexToAddress(trace.From)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
 				Hash:         hash,
@@ -167,21 +168,21 @@ func LoopCalls(chain byte, chainId, hash, sender string, trace *RPCTransactionCa
 				Receiver:     to.Hex(),
 				TokenAddress: EthereumEmptyAddress,
 				AssetId:      chainId,
-				Sender:       sender,
+				Sender:       sender.Hex(),
 			})
 		}
 	}
 
 	index = index + 1
 	for _, c := range trace.Calls {
-		ts, end := LoopCalls(chain, chainId, hash, sender, c, index)
+		ts, end := LoopCalls(chain, chainId, hash, c, index)
 		index = end
 		transfers = append(transfers, ts...)
 	}
 	return transfers, index
 }
 
-func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
+func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
 	etx, err := RPCGetTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
 	if err != nil || etx == nil {
@@ -192,7 +193,7 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, destinat
 	if err != nil {
 		return false, nil, err
 	}
-	transfers, _ := LoopCalls(chain, hash, etx.From, chainId, traces, 0)
+	transfers, _ := LoopCalls(chain, hash, chainId, traces, 0)
 	erc20Transfers, err := GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(etx.BlockHeight))
 	logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d) => %v", etx.BlockHeight, err)
 	if err != nil {
@@ -201,7 +202,7 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, destinat
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)
-		if t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
+		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
 			return true, etx, nil
 		}
 	}
