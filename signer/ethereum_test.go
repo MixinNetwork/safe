@@ -9,11 +9,11 @@ import (
 	"math/big"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -46,9 +46,10 @@ var (
 		ByzantiumBlock: big.NewInt(0),
 	}
 
-	rpc      = "https://geth.mvm.dev"
-	chainID  = 73927
-	timelock = 1
+	rpc       = "https://polygon-rpc.com"
+	chainID   = 137
+	threshold = 2
+	timelock  = 1
 )
 
 func TestCMPEthereumERC20Transaction(t *testing.T) {
@@ -56,12 +57,11 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 	require := require.New(t)
 	accountAddress := testPrepareEthereumAccount(ctx, require)
 
-	assetAddress := "0x910Fb1751B946C7D691905349eC5dD250EFBF40a"
+	assetAddress := "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
-	value := "100000000"
-	n, err := ethereum.GetNonce(rpc, accountAddress)
-	require.Nil(err)
-	id := uuid.Must(uuid.NewV4()).String()
+	value := "100"
+	n := 1
+	id := "b231eebd-78ec-44f7-aeeb-7cf0b73ed070"
 	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeERC20Tx, int64(chainID), id, accountAddress, destination, assetAddress, value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
@@ -71,16 +71,9 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
-	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
-	require.Nil(err)
-	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
-	require.Nil(err)
-	tx.Signatures[1] = sigHolder
-	tx.Signatures[2] = sigSigner
-
-	success, err := tx.ValidTransaction(rpc)
-	require.Nil(err)
-	require.True(success)
+	signedTx := testEthereumSignTx(require, tx)
+	raw := "00000000000000890000000000000000004065356638323935633932656233613163363362393665333534613333373466643662303239643932613738633665303962666133326264633230623362393930002a3078346635393734613035363032394546413765344237623531613742626362384645633645383937300014c2132d05d31c914a87c6611c10748aeb04b58e8f00000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a05500000000000000000000000000000000000000000000000000000000000000640001010020f80c82722e761b28156b6047833b254e38a47761bb7993a7a87917205ef3dac301062c383464353164666561643339653331393636646233613239376331653765616637323131336433646466623132376234303838306638333663623035613339643537353638343464393563653536306538626364323337666133616332373837313839343034383364383763623633616466333864323930323333663838343431662c36393535366661306562376265366233386435316537643236373233323462633632353465656638393465346264666263313235653231643230653764376461366436386265386237333930623531663532346433303366313234376631346137653836303961353666646332306332363065663364653939613130623036643166"
+	require.Equal(raw, hex.EncodeToString(signedTx.Marshal()))
 }
 
 func TestCMPEthereumMultiSendTransaction(t *testing.T) {
@@ -91,16 +84,15 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 	var outputs []*ethereum.Output
 	outputs = append(outputs, &ethereum.Output{
 		Destination: "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
-		Amount:      big.NewInt(10000000000000),
+		Amount:      big.NewInt(100000000000000),
 	})
 	outputs = append(outputs, &ethereum.Output{
-		TokenAddress: "0x910Fb1751B946C7D691905349eC5dD250EFBF40a",
+		TokenAddress: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
 		Destination:  "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
-		Amount:       big.NewInt(100000000),
+		Amount:       big.NewInt(200),
 	})
-	n, err := ethereum.GetNonce(rpc, accountAddress)
-	require.Nil(err)
-	id := uuid.Must(uuid.NewV4()).String()
+	n := 1
+	id := "b231eebd-78ec-44f7-aeeb-7cf0b73ed070"
 	tx, err := ethereum.CreateTransactionFromOutputs(ctx, ethereum.TypeMultiSendTx, int64(chainID), id, accountAddress, outputs, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
@@ -113,16 +105,9 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 		require.Equal(po.TokenAddress, o.TokenAddress)
 	}
 
-	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
-	require.Nil(err)
-	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
-	require.Nil(err)
-	tx.Signatures[1] = sigHolder
-	tx.Signatures[2] = sigSigner
-
-	success, err := tx.ValidTransaction(rpc)
-	require.Nil(err)
-	require.True(success)
+	signedTx := testEthereumSignTx(require, tx)
+	raw := "00000000000000890000000000000001004066336238653462336561303462303137636630383961323039363962323661333264353232333836636331343064663734343435383535376133373065636431002a307834663539373461303536303239454641376534423762353161374262636238464563364538393730001438869bf66a61cf6bdb996a6ae40d5853fd43b526000001448d80ff0a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000ee00a03a8590bb3a2ca5c747c8b99c63da399424a05500000000000000000000000000000000000000000000000000005af3107a4000000000000000000000000000000000000000000000000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a05500000000000000000000000000000000000000000000000000000000000000c80000000000000000000000000000000000000001010020288302032801fdd390a9714e4c2b8421658c9d4723bfcc8b4431b0aae098452101062c656535306539386661396337333238633361323262653965386636666131633362323738303537313836613761353031343961643366613334346638353932613532376634353865656362336132373732623161373131303562663032373730373063373737373964323365666630303537383637326236366666613533653631662c64653233326436643732663235313834333531303739666135393630336332643533316432343433393930393634323132393635333662633034326533623666323961396134303339313866343163323131376366613632393564383630656662613263393734393666316366353939383535343437376266643165353833613166"
+	require.Equal(raw, hex.EncodeToString(signedTx.Marshal()))
 }
 
 func TestCMPEthereumTransaction(t *testing.T) {
@@ -131,9 +116,9 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	accountAddress := testPrepareEthereumAccount(ctx, require)
 
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
-	value := "10000000000"
-	n := 6
-	id := uuid.Must(uuid.NewV4()).String()
+	value := "100000000000000"
+	n := 1
+	id := "b231eebd-78ec-44f7-aeeb-7cf0b73ed070"
 	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
 	require.Nil(err)
 
@@ -143,75 +128,65 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
-	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
-	require.Nil(err)
-	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
-	require.Nil(err)
-	tx.Signatures[1] = sigHolder
-	tx.Signatures[2] = sigSigner
-
-	currentNonce, err := ethereum.GetNonce(rpc, accountAddress)
-	require.Nil(err)
-	if currentNonce == int64(n) {
-		isValid, err := tx.ValidTransaction(rpc)
-		require.Nil(err)
-		require.True(isValid)
-
-		_, err = tx.ExecTransaction(ctx, rpc, os.Getenv("MVM_DEPLOYER"))
-		require.Nil(err)
-
-		time.Sleep(1 * time.Minute)
-		tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n+1)))
-		require.Nil(err)
-
-		// signatures should follow the asc order of addresses of owners
-		sigObserver, err := testEthereumSignMessage(testEthereumKeyObserver, tx.Message)
-		require.Nil(err)
-		sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
-		require.Nil(err)
-		tx.Signatures[0] = sigObserver
-		tx.Signatures[1] = sigHolder
-
-		_, err = tx.ValidTransaction(rpc)
-		require.NotNil(err)
-	}
+	signedTx := testEthereumSignTx(require, tx)
+	raw := "00000000000000890000000000000000004064663561343035633130346465633863623364346533333630656562313638663732333463623730366436343239373735343563303239636464323264633965002a3078346635393734613035363032394546413765344237623531613742626362384645633645383937300014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a4000000000010100209cbd585d2fc1c757ad354f0bbd0e2550eee2a33f751ac86a7bd7d2ed1b2a42b301062c366130316538343764333964386437393561386434653039633665383031316661336565366636323562363031393638363564323732346533313364643737373233646134656430363436343536653063323633306566616233623565383966303232303435353132353333353861393431666637666563623266366630313232302c33346639303533653861313564666538393037626431316133396637393461366266356161346631356565316438343532316230346465383764303231356132313632646363323966306137333534356333623937373838303134333036346535636635346663346137323838653863643730343131353662316364353865373230"
+	require.Equal(raw, hex.EncodeToString(signedTx.Marshal()))
 }
 
 func testPrepareEthereumAccount(ctx context.Context, require *require.Assertions) string {
 	ah, err := ethereumAddressFromPriv(testEthereumKeyHolder)
 	require.Nil(err)
 	require.Equal("0xC698197Dd0B0c24438a2508E464Fc5814A6cd512", ah)
+	ph := ethereumCompressPubFromPriv(testEthereumKeyHolder)
+	address, err := ethereum.ParseEthereumCompressedPublicKey(ph)
+	require.Nil(err)
+	require.Equal(ah, address.Hex())
 	as, err := ethereumAddressFromPriv(testEthereumKeySigner)
 	require.Nil(err)
 	require.Equal("0xf78409F2c9Ffe7e697f9F463890889287a06B4Ad", as)
+	ps := ethereumCompressPubFromPriv(testEthereumKeySigner)
+	address, err = ethereum.ParseEthereumCompressedPublicKey(ps)
+	require.Nil(err)
+	require.Equal(as, address.Hex())
 	ao, err := ethereumAddressFromPriv(testEthereumKeyObserver)
 	require.Nil(err)
 	require.Equal("0x09084B528F2AB737FF8A55a51ee6d8939da82F20", ao)
-	owners := []string{ah, as, ao}
-	threshold := 2
-	timelock := 2
+	po := ethereumCompressPubFromPriv(testEthereumKeyObserver)
+	address, err = ethereum.ParseEthereumCompressedPublicKey(po)
+	require.Nil(err)
+	require.Equal(ao, address.Hex())
 
-	addr := ethereum.GetSafeAccountAddress(owners, int64(threshold))
+	addr := ethereum.GetSafeAccountAddress([]string{ah, as, ao}, int64(threshold))
 	addrStr := addr.Hex()
-	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
+	require.Equal("0x4f5974a056029EFA7e4B7b51a7Bbcb8FEc6E8970", addrStr)
+	addr2 := ethereum.GetSafeAccountAddress([]string{ao, ah, as}, int64(threshold))
+	addrStr2 := addr2.Hex()
+	require.Equal(addrStr, addrStr2)
+	owners, pubs := ethereum.GetSortedSafeOwners(ph, ps, po)
+	addr3 := ethereum.GetSafeAccountAddress(owners, int64(threshold))
+	addrStr3 := addr3.Hex()
+	require.Equal(addrStr, addrStr3)
 
 	id := uuid.Must(uuid.NewV4()).String()
 	tx, err := ethereum.CreateEnableGuardTransaction(ctx, int64(chainID), id, addrStr, ao, new(big.Int).SetUint64(uint64(timelock)))
 	require.Nil(err)
+	for _, key := range []string{testEthereumKeyHolder, testEthereumKeySigner} {
+		sig, err := testEthereumSignMessage(key, tx.Message)
+		require.Nil(err)
 
-	sigHolder, err := testEthereumSignMessage(testEthereumKeyHolder, tx.Message)
-	require.Nil(err)
-	sigSigner, err := testEthereumSignMessage(testEthereumKeySigner, tx.Message)
-	require.Nil(err)
-	tx.Signatures[1] = sigHolder
-	tx.Signatures[2] = sigSigner
-
+		for i, p := range pubs {
+			pub := ethereumCompressPubFromPriv(key)
+			if pub == p {
+				tx.Signatures[i] = sig
+			}
+		}
+	}
 	testSafeTransactionMarshal(require, tx)
 
-	safeaddress, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, os.Getenv("MVM_DEPLOYER"), int64(chainID), owners, int64(threshold), int64(timelock), 2, tx)
+	safeAddress, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, os.Getenv("MVM_DEPLOYER"), int64(chainID), owners, int64(threshold), int64(timelock), 2, tx)
 	require.Nil(err)
-	require.Equal("0x0385B11Cfe2C529DE68E045C9E7708BA1a446432", addrStr)
-	return safeaddress.String()
+	require.Equal("0x4f5974a056029EFA7e4B7b51a7Bbcb8FEc6E8970", safeAddress.Hex())
+	return safeAddress.Hex()
 }
 
 func testSafeTransactionMarshal(require *require.Assertions, tx *ethereum.SafeTransaction) {
@@ -228,6 +203,26 @@ func testSafeTransactionMarshal(require *require.Assertions, tx *ethereum.SafeTr
 	require.Equal(hex.EncodeToString(tx.Signatures[0]), hex.EncodeToString(txDuplicate.Signatures[0]))
 	require.Equal(hex.EncodeToString(tx.Signatures[1]), hex.EncodeToString(txDuplicate.Signatures[1]))
 	require.Equal(hex.EncodeToString(tx.Signatures[2]), hex.EncodeToString(txDuplicate.Signatures[2]))
+}
+
+func testEthereumSignTx(require *require.Assertions, tx *ethereum.SafeTransaction) *ethereum.SafeTransaction {
+	ph := ethereumCompressPubFromPriv(testEthereumKeyHolder)
+	ps := ethereumCompressPubFromPriv(testEthereumKeySigner)
+	po := ethereumCompressPubFromPriv(testEthereumKeyObserver)
+	_, pubs := ethereum.GetSortedSafeOwners(ph, ps, po)
+
+	for _, key := range []string{testEthereumKeyHolder, testEthereumKeySigner} {
+		sig, err := testEthereumSignMessage(key, tx.Message)
+		require.Nil(err)
+
+		for i, p := range pubs {
+			pub := ethereumCompressPubFromPriv(key)
+			if pub == p {
+				tx.Signatures[i] = sig
+			}
+		}
+	}
+	return tx
 }
 
 func testEthereumSignMessage(priv string, message []byte) ([]byte, error) {
@@ -319,6 +314,12 @@ func ethereumAddressFromPub(require *require.Assertions, public string) common.A
 	pub := append(xb, yb...)
 	addr := common.BytesToAddress(crypto.Keccak256(pub)[12:])
 	return addr
+}
+
+func ethereumCompressPubFromPriv(priv string) string {
+	seed, _ := hex.DecodeString(priv)
+	_, dk := btcec.PrivKeyFromBytes(seed)
+	return hex.EncodeToString(dk.SerializeCompressed())
 }
 
 func ethereumSignTransaction(ctx context.Context, require *require.Assertions, nodes []*Node, mpc string, nonce uint64, to string, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) (string, string, error) {
