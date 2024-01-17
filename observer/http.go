@@ -161,7 +161,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var cs []map[string]any
-	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainMVM, keeper.SafeChainPolygon} {
+	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainPolygon} {
 		info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), c, time.Now())
 		if err != nil {
 			common.RenderError(w, r, err)

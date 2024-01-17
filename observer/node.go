@@ -59,7 +59,6 @@ func (node *Node) Boot(ctx context.Context) {
 	for _, chain := range []byte{
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
-		keeper.SafeChainMVM,
 		keeper.SafeChainPolygon,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
