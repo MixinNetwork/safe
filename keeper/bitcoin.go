@@ -296,7 +296,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 
 	extra := wsa.Marshal()
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionBitcoinSafeProposeAccount)
 	crv := SafeChainCurve(chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
@@ -365,7 +365,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	if err != nil {
 		return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(sp.Extra)))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(sp.Extra)))
 	typ := byte(common.ActionBitcoinSafeApproveAccount)
 	crv := SafeChainCurve(sp.Chain)
 	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, typ, crv, spr.AssetId, spr.Amount.String(), exk)
@@ -538,7 +538,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra = psbt.Marshal()
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionBitcoinSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
@@ -732,7 +732,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		}}
 	}
 
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(spsbt.Marshal())))
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)

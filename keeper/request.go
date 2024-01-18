@@ -97,8 +97,8 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 	return raw[16:]
 }
 
-func (node *Node) writeStorageOrPanic(ctx context.Context, extra []byte) crypto.Hash {
-	logger.Printf("node.writeStorageOrPanic(%x)", extra)
+func (node *Node) writeStorageUntilSnapshot(ctx context.Context, extra []byte) crypto.Hash {
+	logger.Printf("node.writeStorageUntilSnapshot(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
 		tx := crypto.Blake3Hash(extra)
 		k := hex.EncodeToString(tx[:])

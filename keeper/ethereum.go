@@ -349,7 +349,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	extra := gs.Marshal()
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeAccount)
 	crv := SafeChainCurve(chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
@@ -717,7 +717,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	extra = t.Marshal()
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(extra)))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, crv, exk)
@@ -963,7 +963,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 		}
-		exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(safe.Extra)))
+		exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(safe.Extra)))
 		typ := byte(common.ActionEthereumSafeApproveAccount)
 		crv := SafeChainCurve(safe.Chain)
 		id := common.UniqueId(req.Id, safe.Address)
@@ -1014,7 +1014,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 	}
 
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(t.Marshal())))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(t.Marshal())))
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)

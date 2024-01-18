@@ -173,6 +173,7 @@ func (node *Node) checkGroupChangeTransaction(memo string) bool {
 func (node *Node) loopProcessRequests(ctx context.Context) {
 	for {
 		req, err := node.store.ReadPendingRequest(ctx)
+		logger.Printf("node.ReadPendingRequest() => %v %v", req, err)
 		if err != nil {
 			panic(err)
 		}
