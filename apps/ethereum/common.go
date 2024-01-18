@@ -27,8 +27,6 @@ const (
 	ChainMVM      = 4
 	ChainPolygon  = 6
 
-	TransactionConfirmations = 1
-
 	ValuePrecision = 18
 	ValueDust      = 100000000000000
 
@@ -207,6 +205,19 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 		}
 	}
 	return false, nil, nil
+}
+
+func CheckFinalization(num uint64, chain byte) bool {
+	switch chain {
+	case ChainEthereum:
+		return num >= 1
+	case ChainPolygon:
+		return num >= 256
+	case ChainMVM:
+		return num >= 1
+	default:
+		panic(chain)
+	}
 }
 
 func ParseAmount(amount string, decimals int32) *big.Int {

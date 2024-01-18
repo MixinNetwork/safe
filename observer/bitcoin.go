@@ -74,7 +74,7 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.bitcoinParams(chain)
 
 	for {
-		time.Sleep(keeper.SafeNetworkInfoTimeout / 7)
+		time.Sleep(depositNetworkInfoDelay)
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
@@ -263,9 +263,6 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadLatestNetworkInfo(%d) => %v", deposit.Chain, err)
 	} else if info == nil {
-		return nil
-	}
-	if info.CreatedAt.Add(keeper.SafeNetworkInfoTimeout / 7).Before(time.Now()) {
 		return nil
 	}
 	if info.CreatedAt.After(time.Now()) {

@@ -275,9 +275,6 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if err != nil || info == nil {
 		return nil, err
 	}
-	if info.CreatedAt.Add(SafeNetworkInfoTimeout).Before(req.CreatedAt) {
-		return nil, nil
-	}
 	if info.CreatedAt.After(req.CreatedAt) {
 		return nil, fmt.Errorf("malicious bitcoin network info %v", info)
 	}

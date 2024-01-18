@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	snapshotsCheckpointKey = "snapshots-checkpoint"
+	snapshotsCheckpointKey  = "snapshots-checkpoint"
+	depositNetworkInfoDelay = 3 * time.Minute
 )
 
 type Node struct {

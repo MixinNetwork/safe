@@ -39,8 +39,6 @@ const (
 
 	MaxTransactionSequence = 0xffffffff
 	MaxStandardTxWeight    = 300000
-
-	TransactionConfirmations = 1
 )
 
 func ParseSatoshi(amount string) int64 {
@@ -107,7 +105,7 @@ func CheckFinalization(num uint64, coinbase bool) bool {
 	if num >= uint64(chaincfg.MainNetParams.CoinbaseMaturity) {
 		return true
 	}
-	return !coinbase && num >= TransactionConfirmations
+	return !coinbase && num >= 1
 }
 
 func CheckDerivation(public string, chainCode []byte, maxRange uint32) error {

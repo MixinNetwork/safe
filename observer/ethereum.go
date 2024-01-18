@@ -123,7 +123,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.ethereumParams(chain)
 
 	for {
-		time.Sleep(keeper.SafeNetworkInfoTimeout / 7)
+		time.Sleep(depositNetworkInfoDelay)
 		height, err := ethereum.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
@@ -267,9 +267,6 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	} else if info == nil {
 		return nil
 	}
-	if info.CreatedAt.Add(keeper.SafeNetworkInfoTimeout / 7).Before(time.Now()) {
-		return nil
-	}
 	if info.CreatedAt.After(time.Now()) {
 		panic(fmt.Errorf("malicious ethereum network info %v", info))
 	}
@@ -292,7 +289,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if isSafe {
 		confirmations = 1000000
 	}
-	if confirmations < ethereum.TransactionConfirmations {
+	if !ethereum.CheckFinalization(confirmations, deposit.Chain) {
 		return nil
 	}
 
