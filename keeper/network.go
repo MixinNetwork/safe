@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -119,7 +120,14 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
+var bitcoinExistingForks = []string{
+	"00000000000000000003aaaacecbebd40417c2e6c39b5774a8a212d5b324052b", // 822941
+}
+
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
+	if slices.Contains(bitcoinExistingForks, info.Hash) {
+		return true, nil
+	}
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
