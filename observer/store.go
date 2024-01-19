@@ -147,7 +147,7 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 		switch safe.Chain {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 			isSigned = bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
-		case keeper.SafeChainMVM:
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 			isSigned = ethereum.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
 		default:
 			panic(safe.Chain)
@@ -661,8 +661,8 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw str
 		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state=?",
 			state, raw, time.Now().UTC(), address, common.RequestStateInitial)
 	case common.RequestStateDone:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND state=?",
-			state, time.Now().UTC(), address, common.RequestStatePending)
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state IN (?, ?)",
+			state, raw, time.Now().UTC(), address, common.RequestStateInitial, common.RequestStatePending)
 	default:
 		panic(state)
 	}

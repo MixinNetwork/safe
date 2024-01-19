@@ -95,7 +95,7 @@ func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 		}
 		owners = append(owners, addr.Hex())
 	}
-	sort.Slice(owners, func(i, j int) bool { return owners[i] < owners[j] })
+	sort.Slice(owners, func(i, j int) bool { return common.HexToAddress(owners[i]).Cmp(common.HexToAddress(owners[j])) == -1 })
 	addressMap := make(map[string]int)
 	for i, a := range owners {
 		addressMap[a] = i
@@ -158,6 +158,8 @@ func CheckSafeAccountDeployed(rpc, address string) (bool, bool, error) {
 }
 
 func GetSafeAccountAddress(owners []string, threshold int64) common.Address {
+	sort.Slice(owners, func(i, j int) bool { return common.HexToAddress(owners[i]).Cmp(common.HexToAddress(owners[j])) == -1 })
+
 	this, err := hex.DecodeString(EthereumSafeProxyFactoryAddress[2:])
 	if err != nil {
 		panic(err)
@@ -270,11 +272,14 @@ func GetTokenBalanceAtBlock(rpc, tokenAddress, address string, blockNumber *big.
 		Data: data,
 	}
 	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
 	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
+	if err != nil {
+		return nil, err
+	}
 	n := new(big.Int).SetBytes(response)
 	return n, nil
 }

@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/md5"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -23,8 +25,7 @@ import (
 const (
 	ChainEthereum = 2
 	ChainMVM      = 4
-
-	TransactionConfirmations = 1
+	ChainPolygon  = 6
 
 	ValuePrecision = 18
 	ValueDust      = 100000000000000
@@ -40,11 +41,11 @@ const (
 	TypeMultiSendTx = 3
 
 	EthereumEmptyAddress                        = "0x0000000000000000000000000000000000000000"
-	EthereumSafeProxyFactoryAddress             = "0xC00abA7FbB0d1e7f02082E346fe1B80EFA16Dc5D"
-	EthereumSafeL2Address                       = "0x9eA0fCa659336872d47dF0FbE21575BeE1a56eff"
-	EthereumCompatibilityFallbackHandlerAddress = "0x52Bb11433e9C993Cc320B659bdd3F0699AEa678d"
-	EthereumMultiSendAddress                    = "0x22a4Ac16965F7C5446A28E3aaA91D06409bF5637"
-	EthereumSafeGuardAddress                    = "0x2409439756fc06A9553dFb78C69ba37C24e5c3B7"
+	EthereumSafeProxyFactoryAddress             = "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+	EthereumSafeL2Address                       = "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762"
+	EthereumCompatibilityFallbackHandlerAddress = "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99"
+	EthereumMultiSendAddress                    = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
+	EthereumSafeGuardAddress                    = "0x571de9c61FbF4A4c1da63B863A965D6a1C22306A"
 
 	predeterminedSaltNonce  = "0xb1073742015cbcf5a3a4d9d1ae33ecf619439710b89475f92e2abd2117e90f90"
 	accountContractCode     = "0x608060405234801561001057600080fd5b506040516101e63803806101e68339818101604052602081101561003357600080fd5b8101908080519060200190929190505050600073ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1614156100ca576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260228152602001806101c46022913960400191505060405180910390fd5b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505060ab806101196000396000f3fe608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea264697066735822122003d1488ee65e08fa41e58e888a9865554c535f2c77126a82cb4c0f917f31441364736f6c63430007060033496e76616c69642073696e676c65746f6e20616464726573732070726f7669646564"
@@ -126,65 +127,97 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, txs []string) []*Transfer {
+// TODO cross-chain deposits might be lost, which are sended from emtpy address and not included in the block traces in polygon
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
+	txs := []*RPCTransaction{}
+	for _, tx := range blockTxs {
+		if tx.From == EthereumEmptyAddress {
+			continue
+		}
+		txs = append(txs, tx)
+	}
 	if len(txs) != len(traces) {
-		panic(len(txs))
+		panic(fmt.Errorf("%d %d %d", chain, len(txs), len(traces)))
 	}
 
 	var transfers []*Transfer
 	for i, t := range traces {
-		txTransfers := LoopCalls(chain, chainId, t.Result, 0, 0)
-		hash := txs[i]
-		for _, tTransfer := range txTransfers {
-			tTransfer.Hash = hash
-			tTransfer.Sender = t.Result.From
-			transfers = append(transfers, tTransfer)
-		}
+		hash := txs[i].Hash
+		txTransfers, _ := LoopCalls(chain, chainId, hash, t.Result, 0)
+		transfers = append(transfers, txTransfers...)
 	}
 	return transfers
 }
 
-func LoopCalls(chain byte, chainId string, trace *RPCTransactionCallTrace, layer, index int) []*Transfer {
-	depositIndex := int64(layer*10 + index)
-
+func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace, index int64) ([]*Transfer, int64) {
 	var transfers []*Transfer
 	switch {
 	case trace.Error != "" || trace.Type == "STATICCALL":
-		return transfers
-	case trace.Value != "" && trace.Input == "0x": // ETH transfer
+		return transfers, index + 1
+	case trace.Value != "": // ETH transfer
 		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
 		to := common.HexToAddress(trace.To)
+		sender := common.HexToAddress(trace.From)
 		if value.Cmp(big.NewInt(0)) > 0 {
 			transfers = append(transfers, &Transfer{
-				Index:        depositIndex,
+				Hash:         hash,
+				Index:        index,
 				Value:        value,
 				Receiver:     to.Hex(),
 				TokenAddress: EthereumEmptyAddress,
 				AssetId:      chainId,
-			})
-		}
-	case strings.HasPrefix(trace.Input, "0xa9059cbb"): // ERC20 transfer(address,uint256)
-		input := trace.Input[10:]
-		to := common.HexToAddress(input[0:64]).Hex()
-		value, _ := new(big.Int).SetString(input[64:128], 16)
-		tokenAddress := trace.To
-		assetId := GenerateAssetId(chain, tokenAddress)
-		if value.Cmp(big.NewInt(0)) > 0 {
-			transfers = append(transfers, &Transfer{
-				Index:        depositIndex,
-				Value:        value,
-				Receiver:     to,
-				TokenAddress: tokenAddress,
-				AssetId:      assetId,
+				Sender:       sender.Hex(),
 			})
 		}
 	}
 
-	for i, c := range trace.Calls {
-		ts := LoopCalls(chain, chainId, c, layer+1, i)
+	index = index + 1
+	for _, c := range trace.Calls {
+		ts, end := LoopCalls(chain, chainId, hash, c, index)
+		index = end
 		transfers = append(transfers, ts...)
 	}
-	return transfers
+	return transfers, index
+}
+
+func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
+	etx, err := RPCGetTransactionByHash(rpc, hash)
+	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
+	if err != nil || etx == nil {
+		return false, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
+	}
+	traces, err := RPCDebugTraceTransactionByHash(rpc, hash)
+	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", hash, err)
+	if err != nil {
+		return false, nil, err
+	}
+	transfers, _ := LoopCalls(chain, hash, chainId, traces, 0)
+	erc20Transfers, err := GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(etx.BlockHeight))
+	logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d) => %v", etx.BlockHeight, err)
+	if err != nil {
+		return false, nil, err
+	}
+	transfers = append(transfers, erc20Transfers...)
+	for i, t := range transfers {
+		logger.Printf("transfer %d: %v", i, t)
+		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
+			return true, etx, nil
+		}
+	}
+	return false, nil, nil
+}
+
+func CheckFinalization(num uint64, chain byte) bool {
+	switch chain {
+	case ChainEthereum:
+		return num >= 1
+	case ChainPolygon:
+		return num >= 256
+	case ChainMVM:
+		return num >= 1
+	default:
+		panic(chain)
+	}
 }
 
 func ParseAmount(amount string, decimals int32) *big.Int {
@@ -209,6 +242,8 @@ func GetEvmChainID(chain int64) int64 {
 	switch chain {
 	case ChainEthereum:
 		return 1
+	case ChainPolygon:
+		return 137
 	case ChainMVM:
 		return 73927
 	default:
@@ -220,6 +255,8 @@ func GetMixinChainID(chain int64) string {
 	switch chain {
 	case ChainEthereum:
 		return "43d61dcd-e413-450d-80b8-101d5e903357"
+	case ChainPolygon:
+		return "b7938396-3f94-4e0a-9179-d3440718156f"
 	case ChainMVM:
 		return "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
 	default:
@@ -265,7 +302,7 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 
 func NormalizeAddress(addr string) string {
 	norm := common.HexToAddress(addr).Hex()
-	if norm == EthereumEmptyAddress || strings.ToLower(norm) != strings.ToLower(addr) {
+	if norm == EthereumEmptyAddress || !strings.EqualFold(norm, addr) {
 		return ""
 	}
 	return norm

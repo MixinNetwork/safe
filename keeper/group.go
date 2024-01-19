@@ -3,7 +3,6 @@ package keeper
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
-	"github.com/shopspring/decimal"
 )
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
@@ -182,6 +180,7 @@ func (node *Node) checkGroupChangeTransaction(memo string) bool {
 func (node *Node) loopProcessRequests(ctx context.Context) {
 	for {
 		req, err := node.store.ReadPendingRequest(ctx)
+		logger.Printf("node.ReadPendingRequest() => %v %v", req, err)
 		if err != nil {
 			panic(err)
 		}
@@ -315,7 +314,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 	case common.CurveEdwards25519Mixin:
 		err = mixin.VerifyPublicKey(req.Holder)
 		logger.Printf("mixin.VerifyPublicKey(%s, %x) => %v", req.Holder, chainCode, err)
-	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM:
+	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 		err = ethereum.VerifyHolderKey(req.Holder)
 		logger.Printf("ethereum.VerifyHolderKey(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
@@ -353,7 +352,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	switch safe.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
-	case SafeChainEthereum, SafeChainMVM:
+	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
 	case SafeChainMixinKernel:
 		return node.processMixinKernelSafeSignatureResponse(ctx, req)
@@ -375,19 +374,6 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	assetId := SafeBitcoinChainId
-	switch safe.Chain {
-	case SafeChainBitcoin:
-	case SafeChainLitecoin:
-		assetId = SafeLitecoinChainId
-	case SafeChainEthereum:
-		assetId = SafeEthereumChainId
-	case SafeChainMVM:
-		assetId = SafeMVMChainId
-	default:
-		panic(safe.Chain)
-	}
-
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
 		return node.store.FailRequest(ctx, req.Id)
@@ -406,38 +392,28 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	} else if tx.State != common.RequestStateInitial {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	txRequest, err := node.store.ReadRequest(ctx, rid.String())
+	logger.Printf("store.ReadRequest(%s) => %v %v", rid.String(), txRequest, err)
+	if err != nil || txRequest == nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
 	logger.Printf("holder: node.verifySafeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
+	if err != nil {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
-	bondId, _, err := node.getBondAsset(ctx, assetId, safe.Holder)
-	logger.Printf("node.getBondAsset(%s, %s) => %s %v", assetId, req.Holder, bondId, err)
+	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", txRequest.AssetId, meta, err)
 	if err != nil {
-		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", assetId, req.Holder, err)
-	}
-	var transfers []map[string]string
-	err = json.Unmarshal([]byte(tx.Data), &transfers)
-	if err != nil {
-		panic(err)
-	}
-	amount := decimal.Zero
-	for _, t := range transfers {
-		ta := decimal.RequireFromString(t["amount"])
-		if ta.Cmp(decimal.NewFromFloat(0.0001)) < 0 {
-			panic(tx.Data)
-		}
-		amount = amount.Add(ta)
-	}
-	meta, err := node.fetchAssetMeta(ctx, bondId.String())
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", bondId.String(), meta, err)
-	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
+		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
 	if meta.Chain != SafeChainMVM {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), amount.String(), []byte("refund"), req.Id)
+	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if err != nil {
 		return err
 	}

@@ -150,7 +150,7 @@ func (node *Node) processMixinKernelSafeProposeAccount(ctx context.Context, req 
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode([]byte(acc.String()))))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode([]byte(acc.String()))))
 	typ := byte(common.ActionMixinKernelSafeProposeAccount)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, req.Curve, exk)
 	if err != nil {
@@ -222,7 +222,7 @@ func (node *Node) processMixinKernelSafeApproveAccount(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode([]byte(sp.Address))))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode([]byte(sp.Address))))
 	typ := byte(common.ActionMixinKernelSafeApproveAccount)
 	err = node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, typ, req.Curve, spr.AssetId, spr.Amount.String(), exk)
 	if err != nil {
@@ -384,7 +384,7 @@ func (node *Node) processMixinKernelSafeProposeTransaction(ctx context.Context, 
 	}
 
 	msg := common.Base91Encode(psbt.PayloadMarshal())
-	exk := node.writeStorageOrPanic(ctx, []byte(msg))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(msg))
 	typ := byte(common.ActionMixinKernelSafeProposeTransaction)
 	err = node.sendObserverResponseWithReferences(ctx, req.Id, typ, req.Curve, exk)
 	if err != nil {
@@ -680,7 +680,7 @@ func (node *Node) processMixinKernelSafeSignatureResponse(ctx context.Context, r
 		psbt.SignaturesMap = append(psbt.SignaturesMap, map[uint16]*crypto.Signature{0: &msig})
 	}
 
-	exk := node.writeStorageOrPanic(ctx, []byte(common.Base91Encode(psbt.Marshal())))
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(psbt.Marshal())))
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionMixinKernelSafeApproveTransaction)
 	err = node.sendObserverResponseWithReferences(ctx, id, typ, req.Curve, exk)

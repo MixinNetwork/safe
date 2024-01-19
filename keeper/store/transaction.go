@@ -330,7 +330,7 @@ func transactionInputTable(chain byte) string {
 		return "bitcoin_outputs"
 	case mixin.ChainMixinKernel:
 		return "mixin_outputs"
-	case ethereum.ChainEthereum, ethereum.ChainMVM:
+	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
 		return ""
 	default:
 		panic(chain)

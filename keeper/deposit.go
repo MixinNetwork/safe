@@ -58,7 +58,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		deposit.Hash = hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
-	case SafeChainEthereum, SafeChainMVM:
+	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
@@ -130,7 +130,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	case SafeChainMixinKernel:
 		return node.doMixinKernelHolderDeposit(ctx, req, deposit, safe, bond.AssetId, plan.TransactionMinimum)
-	case SafeChainEthereum, SafeChainMVM:
+	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
 		return node.store.FailRequest(ctx, req.Id)
@@ -220,33 +220,18 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
 
-	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, deposit.Hash)
-	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", deposit.Hash, err)
+	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
 	if err != nil {
 		return err
 	}
-	transfers := ethereum.LoopCalls(deposit.Chain, chainId, traces, 0, 0)
-	match := false
-	for i, t := range transfers {
-		logger.Printf("transfer %d: %v", i, t)
-		if t.Index == int64(deposit.Index) && t.Receiver == safe.Address && deposit.Amount.Cmp(t.Value) == 0 {
-			match = true
-		}
-	}
 	if !match {
-		logger.Printf("deposit %v has no match: %v", deposit, transfers)
+		logger.Printf("deposit %v has no match", deposit)
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
 	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if err != nil {
 		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
-	}
-
-	etx, err := ethereum.RPCGetTransactionByHash(rpc, deposit.Hash)
-	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", deposit.Hash, etx, err)
-	if err != nil {
-		return err
 	}
 	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, etx.From)
 }
@@ -302,9 +287,6 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil || info == nil {
 		return nil, err
-	}
-	if info.CreatedAt.Add(SafeNetworkInfoTimeout).Before(req.CreatedAt) {
-		return nil, nil
 	}
 	if info.CreatedAt.After(req.CreatedAt) {
 		return nil, fmt.Errorf("malicious bitcoin network info %v", info)

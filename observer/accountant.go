@@ -127,6 +127,7 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	switch safe.Chain {
 	case keeper.SafeChainEthereum:
 	case keeper.SafeChainMVM:
+	case keeper.SafeChainPolygon:
 	default:
 		panic(st.TxHash)
 	}
@@ -217,31 +218,21 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 
 	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
 	virtualSize := (weight + 300) / 4
-	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, tx.Chain, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	if info.CreatedAt.Add(keeper.SafeNetworkInfoTimeout).Before(time.Now()) {
-		return nil, fmt.Errorf("network info timeout %v", info)
-	}
 	fvb, err := bitcoin.RPCEstimateSmartFee(tx.Chain, rpc)
 	if err != nil {
 		return nil, err
 	}
-	if uint64(fvb) > info.Fee {
-		info.Fee = uint64(fvb)
-	}
-	fee := info.Fee * uint64(virtualSize)
-	if fee < uint64(bitcoin.ValueDust(tx.Chain)) {
-		fee = uint64(bitcoin.ValueDust(tx.Chain))
+	fee := fvb * virtualSize
+	if fee < bitcoin.ValueDust(tx.Chain) {
+		fee = bitcoin.ValueDust(tx.Chain)
 	}
 
-	feeInput, err := node.bitcoinRetrieveFeeInputsForTransaction(ctx, fee, info.Fee, tx)
+	feeInput, err := node.bitcoinRetrieveFeeInputsForTransaction(ctx, uint64(fee), uint64(fvb), tx)
 	if err != nil {
 		return nil, err
 	}
 	if feeInput == nil {
-		return nil, fmt.Errorf("insufficient accountant balance %d %d", fee, info.Fee)
+		return nil, fmt.Errorf("insufficient accountant balance %d %d", fee, fvb)
 	}
 
 	accountant, err := node.store.ReadAccountantPrivateKey(ctx, feeInput.Address)
@@ -377,8 +368,8 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 				panic(err)
 			}
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, spentHash)
-			if err != nil || tx == nil {
-				panic(fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", spentHash, tx, err))
+			if err != nil || etx == nil || etx.BlockHeight == 0 {
+				panic(fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", spentHash, etx, err))
 			}
 			err = node.ethereumProcessTransaction(ctx, etx, chain)
 			if err != nil {

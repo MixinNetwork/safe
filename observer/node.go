@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	snapshotsCheckpointKey = "snapshots-checkpoint"
+	snapshotsCheckpointKey  = "snapshots-checkpoint"
+	depositNetworkInfoDelay = 3 * time.Minute
 )
 
 type Node struct {
@@ -52,10 +53,14 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
 	for _, chain := range []byte{
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
-		keeper.SafeChainMVM,
+		keeper.SafeChainPolygon,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
@@ -65,14 +70,12 @@ func (node *Node) Boot(ctx context.Context) {
 		switch chain {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 			go node.bitcoinNetworkInfoLoop(ctx, chain)
-			go node.bitcoinMixinWithdrawalsLoop(ctx, chain)
 			go node.bitcoinRPCBlocksLoop(ctx, chain)
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case keeper.SafeChainMVM:
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
-			go node.ethereumMixinWithdrawalsLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
 			go node.ethereumTransactionApprovalLoop(ctx, chain)
@@ -89,7 +92,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case keeper.SafeChainMVM:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)

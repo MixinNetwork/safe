@@ -2,13 +2,23 @@ package ethereum
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"math"
 	"math/big"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/MixinNetwork/safe/apps/ethereum/abi"
+	"github.com/ethereum/go-ethereum"
+	ga "github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type RPCBlock struct {
@@ -117,8 +127,9 @@ func RPCGetBlockHash(rpc string, height int64) (string, error) {
 	return b.Hash, err
 }
 
-func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, true})
+func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransactions, error) {
+	h := fmt.Sprintf("0x%x", height)
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, true})
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +144,7 @@ func RPCGetBlockWithTransactions(rpc, hash string) (*RPCBlockWithTransactions, e
 	}
 	b.Height = blockHeight
 	for _, tx := range b.Tx {
-		tx.BlockHash = hash
+		tx.BlockHash = b.Hash
 	}
 	return &b, err
 }
@@ -215,8 +226,9 @@ func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace,
 	return &t, err
 }
 
-func RPCDebugTraceBlockByHash(rpc, hash string) ([]*RPCBlockCallTrace, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByHash", []any{hash, map[string]any{"tracer": "callTracer"}})
+func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace, error) {
+	h := fmt.Sprintf("0x%x", height)
+	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByNumber", []any{h, map[string]any{"tracer": "callTracer"}})
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +255,53 @@ func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, erro
 		return nil, fmt.Errorf("Failed to parse address balance")
 	}
 	return balance, err
+}
+
+func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
+	client, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, err
+	}
+	query := ethereum.FilterQuery{
+		FromBlock: big.NewInt(height),
+		ToBlock:   big.NewInt(height),
+	}
+	contractAbi, err := ga.JSON(strings.NewReader(abi.AssetABI))
+	if err != nil {
+		log.Fatal(err)
+	}
+	logs, err := client.FilterLogs(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	logTransferSig := []byte("Transfer(address,address,uint256)")
+	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
+
+	ts := []*Transfer{}
+	for _, vLog := range logs {
+		switch {
+		case len(vLog.Topics) == 3 && vLog.Topics[0].Hex() == logTransferSigHash.Hex() && len(vLog.Data) == 32:
+			var event abi.AssetTransfer
+			err = contractAbi.UnpackIntoInterface(&event, "Transfer", vLog.Data)
+			if err != nil {
+				return nil, err
+			}
+
+			tokenAddress := vLog.Address.Hex()
+			assetId := GenerateAssetId(byte(chain), tokenAddress)
+			t := &Transfer{
+				Hash:         vLog.TxHash.Hex(),
+				Index:        int64(vLog.Index) + int64(math.MaxInt32),
+				TokenAddress: vLog.Address.Hex(),
+				AssetId:      assetId,
+				Sender:       common.HexToAddress(vLog.Topics[1].Hex()).Hex(),
+				Receiver:     common.HexToAddress(vLog.Topics[2].Hex()).Hex(),
+				Value:        event.Value,
+			}
+			ts = append(ts, t)
+		}
+	}
+	return ts, nil
 }
 
 func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {

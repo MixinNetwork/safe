@@ -160,87 +160,54 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 }
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	bi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainBitcoin, time.Now())
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
+	var cs []map[string]any
+	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainPolygon} {
+		info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), c, time.Now())
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		if info == nil {
+			common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+			return
+		}
+		var id string
+		switch c {
+		case keeper.SafeChainBitcoin:
+			id = keeper.SafeBitcoinChainId
+		case keeper.SafeChainLitecoin:
+			id = keeper.SafeLitecoinChainId
+		case keeper.SafeChainMVM:
+			id = keeper.SafeMVMChainId
+		case keeper.SafeChainPolygon:
+			id = keeper.SafePolygonChainId
+		}
+		head := make(map[string]any)
+		head["id"] = info.RequestId
+		head["height"] = info.Height
+		head["fee"] = info.Fee
+		head["hash"] = info.Hash
+		head["created_at"] = info.CreatedAt
+		chain := make(map[string]any)
+		chain["id"] = id
+		chain["chain"] = c
+		chain["head"] = head
+		switch c {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			c, s, err := node.readChainAccountantBalance(r.Context(), int(c))
+			if err != nil {
+				common.RenderError(w, r, err)
+				return
+			}
+			outputs := make(map[string]any)
+			outputs["count"] = c
+			outputs["satoshi"] = s
+			accountant := make(map[string]any)
+			accountant["outputs"] = outputs
+		}
+		cs = append(cs, chain)
 	}
-	if bi == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
-		return
-	}
-	li, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainLitecoin, time.Now())
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	if li == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
-		return
-	}
-	mi, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), keeper.SafeChainMVM, time.Now())
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	if mi == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
-		return
-	}
-	bc, bs, err := node.readChainAccountantBalance(r.Context(), keeper.SafeChainBitcoin)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	lc, ls, err := node.readChainAccountantBalance(r.Context(), keeper.SafeChainLitecoin)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-
-	common.RenderJSON(w, r, http.StatusOK, []map[string]any{{
-		"id":    keeper.SafeBitcoinChainId,
-		"chain": bi.Chain,
-		"head": map[string]any{
-			"id":         bi.RequestId,
-			"height":     bi.Height,
-			"fee":        bi.Fee,
-			"hash":       bi.Hash,
-			"created_at": bi.CreatedAt,
-		},
-		"accountant": map[string]any{
-			"outputs": map[string]any{
-				"count":   bc,
-				"satoshi": bs,
-			},
-		},
-	}, {
-		"id":    keeper.SafeLitecoinChainId,
-		"chain": li.Chain,
-		"head": map[string]any{
-			"id":         li.RequestId,
-			"height":     li.Height,
-			"fee":        li.Fee,
-			"hash":       li.Hash,
-			"created_at": li.CreatedAt,
-		},
-		"accountant": map[string]any{
-			"outputs": map[string]any{
-				"count":   lc,
-				"satoshi": ls,
-			},
-		},
-	}, {
-		"id":    keeper.SafeMVMChainId,
-		"chain": mi.Chain,
-		"head": map[string]any{
-			"id":         mi.RequestId,
-			"height":     mi.Height,
-			"fee":        mi.Fee,
-			"hash":       mi.Hash,
-			"created_at": mi.CreatedAt,
-		},
-	}})
+	common.RenderJSON(w, r, http.StatusOK, cs)
 }
 
 func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -691,7 +658,10 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 		if dm["sent_hash"] == "" {
 			dm["sent_hash"] = d.TransactionHash
 		} else {
-			dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
+			switch d.Chain {
+			case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+				dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
+			}
 		}
 		view = append(view, dm)
 	}
@@ -839,7 +809,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			},
 			"state": status,
 		})
-	case keeper.SafeChainMVM:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 		_, assetId := node.ethereumParams(sp.Chain)
 		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, assetId, "", sp.Holder)
 		if err != nil {

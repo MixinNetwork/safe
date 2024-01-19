@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -81,7 +82,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		} else if snap.TopologicalOrder < info.Height && info.Height-snap.TopologicalOrder > 10000 {
 			panic(info.Hash)
 		}
-	case SafeChainEthereum, SafeChainMVM:
+	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
@@ -121,6 +122,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 		}
 	case SafeChainEthereum:
 	case SafeChainMVM:
+	case SafeChainPolygon:
 	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -141,7 +143,16 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
+var bitcoinExistingForks = []string{
+	"00000000000000000003aaaacecbebd40417c2e6c39b5774a8a212d5b324052b", // bitcoin  822941
+	"a3baa2ca78ecd1125501e7921d761a7fe9642dd57126ea89bbb2f0ea6626155b", // litecoin 2547862
+	"c5e7f05ec53068af4915454a61a01ac6b4bdafce8a76a2aacdf8ea47f0247a80", // litecoin 2553886
+}
+
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
+	if slices.Contains(bitcoinExistingForks, info.Hash) {
+		return true, nil
+	}
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
@@ -191,6 +202,8 @@ func (node *Node) ethereumParams(chain byte) (string, string) {
 		return node.conf.EthereumRPC, SafeEthereumChainId
 	case SafeChainMVM:
 		return node.conf.MVMRPC, SafeMVMChainId
+	case SafeChainPolygon:
+		return node.conf.PolygonRPC, SafePolygonChainId
 	default:
 		panic(chain)
 	}
@@ -202,8 +215,9 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		return meta, err
 	}
 	switch chain {
-	case SafeChainMVM:
 	case SafeChainEthereum:
+	case SafeChainMVM:
+	case SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -266,6 +280,8 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 		chain = SafeChainEthereum
 	case SafeMVMChainId:
 		chain = SafeChainMVM
+	case SafePolygonChainId:
+		chain = SafeChainPolygon
 	default:
 		panic(asset.ChainId)
 	}
