@@ -124,6 +124,7 @@ var bitcoinExistingForks = []string{
 	"00000000000000000003aaaacecbebd40417c2e6c39b5774a8a212d5b324052b", // bitcoin  822941
 	"a3baa2ca78ecd1125501e7921d761a7fe9642dd57126ea89bbb2f0ea6626155b", // litecoin 2547862
 	"c5e7f05ec53068af4915454a61a01ac6b4bdafce8a76a2aacdf8ea47f0247a80", // litecoin 2553886
+	"596c446af9c306888b6e456a6945e98832f93aca90a8268fff502e69ee50fb79", // litecoin 2555068
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
@@ -140,6 +141,9 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	}
 	if block.Height != info.Height {
 		return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+	}
+	if block.Confirmations == -1 {
+		return false, fmt.Errorf("malicious bitcoin fork %s", info.Hash)
 	}
 	if info.Fee < bitcoinMinimumFeeRate || info.Fee > bitcoinMaximumFeeRate {
 		return false, nil
