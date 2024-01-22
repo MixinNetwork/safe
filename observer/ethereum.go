@@ -123,7 +123,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.ethereumParams(chain)
 
 	for {
-		time.Sleep(time.Second)
+		time.Sleep(depositNetworkInfoDelay)
 		checkpoint, err := node.ethereumReadDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)

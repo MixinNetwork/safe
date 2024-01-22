@@ -74,7 +74,7 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.bitcoinParams(chain)
 
 	for {
-		time.Sleep(time.Second)
+		time.Sleep(depositNetworkInfoDelay)
 		checkpoint, err := node.bitcoinReadDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
