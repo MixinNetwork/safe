@@ -123,10 +123,18 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.ethereumParams(chain)
 
 	for {
-		time.Sleep(depositNetworkInfoDelay)
+		time.Sleep(time.Second)
+		checkpoint, err := node.ethereumReadDepositCheckpoint(ctx, chain)
+		if err != nil {
+			panic(err)
+		}
 		height, err := ethereum.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
+			continue
+		}
+		delay := node.getBlockDelay(chain)
+		if checkpoint+delay > height {
 			continue
 		}
 		gasPrice, err := ethereum.RPCGetGasPrice(rpc)
@@ -406,12 +414,8 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		delay := 0
-		switch chain {
-		case keeper.SafeChainPolygon:
-			delay = 60
-		}
-		if checkpoint+int64(delay) > height {
+		delay := node.getBlockDelay(chain)
+		if checkpoint+delay > height {
 			continue
 		}
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)

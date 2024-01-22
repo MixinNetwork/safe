@@ -74,10 +74,18 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.bitcoinParams(chain)
 
 	for {
-		time.Sleep(depositNetworkInfoDelay)
+		time.Sleep(time.Second)
+		checkpoint, err := node.bitcoinReadDepositCheckpoint(ctx, chain)
+		if err != nil {
+			panic(err)
+		}
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
+			continue
+		}
+		delay := node.getBlockDelay(chain)
+		if checkpoint+delay > height {
 			continue
 		}
 		fvb, err := bitcoin.RPCEstimateSmartFee(chain, rpc)
@@ -395,7 +403,8 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.bitcoinReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		if checkpoint > height {
+		delay := node.getBlockDelay(chain)
+		if checkpoint+delay > height {
 			continue
 		}
 		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)

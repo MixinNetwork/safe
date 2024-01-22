@@ -369,3 +369,18 @@ func (node *Node) safeTraceId(params ...string) string {
 	}
 	return traceId
 }
+
+func (node *Node) getBlockDelay(chain byte) int64 {
+	switch chain {
+	case keeper.SafeChainBitcoin:
+		return 3
+	case keeper.SafeChainLitecoin:
+		return 6
+	case keeper.SafeChainEthereum:
+		return 32
+	case keeper.SafeChainPolygon:
+		return 512
+	default:
+		panic(chain)
+	}
+}
