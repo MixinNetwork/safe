@@ -88,7 +88,7 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 		}
 		tx.Destination = common.HexToAddress(norm)
 		tx.Value = big.NewInt(0)
-		tx.Data = GetERC20TxData(destination, value)
+		tx.Data = buildERC20TxData(destination, value)
 	default:
 		return nil, fmt.Errorf("invalid safe transaction type: %d", typ)
 	}
@@ -106,7 +106,7 @@ func CreateMultiSendTransaction(ctx context.Context, chainID int64, id, safeAddr
 		SafeAddress:    safeAddress,
 		Destination:    common.HexToAddress(EthereumMultiSendAddress),
 		Value:          big.NewInt(0),
-		Data:           GetMultiSendData(outputs),
+		Data:           buildMultiSendData(outputs),
 		Operation:      operationTypeDelegateCall,
 		SafeTxGas:      big.NewInt(0),
 		BaseGas:        big.NewInt(0),
@@ -140,7 +140,7 @@ func CreateEnableGuardTransaction(ctx context.Context, chainID int64, id, safeAd
 		Nonce:          zero,
 		Signatures:     make([][]byte, 3),
 	}
-	tx.Data = tx.GetEnableGuradData(observerAddress, timelock)
+	tx.Data = tx.buildEnableGuradData(observerAddress, timelock)
 	tx.Message = tx.GetTransactionHash()
 	tx.TxHash = tx.Hash(id)
 	return tx, nil
@@ -336,7 +336,7 @@ func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string)
 }
 
 func (tx *SafeTransaction) ExtractOutputs() []*Output {
-	outputs, err := tx.ParseMultiSendData()
+	outputs, err := tx.parseMultiSendData()
 	if err == nil {
 		return outputs
 	}
@@ -373,7 +373,7 @@ func (tx *SafeTransaction) GetTransactionHash() []byte {
 	return hash
 }
 
-func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
+func (tx *SafeTransaction) parseMultiSendData() ([]*Output, error) {
 	if tx.Operation != operationTypeDelegateCall {
 		return nil, fmt.Errorf("invalid tx operation: %d", tx.Operation)
 	}
@@ -438,7 +438,7 @@ func (tx *SafeTransaction) ParseMultiSendData() ([]*Output, error) {
 	return os, nil
 }
 
-func (tx *SafeTransaction) GetEnableGuradData(observer string, timelock *big.Int) []byte {
+func (tx *SafeTransaction) buildEnableGuradData(observer string, timelock *big.Int) []byte {
 	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
@@ -450,7 +450,7 @@ func (tx *SafeTransaction) GetEnableGuradData(observer string, timelock *big.Int
 	if err != nil {
 		panic(err)
 	}
-	setGuardData := GetMetaTxData(common.HexToAddress(tx.SafeAddress), big.NewInt(0), args)
+	setGuardData := buildMetaTxData(common.HexToAddress(tx.SafeAddress), big.NewInt(0), args)
 
 	guardAbi, err := ga.JSON(strings.NewReader(abi.MixinSafeGuardMetaData.ABI))
 	if err != nil {
@@ -464,7 +464,7 @@ func (tx *SafeTransaction) GetEnableGuradData(observer string, timelock *big.Int
 	if err != nil {
 		panic(err)
 	}
-	guardSafeData := GetMetaTxData(common.HexToAddress(EthereumSafeGuardAddress), big.NewInt(0), args)
+	guardSafeData := buildMetaTxData(common.HexToAddress(EthereumSafeGuardAddress), big.NewInt(0), args)
 
 	data := []byte{}
 	data = append(data, setGuardData...)
@@ -483,7 +483,7 @@ func (tx *SafeTransaction) GetEnableGuradData(observer string, timelock *big.Int
 	return args
 }
 
-func GetERC20TxData(receiver string, amount *big.Int) []byte {
+func buildERC20TxData(receiver string, amount *big.Int) []byte {
 	transferFnSignature := []byte("transfer(address,uint256)")
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(transferFnSignature)
@@ -499,7 +499,7 @@ func GetERC20TxData(receiver string, amount *big.Int) []byte {
 	return data
 }
 
-func GetMultiSendData(outputs []*Output) []byte {
+func buildMultiSendData(outputs []*Output) []byte {
 	metaTxsData := []byte{}
 	for _, o := range outputs {
 		destination, amount, data := o.Destination, o.Amount, []byte{}
@@ -507,9 +507,9 @@ func GetMultiSendData(outputs []*Output) []byte {
 		if norm != "" {
 			destination = norm
 			amount = big.NewInt(0)
-			data = GetERC20TxData(o.Destination, o.Amount)
+			data = buildERC20TxData(o.Destination, o.Amount)
 		}
-		data = GetMetaTxData(common.HexToAddress(destination), amount, data)
+		data = buildMetaTxData(common.HexToAddress(destination), amount, data)
 		metaTxsData = append(metaTxsData, data...)
 	}
 
@@ -527,7 +527,7 @@ func GetMultiSendData(outputs []*Output) []byte {
 	return args
 }
 
-func GetMetaTxData(to common.Address, amount *big.Int, data []byte) []byte {
+func buildMetaTxData(to common.Address, amount *big.Int, data []byte) []byte {
 	dataLen := big.NewInt(int64(len(data)))
 
 	var meta []byte
