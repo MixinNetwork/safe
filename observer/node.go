@@ -370,7 +370,7 @@ func (node *Node) safeTraceId(params ...string) string {
 	return traceId
 }
 
-func (node *Node) getBlockDelay(chain byte) int64 {
+func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 	switch chain {
 	case keeper.SafeChainBitcoin:
 		return 3
