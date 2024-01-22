@@ -180,31 +180,31 @@ func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace,
 	return transfers, index
 }
 
-func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
+func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (*Transfer, *RPCTransaction, error) {
 	etx, err := RPCGetTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
 	if err != nil || etx == nil {
-		return false, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
+		return nil, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
 	}
 	traces, err := RPCDebugTraceTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", hash, err)
 	if err != nil {
-		return false, nil, err
+		return nil, nil, err
 	}
 	transfers, _ := LoopCalls(chain, hash, chainId, traces, 0)
 	erc20Transfers, err := GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(etx.BlockHeight))
 	logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d) => %v", etx.BlockHeight, err)
 	if err != nil {
-		return false, nil, err
+		return nil, nil, err
 	}
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)
 		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
-			return true, etx, nil
+			return t, etx, nil
 		}
 	}
-	return false, nil, nil
+	return nil, nil, nil
 }
 
 func CheckFinalization(num uint64, chain byte) bool {

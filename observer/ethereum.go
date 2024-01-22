@@ -283,7 +283,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil {
 		panic(err)
 	}
-	if !match {
+	if match == nil {
 		panic(fmt.Errorf("malicious ethereum deposit %s", deposit.TransactionHash))
 	}
 	confirmations := info.Height - etx.BlockHeight + 1

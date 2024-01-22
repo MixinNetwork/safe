@@ -211,8 +211,17 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if err != nil {
 		return err
 	}
-	if !match {
+	if match == nil {
 		logger.Printf("deposit %v has no match", deposit)
+		return node.store.FailRequest(ctx, req.Id)
+	}
+
+	output, err := node.verifyEthereumTransaction(ctx, req, deposit, safe, match, etx)
+	logger.Printf("node.verifyEthereumTransaction(%v) => %v %v", req, output, err)
+	if err != nil {
+		return fmt.Errorf("node.verifyEthereumTransaction(%s) => %v", deposit.Hash, err)
+	}
+	if output == nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -308,6 +317,34 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	}
 
 	return input, nil
+}
+
+func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, t *ethereum.Transfer, etx *ethereum.RPCTransaction) (*ethereum.Transfer, error) {
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil || info == nil {
+		return nil, err
+	}
+	if info.CreatedAt.After(req.CreatedAt) {
+		return nil, fmt.Errorf("malicious ethereum network info %v", info)
+	}
+
+	confirmations := info.Height - etx.BlockHeight + 1
+	if info.Height < etx.BlockHeight {
+		confirmations = 0
+	}
+	isSafe, err := node.checkSafeInternalAddress(ctx, t.Sender)
+	if err != nil {
+		return nil, fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", t.Sender, err)
+	}
+	if isSafe {
+		confirmations = 1000000
+	}
+	if !ethereum.CheckFinalization(confirmations, safe.Chain) {
+		return nil, fmt.Errorf("ethereum.CheckFinalization(%s)", etx.Hash)
+	}
+
+	return t, nil
 }
 
 func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string) (bool, error) {
