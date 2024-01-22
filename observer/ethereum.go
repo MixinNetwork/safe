@@ -129,6 +129,19 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
+		delay := node.getChainFinalizationDelay(chain)
+		if delay > height || delay < 1 {
+			panic(delay)
+		}
+		height = height + 1 - delay
+		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
+		if err != nil {
+			panic(err)
+		}
+		if info != nil && info.Height > uint64(height) {
+			logger.Printf("node.keeperStore.ReadLatestNetworkInfo(%d) => %v %d", chain, info, height)
+			continue
+		}
 		gasPrice, err := ethereum.RPCGetGasPrice(rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCEstimateSmartFee(%d) => %v", chain, err)
@@ -275,7 +288,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil {
 		panic(err)
 	}
-	if !match {
+	if match == nil {
 		panic(fmt.Errorf("malicious ethereum deposit %s", deposit.TransactionHash))
 	}
 	confirmations := info.Height - etx.BlockHeight + 1
@@ -406,12 +419,8 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		delay := 0
-		switch chain {
-		case keeper.SafeChainPolygon:
-			delay = 60
-		}
-		if checkpoint+int64(delay) > height {
+		delay := node.getChainFinalizationDelay(chain)
+		if checkpoint+delay > height+1 {
 			continue
 		}
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)

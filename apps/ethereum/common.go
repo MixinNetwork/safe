@@ -45,7 +45,7 @@ const (
 	EthereumSafeL2Address                       = "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762"
 	EthereumCompatibilityFallbackHandlerAddress = "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99"
 	EthereumMultiSendAddress                    = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
-	EthereumSafeGuardAddress                    = "0x571de9c61FbF4A4c1da63B863A965D6a1C22306A"
+	EthereumSafeGuardAddress                    = "0x5cFE246E7F5d2473e34D0F2B33552076a682d68C"
 
 	predeterminedSaltNonce  = "0xb1073742015cbcf5a3a4d9d1ae33ecf619439710b89475f92e2abd2117e90f90"
 	accountContractCode     = "0x608060405234801561001057600080fd5b506040516101e63803806101e68339818101604052602081101561003357600080fd5b8101908080519060200190929190505050600073ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1614156100ca576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260228152602001806101c46022913960400191505060405180910390fd5b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505060ab806101196000396000f3fe608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea264697066735822122003d1488ee65e08fa41e58e888a9865554c535f2c77126a82cb4c0f917f31441364736f6c63430007060033496e76616c69642073696e676c65746f6e20616464726573732070726f7669646564"
@@ -180,31 +180,31 @@ func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace,
 	return transfers, index
 }
 
-func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (bool, *RPCTransaction, error) {
+func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (*Transfer, *RPCTransaction, error) {
 	etx, err := RPCGetTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
 	if err != nil || etx == nil {
-		return false, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
+		return nil, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
 	}
 	traces, err := RPCDebugTraceTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", hash, err)
 	if err != nil {
-		return false, nil, err
+		return nil, nil, err
 	}
 	transfers, _ := LoopCalls(chain, hash, chainId, traces, 0)
 	erc20Transfers, err := GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(etx.BlockHeight))
 	logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d) => %v", etx.BlockHeight, err)
 	if err != nil {
-		return false, nil, err
+		return nil, nil, err
 	}
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Printf("transfer %d: %v", i, t)
 		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
-			return true, etx, nil
+			return t, etx, nil
 		}
 	}
-	return false, nil, nil
+	return nil, nil, nil
 }
 
 func CheckFinalization(num uint64, chain byte) bool {
