@@ -970,7 +970,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	err := toml.Unmarshal(f, &conf)
 	require.Nil(err)
 
-	conf.Keeper.PolygonRPC = os.Getenv("POLYGONRPC")
+	conf.Keeper.PolygonRPC = os.Getenv("polygon-rpc")
 
 	conf.Keeper.StoreDir = root
 	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
