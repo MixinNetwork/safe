@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ "main" ]
 env:
-  polygon-rpc: ${{ vars.POLYGONRPC }}
+  POLYGONRPC: ${{ vars.POLYGONRPC }}
 
 jobs:
   test:
