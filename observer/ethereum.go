@@ -212,6 +212,12 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return nil
 	}
 
+	asset, err := node.fetchAssetMeta(ctx, transfer.AssetId)
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", transfer.AssetId, asset, err)
+	if err != nil || asset == nil {
+		return err
+	}
+
 	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
