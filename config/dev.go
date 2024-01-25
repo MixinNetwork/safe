@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 
@@ -8,13 +9,14 @@ import (
 )
 
 type DevConfig struct {
-	EnableProfile bool `toml:"enable-profile"`
-	LogLevel      int  `toml:"log-level"`
+	ProfilePort int `toml:"profile-port"`
+	LogLevel    int `toml:"log-level"`
 }
 
 func HandleDevConfig(c *DevConfig) {
 	logger.SetLevel(c.LogLevel)
-	if c.EnableProfile {
-		go http.ListenAndServe("127.0.0.1:12345", http.DefaultServeMux)
+	if c.ProfilePort > 1000 {
+		l := fmt.Sprintf("127.0.0.1:%d", c.ProfilePort)
+		go http.ListenAndServe(l, http.DefaultServeMux)
 	}
 }

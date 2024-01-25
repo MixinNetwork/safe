@@ -16,7 +16,7 @@ type Configuration struct {
 	Signer   *signer.Configuration   `toml:"signer"`
 	Keeper   *keeper.Configuration   `toml:"keeper"`
 	Observer *observer.Configuration `toml:"observer"`
-	Dev      *DevConfig              `toml:"observer"`
+	Dev      *DevConfig              `toml:"dev"`
 }
 
 func ReadConfiguration(path string) (*Configuration, error) {

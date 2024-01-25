@@ -127,3 +127,9 @@ session-id = ""
 private-key = ""
 pin-token = ""
 pin = ""
+
+[dev]
+# set a listen port to enable go pprof
+profile-port = 12345
+# set the log level
+log-level = 3
