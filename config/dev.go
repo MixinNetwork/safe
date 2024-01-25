@@ -14,6 +14,10 @@ type DevConfig struct {
 }
 
 func HandleDevConfig(c *DevConfig) {
+	logger.SetLevel(logger.INFO)
+	if c == nil {
+		return
+	}
 	logger.SetLevel(c.LogLevel)
 	if c.ProfilePort > 1000 {
 		l := fmt.Sprintf("127.0.0.1:%d", c.ProfilePort)
