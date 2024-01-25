@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/custodian"
@@ -18,7 +17,6 @@ import (
 )
 
 func KeeperBootCmd(c *cli.Context) error {
-	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
 
 	ua := fmt.Sprintf("Mixin Safe Keeper (%s)", config.AppVersion)
@@ -31,6 +29,7 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Keeper.MTG.GroupSize = 1
+	config.HandleDevConfig(mc.Dev)
 
 	db, err := store.OpenBadger(ctx, mc.Keeper.StoreDir+"/mtg")
 	if err != nil {

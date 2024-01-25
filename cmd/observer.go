@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/config"
@@ -33,7 +32,6 @@ import (
 )
 
 func ObserverBootCmd(c *cli.Context) error {
-	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
 
 	ua := fmt.Sprintf("Mixin Safe Observer (%s)", config.AppVersion)
@@ -45,6 +43,7 @@ func ObserverBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	config.HandleDevConfig(mc.Dev)
 
 	db, err := observer.OpenSQLite3Store(mc.Observer.StoreDir + "/safe.sqlite3")
 	if err != nil {
