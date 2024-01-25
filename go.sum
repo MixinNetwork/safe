@@ -6,8 +6,8 @@ github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migc
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/MixinNetwork/bot-api-go-client v1.8.6 h1:QzA+yXJuDXpOX+1xvlw76/wtfhQDAa+TA/YXB3XaWK4=
 github.com/MixinNetwork/bot-api-go-client v1.8.6/go.mod h1:Phc+juNRPDadsTUfLOeIbYHX6AiePofe8YH3gIxARZ8=
-github.com/MixinNetwork/go-number v0.1.0 h1:qw7tVxVF17iYs2g4j13suWWxdL+7IA/tOjobUOMgLI0=
-github.com/MixinNetwork/go-number v0.1.0/go.mod h1:TASJGXNi4CK9bh2AOQFpVe7r3//CBuZJTNlJYzTXRUk=
+github.com/MixinNetwork/go-number v0.1.1 h1:Ui/xi0WGiBWI6cPrZaffB6q8lP7m2Zw0CXgOqLXb/3c=
+github.com/MixinNetwork/go-number v0.1.1/go.mod h1:4kaXQW9NOjjO3uZ5ehRVn3m+G+5ENGEKgiwfxea3zGQ=
 github.com/MixinNetwork/mixin v0.16.10 h1:cTZ7Ic/BFe3HNX7X1raqxsapj/f8117iBCalIC/lXmg=
 github.com/MixinNetwork/mixin v0.16.10/go.mod h1:FCNTEGhUoIyV1dYcXqrnjb0ir5iLHSJBnN8fI4AXI4U=
 github.com/MixinNetwork/mobilecoin-account v0.0.5 h1:1ueD9G/zl4dpObFjfm6WJu0m155YAfOLODfBuTBrXBA=
@@ -219,7 +219,6 @@ github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible h1:Bn1aCHHRnjv4Bl16T8rcaFjYSrGrIZvpiGO6P3Q4GpU=
 github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=
-github.com/shopspring/decimal v1.2.1-0.20210329231237-501661573f60/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
 github.com/shopspring/decimal v1.3.1 h1:2Usl1nmF/WZucqkFZhnfFYxxxu8LG21F6nPQBE5gKV8=
 github.com/shopspring/decimal v1.3.1/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

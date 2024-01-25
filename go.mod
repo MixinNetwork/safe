@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/MixinNetwork/bot-api-go-client v1.8.6
-	github.com/MixinNetwork/go-number v0.1.0
+	github.com/MixinNetwork/go-number v0.1.1
 	github.com/MixinNetwork/mixin v0.16.10
 	github.com/MixinNetwork/multi-party-sig v0.3.2
 	github.com/MixinNetwork/nfo v0.3.5
