@@ -228,7 +228,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 }
 
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
-	logger.SetLevel(logger.VERBOSE)
+	logger.SetLevel(logger.INFO)
 	ctx, signers := signer.TestPrepare(require)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSAEthereum)
 	chainCode := common.DecodeHexOrPanic(cc)

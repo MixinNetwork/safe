@@ -236,7 +236,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 }
 
 func testPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
-	logger.SetLevel(logger.VERBOSE)
+	logger.SetLevel(logger.INFO)
 	ctx, signers := signer.TestPrepare(require)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSABitcoin)
 	chainCode := common.DecodeHexOrPanic(cc)
