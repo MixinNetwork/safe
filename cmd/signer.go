@@ -35,6 +35,7 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Signer.MTG.GroupSize = 1
+	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 	config.HandleDevConfig(mc.Dev)
 
 	db, err := store.OpenBadger(ctx, mc.Signer.StoreDir+"/mtg")

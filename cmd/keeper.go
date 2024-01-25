@@ -29,6 +29,7 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Keeper.MTG.GroupSize = 1
+	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 	config.HandleDevConfig(mc.Dev)
 
 	db, err := store.OpenBadger(ctx, mc.Keeper.StoreDir+"/mtg")
