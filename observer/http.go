@@ -168,8 +168,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			return
 		}
 		if info == nil {
-			common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
-			return
+			continue
 		}
 		var id string
 		switch c {
@@ -204,6 +203,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			outputs["satoshi"] = s
 			accountant := make(map[string]any)
 			accountant["outputs"] = outputs
+			chain["accountant"] = accountant
 		}
 		cs = append(cs, chain)
 	}
