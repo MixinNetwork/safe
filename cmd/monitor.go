@@ -172,11 +172,17 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 	}
 	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
 
-	sc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
+	sbc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("🔑 Signer keys: %d\n", sc)
+	state = state + fmt.Sprintf("🔑 Bitcoin keys: %d\n", sbc)
+	sec, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSAEthereum, common.RequestFlagNone, common.RequestRoleSigner)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🔑 Ethereum keys: %d\n", sec)
+
 	oc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleObserver)
 	if err != nil {
 		return "", err
