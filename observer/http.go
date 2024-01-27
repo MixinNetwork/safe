@@ -246,7 +246,7 @@ func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params
 		return
 	}
 	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 	recovery, err := node.store.ReadRecovery(r.Context(), safe.Address)
@@ -254,8 +254,8 @@ func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params
 		common.RenderError(w, r, err)
 		return
 	}
-	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+	if recovery == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "recovery"})
 		return
 	}
 
@@ -299,7 +299,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
@@ -308,7 +308,7 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 	if !proposed {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "proposed"})
 		return
 	}
 
@@ -334,7 +334,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 	if safe.Address != body.Address {
@@ -350,7 +350,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 			return
 		}
 		if !proposed {
-			common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+			common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "proposed"})
 			return
 		}
 		err = node.httpApproveSafeAccount(r.Context(), body.Address, body.Signature)
@@ -388,7 +388,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 	if body.Hash == "" {
@@ -423,7 +423,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 	if tx == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "transaction"})
 		return
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
@@ -432,7 +432,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 	if approval == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "approval"})
 		return
 	}
 	safe, err := node.keeperStore.ReadSafe(r.Context(), tx.Holder)
@@ -441,7 +441,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 
@@ -480,7 +480,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if tx == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "transaction"})
 		return
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
@@ -489,7 +489,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if approval == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "approval"})
 		return
 	}
 	if approval.State != common.RequestStateInitial {
@@ -502,7 +502,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 
@@ -547,7 +547,7 @@ func (node *Node) httpGetCustomKey(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 	if key == nil || key.Role != common.RequestRoleObserver || key.Flags != common.RequestFlagCustomObserverKey {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "key"})
 		return
 	}
 	data := map[string]any{
