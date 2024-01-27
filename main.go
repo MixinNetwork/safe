@@ -277,6 +277,11 @@ func main() {
 						Value: "/tmp/mixin-safe-observers-list",
 						Usage: "The observer public keys file",
 					},
+					&cli.BoolFlag{
+						Name:  "private",
+						Value: false,
+						Usage: "Append private key to the keys list",
+					},
 				},
 			},
 			{

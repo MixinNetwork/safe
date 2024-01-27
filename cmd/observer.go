@@ -278,6 +278,9 @@ func GenerateObserverKeys(c *cli.Context) error {
 			panic(err)
 		}
 		line := fmt.Sprintf("%x:%x:%s", account.Public, account.ChainCode, account.Fingerprint)
+		if c.Bool("private") {
+			line = fmt.Sprintf("%s:%x", line, account.Private)
+		}
 		_, err = pubF.WriteString(line + "\n")
 		if err != nil {
 			panic(err)
