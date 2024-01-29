@@ -397,7 +397,13 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
 
 	for {
-		time.Sleep(3 * time.Second)
+		duration := 5 * time.Minute
+		switch chain {
+		case keeper.SafeChainLitecoin:
+			duration = 2 * time.Minute
+		case keeper.SafeChainBitcoin:
+		}
+		time.Sleep(duration)
 		checkpoint, err := node.bitcoinReadDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
@@ -410,6 +416,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		logger.Printf("node.bitcoinReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
 		delay := node.getChainFinalizationDelay(chain)
 		if checkpoint+delay > height+1 {
+			time.Sleep(duration)
 			continue
 		}
 		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)

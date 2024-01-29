@@ -406,12 +406,13 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
 
 	for {
-		duration := 3 * time.Second
+		duration := 10 * time.Second
 		switch chain {
-		case ethereum.ChainMVM, ethereum.ChainPolygon:
+		case ethereum.ChainMVM:
 			duration = 100 * time.Millisecond
+		case ethereum.ChainPolygon:
+			duration = 2 * time.Second
 		case ethereum.ChainEthereum:
-			duration = 1 * time.Second
 		}
 		time.Sleep(duration)
 
@@ -427,6 +428,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
 		delay := node.getChainFinalizationDelay(chain)
 		if checkpoint+delay > height+1 {
+			time.Sleep(duration * 2)
 			continue
 		}
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)
