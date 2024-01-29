@@ -316,6 +316,8 @@ func (s *SQLite3Store) FailSession(ctx context.Context, sessionId string) error 
 	}
 	defer tx.Rollback()
 
+	// the pending state is important, because we needs to let the other nodes know our failed
+	// result, and the pending state allows the node to process this session accordingly
 	err = s.execOne(ctx, tx, "UPDATE sessions SET state=?, updated_at=? WHERE session_id=? AND state=?",
 		common.RequestStatePending, time.Now().UTC(), sessionId, common.RequestStateInitial)
 	if err != nil {
