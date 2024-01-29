@@ -454,12 +454,9 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
-	deposits, err := node.GetBlockDeposits(ctx, transfers)
-	if err != nil {
+	deposits, err := node.parseEthereumBlockDeposits(ctx, transfers)
+	if err != nil || len(deposits) == 0 {
 		return err
-	}
-	if len(deposits) == 0 {
-		return nil
 	}
 
 	for k := range deposits {
@@ -523,9 +520,12 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	return nil
 }
 
-func (node *Node) GetBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
+func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
 	deposits := make(map[string]*big.Int)
 	for _, t := range ts {
+		if t.Receiver == ethereum.EthereumEmptyAddress {
+			continue
+		}
 		safe, err := node.keeperStore.ReadSafeByAddress(ctx, t.Receiver)
 		logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		if err != nil {
