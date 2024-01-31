@@ -37,16 +37,6 @@ func bitcoinMixinSnapshotsCheckpointKey(chain byte) string {
 	return fmt.Sprintf("bitcoin-mixin-snapshots-checkpoint-%d", chain)
 }
 
-func bitcoinDepositCheckpointKey(chain byte) string {
-	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
-	default:
-		panic(chain)
-	}
-	return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
-}
-
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
 	case keeper.SafeChainBitcoin:
@@ -455,7 +445,7 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 }
 
 func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
-	return node.store.WriteProperty(ctx, bitcoinDepositCheckpointKey(chain), fmt.Sprint(num))
+	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
 }
 
 func (node *Node) bitcoinReadMixinSnapshotsCheckpoint(ctx context.Context, chain byte) (time.Time, error) {

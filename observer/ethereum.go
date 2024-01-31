@@ -35,16 +35,6 @@ func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 	return fmt.Sprintf("ethereum-mixin-snapshots-checkpoint-%d", chain)
 }
 
-func ethereumDepositCheckpointKey(chain byte) string {
-	switch chain {
-	case keeper.SafeChainMVM:
-	case keeper.SafeChainPolygon:
-	default:
-		panic(chain)
-	}
-	return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
-}
-
 func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployEthereumGnosisSafeAccount(%x)", data)
 	gs, err := ethereum.UnmarshalGnosisSafe(data)
@@ -541,7 +531,7 @@ func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum
 }
 
 func (node *Node) ethereumWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
-	return node.store.WriteProperty(ctx, ethereumDepositCheckpointKey(chain), fmt.Sprint(num))
+	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
 }
 
 func (node *Node) ethereumWriteMixinSnapshotsCheckpoint(ctx context.Context, offset time.Time, chain byte) error {

@@ -360,15 +360,8 @@ func (node *Node) writeSnapshotsCheckpoint(ctx context.Context, offset time.Time
 }
 
 func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
+	key := depositCheckpointKey(chain)
 	min := depositCheckpointDefault(chain)
-	key := bitcoinDepositCheckpointKey(chain)
-	switch chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
-		key = ethereumDepositCheckpointKey(chain)
-	default:
-		panic(chain)
-	}
 	ckt, err := node.store.ReadProperty(ctx, key)
 	if err != nil || ckt == "" {
 		return min, err
@@ -393,6 +386,17 @@ func depositCheckpointDefault(chain byte) int64 {
 		return 52680000
 	case keeper.SafeChainPolygon:
 		return 52950000
+	default:
+		panic(chain)
+	}
+}
+
+func depositCheckpointKey(chain byte) string {
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
+	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
 	default:
 		panic(chain)
 	}
