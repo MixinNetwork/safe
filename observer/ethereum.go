@@ -460,7 +460,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		switch tokenAddress {
 		case ethereum.EthereumEmptyAddress:
 			assetId = ethAssetId
-			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Hash, address)
+			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Number, address)
 		default:
 			assetId = ethereum.GenerateAssetId(chain, tokenAddress)
 			balance, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height)))
