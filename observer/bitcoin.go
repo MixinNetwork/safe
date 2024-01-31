@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -46,17 +45,6 @@ func bitcoinDepositCheckpointKey(chain byte) string {
 		panic(chain)
 	}
 	return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
-}
-
-func bitcoinDepositCheckpointDefault(chain byte) int64 {
-	switch chain {
-	case keeper.SafeChainBitcoin:
-		return 802220
-	case keeper.SafeChainLitecoin:
-		return 2523300
-	default:
-		panic(chain)
-	}
 }
 
 func (node *Node) bitcoinParams(chain byte) (string, string) {
@@ -404,7 +392,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		case keeper.SafeChainBitcoin:
 		}
 		time.Sleep(duration)
-		checkpoint, err := node.bitcoinReadDepositCheckpoint(ctx, chain)
+		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
@@ -464,22 +452,6 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 	}
 
 	return nil
-}
-
-func (node *Node) bitcoinReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
-	min := bitcoinDepositCheckpointDefault(chain)
-	ckt, err := node.store.ReadProperty(ctx, bitcoinDepositCheckpointKey(chain))
-	if err != nil || ckt == "" {
-		return min, err
-	}
-	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
-	if err != nil {
-		panic(ckt)
-	}
-	if checkpoint < min {
-		checkpoint = min
-	}
-	return checkpoint, nil
 }
 
 func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {

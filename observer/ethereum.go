@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -44,17 +43,6 @@ func ethereumDepositCheckpointKey(chain byte) string {
 		panic(chain)
 	}
 	return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
-}
-
-func ethereumDepositCheckpointDefault(chain byte) int64 {
-	switch chain {
-	case keeper.SafeChainMVM:
-		return 48464900
-	case keeper.SafeChainPolygon:
-		return 51698448
-	default:
-		panic(chain)
-	}
 }
 
 func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []byte) error {
@@ -416,7 +404,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		}
 		time.Sleep(duration)
 
-		checkpoint, err := node.ethereumReadDepositCheckpoint(ctx, chain)
+		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
@@ -550,22 +538,6 @@ func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum
 		}
 	}
 	return deposits, nil
-}
-
-func (node *Node) ethereumReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
-	min := ethereumDepositCheckpointDefault(chain)
-	ckt, err := node.store.ReadProperty(ctx, ethereumDepositCheckpointKey(chain))
-	if err != nil || ckt == "" {
-		return min, err
-	}
-	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
-	if err != nil {
-		panic(ckt)
-	}
-	if checkpoint < min {
-		checkpoint = min
-	}
-	return checkpoint, nil
 }
 
 func (node *Node) ethereumWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {

@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -356,6 +357,45 @@ func (node *Node) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error
 
 func (node *Node) writeSnapshotsCheckpoint(ctx context.Context, offset time.Time) error {
 	return node.store.WriteProperty(ctx, snapshotsCheckpointKey, offset.Format(time.RFC3339Nano))
+}
+
+func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
+	min := depositCheckpointDefault(chain)
+	key := bitcoinDepositCheckpointKey(chain)
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+		key = ethereumDepositCheckpointKey(chain)
+	default:
+		panic(chain)
+	}
+	ckt, err := node.store.ReadProperty(ctx, key)
+	if err != nil || ckt == "" {
+		return min, err
+	}
+	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
+	if err != nil {
+		panic(ckt)
+	}
+	if checkpoint < min {
+		checkpoint = min
+	}
+	return checkpoint, nil
+}
+
+func depositCheckpointDefault(chain byte) int64 {
+	switch chain {
+	case keeper.SafeChainBitcoin:
+		return 802220
+	case keeper.SafeChainLitecoin:
+		return 2523300
+	case keeper.SafeChainMVM:
+		return 52680000
+	case keeper.SafeChainPolygon:
+		return 52950000
+	default:
+		panic(chain)
+	}
 }
 
 func (node *Node) safeTraceId(params ...string) string {

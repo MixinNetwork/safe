@@ -170,6 +170,11 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		if info == nil {
 			continue
 		}
+		ckp, err := node.readDepositCheckpoint(r.Context(), c)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		var id string
 		switch c {
 		case keeper.SafeChainBitcoin:
@@ -191,6 +196,9 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		chain["id"] = id
 		chain["chain"] = c
 		chain["head"] = head
+		chain["deposit"] = map[string]any{
+			"checkpoint": ckp,
+		}
 		switch c {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 			c, s, err := node.readChainAccountantBalance(r.Context(), int(c))
