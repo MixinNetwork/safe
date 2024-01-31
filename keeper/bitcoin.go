@@ -217,6 +217,16 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
+
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(opsbt.Marshal())))
+	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	typ := byte(common.ActionBitcoinSafeApproveTransaction)
+	crv := SafeChainCurve(safe.Chain)
+	err := node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	}
+
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
 	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone)
 }

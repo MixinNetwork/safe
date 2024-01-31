@@ -249,6 +249,15 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(t.Marshal())))
+	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	typ := byte(common.ActionEthereumSafeApproveTransaction)
+	crv := SafeChainCurve(safe.Chain)
+	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	}
+
 	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
 }
 
