@@ -382,18 +382,16 @@ func (node *Node) ethereumProcessMixinSnapshot(ctx context.Context, id string, c
 
 func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
+	duration := 10 * time.Second
+	switch chain {
+	case ethereum.ChainMVM:
+		duration = 500 * time.Millisecond
+	case ethereum.ChainPolygon:
+		duration = 2 * time.Second
+	case ethereum.ChainEthereum:
+	}
 
 	for {
-		duration := 10 * time.Second
-		switch chain {
-		case ethereum.ChainMVM:
-			duration = 100 * time.Millisecond
-		case ethereum.ChainPolygon:
-			duration = 2 * time.Second
-		case ethereum.ChainEthereum:
-		}
-		time.Sleep(duration)
-
 		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
@@ -401,6 +399,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		height, err := ethereum.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
+			time.Sleep(duration)
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
@@ -412,6 +411,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)
 		logger.Printf("node.ethereumReadBlock(%d, %d) => %v", chain, checkpoint, err)
 		if err != nil {
+			time.Sleep(duration)
 			continue
 		}
 

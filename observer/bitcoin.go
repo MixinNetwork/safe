@@ -373,15 +373,14 @@ func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string, ch
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
+	duration := 5 * time.Minute
+	switch chain {
+	case keeper.SafeChainLitecoin:
+		duration = 2 * time.Minute
+	case keeper.SafeChainBitcoin:
+	}
 
 	for {
-		duration := 5 * time.Minute
-		switch chain {
-		case keeper.SafeChainLitecoin:
-			duration = 2 * time.Minute
-		case keeper.SafeChainBitcoin:
-		}
-		time.Sleep(duration)
 		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
@@ -389,6 +388,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 		logger.Printf("node.bitcoinReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
@@ -400,6 +400,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)
 		logger.Printf("node.bitcoinReadBlock(%d, %d) => %d %v", chain, checkpoint, len(txs), err)
 		if err != nil {
+			time.Sleep(time.Second * 5)
 			continue
 		}
 
