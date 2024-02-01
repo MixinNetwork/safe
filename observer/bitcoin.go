@@ -511,7 +511,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
 	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
-	if err != nil || safe.State != common.RequestStateDone {
+	if err != nil {
 		return err
 	}
 	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
@@ -581,7 +581,7 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
 	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
-	if err != nil || safe.State != common.RequestStateDone {
+	if err != nil {
 		return err
 	}
 	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(signedRaw)

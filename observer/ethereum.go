@@ -594,7 +594,7 @@ func (node *Node) ethereumTransactionApprovalLoop(ctx context.Context, chain byt
 func (node *Node) sendToKeeperEthereumApproveTransaction(ctx context.Context, approval *Transaction) error {
 	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
-	if err != nil || safe.State != common.RequestStateDone {
+	if err != nil {
 		return err
 	}
 	if ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer) {
@@ -665,7 +665,7 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 	}
 	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
-	if err != nil || safe.State != common.RequestStateDone {
+	if err != nil {
 		return err
 	}
 	signedByHolder := ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
