@@ -904,15 +904,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 		}
 	}
 
-	// if isHolderSigned {
-	// 	err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
-	// 	logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
-	// }
-
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
 	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
 	if err != nil {

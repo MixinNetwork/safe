@@ -980,15 +980,6 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		}
 	}
 
-	// if isHolderSigned {
-	// 	err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
-	// 	logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
-	// }
-
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
 	logger.Printf("store.AddTransactionPartials(%s) => %v", hash, err)
 	if err != nil {
