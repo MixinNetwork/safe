@@ -382,10 +382,10 @@ func (node *Node) ethereumProcessMixinSnapshot(ctx context.Context, id string, c
 
 func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
-	duration := 10 * time.Second
+	duration := 5 * time.Second
 	switch chain {
 	case ethereum.ChainMVM:
-		duration = 500 * time.Millisecond
+		duration = 1 * time.Second
 	case ethereum.ChainPolygon:
 		duration = 2 * time.Second
 	case ethereum.ChainEthereum:
@@ -399,19 +399,19 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		height, err := ethereum.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
-			time.Sleep(duration)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
 		delay := node.getChainFinalizationDelay(chain)
 		if checkpoint+delay > height+1 {
-			time.Sleep(duration * 2)
+			time.Sleep(duration)
 			continue
 		}
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)
 		logger.Printf("node.ethereumReadBlock(%d, %d) => %v", chain, checkpoint, err)
 		if err != nil {
-			time.Sleep(duration)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 
@@ -505,7 +505,7 @@ func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum
 			continue
 		}
 		safe, err := node.keeperStore.ReadSafeByAddress(ctx, t.Receiver)
-		logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
+		logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		if err != nil {
 			return nil, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		} else if safe == nil {

@@ -373,10 +373,10 @@ func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string, ch
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
-	duration := 5 * time.Minute
+	duration := 3 * time.Minute
 	switch chain {
 	case keeper.SafeChainLitecoin:
-		duration = 2 * time.Minute
+		duration = 1 * time.Minute
 	case keeper.SafeChainBitcoin:
 	}
 
