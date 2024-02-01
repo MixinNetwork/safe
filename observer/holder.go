@@ -286,7 +286,11 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		signedByHolder = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
-		signedByObserver = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer)
+		opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+		if err != nil {
+			panic(err)
+		}
+		signedByObserver = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, opk)
 	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
 		signedByHolder = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
 		signedByObserver = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer)
