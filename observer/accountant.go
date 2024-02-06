@@ -217,7 +217,7 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 	}
 
 	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
-	virtualSize := (weight + 300) / 4
+	virtualSize := (weight + 300) / 3
 	fvb, err := bitcoin.RPCEstimateSmartFee(tx.Chain, rpc)
 	if err != nil {
 		return nil, err
