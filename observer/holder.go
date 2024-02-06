@@ -277,15 +277,26 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	var signedByHolder, signedByObserver bool
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-			return nil
+		signedByHolder = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+		opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+		if err != nil {
+			panic(err)
 		}
+		signedByObserver = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, opk)
 	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
-		if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-			return nil
-		}
+		signedByHolder = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+		signedByObserver = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer)
+	}
+	if !signedByHolder && !signedByObserver {
+		return nil
 	}
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }

@@ -31,7 +31,9 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if safe == nil || safe.Chain != chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if safe.State != SafeStateApproved {
+	switch safe.State {
+	case SafeStateApproved, SafeStateClosed:
+	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -180,10 +182,18 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		UpdatedAt:       req.CreatedAt,
 	}
 	sr.RequestId = common.UniqueId(req.Id, sr.Message)
-	err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
-	logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
-	if err != nil {
-		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+	if safe.State == SafeStateApproved {
+		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
+		if err != nil {
+			return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+		}
+	} else {
+		err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
+		if err != nil {
+			return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+		}
 	}
 
 	err = node.sendSignerSignRequest(ctx, sr, safe.Path)
@@ -249,6 +259,15 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(t.Marshal())))
+	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	typ := byte(common.ActionEthereumSafeApproveTransaction)
+	crv := SafeChainCurve(safe.Chain)
+	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	}
+
 	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
 }
 

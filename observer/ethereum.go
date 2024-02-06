@@ -556,6 +556,18 @@ func (node *Node) ethereumTransactionApprovalLoop(ctx context.Context, chain byt
 }
 
 func (node *Node) sendToKeeperEthereumApproveTransaction(ctx context.Context, approval *Transaction) error {
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	if ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer) {
+		return node.sendToKeeperEthereumApproveRecoveryTransaction(ctx, approval)
+	}
+	return node.sendToKeeperEthereumApproveNormalTransaction(ctx, approval)
+}
+
+func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Context, approval *Transaction) error {
 	signed, err := node.ethereumCheckKeeperSignedTransaction(ctx, approval)
 	logger.Printf("node.ethereumCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
 	if err != nil || signed {
@@ -602,6 +614,76 @@ func (node *Node) sendToKeeperEthereumApproveTransaction(ctx context.Context, ap
 	id = common.UniqueId(id, approval.UpdatedAt.String())
 	err = node.sendKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	st, err := ethereum.UnmarshalSafeTransaction(signedRaw)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", approval.RawTransaction, st, err)
+	if err != nil {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	signedByHolder := ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+
+	var extra []byte
+	switch {
+	case signedByHolder:
+		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
+		if err != nil {
+			return err
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	default:
+		signed, err := node.ethereumCheckKeeperSignedTransaction(ctx, approval)
+		logger.Printf("node.ethereumCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
+		if err != nil || signed {
+			return err
+		}
+		extra = uuid.Nil.Bytes()
+	}
+
+	objectRaw := signedRaw
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	conf := node.conf.App
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+	id := common.UniqueId(safe.Address, st.Destination.Hex())
+	extra = append(extra, ref[:]...)
+	action := common.ActionEthereumSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
 	if err != nil {
 		return err
 	}
@@ -846,8 +928,6 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	var extra []byte
-	id := common.UniqueId(safe.Address, st.Destination.Hex())
 	switch {
 	case !isHolderSigned: // Close account with safeBTC
 		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
@@ -858,47 +938,10 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		if tx == nil {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	case isHolderSigned: // Close account with holder key
 		if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) holder", raw, safe.Holder)
 		}
-		extra = uuid.Nil.Bytes()
-	}
-
-	objectRaw := signedRaw
-	rawId := common.UniqueId(raw, raw)
-	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
-	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
-	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
-	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
-	if err != nil {
-		return err
-	}
-
-	extra = append(extra, ref[:]...)
-	action := common.ActionEthereumSafeCloseAccount
-	references := []crypto.Hash{ref}
-	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
-	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
-	if err != nil {
-		return err
-	}
-
-	if isHolderSigned {
-		err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
-		logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
-		if err != nil {
-			return err
-		}
-		return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
 	}
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))

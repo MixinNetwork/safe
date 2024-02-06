@@ -99,13 +99,13 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 		hpsbt.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)
 	}
 
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
+	raw := hex.EncodeToString(hpsbt.Marshal())
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
 	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
 	if err != nil {
 		return err
 	}
 
-	raw := hex.EncodeToString(hpsbt.Marshal())
 	err = node.store.FinishTransactionSignatures(ctx, hpsbt.Hash(), raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", hpsbt.Hash(), err)
 	return err
