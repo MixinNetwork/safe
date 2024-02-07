@@ -147,7 +147,7 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 		switch safe.Chain {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 			isSigned = bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
-		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 			isSigned = ethereum.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
 		default:
 			panic(safe.Chain)

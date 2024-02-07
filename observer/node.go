@@ -58,6 +58,7 @@ func (node *Node) Boot(ctx context.Context) {
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
 		keeper.SafeChainPolygon,
+		keeper.SafeChainEthereum,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
@@ -71,7 +72,7 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
@@ -89,7 +90,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)
@@ -386,6 +387,8 @@ func depositCheckpointDefault(chain byte) int64 {
 		return 52680000
 	case keeper.SafeChainPolygon:
 		return 52950000
+	case keeper.SafeChainEthereum:
+		return 19175473
 	default:
 		panic(chain)
 	}
