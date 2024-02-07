@@ -144,6 +144,14 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	} else if deposited != nil {
 		return node.store.FailRequest(ctx, req.Id)
 	}
+	c, err := node.store.ReadUnspentUtxoCountForSafe(ctx, safe.Address)
+	logger.Printf("store.ReadUnspentUtxoCountForSafe(%s) => %d %v", safe.Address, c, err)
+	if err != nil {
+		return fmt.Errorf("store.ReadUnspentUtxoCountForSafe(%s) => %d %v", safe.Address, c, err)
+	}
+	if c >= 512 {
+		return node.store.FailRequest(ctx, req.Id)
+	}
 
 	rpc, _ := node.bitcoinParams(deposit.Chain)
 	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)

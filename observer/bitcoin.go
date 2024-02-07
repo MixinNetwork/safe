@@ -211,6 +211,12 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		return nil
 	}
 
+	c, err := node.keeperStore.ReadUnspentUtxoCountForSafe(ctx, receiver)
+	logger.Printf("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
+	if err != nil || c >= 256 {
+		return err
+	}
+
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: tx.TxId,
