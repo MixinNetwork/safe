@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -643,6 +644,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 	}
 
+	var ds []string
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
@@ -660,6 +662,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 		recipients[i] = r
 		total = total.Add(amt)
+		if !slices.Contains(ds, norm) {
+			ds = append(ds, norm)
+		}
+	}
+	if len(ds) > 256 {
+		logger.Printf("invalid count of destinations: %d", len(ds))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if !total.Equal(req.Amount) {
 		logger.Printf("inconsistent amount between total outputs %d and %d", total, req.Amount)

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -566,6 +567,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
 	}
 
+	var ds []string
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
@@ -574,6 +576,13 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			"receiver": out.Address, "amount": amt.String(),
 		}
 		total = total.Add(amt)
+		if !slices.Contains(ds, out.Address) {
+			ds = append(ds, out.Address)
+		}
+	}
+	if len(ds) > 256 {
+		logger.Printf("invalid count of destinations: %d", len(ds))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if !total.Equal(req.Amount) {
 		return node.store.FailRequest(ctx, req.Id)
