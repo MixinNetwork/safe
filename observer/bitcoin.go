@@ -213,7 +213,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 
 	c, err := node.keeperStore.ReadUnspentUtxoCountForSafe(ctx, receiver)
 	logger.Printf("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
-	if err != nil || c >= 256 {
+	if err != nil || c >= bitcoin.MaxUnspentUtxo/2 {
 		return err
 	}
 

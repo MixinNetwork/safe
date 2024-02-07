@@ -26,6 +26,8 @@ const (
 	ValuePrecision = 8
 	ValueSatoshi   = 100000000
 
+	MaxUnspentUtxo = 512
+
 	TimeLockMinimum = time.Hour * 1
 	TimeLockMaximum = time.Hour * 24 * 365
 

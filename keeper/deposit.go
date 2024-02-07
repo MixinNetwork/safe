@@ -149,7 +149,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		return fmt.Errorf("store.ReadUnspentUtxoCountForSafe(%s) => %d %v", safe.Address, c, err)
 	}
-	if c >= 512 {
+	if c >= bitcoin.MaxUnspentUtxo {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
