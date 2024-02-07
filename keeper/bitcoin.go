@@ -575,6 +575,10 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		}
 		total = total.Add(amt)
 	}
+	if len(outputs) > 256 {
+		logger.Printf("invalid count of outputs: %d", len(outputs))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+	}
 	if !total.Equal(req.Amount) {
 		return node.store.FailRequest(ctx, req.Id)
 	}
