@@ -27,6 +27,7 @@ const (
 
 func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 	switch chain {
+	case keeper.SafeChainEthereum:
 	case keeper.SafeChainMVM:
 	case keeper.SafeChainPolygon:
 	default:

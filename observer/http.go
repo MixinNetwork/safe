@@ -161,7 +161,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var cs []map[string]any
-	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainPolygon} {
+	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainPolygon, keeper.SafeChainEthereum} {
 		info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), c, time.Now())
 		if err != nil {
 			common.RenderError(w, r, err)
@@ -181,6 +181,8 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			id = keeper.SafeBitcoinChainId
 		case keeper.SafeChainLitecoin:
 			id = keeper.SafeLitecoinChainId
+		case keeper.SafeChainEthereum:
+			id = keeper.SafeEthereumChainId
 		case keeper.SafeChainMVM:
 			id = keeper.SafeMVMChainId
 		case keeper.SafeChainPolygon:
@@ -817,7 +819,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			},
 			"state": status,
 		})
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		_, assetId := node.ethereumParams(sp.Chain)
 		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, assetId, "", sp.Holder)
 		if err != nil {
