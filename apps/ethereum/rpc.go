@@ -16,7 +16,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -266,15 +265,15 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 				return nil, err
 			}
 
-			tokenAddress := vLog.Address.Hex()
+			tokenAddress := NormalizeAddress(vLog.Address.Hex())
 			assetId := GenerateAssetId(byte(chain), tokenAddress)
 			t := &Transfer{
 				Hash:         vLog.TxHash.Hex(),
 				Index:        int64(vLog.Index) + int64(math.MaxInt32),
-				TokenAddress: vLog.Address.Hex(),
+				TokenAddress: tokenAddress,
 				AssetId:      assetId,
-				Sender:       common.HexToAddress(vLog.Topics[1].Hex()).Hex(),
-				Receiver:     common.HexToAddress(vLog.Topics[2].Hex()).Hex(),
+				Sender:       NormalizeAddress(vLog.Topics[1].Hex()),
+				Receiver:     NormalizeAddress(vLog.Topics[2].Hex()),
 				Value:        event.Value,
 			}
 			ts = append(ts, t)

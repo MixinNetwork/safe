@@ -249,11 +249,14 @@ func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error
 		Data: data,
 	}
 	conn, err := ethclient.Dial(rpc)
-	defer conn.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
 	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
+	if err != nil {
+		return nil, err
+	}
 	n := new(big.Int).SetBytes(response)
 	return new(big.Int).Sub(n, big.NewInt(1)), nil
 }
