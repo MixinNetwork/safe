@@ -178,7 +178,6 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(SafeChainPolygon)
-	_, ethereumAssetId := node.ethereumParams(safe.Chain)
 	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
 
 	safeBalances, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
@@ -186,11 +185,9 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	var outputs []*ethereum.Output
 	for _, b := range safeBalances {
 		output := &ethereum.Output{
-			Destination: testEthereumTransactionReceiver,
-			Amount:      b.Balance,
-		}
-		if b.AssetId != ethereumAssetId {
-			output.TokenAddress = b.AssetAddress
+			Destination:  testEthereumTransactionReceiver,
+			Amount:       b.Balance,
+			TokenAddress: b.AssetAddress,
 		}
 		outputs = append(outputs, output)
 	}
