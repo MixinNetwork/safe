@@ -265,15 +265,15 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 				return nil, err
 			}
 
-			tokenAddress := NormalizeAddress(vLog.Address.Hex())
+			tokenAddress := vLog.Address.Hex()
 			assetId := GenerateAssetId(byte(chain), tokenAddress)
 			t := &Transfer{
 				Hash:         vLog.TxHash.Hex(),
 				Index:        int64(vLog.Index) + int64(math.MaxInt32),
 				TokenAddress: tokenAddress,
 				AssetId:      assetId,
-				Sender:       NormalizeAddress(vLog.Topics[1].Hex()),
-				Receiver:     NormalizeAddress(vLog.Topics[2].Hex()),
+				Sender:       vLog.Topics[1].Hex(),
+				Receiver:     vLog.Topics[2].Hex(),
 				Value:        event.Value,
 			}
 			ts = append(ts, t)
