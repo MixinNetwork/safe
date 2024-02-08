@@ -443,14 +443,13 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		if len(items) != 2 {
 			panic(k)
 		}
-		address := items[0]
-		tokenAddress := ethereum.NormalizeAddress(items[1])
+		address, tokenAddress := items[0], items[1]
 
 		var assetId string
 		var balance *big.Int
 		var err error
 		switch tokenAddress {
-		case "":
+		case ethereum.EthereumEmptyAddress:
 			assetId = ethAssetId
 			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Number, address)
 		default:
@@ -503,8 +502,7 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
 	deposits := make(map[string]*big.Int)
 	for _, t := range ts {
-		receiver := ethereum.NormalizeAddress(t.Receiver)
-		if receiver == "" {
+		if t.Receiver == ethereum.EthereumEmptyAddress {
 			continue
 		}
 		safe, err := node.keeperStore.ReadSafeByAddress(ctx, t.Receiver)

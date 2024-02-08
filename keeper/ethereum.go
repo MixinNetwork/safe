@@ -594,8 +594,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.store.FailRequest(ctx, req.Id)
 	}
 	decimals := int32(ethereum.ValuePrecision)
-	assetAddress := ethereum.NormalizeAddress(balance.AssetAddress)
-	if assetAddress != "" {
+	if balance.AssetAddress != ethereum.EthereumEmptyAddress {
 		asset, err := node.store.ReadAssetMeta(ctx, id.String())
 		logger.Printf("store.ReadAssetMeta(%s) => %v %v", id.String(), asset, err)
 		if err != nil {
@@ -629,7 +628,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				Destination: rp[0],
 				Amount:      ethereum.ParseAmount(amt.String(), decimals),
 			}
-			if assetAddress != "" {
+			if balance.AssetAddress != ethereum.EthereumEmptyAddress {
 				o.TokenAddress = balance.AssetAddress
 			}
 			outputs = append(outputs, o)
@@ -639,7 +638,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			Destination: string(extra[16:]),
 			Amount:      ethereum.ParseAmount(req.Amount.String(), decimals),
 		}}
-		if assetAddress != "" {
+		if balance.AssetAddress != ethereum.EthereumEmptyAddress {
 			outputs[0].TokenAddress = balance.AssetAddress
 		}
 	}
@@ -679,7 +678,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		switch {
 		case len(outputs) > 1:
 			txType = ethereum.TypeMultiSendTx
-		case assetAddress != "":
+		case balance.AssetAddress != ethereum.EthereumEmptyAddress:
 			txType = ethereum.TypeERC20Tx
 		}
 		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
@@ -706,8 +705,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				Destination: string(extra[16:]),
 				Amount:      b.Balance,
 			}
-			addr := ethereum.NormalizeAddress(b.AssetAddress)
-			if addr != "" {
+			if b.AssetAddress != ethereum.EthereumEmptyAddress {
 				output.TokenAddress = b.AssetAddress
 			}
 			outputs = append(outputs, output)
