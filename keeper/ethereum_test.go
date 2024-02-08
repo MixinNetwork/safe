@@ -41,38 +41,6 @@ const (
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )
 
-func TestT(t *testing.T) {
-	// require := require.New(t)
-	// assetId := "218bc6f4-7927-3f8e-8568-3a3725b74361"
-	// symbol := "USDT"
-	// name := "(PoS) Tether USD"
-	// holder := "02901a9917f230c32db4dceaa8eb08b4ca2c76a9147f8baaa01197be16189fd7b2"
-
-	// abi.InitFactoryContractAddress("0x39490616B61302B7d0Af8993cB694a54064EBA17")
-
-	// addr := abi.GetFactoryAssetAddress(assetId, symbol, name, holder)
-	// assetKey := strings.ToLower(addr.String())
-	// err := mvm.VerifyAssetKey(assetKey)
-	// require.Nil(err)
-
-	// bondId := mvm.GenerateAssetId(assetKey)
-	// fmt.Println(bondId)
-
-	// rpc := "https://geth.mvm.dev"
-	// err = abi.GetOrDeployFactoryAsset(rpc, "", assetId, symbol, name, holder)
-	// fmt.Println(err)
-
-	addr := "0x:"
-	items := strings.Split(addr, ":")
-	fmt.Println(items, len(items))
-
-	// hash := "38c0509a0bcead960e4ae8148c6a41e8eb8606f7a6f1b669c55e2035d80bb89e"
-	// hb, _ := hex.DecodeString(hash)
-	// op.Extra = op.Extra[0:17]
-	// op.Extra = append(op.Extra, hb...)
-	// s := base64.RawURLEncoding.EncodeToString(op.Encode())
-	// fmt.Println(s)
-}
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testEthereumPrepare(require)
