@@ -797,7 +797,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	}
 	for _, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 
@@ -906,7 +906,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	}
 	for _, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 
