@@ -747,10 +747,8 @@ func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
 
 		outputs := st.ExtractOutputs()
 		for _, out := range outputs {
-			assetAddress := ethereum.EthereumEmptyAddress
 			assetId := chainAssetId
-			if out.TokenAddress != "" {
-				assetAddress = out.TokenAddress
+			if out.TokenAddress != ethereum.EthereumEmptyAddress {
 				assetId = ethereum.GenerateAssetId(tx.Chain, out.TokenAddress)
 			}
 			amount := out.Amount
@@ -765,7 +763,7 @@ func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
 			}
 			assetBalance[assetId] = &AssetBalance{
 				Amount:       amount.String(),
-				AssetAddress: assetAddress,
+				AssetAddress: out.TokenAddress,
 			}
 		}
 	}

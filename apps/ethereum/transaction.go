@@ -343,8 +343,9 @@ func (tx *SafeTransaction) ExtractOutputs() []*Output {
 	switch {
 	case len(tx.Data) == 0:
 		return []*Output{{
-			Destination: tx.Destination.Hex(),
-			Amount:      tx.Value,
+			TokenAddress: EthereumEmptyAddress,
+			Destination:  tx.Destination.Hex(),
+			Amount:       tx.Value,
 		}}
 	default:
 		method := hex.EncodeToString(tx.Data[0:4])
@@ -408,8 +409,9 @@ func (tx *SafeTransaction) parseMultiSendData() ([]*Output, error) {
 		offset += 32
 
 		o := &Output{
-			Destination: to.Hex(),
-			Amount:      amount,
+			Destination:  to.Hex(),
+			Amount:       amount,
+			TokenAddress: EthereumEmptyAddress,
 		}
 		switch {
 		case dataLen == 0:

@@ -271,7 +271,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 			t := &Transfer{
 				Hash:         vLog.TxHash.Hex(),
 				Index:        int64(vLog.Index) + int64(math.MaxInt32),
-				TokenAddress: vLog.Address.Hex(),
+				TokenAddress: tokenAddress,
 				AssetId:      assetId,
 				Sender:       common.HexToAddress(vLog.Topics[1].Hex()).Hex(),
 				Receiver:     common.HexToAddress(vLog.Topics[2].Hex()).Hex(),

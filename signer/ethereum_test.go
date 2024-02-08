@@ -83,8 +83,9 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 
 	var outputs []*ethereum.Output
 	outputs = append(outputs, &ethereum.Output{
-		Destination: "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
-		Amount:      big.NewInt(100000000000000),
+		TokenAddress: ethereum.EthereumEmptyAddress,
+		Destination:  "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055",
+		Amount:       big.NewInt(100000000000000),
 	})
 	outputs = append(outputs, &ethereum.Output{
 		TokenAddress: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
@@ -124,7 +125,7 @@ func TestCMPEthereumTransaction(t *testing.T) {
 
 	outputs := tx.ExtractOutputs()
 	require.Len(outputs, 1)
-	require.Equal("", outputs[0].TokenAddress)
+	require.Equal(ethereum.EthereumEmptyAddress, outputs[0].TokenAddress)
 	require.Equal(destination, outputs[0].Destination)
 	require.Equal(value, outputs[0].Amount.String())
 
