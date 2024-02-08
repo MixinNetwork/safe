@@ -304,9 +304,12 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 }
 
 func NormalizeAddress(addr string) string {
+	if len(addr) != 42 {
+		panic(addr)
+	}
 	norm := common.HexToAddress(addr).Hex()
-	if norm == EthereumEmptyAddress || !strings.EqualFold(norm, addr) {
-		return ""
+	if !strings.EqualFold(norm, addr) {
+		panic(addr)
 	}
 	return norm
 }

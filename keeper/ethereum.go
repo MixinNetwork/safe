@@ -220,7 +220,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)
-		if norm == "" || norm == safe.Address {
+		if norm == ethereum.EthereumEmptyAddress || norm == safe.Address {
 			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
 			return node.store.FailRequest(ctx, req.Id)
 		}
@@ -590,8 +590,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil {
 		return err
 	}
-	if balance.AssetAddress == "" {
-		return node.store.FailRequest(ctx, req.Id)
+	if ethereum.NormalizeAddress(balance.AssetAddress) != balance.AssetAddress {
+		panic(balance.AssetAddress)
 	}
 	decimals := int32(ethereum.ValuePrecision)
 	if balance.AssetAddress != ethereum.EthereumEmptyAddress {
@@ -599,9 +599,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		logger.Printf("store.ReadAssetMeta(%s) => %v %v", id.String(), asset, err)
 		if err != nil {
 			return err
-		}
-		if asset == nil {
-			return node.store.FailRequest(ctx, req.Id)
 		}
 		decimals = int32(asset.Decimals)
 	}
@@ -643,7 +640,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)
-		if norm == "" || norm == safe.Address {
+		if norm == ethereum.EthereumEmptyAddress || norm == safe.Address {
 			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
 			return node.store.FailRequest(ctx, req.Id)
 		}
@@ -698,11 +695,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				continue
 			}
 			output := &ethereum.Output{
-				Destination: string(extra[16:]),
-				Amount:      b.Balance,
-			}
-			if b.AssetAddress != ethereum.EthereumEmptyAddress {
-				output.TokenAddress = b.AssetAddress
+				Destination:  string(extra[16:]),
+				Amount:       b.Balance,
+				TokenAddress: b.AssetAddress,
 			}
 			outputs = append(outputs, output)
 
@@ -728,7 +723,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
 			txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
 		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
+			panic(err)
 		}
 	default:
 		logger.Printf("invalid transaction flag: %d", flag)

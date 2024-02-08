@@ -116,11 +116,12 @@ func TestCMPEthereumTransaction(t *testing.T) {
 	require := require.New(t)
 	accountAddress := testPrepareEthereumAccount(ctx, require)
 
+	tokenAddress := ethereum.EthereumEmptyAddress
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 	value := "100000000000000"
-	n := 1
+	nonce := big.NewInt(1)
 	id := "b231eebd-78ec-44f7-aeeb-7cf0b73ed070"
-	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, "", value, new(big.Int).SetInt64(int64(n)))
+	tx, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, int64(chainID), id, accountAddress, destination, tokenAddress, value, nonce)
 	require.Nil(err)
 
 	outputs := tx.ExtractOutputs()

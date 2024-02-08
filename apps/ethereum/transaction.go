@@ -58,12 +58,12 @@ func CreateTransactionFromOutputs(ctx context.Context, typ int, chainId int64, i
 }
 
 func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddress, destination, tokenAddress, amount string, nonce *big.Int) (*SafeTransaction, error) {
-	if nonce == nil {
-		return nil, fmt.Errorf("Invalid ethereum transaction nonce")
+	if nonce == nil || tokenAddress == "" {
+		return nil, fmt.Errorf("Invalid ethereum transaction nonce or token address %s %s", nonce, tokenAddress)
 	}
 	value, ok := new(big.Int).SetString(amount, 10)
 	if !ok {
-		return nil, fmt.Errorf("Fail to parse value to big.Int")
+		return nil, fmt.Errorf("invalid ethereum amount %s", amount)
 	}
 	tx := &SafeTransaction{
 		ChainID:        chainID,
@@ -83,7 +83,7 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 	case TypeETHTx:
 	case TypeERC20Tx:
 		norm := NormalizeAddress(tokenAddress)
-		if norm == "" {
+		if norm == EthereumEmptyAddress {
 			return nil, fmt.Errorf("invalid ERC20 address %s for TypeERC20Tx", tokenAddress)
 		}
 		tx.Destination = common.HexToAddress(norm)
@@ -505,9 +505,9 @@ func buildMultiSendData(outputs []*Output) []byte {
 	metaTxsData := []byte{}
 	for _, o := range outputs {
 		destination, amount, data := o.Destination, o.Amount, []byte{}
-		norm := NormalizeAddress(o.TokenAddress)
-		if norm != "" {
-			destination = norm
+		tokenAddress := NormalizeAddress(o.TokenAddress)
+		if tokenAddress != EthereumEmptyAddress {
+			destination = tokenAddress
 			amount = big.NewInt(0)
 			data = buildERC20TxData(o.Destination, o.Amount)
 		}
