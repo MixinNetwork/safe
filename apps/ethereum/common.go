@@ -74,6 +74,9 @@ type Transfer struct {
 }
 
 func GenerateAssetId(chain byte, assetKey string) string {
+	if assetKey == EthereumEmptyAddress {
+		panic(chain)
+	}
 	assetKey = strings.ToLower(assetKey)
 	err := VerifyAssetKey(assetKey)
 	if err != nil {
