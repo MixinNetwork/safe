@@ -409,8 +409,9 @@ func (tx *SafeTransaction) parseMultiSendData() ([]*Output, error) {
 		offset += 32
 
 		o := &Output{
-			Destination: to.Hex(),
-			Amount:      amount,
+			Destination:  to.Hex(),
+			Amount:       amount,
+			TokenAddress: EthereumEmptyAddress,
 		}
 		switch {
 		case dataLen == 0:
