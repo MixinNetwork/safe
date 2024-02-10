@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS requests_by_mixin_hash_index ON requests(mixin_hash, mixin_index);
+CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_at);
 
 
 
@@ -30,6 +31,8 @@ CREATE TABLE IF NOT EXISTS network_infos (
   PRIMARY KEY ('request_id')
 );
 
+CREATE INDEX IF NOT EXISTS network_infos_by_chain_created ON network_infos(chain, created_at);
+
 
 
 
@@ -42,6 +45,8 @@ CREATE TABLE IF NOT EXISTS operation_params (
   created_at           TIMESTAMP NOT NULL,
   PRIMARY KEY ('request_id')
 );
+
+CREATE INDEX IF NOT EXISTS operation_params_by_chain_created ON operation_params(chain, created_at);
 
 
 
@@ -156,6 +161,7 @@ CREATE TABLE IF NOT EXISTS bitcoin_outputs (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS bitcoin_outputs_by_request_id ON bitcoin_outputs(request_id);
+CREATE INDEX IF NOT EXISTS bitcoin_outputs_by_address_state_created ON bitcoin_outputs(address, state, created_at);
 
 
 
@@ -234,7 +240,7 @@ CREATE TABLE IF NOT EXISTS signature_requests (
   PRIMARY KEY ('request_id')
 );
 
-
+CREATE INDEX IF NOT EXISTS signature_requests_by_transaction_state_created ON signature_requests(transaction_hash, state, created_at);
 
 
 
