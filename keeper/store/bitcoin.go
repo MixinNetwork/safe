@@ -100,7 +100,7 @@ func (s *SQLite3Store) ReadUnspentUtxoCountForSafe(ctx context.Context, address 
 	}
 	defer tx.Rollback()
 
-	query := "SELECT COUNT(*) FROM bitcoin_outputs WHERE address=? AND state IN (?, ?) ORDER BY created_at ASC, request_id ASC"
+	query := "SELECT COUNT(*) FROM bitcoin_outputs WHERE address=? AND state IN (?, ?)"
 	row := s.db.QueryRowContext(ctx, query, address, common.RequestStateInitial, common.RequestStatePending)
 	var count int
 	err = row.Scan(&count)

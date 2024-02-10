@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS deposits (
   PRIMARY KEY ('transaction_hash', 'output_index')
 );
 
+CREATE INDEX IF NOT EXISTS deposits_by_chain_state_created ON deposits(chain, state, created_at);
+
 
 
 
@@ -91,6 +93,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash')
 );
+
+CREATE INDEX IF NOT EXISTS transactions_by_chain_state_created ON transactions(chain, state, created_at);
 
 
 
@@ -109,6 +113,7 @@ CREATE TABLE IF NOT EXISTS bitcoin_outputs (
   PRIMARY KEY ('transaction_hash', 'output_index')
 );
 
+CREATE INDEX IF NOT EXISTS bitcoin_outputs_by_chain_state_created ON bitcoin_outputs(chain, state, created_at);
 
 
 
