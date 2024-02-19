@@ -25,8 +25,10 @@ func TestObserver(t *testing.T) {
 	node := testBuildNode(ctx, require, root)
 	require.NotNil(node)
 
-	_, err = bitcoin.EstimateAvgFee(keeper.SafeChainBitcoin, node.conf.BitcoinRPC)
+	fvb, err := bitcoin.EstimateAvgFee(keeper.SafeChainBitcoin, node.conf.BitcoinRPC)
 	require.Nil(err)
+	require.Greater(fvb, int64(10))
+	require.Less(fvb, int64(500))
 }
 
 func testBuildNode(ctx context.Context, require *require.Assertions, root string) *Node {

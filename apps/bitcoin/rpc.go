@@ -47,13 +47,11 @@ type RPCTransaction struct {
 	VSize     int64     `json:"vsize"`
 }
 
-type MemPoolTransactionFee struct {
-	Base float64 `json:"base"`
-}
-
 type MemPoolTransaction struct {
-	Fees  MemPoolTransactionFee `json:"fees"`
-	VSize int64                 `json:"vsize"`
+	Fees struct {
+		Base float64 `json:"base"`
+	} `json:"fees"`
+	VSize int64 `json:"vsize"`
 }
 
 type RPCBlock struct {
