@@ -123,7 +123,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 		}
 		gasPrice, err := ethereum.RPCGetGasPrice(rpc)
 		if err != nil {
-			logger.Printf("ethereum.RPCEstimateSmartFee(%d) => %v", chain, err)
+			logger.Printf("ethereum.RPCGetGasPrice(%d) => %v", chain, err)
 			continue
 		}
 		blockHash, err := ethereum.RPCGetBlockHash(rpc, height)
