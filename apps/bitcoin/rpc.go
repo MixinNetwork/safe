@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,6 +43,17 @@ type RPCTransaction struct {
 	Vout      []*rpcOut `json:"vout"`
 	BlockHash string    `json:"blockhash"`
 	Hex       string    `json:"hex"`
+	Fee       float64   `json:"fee"`
+	Size      int64     `json:"size"`
+}
+
+type MemPoolTransactionFee struct {
+	Base float64 `json:"base"`
+}
+
+type MemPoolTransaction struct {
+	Fees MemPoolTransactionFee `json:"fees"`
+	Size int64                 `json:"vsize"`
 }
 
 type RPCBlock struct {
@@ -174,6 +187,28 @@ func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
 	return transactions, nil
 }
 
+func RPCGetRawMempoolWithTransactions(rpc string) ([]*RPCTransaction, error) {
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawmempool", []any{true})
+	if err != nil {
+		return nil, err
+	}
+	txMap := make(map[string]MemPoolTransaction)
+	err = json.Unmarshal(res, &txMap)
+	if err != nil {
+		return nil, err
+	}
+
+	var transactions []*RPCTransaction
+	for id, tx := range txMap {
+		transactions = append(transactions, &RPCTransaction{
+			TxId: id,
+			Fee:  tx.Fees.Base,
+			Size: tx.Size,
+		})
+	}
+	return transactions, nil
+}
+
 func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTransactions, error) {
 	res, err := callBitcoinRPCUntilSufficient(rpc, "getblock", []any{hash, 2})
 	if err != nil {
@@ -189,6 +224,49 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 		tx.BlockHash = hash
 	}
 	return &b, err
+}
+
+func RPCGetBlockAverageFeePerBytes(chain byte, rpc, hash string) (*big.Int, error) {
+	block, err := RPCGetBlockWithTransactions(chain, rpc, hash)
+	if err != nil {
+		return nil, err
+	}
+	sum := decimal.NewFromInt(0)
+	count := decimal.NewFromInt(int64(len(block.Tx)))
+	for _, tx := range block.Tx {
+		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
+		size := decimal.NewFromInt(tx.Size)
+		feePerBytes := fee.Div(size)
+		sum = sum.Add(feePerBytes)
+	}
+	sum = sum.Div(count)
+	return sum.Ceil().BigInt(), nil
+}
+
+func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
+	txs, err := RPCGetRawMempoolWithTransactions(rpc)
+	if err != nil {
+		return nil, err
+	}
+	fees := []decimal.Decimal{}
+	for _, tx := range txs {
+		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
+		size := decimal.NewFromInt(tx.Size)
+		feePerBytes := fee.Div(size)
+		fees = append(fees, feePerBytes)
+	}
+	sort.Slice(fees, func(i, j int) bool { return fees[i].Cmp(fees[j]) > 0 })
+	sum := decimal.NewFromInt(0)
+	var count int64
+	for i, f := range fees {
+		if i >= 2000 {
+			break
+		}
+		sum = sum.Add(f)
+		count += 1
+	}
+	avg := sum.Div(decimal.NewFromInt(count))
+	return avg.Ceil().BigInt(), nil
 }
 
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
