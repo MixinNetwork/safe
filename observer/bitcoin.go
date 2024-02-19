@@ -71,9 +71,9 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("node.keeperStore.ReadLatestNetworkInfo(%d) => %v %d", chain, info, height)
 			continue
 		}
-		fvb, err := bitcoin.RPCEstimateSmartFee(chain, rpc)
+		fvb, err := bitcoin.EstimateAvgFee(chain, rpc)
 		if err != nil {
-			logger.Printf("bitcoin.RPCEstimateSmartFee(%d) => %v", chain, err)
+			logger.Printf("bitcoin.EstimateAvgFee(%d) => %v", chain, err)
 			continue
 		}
 		blockHash, err := bitcoin.RPCGetBlockHash(rpc, height)

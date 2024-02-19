@@ -309,25 +309,6 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	return info.Blocks, err
 }
 
-func RPCEstimateSmartFee(chain byte, rpc string) (int64, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "estimatesmartfee", []any{1})
-	if err != nil {
-		return 0, err
-	}
-	var fee struct {
-		Rate float64 `json:"feerate"`
-	}
-	err = json.Unmarshal(res, &fee)
-	if err != nil || fee.Rate <= 0 {
-		return 0, fmt.Errorf("estimatesmartfee %f %v", fee.Rate, err)
-	}
-	fvb := int64(fee.Rate * 1.1 * ValueSatoshi / 1024)
-	if fvb < 10 {
-		fvb = 10
-	}
-	return fvb, nil
-}
-
 func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 	blockAvgFee, err := RPCGetBlockAverageFeePerBytes(chain, rpc)
 	if err != nil {
@@ -347,6 +328,9 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 
 	fee, _ := maxFee.Float64()
 	fvb := int64(fee * 1.1 * ValueSatoshi / 1024)
+	if fvb < 5 || fvb > 1000 {
+		panic(fvb)
+	}
 	if fvb < 10 {
 		fvb = 10
 	}
