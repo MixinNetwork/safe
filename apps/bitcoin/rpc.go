@@ -44,16 +44,14 @@ type RPCTransaction struct {
 	BlockHash string    `json:"blockhash"`
 	Hex       string    `json:"hex"`
 	Fee       float64   `json:"fee"`
-	Size      int64     `json:"size"`
-}
-
-type MemPoolTransactionFee struct {
-	Base float64 `json:"base"`
+	VSize     int64     `json:"vsize"`
 }
 
 type MemPoolTransaction struct {
-	Fees MemPoolTransactionFee `json:"fees"`
-	Size int64                 `json:"vsize"`
+	Fees struct {
+		Base float64 `json:"base"`
+	} `json:"fees"`
+	VSize int64 `json:"vsize"`
 }
 
 type RPCBlock struct {
@@ -201,9 +199,9 @@ func RPCGetRawMempoolWithTransactions(rpc string) ([]*RPCTransaction, error) {
 	var transactions []*RPCTransaction
 	for id, tx := range txMap {
 		transactions = append(transactions, &RPCTransaction{
-			TxId: id,
-			Fee:  tx.Fees.Base,
-			Size: tx.Size,
+			TxId:  id,
+			Fee:   tx.Fees.Base,
+			VSize: tx.VSize,
 		})
 	}
 	return transactions, nil
@@ -243,7 +241,7 @@ func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
 	count := decimal.NewFromInt(int64(len(block.Tx)))
 	for _, tx := range block.Tx {
 		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
-		size := decimal.NewFromInt(tx.Size)
+		size := decimal.NewFromInt(tx.VSize)
 		feePerBytes := fee.Div(size)
 		sum = sum.Add(feePerBytes)
 	}
@@ -259,7 +257,7 @@ func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
 	fees := []decimal.Decimal{}
 	for _, tx := range txs {
 		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
-		size := decimal.NewFromInt(tx.Size)
+		size := decimal.NewFromInt(tx.VSize)
 		feePerBytes := fee.Div(size)
 		fees = append(fees, feePerBytes)
 	}
@@ -326,8 +324,7 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 		return 0, fmt.Errorf("estimateavgfee %s", maxFee.String())
 	}
 
-	fee, _ := maxFee.Float64()
-	fvb := int64(fee * 1.1 * ValueSatoshi / 1024)
+	fvb := maxFee.Int64()
 	if fvb < 5 || fvb > 1000 {
 		panic(fvb)
 	}
