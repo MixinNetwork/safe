@@ -226,7 +226,15 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 	return &b, err
 }
 
-func RPCGetBlockAverageFeePerBytes(chain byte, rpc, hash string) (*big.Int, error) {
+func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
+	height, err := RPCGetBlockHeight(rpc)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := RPCGetBlockHash(rpc, height)
+	if err != nil {
+		return nil, err
+	}
 	block, err := RPCGetBlockWithTransactions(chain, rpc, hash)
 	if err != nil {
 		return nil, err
@@ -314,6 +322,31 @@ func RPCEstimateSmartFee(chain byte, rpc string) (int64, error) {
 		return 0, fmt.Errorf("estimatesmartfee %f %v", fee.Rate, err)
 	}
 	fvb := int64(fee.Rate * 1.1 * ValueSatoshi / 1024)
+	if fvb < 10 {
+		fvb = 10
+	}
+	return fvb, nil
+}
+
+func EstimateAvgFee(chain byte, rpc string) (int64, error) {
+	blockAvgFee, err := RPCGetBlockAverageFeePerBytes(chain, rpc)
+	if err != nil {
+		return 0, err
+	}
+	mempoolTopAvgFee, err := RPCGetMempoolAverageFeePerBytes(rpc)
+	if err != nil {
+		return 0, err
+	}
+	maxFee := blockAvgFee
+	if mempoolTopAvgFee.Cmp(blockAvgFee) > 0 {
+		maxFee = mempoolTopAvgFee
+	}
+	if maxFee.Cmp(big.NewInt(0)) <= 0 {
+		return 0, fmt.Errorf("estimateavgfee %s", maxFee.String())
+	}
+
+	fee, _ := maxFee.Float64()
+	fvb := int64(fee * 1.1 * ValueSatoshi / 1024)
 	if fvb < 10 {
 		fvb = 10
 	}
