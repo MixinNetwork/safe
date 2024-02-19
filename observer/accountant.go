@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
-	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
@@ -216,13 +215,12 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 		return nil, err
 	}
 
-	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
-	virtualSize := (weight + 300) / 3
+	virtualSize := psbt.EstimateVirtualSize() + 160
 	fvb, err := bitcoin.EstimateAvgFee(tx.Chain, rpc)
 	if err != nil {
 		return nil, err
 	}
-	fee := fvb * virtualSize
+	fee := fvb * int64(virtualSize)
 	if fee < bitcoin.ValueDust(tx.Chain) {
 		fee = bitcoin.ValueDust(tx.Chain)
 	}
