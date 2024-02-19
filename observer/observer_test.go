@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/pelletier/go-toml"
@@ -23,6 +24,9 @@ func TestObserver(t *testing.T) {
 	require.Nil(err)
 	node := testBuildNode(ctx, require, root)
 	require.NotNil(node)
+
+	_, err = bitcoin.EstimateAvgFee(keeper.SafeChainBitcoin, node.conf.BitcoinRPC)
+	require.Nil(err)
 }
 
 func testBuildNode(ctx context.Context, require *require.Assertions, root string) *Node {
