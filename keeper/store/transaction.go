@@ -124,7 +124,7 @@ func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, h
 	return txs, nil
 }
 
-func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, safe *Safe, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
+func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -134,18 +134,29 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	}
 	defer tx.Rollback()
 
-	if safe.State == common.RequestStateDone {
+	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
+	if err != nil {
+		return err
+	}
+	if !existed {
 		err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
 			common.RequestStateFailed, trx.CreatedAt, trx.Holder, common.RequestStateDone)
 		if err != nil {
 			return fmt.Errorf("UPDATE safes %v", err)
 		}
+
+		err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, utxoState)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+			common.RequestStateDone, time.Now().UTC(), trx.RequestId)
+		if err != nil {
+			return fmt.Errorf("UPDATE requests %v", err)
+		}
 	}
 
-	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, utxoState)
-	if err != nil {
-		return err
-	}
 	return tx.Commit()
 }
 
@@ -203,16 +214,10 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 }
 
 func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.Tx, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
-	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
+	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.AssetId, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
+	err := s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
 	if err != nil {
-		return err
-	}
-	if !existed {
-		vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.AssetId, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
-		err := s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
-		if err != nil {
-			return fmt.Errorf("INSERT transactions %v", err)
-		}
+		return fmt.Errorf("INSERT transactions %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
