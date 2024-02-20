@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,15 +72,33 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 		}
 		hpin := hpsbt.Inputs[idx]
 		hsig := hpin.PartialSigs[0]
+
+		signedByHolderObserver := false
 		switch in.Sequence {
 		case bitcoin.MaxTransactionSequence:
 			if hex.EncodeToString(hsig.PubKey) != tx.Holder {
 				panic(spsbt.Hash())
 			}
 		default:
-			if hex.EncodeToString(hsig.PubKey) != opk {
-				panic(spsbt.Hash())
+			if len(hpin.PartialSigs) == 1 {
+				if hex.EncodeToString(hsig.PubKey) != opk {
+					panic(spsbt.Hash())
+				}
+			} else {
+				pubs := []string{}
+				for _, sig := range hpin.PartialSigs {
+					pub := hex.EncodeToString(sig.PubKey)
+					pubs = append(pubs, pub)
+				}
+				if slices.Contains(pubs, tx.Holder) && slices.Contains(pubs, opk) {
+					signedByHolderObserver = true
+				} else {
+					panic(spsbt.Hash())
+				}
 			}
+		}
+		if signedByHolderObserver {
+			continue
 		}
 
 		spin := spsbt.Inputs[idx]
@@ -131,13 +150,15 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 		panic(st.TxHash)
 	}
 
-	signedByHolder := ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder)
-	signedByObserver := ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer)
-	if !signedByHolder && !signedByObserver {
-		return fmt.Errorf("Ethereum safe transaction %v should signed by holder or observer: %t %t", st, signedByHolder, signedByObserver)
+	sigs := 0
+	for _, pub := range []string{safe.Holder, safe.Observer, safe.Signer} {
+		signed := ethereum.CheckTransactionPartiallySignedBy(raw, pub)
+		if signed {
+			sigs += 1
+		}
 	}
-	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Signer) {
-		return fmt.Errorf("Ethereum safe transaction %v should signed by signer", st)
+	if sigs < 2 {
+		return fmt.Errorf("Ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
 	}
 
 	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
