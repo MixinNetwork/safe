@@ -203,11 +203,18 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 }
 
 func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.Tx, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
-	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.AssetId, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
-	err := s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
+	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
 	if err != nil {
-		return fmt.Errorf("INSERT transactions %v", err)
+		return err
 	}
+	if !existed {
+		vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.AssetId, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
+		err := s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT transactions %v", err)
+		}
+	}
+
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), trx.RequestId)
 	if err != nil {
