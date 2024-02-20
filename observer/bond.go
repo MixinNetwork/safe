@@ -114,7 +114,7 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 		} `json:"data"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&body)
-	if err != nil {
+	if err != nil || body.Data == nil {
 		return nil, err
 	}
 	asset := body.Data
