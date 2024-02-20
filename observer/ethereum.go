@@ -638,19 +638,19 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 	var extra []byte
 	switch {
 	case signedByHolder:
-		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
-		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
-		if err != nil {
-			return err
-		}
-		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+		extra = uuid.Nil.Bytes()
 	default:
 		signed, err := node.ethereumCheckKeeperSignedTransaction(ctx, approval)
 		logger.Printf("node.ethereumCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
 		if err != nil || signed {
 			return err
 		}
-		extra = uuid.Nil.Bytes()
+		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
+		if err != nil {
+			return err
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	}
 
 	objectRaw := signedRaw
