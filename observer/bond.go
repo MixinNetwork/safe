@@ -93,12 +93,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error) {
-	meta, err := node.store.ReadAssetMeta(ctx, id)
-	if err != nil || meta != nil {
-		return meta, err
-	}
-
+func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
 	resp, err := client.Get(path)
@@ -140,7 +135,7 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 		panic(asset.ChainId)
 	}
 
-	meta = &Asset{
+	meta := &Asset{
 		AssetId:   asset.AssetId,
 		MixinId:   asset.MixinId.String(),
 		AssetKey:  asset.AssetKey,
@@ -151,4 +146,28 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 		CreatedAt: time.Now().UTC(),
 	}
 	return meta, node.store.WriteAssetMeta(ctx, meta)
+}
+
+func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error) {
+	meta, err := node.store.ReadAssetMeta(ctx, id)
+	if err != nil || meta != nil {
+		return meta, err
+	}
+
+	for {
+		meta, err = node.fetchMixinAsset(ctx, id)
+		if err != nil {
+			reason := strings.ToLower(err.Error())
+			switch {
+			case strings.Contains(reason, "timeout"):
+			case strings.Contains(reason, "eof"):
+			case strings.Contains(reason, "handshake"):
+			default:
+				return meta, err
+			}
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		return meta, err
+	}
 }
