@@ -238,7 +238,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	}
 
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone)
+	return node.store.CloseAccountByTransactionWithRequest(ctx, safe, tx, transacionInputs, common.RequestStateDone)
 }
 
 func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *common.Request) error {

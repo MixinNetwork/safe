@@ -124,7 +124,7 @@ func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, h
 	return txs, nil
 }
 
-func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
+func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, safe *Safe, trx *Transaction, utxos []*TransactionInput, utxoState int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -134,10 +134,12 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
-		common.RequestStateFailed, trx.CreatedAt, trx.Holder, common.RequestStateDone)
-	if err != nil {
-		return fmt.Errorf("UPDATE safes %v", err)
+	if safe.State == common.RequestStateDone {
+		err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
+			common.RequestStateFailed, trx.CreatedAt, trx.Holder, common.RequestStateDone)
+		if err != nil {
+			return fmt.Errorf("UPDATE safes %v", err)
+		}
 	}
 
 	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, utxoState)

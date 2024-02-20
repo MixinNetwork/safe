@@ -268,7 +268,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
 	}
 
-	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
+	return node.store.CloseAccountByTransactionWithRequest(ctx, safe, tx, nil, common.RequestStateDone)
 }
 
 func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *common.Request) error {
