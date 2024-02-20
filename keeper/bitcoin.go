@@ -26,6 +26,16 @@ import (
 // For Mixin, just accepts safeXIN and build many transactions for all assets.
 // For Ethereum or Mixin, it's mandatory to have some minimum ETH or XIN
 // in the account for it to be active.
+//
+// Recovery Processes With Holder Key:
+// 1 account holder build transaction raw and sign, POST /accounts/:id with action 'close' to submit recovery request
+// 2 account observer sign transaction raw of holder signed recovery transaction, POST /recoveries/:address (the address of account)
+// 3 transfer fee to Safe Observer Node to activate recovery
+// Recovery Processes Without Holder Key:
+// 1 propose recovery tx
+// 2 POST /accounts/:id with action 'close' to submit recovery request
+// 3 account observer sign transaction raw of holder signed recovery transaction, POST /recoveries/:address (the address of account)
+// 4 transfer fee to Safe Observer Node to activate recovery
 func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *common.Request) error {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)

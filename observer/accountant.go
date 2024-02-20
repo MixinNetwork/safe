@@ -75,16 +75,18 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 
 		signedByHolderObserver := false
 		switch in.Sequence {
-		case bitcoin.MaxTransactionSequence:
+		case bitcoin.MaxTransactionSequence: // normal tx
 			if hex.EncodeToString(hsig.PubKey) != tx.Holder {
 				panic(spsbt.Hash())
 			}
-		default:
+		default: // recovery tx
 			if len(hpin.PartialSigs) == 1 {
+				// observer signer
 				if hex.EncodeToString(hsig.PubKey) != opk {
 					panic(spsbt.Hash())
 				}
 			} else {
+				// holder observer
 				pubs := []string{}
 				for _, sig := range hpin.PartialSigs {
 					pub := hex.EncodeToString(sig.PubKey)
