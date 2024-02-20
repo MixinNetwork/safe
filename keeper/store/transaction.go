@@ -134,16 +134,29 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
-		common.RequestStateFailed, trx.CreatedAt, trx.Holder, common.RequestStateDone)
-	if err != nil {
-		return fmt.Errorf("UPDATE safes %v", err)
-	}
-
-	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, utxoState)
+	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
 	if err != nil {
 		return err
 	}
+	if !existed {
+		err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
+			common.RequestStateFailed, trx.CreatedAt, trx.Holder, common.RequestStateDone)
+		if err != nil {
+			return fmt.Errorf("UPDATE safes %v", err)
+		}
+
+		err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, utxoState)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+			common.RequestStateDone, time.Now().UTC(), trx.RequestId)
+		if err != nil {
+			return fmt.Errorf("UPDATE requests %v", err)
+		}
+	}
+
 	return tx.Commit()
 }
 
@@ -206,6 +219,7 @@ func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.
 	if err != nil {
 		return fmt.Errorf("INSERT transactions %v", err)
 	}
+
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), trx.RequestId)
 	if err != nil {

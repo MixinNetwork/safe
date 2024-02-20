@@ -575,19 +575,19 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	var extra []byte
 	switch {
 	case signedByHolder:
-		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
-		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
-		if err != nil {
-			return err
-		}
-		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+		extra = uuid.Nil.Bytes()
 	default:
 		signed, err := node.bitcoinCheckKeeperSignedTransaction(ctx, approval)
 		logger.Printf("node.bitcoinCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
 		if err != nil || signed {
 			return err
 		}
-		extra = uuid.Nil.Bytes()
+		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
+		if err != nil || tx == nil {
+			return err
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	}
 
 	objectRaw := signedRaw
