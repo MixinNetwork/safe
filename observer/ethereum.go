@@ -647,7 +647,7 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 		}
 		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
 		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
-		if err != nil {
+		if err != nil || tx == nil {
 			return err
 		}
 		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
