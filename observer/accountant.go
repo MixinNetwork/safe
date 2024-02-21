@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
-	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
@@ -99,13 +98,13 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 		hpsbt.Inputs[idx].PartialSigs = append(hpin.PartialSigs, spin.PartialSigs...)
 	}
 
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
+	raw := hex.EncodeToString(hpsbt.Marshal())
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
 	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
 	if err != nil {
 		return err
 	}
 
-	raw := hex.EncodeToString(hpsbt.Marshal())
 	err = node.store.FinishTransactionSignatures(ctx, hpsbt.Hash(), raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", hpsbt.Hash(), err)
 	return err
@@ -216,13 +215,12 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 		return nil, err
 	}
 
-	weight := blockchain.GetTransactionWeight(btcutil.NewTx(psbt.UnsignedTx))
-	virtualSize := (weight + 300) / 4
-	fvb, err := bitcoin.RPCEstimateSmartFee(tx.Chain, rpc)
+	virtualSize := psbt.EstimateVirtualSize() + 160
+	fvb, err := bitcoin.EstimateAvgFee(tx.Chain, rpc)
 	if err != nil {
 		return nil, err
 	}
-	fee := fvb * virtualSize
+	fee := fvb * int64(virtualSize)
 	if fee < bitcoin.ValueDust(tx.Chain) {
 		fee = bitcoin.ValueDust(tx.Chain)
 	}

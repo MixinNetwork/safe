@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,33 +27,13 @@ const (
 
 func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
 	switch chain {
+	case keeper.SafeChainEthereum:
 	case keeper.SafeChainMVM:
 	case keeper.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
 	return fmt.Sprintf("ethereum-mixin-snapshots-checkpoint-%d", chain)
-}
-
-func ethereumDepositCheckpointKey(chain byte) string {
-	switch chain {
-	case keeper.SafeChainMVM:
-	case keeper.SafeChainPolygon:
-	default:
-		panic(chain)
-	}
-	return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
-}
-
-func ethereumDepositCheckpointDefault(chain byte) int64 {
-	switch chain {
-	case keeper.SafeChainMVM:
-		return 48464900
-	case keeper.SafeChainPolygon:
-		return 51698448
-	default:
-		panic(chain)
-	}
 }
 
 func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []byte) error {
@@ -129,9 +108,22 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
+		delay := node.getChainFinalizationDelay(chain)
+		if delay > height || delay < 1 {
+			panic(delay)
+		}
+		height = height + 1 - delay
+		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
+		if err != nil {
+			panic(err)
+		}
+		if info != nil && info.Height > uint64(height) {
+			logger.Printf("node.keeperStore.ReadLatestNetworkInfo(%d) => %v %d", chain, info, height)
+			continue
+		}
 		gasPrice, err := ethereum.RPCGetGasPrice(rpc)
 		if err != nil {
-			logger.Printf("ethereum.RPCEstimateSmartFee(%d) => %v", chain, err)
+			logger.Printf("ethereum.RPCGetGasPrice(%d) => %v", chain, err)
 			continue
 		}
 		blockHash, err := ethereum.RPCGetBlockHash(rpc, height)
@@ -197,6 +189,12 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
 	} else if safe == nil {
 		return nil
+	}
+
+	asset, err := node.fetchAssetMeta(ctx, transfer.AssetId)
+	logger.Printf("node.fetchAssetMeta(%s) => %v %v", transfer.AssetId, asset, err)
+	if err != nil || asset == nil {
+		return err
 	}
 
 	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder)
@@ -275,7 +273,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil {
 		panic(err)
 	}
-	if !match {
+	if match == nil {
 		panic(fmt.Errorf("malicious ethereum deposit %s", deposit.TransactionHash))
 	}
 	confirmations := info.Height - etx.BlockHeight + 1
@@ -385,38 +383,36 @@ func (node *Node) ethereumProcessMixinSnapshot(ctx context.Context, id string, c
 
 func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
+	duration := 5 * time.Second
+	switch chain {
+	case ethereum.ChainMVM:
+		duration = 1 * time.Second
+	case ethereum.ChainPolygon:
+		duration = 2 * time.Second
+	case ethereum.ChainEthereum:
+	}
 
 	for {
-		duration := 3 * time.Second
-		switch chain {
-		case ethereum.ChainMVM, ethereum.ChainPolygon:
-			duration = 100 * time.Millisecond
-		case ethereum.ChainEthereum:
-			duration = 1 * time.Second
-		}
-		time.Sleep(duration)
-
-		checkpoint, err := node.ethereumReadDepositCheckpoint(ctx, chain)
+		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
 		height, err := ethereum.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		delay := 0
-		switch chain {
-		case keeper.SafeChainPolygon:
-			delay = 60
-		}
-		if checkpoint+int64(delay) > height {
+		delay := node.getChainFinalizationDelay(chain)
+		if checkpoint+delay > height+1 {
+			time.Sleep(duration)
 			continue
 		}
 		err = node.ethereumReadBlock(ctx, checkpoint, chain)
 		logger.Printf("node.ethereumReadBlock(%d, %d) => %v", chain, checkpoint, err)
 		if err != nil {
+			time.Sleep(time.Second * 5)
 			continue
 		}
 
@@ -437,12 +433,9 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
-	deposits, err := node.GetBlockDeposits(ctx, transfers)
-	if err != nil {
+	deposits, err := node.parseEthereumBlockDeposits(ctx, transfers)
+	if err != nil || len(deposits) == 0 {
 		return err
-	}
-	if len(deposits) == 0 {
-		return nil
 	}
 
 	for k := range deposits {
@@ -458,7 +451,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		switch tokenAddress {
 		case ethereum.EthereumEmptyAddress:
 			assetId = ethAssetId
-			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Hash, address)
+			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Number, address)
 		default:
 			assetId = ethereum.GenerateAssetId(chain, tokenAddress)
 			balance, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height)))
@@ -506,11 +499,14 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	return nil
 }
 
-func (node *Node) GetBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
+func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
 	deposits := make(map[string]*big.Int)
 	for _, t := range ts {
+		if t.Receiver == ethereum.EthereumEmptyAddress {
+			continue
+		}
 		safe, err := node.keeperStore.ReadSafeByAddress(ctx, t.Receiver)
-		logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
+		logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		if err != nil {
 			return nil, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		} else if safe == nil {
@@ -535,24 +531,8 @@ func (node *Node) GetBlockDeposits(ctx context.Context, ts []*ethereum.Transfer)
 	return deposits, nil
 }
 
-func (node *Node) ethereumReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
-	min := ethereumDepositCheckpointDefault(chain)
-	ckt, err := node.store.ReadProperty(ctx, ethereumDepositCheckpointKey(chain))
-	if err != nil || ckt == "" {
-		return min, err
-	}
-	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
-	if err != nil {
-		panic(ckt)
-	}
-	if checkpoint < min {
-		checkpoint = min
-	}
-	return checkpoint, nil
-}
-
 func (node *Node) ethereumWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
-	return node.store.WriteProperty(ctx, ethereumDepositCheckpointKey(chain), fmt.Sprint(num))
+	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
 }
 
 func (node *Node) ethereumWriteMixinSnapshotsCheckpoint(ctx context.Context, offset time.Time, chain byte) error {
@@ -577,6 +557,18 @@ func (node *Node) ethereumTransactionApprovalLoop(ctx context.Context, chain byt
 }
 
 func (node *Node) sendToKeeperEthereumApproveTransaction(ctx context.Context, approval *Transaction) error {
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	if ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer) {
+		return node.sendToKeeperEthereumApproveRecoveryTransaction(ctx, approval)
+	}
+	return node.sendToKeeperEthereumApproveNormalTransaction(ctx, approval)
+}
+
+func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Context, approval *Transaction) error {
 	signed, err := node.ethereumCheckKeeperSignedTransaction(ctx, approval)
 	logger.Printf("node.ethereumCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
 	if err != nil || signed {
@@ -623,6 +615,76 @@ func (node *Node) sendToKeeperEthereumApproveTransaction(ctx context.Context, ap
 	id = common.UniqueId(id, approval.UpdatedAt.String())
 	err = node.sendKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	st, err := ethereum.UnmarshalSafeTransaction(signedRaw)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", approval.RawTransaction, st, err)
+	if err != nil {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	signedByHolder := ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+
+	var extra []byte
+	switch {
+	case signedByHolder:
+		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
+		if err != nil {
+			return err
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	default:
+		signed, err := node.ethereumCheckKeeperSignedTransaction(ctx, approval)
+		logger.Printf("node.ethereumCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
+		if err != nil || signed {
+			return err
+		}
+		extra = uuid.Nil.Bytes()
+	}
+
+	objectRaw := signedRaw
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	conf := node.conf.App
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+	id := common.UniqueId(safe.Address, st.Destination.Hex())
+	extra = append(extra, ref[:]...)
+	action := common.ActionEthereumSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
 	if err != nil {
 		return err
 	}
@@ -735,7 +797,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	}
 	for _, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 
@@ -844,7 +906,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	}
 	for _, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 
@@ -867,8 +929,6 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	var extra []byte
-	id := common.UniqueId(safe.Address, st.Destination.Hex())
 	switch {
 	case !isHolderSigned: // Close account with safeBTC
 		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
@@ -879,47 +939,10 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		if tx == nil {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	case isHolderSigned: // Close account with holder key
 		if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) holder", raw, safe.Holder)
 		}
-		extra = uuid.Nil.Bytes()
-	}
-
-	objectRaw := signedRaw
-	rawId := common.UniqueId(raw, raw)
-	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
-	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
-	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
-	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
-	if err != nil {
-		return err
-	}
-
-	extra = append(extra, ref[:]...)
-	action := common.ActionEthereumSafeCloseAccount
-	references := []crypto.Hash{ref}
-	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
-	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
-	if err != nil {
-		return err
-	}
-
-	if isHolderSigned {
-		err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
-		logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
-		if err != nil {
-			return err
-		}
-		return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
 	}
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -143,14 +142,17 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
-var bitcoinExistingForks = []string{
-	"00000000000000000003aaaacecbebd40417c2e6c39b5774a8a212d5b324052b", // bitcoin  822941
-	"a3baa2ca78ecd1125501e7921d761a7fe9642dd57126ea89bbb2f0ea6626155b", // litecoin 2547862
-	"c5e7f05ec53068af4915454a61a01ac6b4bdafce8a76a2aacdf8ea47f0247a80", // litecoin 2553886
+func (node *Node) checkNetworkInfoForkTimestamp(info *store.NetworkInfo) bool {
+	genesis := time.Unix(0, node.conf.MTG.Genesis.Timestamp)
+	if info.CreatedAt.Before(genesis) {
+		panic(info.RequestId)
+	}
+	forkAt := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	return info.CreatedAt.Before(forkAt)
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
-	if slices.Contains(bitcoinExistingForks, info.Hash) {
+	if node.checkNetworkInfoForkTimestamp(info) {
 		return true, nil
 	}
 	if len(info.Hash) != 64 {
@@ -163,6 +165,9 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	}
 	if block.Height != info.Height {
 		return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+	}
+	if block.Confirmations == -1 {
+		return false, fmt.Errorf("malicious bitcoin fork %s", info.Hash)
 	}
 	if info.Fee < bitcoinMinimumFeeRate || info.Fee > bitcoinMaximumFeeRate {
 		return false, nil

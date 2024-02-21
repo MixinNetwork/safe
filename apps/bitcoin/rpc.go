@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,12 +43,22 @@ type RPCTransaction struct {
 	Vout      []*rpcOut `json:"vout"`
 	BlockHash string    `json:"blockhash"`
 	Hex       string    `json:"hex"`
+	Fee       float64   `json:"fee"`
+	VSize     int64     `json:"vsize"`
+}
+
+type MemPoolTransaction struct {
+	Fees struct {
+		Base float64 `json:"base"`
+	} `json:"fees"`
+	VSize int64 `json:"vsize"`
 }
 
 type RPCBlock struct {
-	Hash   string   `json:"hash"`
-	Height uint64   `json:"height"`
-	Tx     []string `json:"tx"`
+	Hash          string   `json:"hash"`
+	Height        uint64   `json:"height"`
+	Tx            []string `json:"tx"`
+	Confirmations int      `json:"confirmations"`
 }
 
 type RPCBlockWithTransactions struct {
@@ -173,6 +185,28 @@ func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
 	return transactions, nil
 }
 
+func RPCGetRawMempoolWithTransactions(rpc string) ([]*RPCTransaction, error) {
+	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawmempool", []any{true})
+	if err != nil {
+		return nil, err
+	}
+	txMap := make(map[string]MemPoolTransaction)
+	err = json.Unmarshal(res, &txMap)
+	if err != nil {
+		return nil, err
+	}
+
+	var transactions []*RPCTransaction
+	for id, tx := range txMap {
+		transactions = append(transactions, &RPCTransaction{
+			TxId:  id,
+			Fee:   tx.Fees.Base,
+			VSize: tx.VSize,
+		})
+	}
+	return transactions, nil
+}
+
 func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTransactions, error) {
 	res, err := callBitcoinRPCUntilSufficient(rpc, "getblock", []any{hash, 2})
 	if err != nil {
@@ -188,6 +222,57 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 		tx.BlockHash = hash
 	}
 	return &b, err
+}
+
+func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
+	height, err := RPCGetBlockHeight(rpc)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := RPCGetBlockHash(rpc, height)
+	if err != nil {
+		return nil, err
+	}
+	block, err := RPCGetBlockWithTransactions(chain, rpc, hash)
+	if err != nil {
+		return nil, err
+	}
+	sum := decimal.NewFromInt(0)
+	count := decimal.NewFromInt(int64(len(block.Tx)))
+	for _, tx := range block.Tx {
+		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
+		size := decimal.NewFromInt(tx.VSize)
+		feePerBytes := fee.Div(size)
+		sum = sum.Add(feePerBytes)
+	}
+	sum = sum.Div(count)
+	return sum.Ceil().BigInt(), nil
+}
+
+func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
+	txs, err := RPCGetRawMempoolWithTransactions(rpc)
+	if err != nil {
+		return nil, err
+	}
+	fees := []decimal.Decimal{}
+	for _, tx := range txs {
+		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
+		size := decimal.NewFromInt(tx.VSize)
+		feePerBytes := fee.Div(size)
+		fees = append(fees, feePerBytes)
+	}
+	sort.Slice(fees, func(i, j int) bool { return fees[i].Cmp(fees[j]) > 0 })
+	sum := decimal.NewFromInt(0)
+	var count int64
+	for i, f := range fees {
+		if i >= 2000 {
+			break
+		}
+		sum = sum.Add(f)
+		count += 1
+	}
+	avg := sum.Div(decimal.NewFromInt(count))
+	return avg.Ceil().BigInt(), nil
 }
 
 func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
@@ -222,19 +307,27 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	return info.Blocks, err
 }
 
-func RPCEstimateSmartFee(chain byte, rpc string) (int64, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "estimatesmartfee", []any{1})
+func EstimateAvgFee(chain byte, rpc string) (int64, error) {
+	blockAvgFee, err := RPCGetBlockAverageFeePerBytes(chain, rpc)
 	if err != nil {
 		return 0, err
 	}
-	var fee struct {
-		Rate float64 `json:"feerate"`
+	mempoolTopAvgFee, err := RPCGetMempoolAverageFeePerBytes(rpc)
+	if err != nil {
+		return 0, err
 	}
-	err = json.Unmarshal(res, &fee)
-	if err != nil || fee.Rate <= 0 {
-		return 0, fmt.Errorf("estimatesmartfee %f %v", fee.Rate, err)
+	maxFee := blockAvgFee
+	if mempoolTopAvgFee.Cmp(blockAvgFee) > 0 {
+		maxFee = mempoolTopAvgFee
 	}
-	fvb := int64(fee.Rate * 1.1 * ValueSatoshi / 1024)
+	if maxFee.Cmp(big.NewInt(0)) <= 0 {
+		return 0, fmt.Errorf("estimateavgfee %s", maxFee.String())
+	}
+
+	fvb := maxFee.Int64()
+	if fvb < 5 || fvb > 1000 {
+		panic(fvb)
+	}
 	if fvb < 10 {
 		fvb = 10
 	}

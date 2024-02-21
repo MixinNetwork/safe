@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
@@ -24,7 +23,6 @@ import (
 )
 
 func SignerBootCmd(c *cli.Context) error {
-	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
 
 	ua := fmt.Sprintf("Mixin Safe Signer (%s)", config.AppVersion)
@@ -37,6 +35,8 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Signer.MTG.GroupSize = 1
+	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
+	config.HandleDevConfig(mc.Dev)
 
 	db, err := store.OpenBadger(ctx, mc.Signer.StoreDir+"/mtg")
 	if err != nil {

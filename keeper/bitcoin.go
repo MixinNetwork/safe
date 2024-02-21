@@ -38,7 +38,9 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	if safe == nil || safe.Chain != chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if safe.State != SafeStateApproved {
+	switch safe.State {
+	case SafeStateApproved, SafeStateClosed:
+	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -176,10 +178,18 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	if total != msgTx.TxOut[0].Value {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, requests, txHash, req)
-	logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %d, %v) => %v", txHash, len(requests), req, err)
-	if err != nil {
-		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", txHash, err)
+	if safe.State == SafeStateApproved {
+		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, requests, txHash, req)
+		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", txHash, len(requests), req, err)
+		if err != nil {
+			return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", txHash, err)
+		}
+	} else {
+		err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, txHash, req)
+		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", txHash, len(requests), req, err)
+		if err != nil {
+			return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", txHash, err)
+		}
 	}
 
 	for _, sr := range requests {
@@ -217,6 +227,16 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
+
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(opsbt.Marshal())))
+	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	typ := byte(common.ActionBitcoinSafeApproveTransaction)
+	crv := SafeChainCurve(safe.Chain)
+	err := node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	}
+
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
 	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone)
 }
@@ -559,6 +579,10 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			"receiver": out.Address, "amount": amt.String(),
 		}
 		total = total.Add(amt)
+	}
+	if len(outputs) > 256 {
+		logger.Printf("invalid count of outputs: %d", len(outputs))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if !total.Equal(req.Amount) {
 		return node.store.FailRequest(ctx, req.Id)

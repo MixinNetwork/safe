@@ -33,7 +33,7 @@ func TestWriteProperty(ctx context.Context, node *Node, k, v string) {
 }
 
 func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
-	logger.SetLevel(logger.VERBOSE)
+	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
 	ctx = common.EnableTestEnvironment(ctx)
 
@@ -283,12 +283,12 @@ func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessa
 
 func (n *testNetwork) QueueMessage(ctx context.Context, receiver string, b []byte) error {
 	sessionId, msg, err := unmarshalSessionMessage(b)
-	logger.Printf("test.QueueMessage(%s) => %x %v %v", receiver, sessionId, msg, err)
+	logger.Verbosef("test.QueueMessage(%s) => %x %v %v", receiver, sessionId, msg, err)
 	if err != nil {
 		return err
 	}
 	n.msgChannel(party.ID(receiver)) <- marshalSessionMessage(sessionId, msg)
-	logger.Printf("test.Send(%s) => %x %v %v", receiver, sessionId, msg, err)
+	logger.Verbosef("test.Send(%s) => %x %v %v", receiver, sessionId, msg, err)
 	return nil
 }
 

@@ -93,6 +93,23 @@ func (s *SQLite3Store) ListPendingBitcoinUTXOsForHolder(ctx context.Context, hol
 	return mainInputs, nil
 }
 
+func (s *SQLite3Store) ReadUnspentUtxoCountForSafe(ctx context.Context, address string) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT COUNT(*) FROM bitcoin_outputs WHERE address=? AND state IN (?, ?)"
+	row := s.db.QueryRowContext(ctx, query, address, common.RequestStateInitial, common.RequestStatePending)
+	var count int
+	err = row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}
+
 func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiver string, chain byte, state int) ([]*bitcoin.Input, error) {
 	cols := strings.Join([]string{"transaction_hash", "output_index", "satoshi", "script", "sequence"}, ",")
 	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE address=? AND state=? ORDER BY created_at ASC, request_id ASC", cols)

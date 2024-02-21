@@ -45,14 +45,23 @@ func (node *Node) safeAddObserverKeys(ctx context.Context, chain byte) error {
 		if observer == "" {
 			return nil
 		}
+		err = node.store.DeleteObserverKey(ctx, observer)
+		if err != nil {
+			return err
+		}
+
+		old, err := node.keeperStore.ReadKey(ctx, observer)
+		if err != nil {
+			return err
+		}
+		if old != nil {
+			continue
+		}
+
 		id := common.UniqueId(observer, observer)
 		extra := append([]byte{common.RequestRoleObserver}, chainCode...)
 		extra = append(extra, common.RequestFlagNone)
 		err = node.sendKeeperResponse(ctx, observer, common.ActionObserverAddKey, chain, id, extra)
-		if err != nil {
-			return err
-		}
-		err = node.store.DeleteObserverKey(ctx, observer)
 		if err != nil {
 			return err
 		}
@@ -79,7 +88,8 @@ func (node *Node) safeRequestSignerKeys(ctx context.Context, chain byte) error {
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := common.UniqueId(requested.String(), requested.String())
-	err = node.sendKeeperResponse(ctx, dummy, common.ActionObserverRequestSignerKeys, chain, id, []byte{64})
+	keysCount := []byte{16}
+	err = node.sendKeeperResponse(ctx, dummy, common.ActionObserverRequestSignerKeys, chain, id, keysCount)
 	if err != nil {
 		return err
 	}

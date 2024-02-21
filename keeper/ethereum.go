@@ -31,7 +31,9 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if safe == nil || safe.Chain != chain {
 		return node.store.FailRequest(ctx, req.Id)
 	}
-	if safe.State != SafeStateApproved {
+	switch safe.State {
+	case SafeStateApproved, SafeStateClosed:
+	default:
 		return node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -107,7 +109,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	var destination string
 	for i, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 
@@ -180,10 +182,18 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		UpdatedAt:       req.CreatedAt,
 	}
 	sr.RequestId = common.UniqueId(req.Id, sr.Message)
-	err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
-	logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
-	if err != nil {
-		return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+	if safe.State == SafeStateApproved {
+		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
+		if err != nil {
+			return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+		}
+	} else {
+		err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
+		if err != nil {
+			return fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
+		}
 	}
 
 	err = node.sendSignerSignRequest(ctx, sr, safe.Path)
@@ -210,12 +220,12 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)
-		if norm == "" || norm == safe.Address {
+		if norm == ethereum.EthereumEmptyAddress || norm == safe.Address {
 			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
 			return node.store.FailRequest(ctx, req.Id)
 		}
 		decimals := int32(ethereum.ValuePrecision)
-		if out.TokenAddress != "" {
+		if out.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId := ethereum.GenerateAssetId(safe.Chain, out.TokenAddress)
 			asset, err := node.store.ReadAssetMeta(ctx, assetId)
 			logger.Printf("store.ReadAssetMeta(%s) => %v %v", assetId, asset, err)
@@ -231,7 +241,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		r := map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
 		}
-		if out.TokenAddress != "" {
+		if out.TokenAddress != ethereum.EthereumEmptyAddress {
 			r["token"] = out.TokenAddress
 		}
 		recipients[i] = r
@@ -249,6 +259,15 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(t.Marshal())))
+	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	typ := byte(common.ActionEthereumSafeApproveTransaction)
+	crv := SafeChainCurve(safe.Chain)
+	err = node.sendObserverResponseWithReferences(ctx, id, typ, crv, exk)
+	if err != nil {
+		return fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	}
+
 	return node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
 }
 
@@ -571,8 +590,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil {
 		return err
 	}
-	if balance.AssetAddress == "" {
-		return node.store.FailRequest(ctx, req.Id)
+	if ethereum.NormalizeAddress(balance.AssetAddress) != balance.AssetAddress {
+		panic(balance.AssetAddress)
 	}
 	decimals := int32(ethereum.ValuePrecision)
 	if balance.AssetAddress != ethereum.EthereumEmptyAddress {
@@ -580,9 +599,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		logger.Printf("store.ReadAssetMeta(%s) => %v %v", id.String(), asset, err)
 		if err != nil {
 			return err
-		}
-		if asset == nil {
-			return node.store.FailRequest(ctx, req.Id)
 		}
 		decimals = int32(asset.Decimals)
 	}
@@ -606,29 +622,25 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				return node.store.FailRequest(ctx, req.Id)
 			}
 			o := &ethereum.Output{
-				Destination: rp[0],
-				Amount:      ethereum.ParseAmount(amt.String(), decimals),
-			}
-			if balance.AssetAddress != ethereum.EthereumEmptyAddress {
-				o.TokenAddress = balance.AssetAddress
+				Destination:  rp[0],
+				Amount:       ethereum.ParseAmount(amt.String(), decimals),
+				TokenAddress: balance.AssetAddress,
 			}
 			outputs = append(outputs, o)
 		}
 	} else {
 		outputs = []*ethereum.Output{{
-			Destination: string(extra[16:]),
-			Amount:      ethereum.ParseAmount(req.Amount.String(), decimals),
+			Destination:  string(extra[16:]),
+			Amount:       ethereum.ParseAmount(req.Amount.String(), decimals),
+			TokenAddress: balance.AssetAddress,
 		}}
-		if balance.AssetAddress != ethereum.EthereumEmptyAddress {
-			outputs[0].TokenAddress = balance.AssetAddress
-		}
 	}
 
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)
-		if norm == "" || norm == safe.Address {
+		if norm == ethereum.EthereumEmptyAddress || norm == safe.Address {
 			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
 			return node.store.FailRequest(ctx, req.Id)
 		}
@@ -636,11 +648,15 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		r := map[string]string{
 			"receiver": out.Destination, "amount": amt.String(),
 		}
-		if out.TokenAddress != "" {
+		if out.TokenAddress != ethereum.EthereumEmptyAddress {
 			r["token"] = out.TokenAddress
 		}
 		recipients[i] = r
 		total = total.Add(amt)
+	}
+	if len(outputs) > 256 {
+		logger.Printf("invalid count of outputs: %d", len(outputs))
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	if !total.Equal(req.Amount) {
 		logger.Printf("inconsistent amount between total outputs %d and %d", total, req.Amount)
@@ -679,11 +695,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				continue
 			}
 			output := &ethereum.Output{
-				Destination: string(extra[16:]),
-				Amount:      b.Balance,
-			}
-			if b.AssetAddress != ethereum.EthereumEmptyAddress {
-				output.TokenAddress = b.AssetAddress
+				Destination:  string(extra[16:]),
+				Amount:       b.Balance,
+				TokenAddress: b.AssetAddress,
 			}
 			outputs = append(outputs, output)
 
@@ -699,7 +713,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			r := map[string]string{
 				"receiver": output.Destination, "amount": amt.String(),
 			}
-			if output.TokenAddress != "" {
+			if output.TokenAddress != ethereum.EthereumEmptyAddress {
 				r["token"] = output.TokenAddress
 			}
 			recipients = append(recipients, r)
@@ -709,7 +723,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
 			txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
 		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
+			panic(err)
 		}
 	default:
 		logger.Printf("invalid transaction flag: %d", flag)
@@ -862,7 +876,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	_, ethereumAssetId := node.ethereumParams(safe.Chain)
 	for _, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 		b, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
@@ -993,7 +1007,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	outputs := t.ExtractOutputs()
 	for _, o := range outputs {
 		assetId := ethereumAssetId
-		if o.TokenAddress != "" {
+		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 

@@ -236,7 +236,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 }
 
 func testPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
-	logger.SetLevel(logger.VERBOSE)
+	logger.SetLevel(logger.INFO)
 	ctx, signers := signer.TestPrepare(require)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSABitcoin)
 	chainCode := common.DecodeHexOrPanic(cc)
@@ -694,6 +694,11 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
+	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(raw)))
+	rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
+	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
+	require.Equal(b, raw)
+
 	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	logger.Println("3 ListPendingBitcoinUTXOsForHolder:", len(pendings))
@@ -701,10 +706,11 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	logger.Println(tx)
 
-	b, _ := hex.DecodeString(tx.RawTransaction)
+	b, _ = hex.DecodeString(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 	msgTx = psbt.UnsignedTx
 	signedBuffer, _ := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
+
 	return hex.EncodeToString(signedBuffer)
 }
 
@@ -977,6 +983,10 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	}
 	err := toml.Unmarshal(f, &conf)
 	require.Nil(err)
+
+	if rpc := os.Getenv("POLYGONRPC"); rpc != "" {
+		conf.Keeper.PolygonRPC = rpc
+	}
 
 	conf.Keeper.StoreDir = root
 	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {

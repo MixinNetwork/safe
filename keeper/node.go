@@ -41,10 +41,6 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil || terminated {
 		panic(err)
 	}
-	err = node.store.Migrate(ctx)
-	if err != nil {
-		panic(err)
-	}
 	go node.loopProcessRequests(ctx)
 }
 

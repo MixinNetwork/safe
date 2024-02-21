@@ -135,7 +135,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if err != nil {
 			return err
 		}
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		sig, err = hex.DecodeString(signature)
 		if err != nil {
 			return err
@@ -199,7 +199,7 @@ func (node *Node) httpCreateSafeAccountRecoveryRequest(ctx context.Context, addr
 	switch safe.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		return node.httpCreateBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		return node.httpCreateEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -238,7 +238,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 	switch safe.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		return node.httpSignBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		return node.httpSignEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -249,7 +249,7 @@ func (node *Node) httpApproveSafeTransaction(ctx context.Context, chain byte, ra
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		return node.httpApproveBitcoinTransaction(ctx, raw)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		return node.httpApproveEthereumTransaction(ctx, raw)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -260,7 +260,7 @@ func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, has
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		return node.httpRevokeBitcoinTransaction(ctx, hash, sig)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		return node.httpRevokeEthereumTransaction(ctx, hash, sig)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -277,15 +277,26 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	var signedByHolder, signedByObserver bool
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-			return nil
+		signedByHolder = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+		opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+		if err != nil {
+			panic(err)
 		}
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
-		if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-			return nil
-		}
+		signedByObserver = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, opk)
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+		signedByHolder = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
+		signedByObserver = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer)
+	}
+	if !signedByHolder && !signedByObserver {
+		return nil
 	}
 	return node.store.MarkTransactionApprovalPaid(ctx, hash)
 }

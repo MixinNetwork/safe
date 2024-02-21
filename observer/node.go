@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -53,14 +54,11 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
-	err := node.store.migrate(ctx)
-	if err != nil {
-		panic(err)
-	}
 	for _, chain := range []byte{
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,
 		keeper.SafeChainPolygon,
+		keeper.SafeChainEthereum,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
@@ -74,7 +72,7 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
@@ -92,7 +90,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	switch chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon:
+	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)
@@ -362,10 +360,70 @@ func (node *Node) writeSnapshotsCheckpoint(ctx context.Context, offset time.Time
 	return node.store.WriteProperty(ctx, snapshotsCheckpointKey, offset.Format(time.RFC3339Nano))
 }
 
+func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
+	key := depositCheckpointKey(chain)
+	min := depositCheckpointDefault(chain)
+	ckt, err := node.store.ReadProperty(ctx, key)
+	if err != nil || ckt == "" {
+		return min, err
+	}
+	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
+	if err != nil {
+		panic(ckt)
+	}
+	if checkpoint < min {
+		checkpoint = min
+	}
+	return checkpoint, nil
+}
+
+func depositCheckpointDefault(chain byte) int64 {
+	switch chain {
+	case keeper.SafeChainBitcoin:
+		return 802220
+	case keeper.SafeChainLitecoin:
+		return 2523300
+	case keeper.SafeChainMVM:
+		return 52680000
+	case keeper.SafeChainPolygon:
+		return 52950000
+	case keeper.SafeChainEthereum:
+		return 19175473
+	default:
+		panic(chain)
+	}
+}
+
+func depositCheckpointKey(chain byte) string {
+	switch chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
+	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
+	default:
+		panic(chain)
+	}
+}
+
 func (node *Node) safeTraceId(params ...string) string {
 	traceId := common.UniqueId(node.conf.PrivateKey, node.conf.PrivateKey)
 	for _, id := range params {
 		traceId = common.UniqueId(traceId, id)
 	}
 	return traceId
+}
+
+func (node *Node) getChainFinalizationDelay(chain byte) int64 {
+	switch chain {
+	case keeper.SafeChainBitcoin:
+		return 3
+	case keeper.SafeChainLitecoin:
+		return 6
+	case keeper.SafeChainEthereum:
+		return 32
+	case keeper.SafeChainPolygon:
+		return 512
+	default:
+		panic(chain)
+	}
 }

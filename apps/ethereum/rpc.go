@@ -169,27 +169,6 @@ func RPCGetGasPrice(rpc string) (*big.Int, error) {
 	return value, err
 }
 
-func RPCGetAddressBalance(rpc, txHash, address string) (*big.Int, error) {
-	tx, err := RPCGetTransactionByHash(rpc, txHash)
-	if err != nil {
-		return nil, err
-	}
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, tx.BlockHash})
-	if err != nil {
-		return nil, err
-	}
-	var b string
-	err = json.Unmarshal(res, &b)
-	if err != nil {
-		return nil, err
-	}
-	balance, success := new(big.Int).SetString(b[2:], 16)
-	if !success {
-		return nil, fmt.Errorf("Failed to parse address balance")
-	}
-	return balance, err
-}
-
 func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getTransactionByHash", []any{hash})
 	if err != nil {
@@ -240,8 +219,8 @@ func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace,
 	return txs, err
 }
 
-func RPCGetAddressBalanceAtBlock(rpc, blockHash, address string) (*big.Int, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, blockHash})
+func RPCGetAddressBalanceAtBlock(rpc, blockHeight, address string) (*big.Int, error) {
+	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, blockHeight})
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +271,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 			t := &Transfer{
 				Hash:         vLog.TxHash.Hex(),
 				Index:        int64(vLog.Index) + int64(math.MaxInt32),
-				TokenAddress: vLog.Address.Hex(),
+				TokenAddress: tokenAddress,
 				AssetId:      assetId,
 				Sender:       common.HexToAddress(vLog.Topics[1].Hex()).Hex(),
 				Receiver:     common.HexToAddress(vLog.Topics[2].Hex()).Hex(),

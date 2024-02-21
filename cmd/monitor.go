@@ -42,7 +42,7 @@ func MonitorSigner(ctx context.Context, mdb *nstore.BadgerStore, store *signer.S
 	}
 
 	for {
-		time.Sleep(3 * time.Minute)
+		time.Sleep(1 * time.Minute)
 		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleSignerState() => %v", err)
@@ -116,7 +116,7 @@ func MonitorKeeper(ctx context.Context, mdb *nstore.BadgerStore, store *kstore.S
 	}
 
 	for {
-		time.Sleep(3 * time.Minute)
+		time.Sleep(1 * time.Minute)
 		msg, err := bundleKeeperState(ctx, mdb, store, conf, group, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
@@ -172,16 +172,27 @@ func bundleKeeperState(ctx context.Context, mdb *nstore.BadgerStore, store *ksto
 	}
 	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
 
-	sc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
+	sbc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("🔑 Signer keys: %d\n", sc)
-	oc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleObserver)
+	state = state + fmt.Sprintf("🔑 Signer Bitcoin keys: %d\n", sbc)
+	sec, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSAEthereum, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("🔑 Observer keys: %d\n", oc)
+	state = state + fmt.Sprintf("🔑 Signer Ethereum keys: %d\n", sec)
+
+	obc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleObserver)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🔑 Observer Bitcoin keys: %d\n", obc)
+	oec, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSAEthereum, common.RequestFlagNone, common.RequestRoleObserver)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🔑 Observer Ethereum keys: %d\n", oec)
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
 	return state, nil

@@ -156,11 +156,12 @@ func main() {
 					},
 					&cli.IntFlag{
 						Name:  "chain",
+						Value: 1,
 						Usage: "The chain type of public keys",
 					},
 					&cli.StringFlag{
 						Name:  "input",
-						Usage: "The only UTXO to spend to fill new outputs",
+						Usage: "The SegWit UTXO to fill new outputs",
 					},
 					&cli.StringFlag{
 						Name:  "key",
@@ -276,6 +277,11 @@ func main() {
 						Name:  "list",
 						Value: "/tmp/mixin-safe-observers-list",
 						Usage: "The observer public keys file",
+					},
+					&cli.BoolFlag{
+						Name:  "private",
+						Value: false,
+						Usage: "Append private key to the keys list",
 					},
 				},
 			},

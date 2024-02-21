@@ -67,8 +67,9 @@ mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://rpc.mixin.dev"
 bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
 litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
+ethereum-rpc = "https://cloudflare-eth.com"
 mvm-rpc = "https://geth.mvm.dev"
-polygon-rpc = "https://old-wiser-night.matic.quiknode.pro/aff24ff6660981d76f2076ea2d98081543a71cd0"
+polygon-rpc = "https://polygon-bor.publicnode.com"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 
 [keeper.mtg.genesis]
@@ -114,8 +115,9 @@ mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://rpc.mixin.dev"
 bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
 litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
+ethereum-rpc = "https://cloudflare-eth.com"
 mvm-rpc = "https://geth.mvm.dev"
-polygon-rpc = "https://old-wiser-night.matic.quiknode.pro/aff24ff6660981d76f2076ea2d98081543a71cd0"
+polygon-rpc = "https://polygon-bor.publicnode.com"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 mvm-key = ""
 # evm private key to deploy contract on evm chains
@@ -127,3 +129,9 @@ session-id = ""
 private-key = ""
 pin-token = ""
 pin = ""
+
+[dev]
+# set a listen port to enable go pprof
+profile-port = 12345
+# set the log level
+log-level = 3

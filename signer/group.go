@@ -217,7 +217,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			op := session.asOperation()
 			extra := node.concatMessageAndSignature(op.Extra, sig)
 			err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
-			logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
+			logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", op, extra, err)
 			if err != nil {
 				panic(err)
 			}
@@ -443,13 +443,13 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		res, err = node.cmpKeygen(ctx, op.IdBytes(), op.Curve)
-		logger.Verbosef("node.cmpKeygen(%v) => %v", op, err)
+		logger.Printf("node.cmpKeygen(%v) => %v", op, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
 		res, err = node.taprootKeygen(ctx, op.IdBytes())
-		logger.Verbosef("node.taprootKeygen(%v) => %v", op, err)
+		logger.Printf("node.taprootKeygen(%v) => %v", op, err)
 	case common.CurveEdwards25519Mixin, common.CurveEdwards25519Default:
 		res, err = node.frostKeygen(ctx, op.IdBytes(), curve.Edwards25519{})
-		logger.Verbosef("node.frostKeygen(%v) => %v", op, err)
+		logger.Printf("node.frostKeygen(%v) => %v", op, err)
 	default:
 		panic(op.Id)
 	}
@@ -459,9 +459,11 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	}
 	op.Public = hex.EncodeToString(res.Public)
 	err = node.sendKeygenBackup(ctx, op, res.Share)
-	logger.Verbosef("node.sendKeygenBackup(%v, %d) => %v", op, len(res.Share), err)
+	logger.Printf("node.sendKeygenBackup(%v, %d) => %v", op, len(res.Share), err)
 	if err != nil {
-		return node.store.FailSession(ctx, op.Id)
+		err = node.store.FailSession(ctx, op.Id)
+		logger.Printf("store.FailSession(%s, startKeygen) => %v", op.Id, err)
+		return err
 	}
 	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share)
 }
@@ -492,26 +494,28 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		res, err = node.cmpSign(ctx, members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
-		logger.Verbosef("node.cmpSign(%v) => %v %v", op, res, err)
+		logger.Printf("node.cmpSign(%v) => %v %v", op, res, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
 		res, err = node.taprootSign(ctx, members, public, share, op.Extra, op.IdBytes())
-		logger.Verbosef("node.taprootSign(%v) => %v %v", op, res, err)
+		logger.Printf("node.taprootSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Default:
 		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
-		logger.Verbosef("node.frostSign(%v) => %v %v", op, res, err)
+		logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Mixin:
 		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
-		logger.Verbosef("node.frostSign(%v) => %v %v", op, res, err)
+		logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
 	default:
 		panic(op.Id)
 	}
 
 	if err != nil {
-		return node.store.FailSession(ctx, op.Id)
+		err = node.store.FailSession(ctx, op.Id)
+		logger.Printf("store.FailSession(%s, startSign) => %v", op.Id, err)
+		return err
 	}
 	extra := node.concatMessageAndSignature(op.Extra, res.Signature)
 	err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
-	logger.Verbosef("store.MarkSessionPending(%v) => %x %v\n", op, extra, err)
+	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, extra, err)
 	return err
 }
 

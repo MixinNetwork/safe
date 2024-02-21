@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -38,27 +37,6 @@ func bitcoinMixinSnapshotsCheckpointKey(chain byte) string {
 	return fmt.Sprintf("bitcoin-mixin-snapshots-checkpoint-%d", chain)
 }
 
-func bitcoinDepositCheckpointKey(chain byte) string {
-	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
-	default:
-		panic(chain)
-	}
-	return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
-}
-
-func bitcoinDepositCheckpointDefault(chain byte) int64 {
-	switch chain {
-	case keeper.SafeChainBitcoin:
-		return 802220
-	case keeper.SafeChainLitecoin:
-		return 2523300
-	default:
-		panic(chain)
-	}
-}
-
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
 	case keeper.SafeChainBitcoin:
@@ -80,9 +58,22 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
-		fvb, err := bitcoin.RPCEstimateSmartFee(chain, rpc)
+		delay := node.getChainFinalizationDelay(chain)
+		if delay > height || delay < 1 {
+			panic(delay)
+		}
+		height = height + 1 - delay
+		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
 		if err != nil {
-			logger.Printf("bitcoin.RPCEstimateSmartFee(%d) => %v", chain, err)
+			panic(err)
+		}
+		if info != nil && info.Height > uint64(height) {
+			logger.Printf("node.keeperStore.ReadLatestNetworkInfo(%d) => %v %d", chain, info, height)
+			continue
+		}
+		fvb, err := bitcoin.EstimateAvgFee(chain, rpc)
+		if err != nil {
+			logger.Printf("bitcoin.EstimateAvgFee(%d) => %v", chain, err)
 			continue
 		}
 		blockHash, err := bitcoin.RPCGetBlockHash(rpc, height)
@@ -218,6 +209,12 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
 	} else if safe == nil {
 		return nil
+	}
+
+	c, err := node.keeperStore.ReadUnspentUtxoCountForSafe(ctx, receiver)
+	logger.Printf("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
+	if err != nil || c >= bitcoin.MaxUnspentUtxo/2 {
+		return err
 	}
 
 	createdAt := time.Now().UTC()
@@ -382,25 +379,34 @@ func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string, ch
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
+	duration := 3 * time.Minute
+	switch chain {
+	case keeper.SafeChainLitecoin:
+		duration = 1 * time.Minute
+	case keeper.SafeChainBitcoin:
+	}
 
 	for {
-		time.Sleep(3 * time.Second)
-		checkpoint, err := node.bitcoinReadDepositCheckpoint(ctx, chain)
+		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 		logger.Printf("node.bitcoinReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		if checkpoint > height {
+		delay := node.getChainFinalizationDelay(chain)
+		if checkpoint+delay > height+1 {
+			time.Sleep(duration)
 			continue
 		}
 		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)
 		logger.Printf("node.bitcoinReadBlock(%d, %d) => %d %v", chain, checkpoint, len(txs), err)
 		if err != nil {
+			time.Sleep(time.Second * 5)
 			continue
 		}
 
@@ -445,24 +451,8 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 	return nil
 }
 
-func (node *Node) bitcoinReadDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
-	min := bitcoinDepositCheckpointDefault(chain)
-	ckt, err := node.store.ReadProperty(ctx, bitcoinDepositCheckpointKey(chain))
-	if err != nil || ckt == "" {
-		return min, err
-	}
-	checkpoint, err := strconv.ParseInt(ckt, 10, 64)
-	if err != nil {
-		panic(ckt)
-	}
-	if checkpoint < min {
-		checkpoint = min
-	}
-	return checkpoint, nil
-}
-
 func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
-	return node.store.WriteProperty(ctx, bitcoinDepositCheckpointKey(chain), fmt.Sprint(num))
+	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
 }
 
 func (node *Node) bitcoinReadMixinSnapshotsCheckpoint(ctx context.Context, chain byte) (time.Time, error) {
@@ -495,6 +485,22 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 }
 
 func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, approval *Transaction) error {
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		return err
+	}
+	if bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, opk) {
+		return node.sendToKeeperBitcoinApproveRecoveryTransaction(ctx, approval)
+	}
+	return node.sendToKeeperBitcoinApproveNormalTransaction(ctx, approval)
+}
+
+func (node *Node) sendToKeeperBitcoinApproveNormalTransaction(ctx context.Context, approval *Transaction) error {
 	signed, err := node.bitcoinCheckKeeperSignedTransaction(ctx, approval)
 	logger.Printf("node.bitcoinCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
 	if err != nil || signed {
@@ -541,6 +547,81 @@ func (node *Node) sendToKeeperBitcoinApproveTransaction(ctx context.Context, app
 	id = common.UniqueId(id, approval.UpdatedAt.String())
 	err = node.sendKeeperResponseWithReferences(ctx, tx.Holder, byte(action), approval.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", tx.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(signedRaw)
+	if err != nil {
+		return err
+	}
+	msgTx := psTx.UnsignedTx
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return err
+	}
+	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder)
+
+	var extra []byte
+	switch {
+	case signedByHolder:
+		tx, err := node.keeperStore.ReadTransaction(ctx, approval.TransactionHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", approval.TransactionHash, tx, err)
+		if err != nil {
+			return err
+		}
+		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	default:
+		signed, err := node.bitcoinCheckKeeperSignedTransaction(ctx, approval)
+		logger.Printf("node.bitcoinCheckKeeperSignedTransaction(%v) => %t %v", approval, signed, err)
+		if err != nil || signed {
+			return err
+		}
+		extra = uuid.Nil.Bytes()
+	}
+
+	objectRaw := signedRaw
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	conf := node.conf.App
+	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
+	if err != nil {
+		return err
+	}
+	ref, err := crypto.HashFromString(rs.TransactionHash)
+	if err != nil {
+		return err
+	}
+	id := common.UniqueId(safe.Address, receiver)
+	extra = append(extra, ref[:]...)
+	action := common.ActionBitcoinSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
 	if err != nil {
 		return err
 	}
@@ -783,8 +864,6 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	var extra []byte
-	id := common.UniqueId(safe.Address, receiver)
 	switch {
 	case !isHolderSigned: // Close account with safeBTC
 		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
@@ -795,48 +874,10 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 		if tx == nil {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		extra = uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	case isHolderSigned: // Close account with holder key
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return fmt.Errorf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) holder", raw, safe.Holder)
 		}
-		extra = uuid.Nil.Bytes()
-		id = uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
-	}
-
-	objectRaw := signedRaw
-	rawId := common.UniqueId(raw, raw)
-	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
-	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
-	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
-	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
-	if err != nil {
-		return err
-	}
-
-	extra = append(extra, ref[:]...)
-	action := common.ActionBitcoinSafeCloseAccount
-	references := []crypto.Hash{ref}
-	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
-	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
-	if err != nil {
-		return err
-	}
-
-	if isHolderSigned {
-		err = node.store.FinishTransactionSignatures(ctx, hash, hex.EncodeToString(signedRaw))
-		logger.Printf("store.FinishTransactionSignatures(%s, %x) => %v", hash, signedRaw, err)
-		if err != nil {
-			return err
-		}
-		return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
 	}
 
 	err = node.store.AddTransactionPartials(ctx, hash, hex.EncodeToString(signedRaw))
