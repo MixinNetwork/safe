@@ -256,6 +256,9 @@ func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
 	}
 	fees := []decimal.Decimal{}
 	for _, tx := range txs {
+		if tx.VSize == 0 {
+			continue
+		}
 		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
 		size := decimal.NewFromInt(tx.VSize)
 		feePerBytes := fee.Div(size)
