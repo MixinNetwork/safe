@@ -4,8 +4,8 @@ filippo.io/edwards25519 v1.0.0/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5E
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
-github.com/MixinNetwork/bot-api-go-client v1.8.6 h1:QzA+yXJuDXpOX+1xvlw76/wtfhQDAa+TA/YXB3XaWK4=
-github.com/MixinNetwork/bot-api-go-client v1.8.6/go.mod h1:Phc+juNRPDadsTUfLOeIbYHX6AiePofe8YH3gIxARZ8=
+github.com/MixinNetwork/bot-api-go-client v1.8.7 h1:+BMgP0hbZFV+Z77DZ9AYWCXBYYgKuAWf2GrtfkefKsY=
+github.com/MixinNetwork/bot-api-go-client v1.8.7/go.mod h1:RJdkxQIdNO0X17SKAoJ8WCSP4QVeDblDulkauSk9ctw=
 github.com/MixinNetwork/go-number v0.1.1 h1:Ui/xi0WGiBWI6cPrZaffB6q8lP7m2Zw0CXgOqLXb/3c=
 github.com/MixinNetwork/go-number v0.1.1/go.mod h1:4kaXQW9NOjjO3uZ5ehRVn3m+G+5ENGEKgiwfxea3zGQ=
 github.com/MixinNetwork/mixin v0.16.10 h1:cTZ7Ic/BFe3HNX7X1raqxsapj/f8117iBCalIC/lXmg=
@@ -14,8 +14,8 @@ github.com/MixinNetwork/mobilecoin-account v0.0.5 h1:1ueD9G/zl4dpObFjfm6WJu0m155
 github.com/MixinNetwork/mobilecoin-account v0.0.5/go.mod h1:b5+IefD8Iij5K+IWeVKky5iMMrlFHgyEp8ixOucjYIU=
 github.com/MixinNetwork/msgpack/v4 v4.4.0 h1:IsMyKqr5sSRqifQXQCJ9z5StjY4ubVA8scbVqpAzoR8=
 github.com/MixinNetwork/msgpack/v4 v4.4.0/go.mod h1:j8CftTJX2BhZ5fbe8JS2htA8Ei3wPf6w/VIjVx34ORQ=
-github.com/MixinNetwork/multi-party-sig v0.3.2 h1:10cgPGvgZrAHPnyQEgF6B2M/D3KINcuhU49arzA4JZM=
-github.com/MixinNetwork/multi-party-sig v0.3.2/go.mod h1:cQMY7v0MmcOFHgjnTznhHVQy1QkTW3yrk5qD10jXLZA=
+github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
+github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
 github.com/MixinNetwork/nfo v0.3.5 h1:2c48HTnCMBiOyjw1/4uxh2UpVHBN6k0WEVbjU5Ualxw=
 github.com/MixinNetwork/nfo v0.3.5/go.mod h1:zbWp8mtOjiVahGQBu0qa8t9/ndfob5R6E29JG8Ml26M=
 github.com/MixinNetwork/trusted-group v0.6.1 h1:sqeTSXn1pMEneLb0DT41SDtDVnGugEWPkgFCLOCrclM=
@@ -119,9 +119,8 @@ github.com/fxamacker/cbor/v2 v2.5.0 h1:oHsG0V/Q6E/wqTS2O1Cozzsy69nqCiguo5Q1a1ADi
 github.com/fxamacker/cbor/v2 v2.5.0/go.mod h1:TA1xS00nchWmaBnEIxPSE5oHLuJBAVvqrtAnWBwBCVo=
 github.com/go-ole/go-ole v1.2.5 h1:t4MGB5xEDZvXI+0rMjjsfBsD7yAgp/s9ZDkL1JndXwY=
 github.com/go-ole/go-ole v1.2.5/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
+github.com/go-resty/resty/v2 v2.10.0 h1:Qla4W/+TMmv0fOeeRqzEpXPLfTUnR5HZ1+lGs+CkiCo=
 github.com/go-resty/resty/v2 v2.10.0/go.mod h1:iiP/OpA0CkcL3IGt1O0+/SIItFUbkkyw5BGXiVdTu+A=
-github.com/go-resty/resty/v2 v2.11.0 h1:i7jMfNOJYMp69lq7qozJP+bjgzfAzeOhuGlyDrqxT/8=
-github.com/go-resty/resty/v2 v2.11.0/go.mod h1:iiP/OpA0CkcL3IGt1O0+/SIItFUbkkyw5BGXiVdTu+A=
 github.com/go-stack/stack v1.8.1 h1:ntEHSVwIt7PNXNpgPmVfMrNhLtgjlmnZha2kOpuRiDw=
 github.com/go-stack/stack v1.8.1/go.mod h1:dcoOX6HbPZSZptuspn9bctJ+N/CnF5gGygcUP3XYfe4=
 github.com/gofrs/uuid v4.4.0+incompatible h1:3qXRTX8/NbyulANqlc0lchS1gqAVxRgsuW1YrTJupqA=

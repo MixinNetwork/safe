@@ -57,9 +57,9 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 		require.Equal(sid, op.Id)
 		require.Equal(curve, op.Curve)
 		require.Len(op.Public, 64)
-		require.Len(op.Extra, 2)
+		require.Len(op.Extra, 34)
 		require.Equal(op.Extra[0], byte(common.RequestRoleSigner))
-		require.Equal(op.Extra[1], byte(common.RequestFlagNone))
+		require.Equal(op.Extra[33], byte(common.RequestFlagNone))
 		public = op.Public
 	}
 	return public

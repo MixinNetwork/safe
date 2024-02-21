@@ -3,10 +3,10 @@ module github.com/MixinNetwork/safe
 go 1.21
 
 require (
-	github.com/MixinNetwork/bot-api-go-client v1.8.6
+	github.com/MixinNetwork/bot-api-go-client v1.8.7
 	github.com/MixinNetwork/go-number v0.1.1
 	github.com/MixinNetwork/mixin v0.16.10
-	github.com/MixinNetwork/multi-party-sig v0.3.2
+	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/trusted-group v0.6.1
 	github.com/btcsuite/btcd v0.23.4
@@ -57,7 +57,7 @@ require (
 	github.com/fox-one/msgpack v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.2.5 // indirect
-	github.com/go-resty/resty/v2 v2.11.0 // indirect
+	github.com/go-resty/resty/v2 v2.10.0 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
