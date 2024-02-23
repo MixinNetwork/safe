@@ -664,6 +664,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			"chain":            d.Chain,
 			"change":           false,
 			"updated_at":       d.UpdatedAt,
+			"created_at":       d.CreatedAt,
 		}
 		if dm["sent_hash"] == "" {
 			dm["sent_hash"] = d.TransactionHash
