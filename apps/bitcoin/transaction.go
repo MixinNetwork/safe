@@ -60,7 +60,7 @@ func (raw *PartiallySignedTransaction) Marshal() []byte {
 func (psbt *PartiallySignedTransaction) EstimateVirtualSize() int {
 	tx := btcutil.NewTx(psbt.UnsignedTx)
 	raw, err := MarshalWiredTransaction(tx.MsgTx(), wire.BaseEncoding, ChainBitcoin)
-	if err != nil || len(raw) < 128 {
+	if err != nil || len(raw) < 100 {
 		panic(err)
 	}
 	const witnessSize = 264
