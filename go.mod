@@ -1,6 +1,6 @@
 module github.com/MixinNetwork/safe
 
-go 1.21
+go 1.22
 
 require (
 	github.com/MixinNetwork/bot-api-go-client v1.8.7
@@ -9,18 +9,18 @@ require (
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/trusted-group v0.6.1
-	github.com/btcsuite/btcd v0.23.4
+	github.com/btcsuite/btcd v0.24.0
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
-	github.com/btcsuite/btcd/btcutil v1.1.3
-	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.3
+	github.com/btcsuite/btcd/btcutil v1.1.5
+	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/dimfeld/httptreemux/v5 v5.5.0
 	github.com/ethereum/go-ethereum v1.13.5
 	github.com/fox-one/mixin-sdk-go v1.9.1
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/gofrs/uuid/v5 v5.0.0
-	github.com/mattn/go-sqlite3 v1.14.20
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.3.1
