@@ -465,7 +465,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		}
 		balanceAfterDeposit := new(big.Int).Add(safeBalance.Balance, deposits[k])
 		if balance.Cmp(balanceAfterDeposit) != 0 {
-			return fmt.Errorf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balance, safeBalance.Balance, deposits[k])
+			logger.Printf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balance, safeBalance.Balance, deposits[k])
 		}
 	}
 
