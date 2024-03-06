@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -438,6 +439,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		return err
 	}
 
+	skips := []string{}
 	for k := range deposits {
 		items := strings.Split(k, ":")
 		if len(items) != 2 {
@@ -465,11 +467,16 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		}
 		balanceAfterDeposit := new(big.Int).Add(safeBalance.Balance, deposits[k])
 		if balance.Cmp(balanceAfterDeposit) != 0 {
-			return fmt.Errorf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balance, safeBalance.Balance, deposits[k])
+			logger.Printf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balance, safeBalance.Balance, deposits[k])
+			skips = append(skips, k)
 		}
 	}
 
 	for _, transfer := range transfers {
+		key := fmt.Sprintf("%s:%s", transfer.Receiver, transfer.TokenAddress)
+		if slices.Contains(skips, key) {
+			continue
+		}
 		err := node.ethereumWritePendingDeposit(ctx, transfer, chain)
 		if err != nil {
 			panic(err)
