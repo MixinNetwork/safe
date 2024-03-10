@@ -583,6 +583,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	rpc, _ := node.ethereumParams(tx.Chain)
 	success, err := st.ValidTransaction(rpc)
 	if err != nil || !success {
+		txValidError := err
 		err := node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
 		if err != nil {
 			return "", err
@@ -598,7 +599,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		if err != nil {
 			return "", err
 		}
-		return "", fmt.Errorf("ValidTransaction => %t, %v", success, err)
+		return "", fmt.Errorf("ValidTransaction => %t, %v", success, txValidError)
 	}
 
 	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)
