@@ -581,8 +581,8 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
 	rpc, _ := node.ethereumParams(tx.Chain)
-	success, err := st.ValidTransaction(rpc)
-	if err != nil || !success {
+	success, validErr := st.ValidTransaction(rpc)
+	if validErr != nil || !success {
 		err := node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
 		if err != nil {
 			return "", err
@@ -593,12 +593,13 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 			return "", err
 		}
 		id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
+		id = common.UniqueId(id, "REFUNDINVALID")
 		extra := uuid.Must(uuid.FromString(t.RequestId)).Bytes()
 		err = node.sendKeeperResponse(ctx, tx.Holder, byte(common.ActionEthereumSafeRefundTransaction), tx.Chain, id, extra)
 		if err != nil {
 			return "", err
 		}
-		return "", fmt.Errorf("ValidTransaction => %t, %v", success, err)
+		return "", fmt.Errorf("ValidTransaction => %t %v", success, validErr)
 	}
 
 	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)

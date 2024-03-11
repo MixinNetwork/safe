@@ -270,7 +270,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 		return false, fmt.Errorf("SafeTransaction has insufficient signatures")
 	}
 
-	isValid, err := abi.ValidTransaction(
+	return abi.ValidTransaction(
 		tx.Destination,
 		tx.Value,
 		tx.Data,
@@ -282,10 +282,6 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 		tx.RefundReceiver,
 		signature,
 	)
-	if err != nil {
-		return false, err
-	}
-	return isValid, nil
 }
 
 func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
