@@ -843,6 +843,10 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
+	case common.ActionMixinKernelSafeApproveAccount:
+		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainMixinKernel, time.Now())
+		require.Equal(params.OperationPriceAsset, om["asset_id"])
+		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	case common.ActionEthereumSafeApproveAccount:
 		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainPolygon, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
@@ -868,6 +872,8 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	switch action {
 	case common.ActionBitcoinSafeProposeAccount, common.ActionBitcoinSafeProposeTransaction:
+	case common.ActionMixinKernelSafeProposeAccount, common.ActionMixinKernelSafeProposeTransaction:
+		crv = common.CurveEdwards25519Mixin
 	case common.ActionEthereumSafeProposeAccount, common.ActionEthereumSafeProposeTransaction:
 		crv = common.CurveSecp256k1ECDSAPolygon
 	}
@@ -917,6 +923,8 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	path := bitcoinDefaultDerivationPath()
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
+	case common.CurveEdwards25519Mixin:
+		path = mixinDefaultDerivationPath()
 	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAPolygon:
 		path = ethereumDefaultDerivationPath()
 	default:

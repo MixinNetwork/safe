@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -42,6 +43,12 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	case common.ActionBitcoinSafeApproveTransaction:
 	case common.ActionBitcoinSafeRevokeTransaction:
 	case common.ActionBitcoinSafeCloseAccount:
+	case common.ActionMixinKernelSafeProposeAccount:
+	case common.ActionMixinKernelSafeApproveAccount:
+	case common.ActionMixinKernelSafeProposeTransaction:
+	case common.ActionMixinKernelSafeApproveTransaction:
+	case common.ActionMixinKernelSafeRevokeTransaction:
+	case common.ActionMixinKernelSafeCloseAccount:
 	case common.ActionEthereumSafeProposeAccount:
 	case common.ActionEthereumSafeApproveAccount:
 	case common.ActionEthereumSafeProposeTransaction:
@@ -87,15 +94,15 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionObserverSetOperationParams:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:
+	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount, common.ActionMixinKernelSafeProposeAccount:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
+	case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount, common.ActionMixinKernelSafeApproveAccount:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction:
+	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction, common.ActionMixinKernelSafeProposeTransaction:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeApproveTransaction, common.ActionEthereumSafeApproveTransaction:
+	case common.ActionBitcoinSafeApproveTransaction, common.ActionEthereumSafeApproveTransaction, common.ActionMixinKernelSafeApproveTransaction:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeRevokeTransaction, common.ActionEthereumSafeRevokeTransaction:
+	case common.ActionBitcoinSafeRevokeTransaction, common.ActionEthereumSafeRevokeTransaction, common.ActionMixinKernelSafeRevokeTransaction:
 		return common.RequestRoleObserver
 	case common.ActionBitcoinSafeCloseAccount, common.ActionEthereumSafeCloseAccount:
 		return common.RequestRoleObserver
@@ -234,6 +241,18 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 		return node.processSafeRevokeTransaction(ctx, req)
 	case common.ActionBitcoinSafeCloseAccount:
 		return node.processBitcoinSafeCloseAccount(ctx, req)
+	case common.ActionMixinKernelSafeProposeAccount:
+		return node.processMixinKernelSafeProposeAccount(ctx, req)
+	case common.ActionMixinKernelSafeApproveAccount:
+		return node.processMixinKernelSafeApproveAccount(ctx, req)
+	case common.ActionMixinKernelSafeProposeTransaction:
+		return node.processMixinKernelSafeProposeTransaction(ctx, req)
+	case common.ActionMixinKernelSafeApproveTransaction:
+		return node.processMixinKernelSafeApproveTransaction(ctx, req)
+	case common.ActionMixinKernelSafeRevokeTransaction:
+		return node.processMixinKernelSafeRevokeTransaction(ctx, req)
+	case common.ActionMixinKernelSafeCloseAccount:
+		return node.processMixinKernelSafeCloseAccount(ctx, req)
 	case common.ActionEthereumSafeProposeAccount:
 		return node.processEthereumSafeProposeAccount(ctx, req)
 	case common.ActionEthereumSafeApproveAccount:
@@ -292,6 +311,9 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error 
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
+	case common.CurveEdwards25519Mixin:
+		err = mixin.VerifyPublicKey(req.Holder)
+		logger.Printf("mixin.VerifyPublicKey(%s, %x) => %v", req.Holder, chainCode, err)
 	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 		err = ethereum.VerifyHolderKey(req.Holder)
 		logger.Printf("ethereum.VerifyHolderKey(%s, %x) => %v", req.Holder, chainCode, err)
@@ -332,6 +354,8 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
 	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
+	case SafeChainMixinKernel:
+		return node.processMixinKernelSafeSignatureResponse(ctx, req)
 	default:
 		panic(safe.Chain)
 	}

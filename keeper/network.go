@@ -58,12 +58,29 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	}
 	switch info.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
+		if info.Chain != SafeCurveChain(req.Curve) {
+			panic(req.Id)
+		}
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
 			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
 			return node.store.FailRequest(ctx, req.Id)
+		}
+	case SafeChainMixinKernel:
+		if req.Curve != common.CurveEdwards25519Mixin {
+			panic(req.Id)
+		}
+		info.Hash = hex.EncodeToString(extra[17:])
+		hash, _ := crypto.HashFromString(info.Hash)
+		snap, err := common.ReadKernelSnapshot(node.conf.MixinRPC, hash)
+		if err != nil {
+			return fmt.Errorf("common.ReadKernelSnapshot(%v) => %v", info, err)
+		} else if snap.TopologicalOrder > info.Height && snap.TopologicalOrder-info.Height > 10000 {
+			panic(info.Hash)
+		} else if snap.TopologicalOrder < info.Height && info.Height-snap.TopologicalOrder > 10000 {
+			panic(info.Hash)
 		}
 	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
@@ -95,8 +112,14 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 		panic(req.Id)
 	}
 	switch chain {
-	case SafeChainBitcoin:
-	case SafeChainLitecoin:
+	case SafeChainBitcoin, SafeChainLitecoin:
+		if chain != SafeCurveChain(req.Curve) {
+			panic(req.Id)
+		}
+	case SafeChainMixinKernel:
+		if req.Curve != common.CurveEdwards25519Mixin {
+			panic(req.Id)
+		}
 	case SafeChainEthereum:
 	case SafeChainMVM:
 	case SafeChainPolygon:

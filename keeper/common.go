@@ -10,6 +10,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
@@ -17,17 +18,19 @@ import (
 )
 
 const (
-	SafeChainBitcoin  = bitcoin.ChainBitcoin
-	SafeChainLitecoin = bitcoin.ChainLitecoin
-	SafeChainEthereum = ethereum.ChainEthereum
-	SafeChainMVM      = ethereum.ChainMVM
-	SafeChainPolygon  = ethereum.ChainPolygon
+	SafeChainMixinKernel = mixin.ChainMixinKernel
+	SafeChainBitcoin     = bitcoin.ChainBitcoin
+	SafeChainLitecoin    = bitcoin.ChainLitecoin
+	SafeChainEthereum    = ethereum.ChainEthereum
+	SafeChainMVM         = ethereum.ChainMVM
+	SafeChainPolygon     = ethereum.ChainPolygon
 
-	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
-	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
-	SafeMVMChainId      = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
-	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
-	SafePolygonChainId  = "b7938396-3f94-4e0a-9179-d3440718156f"
+	SafeMixinKernelAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	SafeBitcoinChainId     = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
+	SafeEthereumChainId    = "43d61dcd-e413-450d-80b8-101d5e903357"
+	SafeMVMChainId         = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
+	SafeLitecoinChainId    = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
+	SafePolygonChainId     = "b7938396-3f94-4e0a-9179-d3440718156f"
 
 	SafeSignatureTimeout  = 10 * time.Minute
 	SafeKeyBackupMaturity = 24 * time.Hour
@@ -36,6 +39,10 @@ const (
 	SafeStatePending  = common.RequestStatePending
 	SafeStateClosed   = common.RequestStateFailed
 )
+
+func mixinDefaultDerivationPath() []byte {
+	return []byte{0, 0, 0, 0}
+}
 
 func bitcoinDefaultDerivationPath() []byte {
 	return []byte{2, 0, 0, 0}
@@ -90,7 +97,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
-	case SafeBitcoinChainId, SafeLitecoinChainId, SafeEthereumChainId, SafeMVMChainId, SafePolygonChainId:
+	case SafeBitcoinChainId, SafeLitecoinChainId, SafeEthereumChainId, SafeMVMChainId, SafePolygonChainId, SafeMixinKernelAssetId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")

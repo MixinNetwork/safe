@@ -528,6 +528,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		if err != nil {
 			return node.store.FailRequest(ctx, req.Id)
 		}
+		var total decimal.Decimal
 		for _, rp := range recipients {
 			script, err := bitcoin.ParseAddress(rp[0], safe.Chain)
 			logger.Printf("bitcoin.ParseAddress(%s, %d) => %x %v", string(extra), safe.Chain, script, err)
@@ -541,10 +542,14 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			if amt.Cmp(plan.TransactionMinimum) < 0 {
 				return node.store.FailRequest(ctx, req.Id)
 			}
+			total = total.Add(amt)
 			outputs = append(outputs, &bitcoin.Output{
 				Address: rp[0],
 				Satoshi: bitcoin.ParseSatoshi(amt.String()),
 			})
+		}
+		if !total.Equal(req.Amount) {
+			return node.store.FailRequest(ctx, req.Id)
 		}
 	} else {
 		script, err := bitcoin.ParseAddress(string(extra[16:]), safe.Chain)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -54,6 +55,14 @@ func TransactionInputsFromRawTransaction(trx *Transaction) []*TransactionInput {
 			inputs = append(inputs, &TransactionInput{
 				Hash:  pop.Hash.String(),
 				Index: pop.Index,
+			})
+		}
+	case mixin.ChainMixinKernel:
+		ver, _ := mixin.ParsePartiallySignedTransaction(b)
+		for _, in := range ver.Inputs {
+			inputs = append(inputs, &TransactionInput{
+				Hash:  in.Hash.String(),
+				Index: uint32(in.Index),
 			})
 		}
 	default:
@@ -225,14 +234,15 @@ func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
-	if !transactionHasOutputs(trx.Chain) {
+	table := transactionInputTable(trx.Chain)
+	if table == "" {
 		return nil
 	}
-	query := "UPDATE bitcoin_outputs SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?"
+	query := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=?", table)
 	for _, utxo := range utxos {
 		err = s.execOne(ctx, tx, query, utxoState, trx.TransactionHash, trx.UpdatedAt, utxo.Hash, utxo.Index)
 		if err != nil {
-			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+			return fmt.Errorf("UPDATE %s %v", table, err)
 		}
 	}
 	return nil
@@ -248,14 +258,14 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	}
 	defer tx.Rollback()
 
-	if transactionHasOutputs(trx.Chain) {
+	if table := transactionInputTable(trx.Chain); table != "" {
 		inputs := TransactionInputsFromRawTransaction(trx)
-		update := "UPDATE bitcoin_outputs SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?"
-		query := "SELECT address FROM bitcoin_outputs WHERE transaction_hash=? AND output_index=?"
+		update := fmt.Sprintf("UPDATE %s SET state=?, spent_by=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND spent_by=?", table)
+		query := fmt.Sprintf("SELECT address FROM %s WHERE transaction_hash=? AND output_index=?", table)
 		for _, in := range inputs {
 			err = s.execOne(ctx, tx, update, common.RequestStateInitial, nil, req.CreatedAt, in.Hash, in.Index, trx.TransactionHash)
 			if err != nil {
-				return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+				return fmt.Errorf("UPDATE %s %v", table, err)
 			}
 
 			var receiver string
@@ -328,12 +338,14 @@ func (s *SQLite3Store) readTransaction(ctx context.Context, tx *sql.Tx, transact
 	return &trx, err
 }
 
-func transactionHasOutputs(chain byte) bool {
+func transactionInputTable(chain byte) string {
 	switch chain {
 	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
-		return true
+		return "bitcoin_outputs"
+	case mixin.ChainMixinKernel:
+		return "mixin_outputs"
 	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
-		return false
+		return ""
 	default:
 		panic(chain)
 	}

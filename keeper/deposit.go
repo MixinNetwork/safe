@@ -42,12 +42,22 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 	extra = extra[17:]
 	switch deposit.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
+		if deposit.Chain != SafeCurveChain(req.Curve) {
+			panic(req.Id)
+		}
 		deposit.Hash = hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
+	case SafeChainMixinKernel:
+		if req.Curve != common.CurveEdwards25519Mixin {
+			panic(req.Id)
+		}
+		deposit.Hash = hex.EncodeToString(extra[0:32])
+		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
+		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
@@ -103,7 +113,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if err != nil {
 		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
 	}
-	if asset.Chain != safe.Chain {
+	if asset.Chain != safe.Chain && safe.Chain != SafeChainMixinKernel {
 		panic(asset.AssetId)
 	}
 
@@ -118,6 +128,8 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	switch deposit.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
+	case SafeChainMixinKernel:
+		return node.doMixinKernelHolderDeposit(ctx, req, deposit, safe, bond.AssetId, plan.TransactionMinimum)
 	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
@@ -126,6 +138,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 }
 
 // FIXME Keeper should deny new deposits when too many unspent outputs
+// for mixin kernel this value is 256
 func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
 	if asset.Decimals != bitcoin.ValuePrecision {
 		panic(asset.Decimals)

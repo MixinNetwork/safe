@@ -25,6 +25,7 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 	crv := common.NormalizeCurve(req.Curve)
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
+	case common.CurveEdwards25519Mixin:
 	case common.CurveSecp256k1ECDSAEthereum:
 	default:
 		return node.store.FailRequest(ctx, req.Id)
@@ -54,6 +55,7 @@ func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.Signatur
 	crv := common.NormalizeCurve(req.Curve)
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
+	case common.CurveEdwards25519Mixin:
 	case common.CurveSecp256k1ECDSAEthereum:
 	default:
 		panic(req.Curve)

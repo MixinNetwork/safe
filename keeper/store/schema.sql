@@ -167,6 +167,26 @@ CREATE INDEX IF NOT EXISTS bitcoin_outputs_by_address_state_created ON bitcoin_o
 
 
 
+CREATE TABLE IF NOT EXISTS mixin_outputs (
+  transaction_hash   VARCHAR NOT NULL,
+  output_index       INTEGER NOT NULL,
+  address            VARCHAR NOT NULL,
+  asset_id           VARCHAR NOT NULL,
+  amount             VARCHAR NOT NULL,
+  mask               VARCHAR NOT NULL,
+  chain              INTEGER NOT NULL,
+  state              INTEGER NOT NULL,
+  spent_by           VARCHAR,
+  request_id         VARCHAR NOT NULL,
+  created_at         TIMESTAMP NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('transaction_hash', 'output_index')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS mixin_outputs_by_request_id ON mixin_outputs(request_id);
+
+
+
 
 CREATE TABLE IF NOT EXISTS ethereum_balances (
   address            VARCHAR NOT NULL,

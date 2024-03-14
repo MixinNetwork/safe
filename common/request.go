@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -45,11 +46,12 @@ const (
 	ActionBitcoinSafeCloseAccount       = 115
 
 	// For Mixin Kernel mainnet
-	ActionMixinSafeProposeAccount     = 120
-	ActionMixinSafeApproveAccount     = 121
-	ActionMixinSafeProposeTransaction = 122
-	ActionMixinSafeApproveTransaction = 123
-	ActionMixinSafeRevokeTransaction  = 124
+	ActionMixinKernelSafeProposeAccount     = 120
+	ActionMixinKernelSafeApproveAccount     = 121
+	ActionMixinKernelSafeProposeTransaction = 122
+	ActionMixinKernelSafeApproveTransaction = 123
+	ActionMixinKernelSafeRevokeTransaction  = 124
+	ActionMixinKernelSafeCloseAccount       = 125
 
 	// For all Ethereum like chains
 	ActionEthereumSafeProposeAccount     = 130
@@ -122,6 +124,7 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 func (req *Request) ParseMixinRecipient(extra []byte) (*AccountProposal, error) {
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
+	case ActionMixinKernelSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
 	default:
 		panic(req.Action)
@@ -202,6 +205,8 @@ func (r *Request) VerifyFormat() error {
 	switch r.Curve {
 	case CurveSecp256k1ECDSABitcoin, CurveSecp256k1ECDSALitecoin:
 		return bitcoin.VerifyHolderKey(r.Holder)
+	case CurveEdwards25519Mixin:
+		return mixin.VerifyPublicKey(r.Holder)
 	case CurveSecp256k1ECDSAEthereum, CurveSecp256k1ECDSAMVM, CurveSecp256k1ECDSAPolygon:
 		return ethereum.VerifyHolderKey(r.Holder)
 	default:

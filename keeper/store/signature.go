@@ -143,11 +143,11 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
-	if transactionHasOutputs(safe.Chain) {
-		update := "UPDATE bitcoin_outputs SET state=?, updated_at=? WHERE spent_by=?"
+	if table := transactionInputTable(safe.Chain); table != "" {
+		update := fmt.Sprintf("UPDATE %s SET state=?, updated_at=? WHERE spent_by=?", table)
 		err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, transactionHash)
 		if err != nil {
-			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+			return fmt.Errorf("UPDATE %s %v", table, err)
 		}
 	}
 
