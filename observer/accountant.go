@@ -372,7 +372,8 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) {
 	rpc, assetId := node.ethereumParams(chain)
 	asset, err := node.fetchAssetMeta(ctx, assetId)
-	if err != nil {
+	if err != nil || asset == nil {
+		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", assetId, asset, err)
 		panic(err)
 	}
 	min := ethereum.ParseAmount(ethereum.MinimumBalance, int32(asset.Decimals))
