@@ -386,9 +386,10 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 		}
 		for _, tx := range txs {
 			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
-			bs := ethereum.UnitAmount(b, int32(asset.Decimals))
 			if err != nil || b.Cmp(min) <= 0 {
+				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
 				logger.Verbosef("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
+				time.Sleep(3 * time.Second)
 				continue
 			}
 
