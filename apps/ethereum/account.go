@@ -340,6 +340,23 @@ func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 	return &addr, nil
 }
 
+func FetchBalanceFromKey(ctx context.Context, rpc, key string) (*big.Int, error) {
+	addr, err := PrivToAddress(key)
+	if err != nil {
+		return nil, err
+	}
+	client, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, err
+	}
+
+	balance, err := client.BalanceAt(ctx, *addr, nil)
+	if err != nil {
+		return nil, err
+	}
+	return balance, nil
+}
+
 func getInitializer(owners []string, threshold int64) []byte {
 	blankAddress := common.HexToAddress(EthereumEmptyAddress)
 	handlerAddress := common.HexToAddress(EthereumCompatibilityFallbackHandlerAddress)

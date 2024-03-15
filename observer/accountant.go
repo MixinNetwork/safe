@@ -370,7 +370,13 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 }
 
 func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.ethereumParams(chain)
+	rpc, assetId := node.ethereumParams(chain)
+	asset, err := node.fetchAssetMeta(ctx, assetId)
+	if err != nil || asset == nil {
+		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", assetId, asset, err)
+		panic(err)
+	}
+	min := ethereum.ParseAmount(ethereum.MinimumBalance, int32(asset.Decimals))
 
 	for {
 		time.Sleep(3 * time.Second)
@@ -379,6 +385,14 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			panic(err)
 		}
 		for _, tx := range txs {
+			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
+			if err != nil || b.Cmp(min) <= 0 {
+				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
+				logger.Verbosef("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
+				time.Sleep(3 * time.Second)
+				continue
+			}
+
 			spentHash, err := node.ethereumSpendFullySignedTransaction(ctx, tx)
 			logger.Verbosef("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
 			if err != nil {
