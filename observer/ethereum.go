@@ -434,7 +434,7 @@ func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chai
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
 	rpc, ethAssetId := node.ethereumParams(chain)
-	deposits, err := node.parseEthereumBlockDeposits(ctx, transfers)
+	deposits, err := node.parseEthereumBlockDeposits(ctx, chain, transfers)
 	if err != nil || len(deposits) == 0 {
 		return err
 	}
@@ -506,7 +506,7 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	return nil
 }
 
-func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
+func (node *Node) parseEthereumBlockDeposits(ctx context.Context, chain byte, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
 	deposits := make(map[string]*big.Int)
 	for _, t := range ts {
 		if t.Receiver == ethereum.EthereumEmptyAddress {
@@ -516,7 +516,7 @@ func (node *Node) parseEthereumBlockDeposits(ctx context.Context, ts []*ethereum
 		logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		if err != nil {
 			return nil, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
-		} else if safe == nil {
+		} else if safe == nil || safe.Chain != chain {
 			continue
 		}
 		old, err := node.keeperStore.ReadDeposit(ctx, t.Hash, t.Index)
