@@ -103,6 +103,17 @@ func ParseSequence(lock time.Duration, chain byte) int64 {
 	return int64(lock)
 }
 
+func CheckFeeRange(fvb int64, chain byte) bool {
+	switch chain {
+	case ChainBitcoin:
+		return fvb >= 5 && fvb <= 1000
+	case ChainLitecoin:
+		return fvb >= 1 && fvb <= 20
+	default:
+		panic(chain)
+	}
+}
+
 func CheckFinalization(num uint64, coinbase bool) bool {
 	if num >= uint64(chaincfg.MainNetParams.CoinbaseMaturity) {
 		return true

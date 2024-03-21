@@ -324,12 +324,12 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 		maxFee = mempoolTopAvgFee
 	}
 	if maxFee.Cmp(big.NewInt(0)) <= 0 {
-		return 0, fmt.Errorf("estimateavgfee %s", maxFee.String())
+		return 0, fmt.Errorf("EstimateAvgFee(%d) => %s", chain, maxFee.String())
 	}
 
 	fvb := maxFee.Int64()
-	if fvb < 5 || fvb > 1000 {
-		panic(fvb)
+	if !CheckFeeRange(fvb, chain) {
+		return 0, fmt.Errorf("CheckFeeRange(%d) => %d", chain, fvb)
 	}
 	if fvb < 10 {
 		fvb = 10
