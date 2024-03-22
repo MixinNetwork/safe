@@ -160,6 +160,8 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
 		return node.store.FailRequest(ctx, req.Id)
+	} else if tx.State == common.RequestStateDone {
+		return node.store.FailRequest(ctx, req.Id)
 	} else if tx.Holder != req.Holder {
 		return node.store.FailRequest(ctx, req.Id)
 	}
@@ -781,6 +783,8 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	if err != nil {
 		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
+		return node.store.FailRequest(ctx, req.Id)
+	} else if tx.State == common.RequestStateDone {
 		return node.store.FailRequest(ctx, req.Id)
 	} else if tx.Holder != req.Holder {
 		return node.store.FailRequest(ctx, req.Id)
