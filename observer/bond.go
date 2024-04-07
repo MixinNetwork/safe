@@ -17,6 +17,16 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 )
 
+type MixinNetworkAsset struct {
+	AssetId   string      `json:"asset_id"`
+	MixinId   crypto.Hash `json:"mixin_id"`
+	AssetKey  string      `json:"asset_key"`
+	Symbol    string      `json:"symbol"`
+	Name      string      `json:"name"`
+	Precision uint32      `json:"precision"`
+	ChainId   string      `json:"chain_id"`
+}
+
 func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployBitcoinSafeBond(%x)", data)
 	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(data)
@@ -103,15 +113,7 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 	defer resp.Body.Close()
 
 	var body struct {
-		Data *struct {
-			AssetId   string      `json:"asset_id"`
-			MixinId   crypto.Hash `json:"mixin_id"`
-			AssetKey  string      `json:"asset_key"`
-			Symbol    string      `json:"symbol"`
-			Name      string      `json:"name"`
-			Precision uint32      `json:"precision"`
-			ChainId   string      `json:"chain_id"`
-		} `json:"data"`
+		Data *MixinNetworkAsset `json:"data"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	if err != nil || body.Data == nil {
@@ -169,5 +171,36 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 			continue
 		}
 		return meta, err
+	}
+}
+
+func (node *Node) fetchMixinNetworkAsset(ctx context.Context, id string) (*MixinNetworkAsset, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
+
+	for {
+		resp, err := client.Get(path)
+		if err != nil {
+			reason := strings.ToLower(err.Error())
+			switch {
+			case strings.Contains(reason, "timeout"):
+			case strings.Contains(reason, "eof"):
+			case strings.Contains(reason, "handshake"):
+			default:
+				return nil, err
+			}
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		defer resp.Body.Close()
+
+		var body struct {
+			Data *MixinNetworkAsset `json:"data"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&body)
+		if err != nil || body.Data == nil {
+			return nil, err
+		}
+		return body.Data, err
 	}
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
+	m "github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
@@ -23,8 +25,9 @@ import (
 )
 
 const (
-	snapshotsCheckpointKey  = "snapshots-checkpoint"
-	depositNetworkInfoDelay = 3 * time.Minute
+	snapshotsCheckpointKey        = "snapshots-checkpoint"
+	mixinWithdrawalsCheckpointKey = "mixin-withdrawals-checkpoint"
+	depositNetworkInfoDelay       = 3 * time.Minute
 )
 
 type Node struct {
@@ -82,6 +85,7 @@ func (node *Node) Boot(ctx context.Context) {
 	}
 	go node.safeKeyLoop(ctx, keeper.SafeChainBitcoin)
 	go node.safeKeyLoop(ctx, keeper.SafeChainEthereum)
+	go node.mixinWithdrawalsLoop(ctx)
 	node.snapshotsLoop(ctx)
 }
 
@@ -188,6 +192,85 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 
 	_, err = node.handleKeeperResponse(ctx, s)
 	return err
+}
+
+func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
+	for {
+		time.Sleep(time.Second)
+		checkpoint, err := node.readMixinWithdrawalsCheckpoint(ctx)
+		if err != nil {
+			panic(err)
+		}
+		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinSafeRPC, checkpoint, 100)
+		if err != nil {
+			continue
+		}
+
+		for _, s := range snapshots {
+			checkpoint = s.Topology
+			err := node.processMixinWithdrawalSnapshot(ctx, s)
+			logger.Printf("node.processMixinWithdrawalSnapshot(%v) => %v", s, err)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if len(snapshots) < 100 {
+			time.Sleep(time.Second)
+		}
+
+		err = node.writeMixinWithdrawalsCheckpoint(ctx, checkpoint)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSnapshot) error {
+	for _, t := range s.Transaction {
+		if len(t.Output) == 0 {
+			continue
+		}
+		out := t.Output[0]
+		if out.Type != mixin.OutputTypeWithdrawalClaim {
+			continue
+		}
+
+		tx, err := m.RPCGetTransaction(ctx, node.conf.MixinSafeRPC, t.References[0])
+		if err != nil {
+			return err
+		}
+		asset, err := node.fetchMixinNetworkAsset(ctx, tx.Asset)
+		if err != nil {
+			return err
+		}
+		chain := node.getSafeChainFromAssetChainId(asset.ChainId)
+		if chain == 0 {
+			continue
+		}
+
+		extra, err := hex.DecodeString(t.Extra)
+		if err != nil {
+			return err
+		}
+		hash := string(extra[64:])
+		switch chain {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			rpc, _ := node.bitcoinParams(chain)
+			btx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
+			if err != nil {
+				return err
+			}
+			return node.bitcoinProcessTransaction(ctx, btx, chain)
+		case keeper.SafeChainEthereum, keeper.SafeChainMVM, keeper.SafeChainPolygon:
+			rpc, _ := node.ethereumParams(chain)
+			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
+			if err != nil {
+				return err
+			}
+			return node.ethereumProcessTransaction(ctx, etx, chain)
+		}
+	}
+	return nil
 }
 
 func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.Snapshot) (bool, error) {
@@ -377,6 +460,18 @@ func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64,
 	return checkpoint, nil
 }
 
+func (node *Node) readMixinWithdrawalsCheckpoint(ctx context.Context) (uint64, error) {
+	val, err := node.store.ReadProperty(ctx, mixinWithdrawalsCheckpointKey)
+	if err != nil || val == "" {
+		return 4655227, err
+	}
+	return strconv.ParseUint(val, 10, 64)
+}
+
+func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset uint64) error {
+	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
+}
+
 func depositCheckpointDefault(chain byte) int64 {
 	switch chain {
 	case keeper.SafeChainBitcoin:
@@ -426,4 +521,21 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 	default:
 		panic(chain)
 	}
+}
+
+func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
+	var chain byte
+	switch chainId {
+	case keeper.SafeBitcoinChainId:
+		chain = keeper.SafeChainBitcoin
+	case keeper.SafeLitecoinChainId:
+		chain = keeper.SafeChainLitecoin
+	case keeper.SafeEthereumChainId:
+		chain = keeper.SafeChainEthereum
+	case keeper.SafeMVMChainId:
+		chain = keeper.SafeChainMVM
+	case keeper.SafePolygonChainId:
+		chain = keeper.SafeChainPolygon
+	}
+	return chain
 }

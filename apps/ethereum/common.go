@@ -197,6 +197,7 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 		return nil, nil, err
 	}
 	transfers, _ := LoopCalls(chain, hash, chainId, traces, 0)
+	logger.Printf("number of coin transfers: %#v %d", traces, len(transfers))
 	erc20Transfers, err := GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), int64(etx.BlockHeight))
 	logger.Printf("ethereum.GetERC20TransferLogFromBlock(%d) => %v", etx.BlockHeight, err)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -304,11 +305,11 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if err != nil {
 		return nil, fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
 	}
-	isSafe, err := node.checkSafeInternalAddress(ctx, sender)
+	isSafe, err := node.checkTrustedSender(ctx, sender)
 	if err != nil {
-		return nil, fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", sender, err)
+		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", sender, err)
 	}
-	if isSafe {
+	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
@@ -341,11 +342,11 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
-	isSafe, err := node.checkSafeInternalAddress(ctx, t.Sender)
+	isSafe, err := node.checkTrustedSender(ctx, t.Sender)
 	if err != nil {
-		return nil, fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", t.Sender, err)
+		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", t.Sender, err)
 	}
-	if isSafe {
+	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
 	if !ethereum.CheckFinalization(confirmations, safe.Chain) {
@@ -355,10 +356,17 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	return t, nil
 }
 
-func (node *Node) checkSafeInternalAddress(ctx context.Context, receiver string) (bool, error) {
-	safe, err := node.store.ReadSafeByAddress(ctx, receiver)
+func (node *Node) checkTrustedSender(ctx context.Context, address string) (bool, error) {
+	if slices.Contains([]string{
+		"bc1ql24x05zhqrpejar0p3kevhu48yhnnr3r95sv4y",
+		"ltc1qs46hqx885kpz83vfg6evm9dsuapznfaw997qwl",
+		"0x1616b057F8a89955d4A4f9fd9Eb10289ac0e44A1",
+	}, address) {
+		return true, nil
+	}
+	safe, err := node.store.ReadSafeByAddress(ctx, address)
 	if err != nil {
-		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", receiver, err)
+		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", address, err)
 	}
 	return safe != nil, nil
 }
