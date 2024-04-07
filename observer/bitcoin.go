@@ -27,16 +27,6 @@ const (
 	bitcoinKeyDummyHolderPrivate = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 )
 
-func bitcoinMixinSnapshotsCheckpointKey(chain byte) string {
-	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
-	default:
-		panic(chain)
-	}
-	return fmt.Sprintf("bitcoin-mixin-snapshots-checkpoint-%d", chain)
-}
-
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
 	case keeper.SafeChainBitcoin:
@@ -318,42 +308,6 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 	}
 }
 
-func (node *Node) bitcoinMixinWithdrawalsLoop(ctx context.Context, chain byte) {
-	_, assetId := node.bitcoinParams(chain)
-
-	for {
-		time.Sleep(time.Second)
-		checkpoint, err := node.bitcoinReadMixinSnapshotsCheckpoint(ctx, chain)
-		if err != nil {
-			panic(err)
-		}
-		snapshots, err := node.mixin.ReadNetworkSnapshots(ctx, assetId, checkpoint, "ASC", 100)
-		if err != nil {
-			continue
-		}
-
-		for _, s := range snapshots {
-			checkpoint = s.CreatedAt
-			if s.Source != "WITHDRAWAL_INITIALIZED" {
-				continue
-			}
-			err = node.bitcoinProcessMixinSnapshot(ctx, s.SnapshotID, chain)
-			logger.Printf("node.bitcoinProcessMixinSnapshot(%d, %v) => %v", chain, s, err)
-			if err != nil {
-				panic(err)
-			}
-		}
-		if len(snapshots) < 100 {
-			time.Sleep(time.Second)
-		}
-
-		err = node.bitcoinWriteMixinSnapshotsCheckpoint(ctx, checkpoint, chain)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
 func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string, chain byte) error {
 	rpc, _ := node.bitcoinParams(chain)
 	s, err := node.mixin.ReadNetworkSnapshot(ctx, id)
@@ -453,18 +407,6 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 
 func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
 	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
-}
-
-func (node *Node) bitcoinReadMixinSnapshotsCheckpoint(ctx context.Context, chain byte) (time.Time, error) {
-	ckt, err := node.store.ReadProperty(ctx, bitcoinMixinSnapshotsCheckpointKey(chain))
-	if err != nil || ckt == "" {
-		return time.Now(), err
-	}
-	return time.Parse(time.RFC3339Nano, ckt)
-}
-
-func (node *Node) bitcoinWriteMixinSnapshotsCheckpoint(ctx context.Context, offset time.Time, chain byte) error {
-	return node.store.WriteProperty(ctx, bitcoinMixinSnapshotsCheckpointKey(chain), offset.Format(time.RFC3339Nano))
 }
 
 func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte) {

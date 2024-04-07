@@ -26,17 +26,6 @@ const (
 	ethereumKeygenRequestTimeKey = "ethereum-keygen-request-time"
 )
 
-func ethereumMixinSnapshotsCheckpointKey(chain byte) string {
-	switch chain {
-	case keeper.SafeChainEthereum:
-	case keeper.SafeChainMVM:
-	case keeper.SafeChainPolygon:
-	default:
-		panic(chain)
-	}
-	return fmt.Sprintf("ethereum-mixin-snapshots-checkpoint-%d", chain)
-}
-
 func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployEthereumGnosisSafeAccount(%x)", data)
 	gs, err := ethereum.UnmarshalGnosisSafe(data)
@@ -322,43 +311,6 @@ func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
 	}
 }
 
-// FIXME: only ETH deposits from mixin are handled
-func (node *Node) ethereumMixinWithdrawalsLoop(ctx context.Context, chain byte) {
-	_, assetId := node.ethereumParams(chain)
-
-	for {
-		time.Sleep(time.Second)
-		checkpoint, err := node.ethereumReadMixinSnapshotsCheckpoint(ctx, chain)
-		if err != nil {
-			panic(err)
-		}
-		snapshots, err := node.mixin.ReadNetworkSnapshots(ctx, assetId, checkpoint, "ASC", 100)
-		if err != nil {
-			continue
-		}
-
-		for _, s := range snapshots {
-			checkpoint = s.CreatedAt
-			if s.Source != "WITHDRAWAL_INITIALIZED" {
-				continue
-			}
-			err = node.ethereumProcessMixinSnapshot(ctx, s.SnapshotID, chain)
-			logger.Printf("node.ethereumProcessMixinSnapshot(%d, %v) => %v", chain, s, err)
-			if err != nil {
-				panic(err)
-			}
-		}
-		if len(snapshots) < 100 {
-			time.Sleep(time.Second)
-		}
-
-		err = node.ethereumWriteMixinSnapshotsCheckpoint(ctx, checkpoint, chain)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
 func (node *Node) ethereumProcessMixinSnapshot(ctx context.Context, id string, chain byte) error {
 	rpc, _ := node.ethereumParams(chain)
 	s, err := node.mixin.ReadNetworkSnapshot(ctx, id)
@@ -422,14 +374,6 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			panic(err)
 		}
 	}
-}
-
-func (node *Node) ethereumReadMixinSnapshotsCheckpoint(ctx context.Context, chain byte) (time.Time, error) {
-	ckt, err := node.store.ReadProperty(ctx, ethereumMixinSnapshotsCheckpointKey(chain))
-	if err != nil || ckt == "" {
-		return time.Now(), err
-	}
-	return time.Parse(time.RFC3339Nano, ckt)
 }
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
@@ -540,10 +484,6 @@ func (node *Node) parseEthereumBlockDeposits(ctx context.Context, chain byte, ts
 
 func (node *Node) ethereumWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
 	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
-}
-
-func (node *Node) ethereumWriteMixinSnapshotsCheckpoint(ctx context.Context, offset time.Time, chain byte) error {
-	return node.store.WriteProperty(ctx, ethereumMixinSnapshotsCheckpointKey(chain), offset.Format(time.RFC3339Nano))
 }
 
 func (node *Node) ethereumTransactionApprovalLoop(ctx context.Context, chain byte) {
