@@ -1,6 +1,6 @@
 module github.com/MixinNetwork/safe
 
-go 1.22
+go 1.22.2
 
 require (
 	github.com/MixinNetwork/bot-api-go-client v1.8.7
