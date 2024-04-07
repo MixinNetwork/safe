@@ -270,11 +270,11 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
-	isSafe, err := node.checkSafeInternalAddress(ctx, deposit.Sender)
+	isSafe, err := node.checkTrustedSender(ctx, deposit.Sender)
 	if err != nil {
-		return fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", deposit.Sender, err)
+		return fmt.Errorf("node.checkTrustedSender(%s) => %v", deposit.Sender, err)
 	}
-	if isSafe {
+	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
 	if !ethereum.CheckFinalization(confirmations, deposit.Chain) {
@@ -309,29 +309,6 @@ func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
 			}
 		}
 	}
-}
-
-func (node *Node) ethereumProcessMixinSnapshot(ctx context.Context, id string, chain byte) error {
-	rpc, _ := node.ethereumParams(chain)
-	s, err := node.mixin.ReadNetworkSnapshot(ctx, id)
-	if err != nil {
-		time.Sleep(time.Second)
-		logger.Printf("mixin.ReadNetworkSnapshot(%s) => %v", id, err)
-		return node.ethereumProcessMixinSnapshot(ctx, id, chain)
-	}
-	if s.SnapshotHash == "" || s.TransactionHash == "" {
-		time.Sleep(2 * time.Second)
-		return node.ethereumProcessMixinSnapshot(ctx, id, chain)
-	}
-
-	tx, err := ethereum.RPCGetTransactionByHash(rpc, s.TransactionHash)
-	if err != nil || tx == nil {
-		time.Sleep(2 * time.Second)
-		logger.Printf("ethereum.RPCGetTransactionByHash(%s, %s) => %v %v", id, s.TransactionHash, tx, err)
-		return node.ethereumProcessMixinSnapshot(ctx, id, chain)
-	}
-
-	return node.ethereumProcessTransaction(ctx, tx, chain)
 }
 
 func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {

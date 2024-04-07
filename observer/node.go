@@ -523,9 +523,9 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 	}
 }
 
-func (node *Node) getSafeChainFromAssetChainId(chain_id string) byte {
+func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
 	var chain byte
-	switch chain_id {
+	switch chainId {
 	case keeper.SafeBitcoinChainId:
 		chain = keeper.SafeChainBitcoin
 	case keeper.SafeLitecoinChainId:

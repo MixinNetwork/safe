@@ -267,11 +267,11 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	isSafe, err := node.checkSafeInternalAddress(ctx, deposit.Sender)
+	isSafe, err := node.checkTrustedSender(ctx, deposit.Sender)
 	if err != nil {
-		return fmt.Errorf("node.checkSafeInternalAddress(%s) => %v", deposit.Sender, err)
+		return fmt.Errorf("node.checkTrustedSender(%s) => %v", deposit.Sender, err)
 	}
-	if isSafe {
+	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
@@ -306,29 +306,6 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 			}
 		}
 	}
-}
-
-func (node *Node) bitcoinProcessMixinSnapshot(ctx context.Context, id string, chain byte) error {
-	rpc, _ := node.bitcoinParams(chain)
-	s, err := node.mixin.ReadNetworkSnapshot(ctx, id)
-	if err != nil {
-		time.Sleep(time.Second)
-		logger.Printf("mixin.ReadNetworkSnapshot(%s) => %v", id, err)
-		return node.bitcoinProcessMixinSnapshot(ctx, id, chain)
-	}
-	if s.SnapshotHash == "" || s.TransactionHash == "" {
-		time.Sleep(2 * time.Second)
-		return node.bitcoinProcessMixinSnapshot(ctx, id, chain)
-	}
-
-	tx, err := bitcoin.RPCGetTransaction(chain, rpc, s.TransactionHash)
-	if err != nil || tx == nil {
-		time.Sleep(2 * time.Second)
-		logger.Printf("bitcoin.RPCGetTransaction(%s, %s) => %v %v", id, s.TransactionHash, tx, err)
-		return node.bitcoinProcessMixinSnapshot(ctx, id, chain)
-	}
-
-	return node.bitcoinProcessTransaction(ctx, tx, chain)
 }
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
