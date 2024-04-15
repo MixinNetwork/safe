@@ -51,11 +51,11 @@ func (node *Node) Terminate(ctx context.Context) error {
 
 func (node *Node) Index() int {
 	for i, id := range node.conf.MTG.Genesis.Members {
-		if node.conf.MTG.App.ClientId == id {
+		if node.conf.MTG.App.AppId == id {
 			return i
 		}
 	}
-	panic(node.conf.MTG.App.ClientId)
+	panic(node.conf.MTG.App.AppId)
 }
 
 func (node *Node) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) error {
@@ -82,7 +82,7 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, assetId st
 	return node.group.BuildTransaction(ctx, assetId, receivers, threshold, amount, string(memo), traceId, "")
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Output) error {
+func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {
 	if common.CheckTestEnvironment(ctx) {
 		return nil
 	}

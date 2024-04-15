@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -63,14 +62,14 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 
 	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
-	err = mvm.VerifyAssetKey(assetKey)
+	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
-	bondId := mvm.GenerateAssetId(assetKey)
-	bond, err := node.fetchAssetMeta(ctx, bondId.String())
-	return asset, bond, bondId.String(), err
+	bondId := ethereum.GenerateAssetId(keeper.SafeChainMVM, assetKey)
+	bond, err := node.fetchAssetMeta(ctx, bondId)
+	return asset, bond, bondId, err
 }
 
 func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id, assetContract string, chain byte) (*Asset, error) {
@@ -92,7 +91,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	}
 	asset := &Asset{
 		AssetId:   token.Id,
-		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
 		AssetKey:  token.Address,
 		Symbol:    token.Symbol,
 		Name:      token.Name,

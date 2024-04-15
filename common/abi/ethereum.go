@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"math/big"
 
-	"github.com/MixinNetwork/mixin/domains/ethereum"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +17,7 @@ import (
 var factoryContractAddress string
 
 func InitFactoryContractAddress(addr string) {
-	if ethereum.VerifyAddress(addr) != nil {
+	if ethereum.VerifyAssetKey(addr) != nil {
 		panic(addr)
 	}
 	if factoryContractAddress == "" {

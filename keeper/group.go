@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -15,7 +16,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
+func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	_, err := node.handleBondAsset(ctx, out)
 	if err != nil {
 		panic(err)
@@ -24,7 +25,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	req, err := node.parseRequest(out)
 	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
 	if err != nil {
-		return false
+		return nil, ""
 	}
 
 	switch req.Action {
@@ -50,11 +51,11 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	case common.ActionEthereumSafeCloseAccount:
 	case common.ActionEthereumSafeRefundTransaction:
 	default:
-		return false
+		return nil, ""
 	}
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
-		return false
+		return nil, ""
 	}
 
 	// FIXME this blocks the main group loop
@@ -106,21 +107,17 @@ func (node *Node) getActionRole(act byte) byte {
 	}
 }
 
-func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
-	return false
-}
-
-func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, error) {
+func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, error) {
 	if common.CheckTestEnvironment(ctx) {
 		return false, nil
 	}
-	if node.checkGroupChangeTransaction(out.Memo) {
+	if node.checkGroupChangeTransaction(ctx, out.Extra) {
 		return false, nil
 	}
 
-	meta, err := node.fetchAssetMeta(ctx, out.AssetID)
+	meta, err := node.fetchAssetMeta(ctx, out.AssetId)
 	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetID, err)
+		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetId, err)
 	}
 	if meta.Chain != SafeChainMVM {
 		return false, nil
@@ -139,9 +136,9 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
-	spent, err := node.group.ListOutputsForAsset("", out.AssetID, "spent", 1)
+	spent, err := node.group.ListOutputsForAsset(ctx, node.group.GroupId, out.AssetId, math.MaxUint64, "spent", 1)
 	if err != nil {
-		return false, fmt.Errorf("group.ListOutputsForAsset(%s) => %v", out.AssetID, err)
+		return false, fmt.Errorf("group.ListOutputsForAsset(%s) => %v", out.AssetId, err)
 	}
 	if len(spent) > 0 {
 		return false, nil
@@ -158,12 +155,12 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, e
 	return true, nil
 }
 
-func (node *Node) checkGroupChangeTransaction(memo string) bool {
-	msp := mtg.DecodeMixinExtra(memo)
-	if msp == nil {
+func (node *Node) checkGroupChangeTransaction(ctx context.Context, memo string) bool {
+	g, t, m := mtg.DecodeMixinExtra(memo)
+	if g == "" && t == "" && m == "" {
 		return false
 	}
-	inputs, err := node.group.ListOutputsForTransaction(msp.T.String())
+	inputs, err := node.group.ListOutputsForTransaction(ctx, t)
 	if err != nil {
 		panic(err)
 	}

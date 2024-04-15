@@ -97,8 +97,12 @@ func (req *Request) Operation() *Operation {
 	}
 }
 
-func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
+func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 	op, err := DecodeOperation(b)
+	if err != nil {
+		return nil, err
+	}
+	h, err := crypto.HashFromString(out.TransactionHash)
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +112,9 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 		Curve:      op.Curve,
 		Holder:     op.Public,
 		Extra:      hex.EncodeToString(op.Extra),
-		MixinHash:  out.TransactionHash,
+		MixinHash:  h,
 		MixinIndex: out.OutputIndex,
-		AssetId:    out.AssetID,
+		AssetId:    out.AssetId,
 		Amount:     out.Amount,
 		Role:       role,
 		State:      RequestStateInitial,

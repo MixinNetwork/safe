@@ -18,8 +18,8 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 	}
 
 	sid := uuid.Must(uuid.NewV4())
-	secret := crypto.NewHash([]byte(node.saverKey.String() + sid.String()))
-	secret = crypto.NewHash(secret[:])
+	secret := crypto.Sha256Hash([]byte(node.saverKey.String() + sid.String()))
+	secret = crypto.Sha256Hash(secret[:])
 
 	share = append(sid.Bytes(), share...)
 	share = common.AESEncrypt(secret[:], share, sid.String())

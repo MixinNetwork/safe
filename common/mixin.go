@@ -16,15 +16,18 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
-	"github.com/gofrs/uuid/v5"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
 )
 
 // TODO the output should include the snapshot signature, then it can just be
 // verified against the active kernel nodes public key
-func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration) error {
-	signed, err := ReadKernelTransaction(rpc, out.TransactionHash)
+func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration) error {
+	hash, err := crypto.HashFromString(out.TransactionHash)
+	if err != nil {
+		return err
+	}
+	signed, err := ReadKernelTransaction(rpc, hash)
 	logger.Printf("common.readKernelTransaction(%s) => %v %v", out.TransactionHash, signed, err)
 
 	if (err != nil || signed == nil) && out.CreatedAt.Add(timeout).After(time.Now()) {
@@ -34,10 +37,10 @@ func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration)
 		return fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
 	}
 
-	if !strings.Contains(string(signed.Extra), out.Memo) && !strings.Contains(hex.EncodeToString(signed.Extra), out.Memo) {
+	if !strings.Contains(string(signed.Extra), out.Extra) && !strings.Contains(hex.EncodeToString(signed.Extra), out.Extra) {
 		return fmt.Errorf("common.VerifyKernelTransaction(%v) memo mismatch %x", out, signed.Extra)
 	}
-	if signed.Asset != crypto.NewHash([]byte(out.AssetID)) {
+	if signed.Asset != crypto.Sha256Hash([]byte(out.AssetId)) {
 		return fmt.Errorf("common.VerifyKernelTransaction(%v) asset mismatch %s", out, signed.Asset)
 	}
 	if len(signed.Outputs) < out.OutputIndex+1 {
@@ -51,12 +54,8 @@ func VerifyKernelTransaction(rpc string, out *mtg.Output, timeout time.Duration)
 }
 
 func DecodeMixinObjectExtra(extra []byte) []byte {
-	var mep struct {
-		T uuid.UUID
-		M string
-	}
-	mtg.MsgpackUnmarshal(extra, &mep)
-	b, _ := base64.RawURLEncoding.DecodeString(mep.M)
+	_, _, m := mtg.DecodeMixinExtra(hex.EncodeToString(extra))
+	b, _ := base64.RawURLEncoding.DecodeString(m)
 	return b
 }
 
@@ -82,9 +81,9 @@ func CreateObjectUntilSufficient(ctx context.Context, memo, traceId string, uid,
 	}
 }
 
-func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, pin string) error {
+func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId, sessionPrivateKey string) error {
 	for {
-		err := SendTransaction(ctx, client, assetId, receivers, threshold, amount, memo, traceId, pin)
+		err := SendTransaction(ctx, client, assetId, receivers, threshold, amount, memo, traceId, sessionPrivateKey)
 		if mixin.IsErrorCodes(err, 30103) {
 			time.Sleep(7 * time.Second)
 			continue
@@ -97,7 +96,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, a
 	}
 }
 
-func SendTransaction(ctx context.Context, client *mixin.Client, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, pin string) error {
+func SendTransaction(ctx context.Context, client *mixin.Client, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId, sessionPrivateKey string) error {
 	logger.Printf("SendTransaction(%s, %v, %d, %s, %s, %s)", assetId, receivers, threshold, amount, memo, traceId)
 	input := &mixin.TransferInput{
 		AssetID: assetId,

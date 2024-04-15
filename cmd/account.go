@@ -14,7 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/mdp/qrterminal"
 	"github.com/shopspring/decimal"
@@ -98,16 +98,16 @@ func makeKeeperPaymentRequest(path, assetId string, amount decimal.Decimal, sid,
 	conf := mc.Keeper
 
 	s := &mixin.Keystore{
-		ClientID:   conf.MTG.App.ClientId,
-		SessionID:  conf.MTG.App.SessionId,
-		PrivateKey: conf.MTG.App.PrivateKey,
-		PinToken:   conf.MTG.App.PinToken,
+		ClientID:          conf.MTG.App.AppId,
+		SessionID:         conf.MTG.App.SessionId,
+		SessionPrivateKey: conf.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   conf.MTG.App.ServerPublicKey,
 	}
 	client, err := mixin.NewFromKeystore(s)
 	if err != nil {
 		return err
 	}
-	err = client.VerifyPin(ctx, conf.MTG.App.PIN)
+	_, err = client.UserMe(ctx)
 	if err != nil {
 		return err
 	}

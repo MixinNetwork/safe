@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/MixinNetwork/mixin/domains/bitcoin"
-	"github.com/MixinNetwork/mixin/domains/litecoin"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -60,15 +58,10 @@ func ParseSatoshi(amount string) int64 {
 
 func ParseAddress(addr string, chain byte) ([]byte, error) {
 	switch chain {
-	case ChainBitcoin:
-		err := bitcoin.VerifyAddress(addr)
+	case ChainBitcoin, ChainLitecoin:
+		_, err := btcutil.DecodeAddress(addr, netParams(chain))
 		if err != nil {
-			return nil, fmt.Errorf("bitcoin.VerifyAddress(%s) => %v", addr, err)
-		}
-	case ChainLitecoin:
-		err := litecoin.VerifyAddress(addr)
-		if err != nil {
-			return nil, fmt.Errorf("litecoin.VerifyAddress(%s) => %v", addr, err)
+			return nil, fmt.Errorf("bitcoin.VerifyAddress(%s %d) => %v", addr, chain, err)
 		}
 	default:
 		return nil, fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
@@ -182,4 +175,26 @@ func BuildInsufficientInputError(cat, inSatoshi, outSatoshi string) error {
 func WriteBytes(enc *common.Encoder, b []byte) {
 	enc.WriteInt(len(b))
 	enc.Write(b)
+}
+
+func netParams(chain byte) *chaincfg.Params {
+	switch chain {
+	case ChainBitcoin:
+		return &chaincfg.MainNetParams
+	case ChainLitecoin:
+		return &chaincfg.Params{
+			Net:             0xdbb6c0fb,
+			Bech32HRPSegwit: "ltc",
+
+			PubKeyHashAddrID:        0x30,
+			ScriptHashAddrID:        0x32,
+			WitnessPubKeyHashAddrID: 0x06,
+			WitnessScriptHashAddrID: 0x0A,
+
+			HDPublicKeyID:  [4]byte{0x01, 0x9d, 0xa4, 0x64},
+			HDPrivateKeyID: [4]byte{0x01, 0x9d, 0x9c, 0xfe},
+		}
+	default:
+		panic(chain)
+	}
 }

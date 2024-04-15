@@ -19,7 +19,8 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -231,7 +232,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 			continue
 		}
 		out := t.Output[0]
-		if out.Type != mixin.OutputTypeWithdrawalClaim {
+		if out.Type != mixinnet.OutputTypeWithdrawalClaim {
 			continue
 		}
 
@@ -338,11 +339,11 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	msp := mtg.DecodeMixinExtra(s.Memo)
-	if msp == nil {
+	g, t, m := mtg.DecodeMixinExtra(s.Memo)
+	if g == "" && t == "" && m == "" {
 		return false, nil
 	}
-	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
+	b := common.AESDecrypt(node.aesKey[:], []byte(m))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
 	if err != nil || len(op.Extra) != 32 {
@@ -382,11 +383,11 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	if err != nil {
 		panic(stx.String())
 	}
-	smsp := mtg.DecodeMixinExtra(string(tx.Extra))
-	if smsp == nil {
+	g, t, m = mtg.DecodeMixinExtra(string(tx.Extra))
+	if g == "" && t == "" && m == "" {
 		panic(stx.String())
 	}
-	data, err := common.Base91Decode(smsp.M)
+	data, err := common.Base91Decode(m)
 	if err != nil || len(data) < 32 {
 		panic(s.TransactionHash)
 	}

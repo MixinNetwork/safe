@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -67,13 +68,13 @@ func (r *Session) asOperation() *common.Operation {
 	}
 }
 
-func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
-	switch out.AssetID {
+func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) bool {
+	switch out.AssetId {
 	case node.conf.KeeperAssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			panic(out.TransactionHash)
 		}
-		op, err := node.parseOperation(ctx, out.Memo)
+		op, err := node.parseOperation(ctx, out.Extra)
 		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
 		if err != nil {
 			return false
@@ -87,7 +88,11 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 			panic(err)
 		}
 		needsCommittment := op.Type == common.OperationTypeSignInput
-		err = node.store.WriteSessionIfNotExist(ctx, op, out.TransactionHash, out.OutputIndex, out.CreatedAt, needsCommittment)
+		hash, err := crypto.HashFromString(out.TransactionHash)
+		if err != nil {
+			panic(err)
+		}
+		err = node.store.WriteSessionIfNotExist(ctx, op, hash, out.OutputIndex, out.CreatedAt, needsCommittment)
 		if err != nil {
 			panic(err)
 		}
@@ -117,11 +122,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	return false
 }
 
-func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
-	return false
-}
-
-func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Output) error {
+func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {
 	if op.Type != common.OperationTypeSignInput {
 		return fmt.Errorf("node.processSignerPrepare(%v) type", op)
 	}
@@ -150,7 +151,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	return err
 }
 
-func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Output) error {
+func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) error {
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
 		return fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err)
@@ -159,15 +160,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	self := out.Sender == string(node.id)
+	senders := strings.Split(out.Senders, ",")
+	self := len(senders) == 1 && senders[0] == string(node.id)
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
-		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Sender, op.Extra, out.CreatedAt, self)
+		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders, op.Extra, out.CreatedAt, self)
 		if err != nil {
 			return fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
 		}
 	case common.OperationTypeSignInput:
-		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Sender, op.Extra, out.CreatedAt, self)
+		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders, op.Extra, out.CreatedAt, self)
 		if err != nil {
 			return fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err)
 		}
@@ -402,10 +404,14 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 	}
 }
 
-func (node *Node) parseSignerMessage(out *mtg.Output) (*common.Operation, error) {
-	b, err := common.Base91Decode(out.Memo)
+func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
+	b, err := hex.DecodeString(out.Extra)
 	if err != nil {
-		return nil, fmt.Errorf("common.Base91Decode(%s) => %v", out.Memo, err)
+		return nil, fmt.Errorf("hex.DecodeString(%s) => %v", out.Extra, err)
+	}
+	b, err = common.Base91Decode(string(b))
+	if err != nil {
+		return nil, fmt.Errorf("common.Base91Decode(%s) => %v", string(b), err)
 	}
 
 	b = common.AESDecrypt(node.aesKey[:], b)
@@ -519,7 +525,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	return err
 }
 
-func (node *Node) tryToFetchMessageForMixin(ctx context.Context, op *common.Operation, out *mtg.Output) error {
+func (node *Node) tryToFetchMessageForMixin(ctx context.Context, op *common.Operation, out *mtg.Action) error {
 	if op.Curve != common.CurveEdwards25519Mixin {
 		return nil
 	}
@@ -529,7 +535,11 @@ func (node *Node) tryToFetchMessageForMixin(ctx context.Context, op *common.Oper
 	if len(op.Extra) != 64 {
 		return nil
 	}
-	refs := node.readKernelTransactionReferences(ctx, out.TransactionHash)
+	hash, err := crypto.HashFromString(out.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	refs := node.readKernelTransactionReferences(ctx, hash)
 	if len(refs) != 1 || !bytes.Equal(refs[0][:], op.Extra[32:]) {
 		return nil
 	}
@@ -562,11 +572,11 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash)
 	if err != nil {
 		panic(stx.String())
 	}
-	smsp := mtg.DecodeMixinExtra(string(tx.Extra))
-	if smsp == nil {
+	g, t, m := mtg.DecodeMixinExtra(string(tx.Extra))
+	if g == "" && t == "" && m == "" {
 		panic(stx.String())
 	}
-	data, err := common.Base91Decode(smsp.M)
+	data, err := common.Base91Decode(m)
 	if err != nil || len(data) < 32 {
 		panic(stx.String())
 	}
@@ -599,7 +609,7 @@ func (node *Node) readKernelTransactionReferences(ctx context.Context, hash cryp
 	return tx.References
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Output) error {
+func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {
 	if common.CheckTestEnvironment(ctx) {
 		return nil
 	}
@@ -608,11 +618,11 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Output) 
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
-	msp := mtg.DecodeMixinExtra(memo)
-	if msp == nil {
+	g, t, m := mtg.DecodeMixinExtra(memo)
+	if g == "" && t == "" && m == "" {
 		return nil, fmt.Errorf("mtg.DecodeMixinExtra(%s)", memo)
 	}
-	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
+	b := common.AESDecrypt(node.aesKey[:], []byte(m))
 	op, err := common.DecodeOperation(b)
 	if err != nil {
 		return nil, fmt.Errorf("common.DecodeOperation(%x) => %v", b, err)

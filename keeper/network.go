@@ -211,7 +211,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	}
 	asset := &store.Asset{
 		AssetId:   token.Id,
-		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
 		AssetKey:  token.Address,
 		Symbol:    token.Symbol,
 		Name:      token.Name,

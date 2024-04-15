@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/mdp/qrterminal"
 	"github.com/shopspring/decimal"
@@ -38,7 +37,7 @@ func SignerBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 	config.HandleDevConfig(mc.Dev)
 
-	db, err := store.OpenBadger(ctx, mc.Signer.StoreDir+"/mtg")
+	db, err := mtg.OpenSQLite3Store(mc.Signer.StoreDir + "/mtg.sqlite3")
 	if err != nil {
 		return err
 	}
@@ -60,16 +59,16 @@ func SignerBootCmd(c *cli.Context) error {
 	defer kd.Close()
 
 	s := &mixin.Keystore{
-		ClientID:   mc.Signer.MTG.App.ClientId,
-		SessionID:  mc.Signer.MTG.App.SessionId,
-		PrivateKey: mc.Signer.MTG.App.PrivateKey,
-		PinToken:   mc.Signer.MTG.App.PinToken,
+		ClientID:          mc.Signer.MTG.App.AppId,
+		SessionID:         mc.Signer.MTG.App.SessionId,
+		SessionPrivateKey: mc.Signer.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   mc.Signer.MTG.App.ServerPublicKey,
 	}
 	client, err := mixin.NewFromKeystore(s)
 	if err != nil {
 		return err
 	}
-	err = client.VerifyPin(ctx, mc.Signer.MTG.App.PIN)
+	_, err = client.UserMe(ctx)
 	if err != nil {
 		return err
 	}
@@ -140,16 +139,16 @@ func makeSignerPaymentRequest(conf *signer.Configuration, op *common.Operation, 
 	aesKey := common.ECDHEd25519(conf.SharedKey, conf.KeeperPublicKey)
 
 	s := &mixin.Keystore{
-		ClientID:   conf.MTG.App.ClientId,
-		SessionID:  conf.MTG.App.SessionId,
-		PrivateKey: conf.MTG.App.PrivateKey,
-		PinToken:   conf.MTG.App.PinToken,
+		ClientID:          conf.MTG.App.AppId,
+		SessionID:         conf.MTG.App.SessionId,
+		SessionPrivateKey: conf.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   conf.MTG.App.ServerPublicKey,
 	}
 	client, err := mixin.NewFromKeystore(s)
 	if err != nil {
 		return err
 	}
-	err = client.VerifyPin(ctx, conf.MTG.App.PIN)
+	_, err = client.UserMe(ctx)
 	if err != nil {
 		return err
 	}

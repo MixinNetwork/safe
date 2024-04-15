@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -14,8 +15,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (node *Node) parseRequest(out *mtg.Output) (*common.Request, error) {
-	switch out.AssetID {
+func (node *Node) parseRequest(out *mtg.Action) (*common.Request, error) {
+	switch out.AssetId {
 	case node.conf.AssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			panic(out.TransactionHash)
@@ -42,35 +43,44 @@ func (node *Node) requestRole(assetId string) uint8 {
 	}
 }
 
-func (node *Node) parseObserverRequest(out *mtg.Output) (*common.Request, error) {
-	if out.Sender != node.conf.ObserverUserId {
+func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error) {
+	senders := strings.Split(out.Senders, ",")
+	if len(senders) != 1 && senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
-	b, err := common.Base91Decode(out.Memo)
+	b, err := hex.DecodeString(out.Extra)
+	if err != nil {
+		return nil, err
+	}
+	b, err = common.Base91Decode(string(b))
 	if err != nil {
 		return nil, err
 	}
 	b = common.AESDecrypt(node.observerAESKey[:], b)
-	role := node.requestRole(out.AssetID)
+	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
 
-func (node *Node) parseSignerResponse(out *mtg.Output) (*common.Request, error) {
-	msp := mtg.DecodeMixinExtra(out.Memo)
-	if msp == nil {
+func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) {
+	g, t, m := mtg.DecodeMixinExtra(out.Extra)
+	if g == "" && t == "" && m == "" {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
-	b := common.AESDecrypt(node.signerAESKey[:], []byte(msp.M))
-	role := node.requestRole(out.AssetID)
+	b := common.AESDecrypt(node.signerAESKey[:], []byte(m))
+	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
 
-func (node *Node) parseHolderRequest(out *mtg.Output) (*common.Request, error) {
-	b, err := base64.RawURLEncoding.DecodeString(out.Memo)
+func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
+	b, err := hex.DecodeString(out.Extra)
 	if err != nil {
 		return nil, err
 	}
-	role := node.requestRole(out.AssetID)
+	b, err = base64.RawURLEncoding.DecodeString(string(b))
+	if err != nil {
+		return nil, err
+	}
+	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
 

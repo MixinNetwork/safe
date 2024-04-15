@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -104,11 +103,11 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 	}
 	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
-	err = mvm.VerifyAssetKey(assetKey)
+	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
 		return crypto.Hash{}, 0, err
 	}
-	return mvm.GenerateAssetId(assetKey), SafeChainMVM, nil
+	return crypto.Sha256Hash([]byte(ethereum.GenerateAssetId(SafeChainMVM, assetKey))), SafeChainMVM, nil
 }
 
 func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {

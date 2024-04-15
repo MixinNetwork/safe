@@ -89,11 +89,11 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			Curve: crv,
 		}
 		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(op)))
-		out := &mtg.Output{
-			AssetID:         node.conf.KeeperAssetId,
-			Memo:            memo,
+		out := &mtg.Action{
+			AssetId:         node.conf.KeeperAssetId,
+			Extra:           memo,
 			Amount:          decimal.NewFromInt(1),
-			TransactionHash: crypto.NewHash([]byte(op.Id)),
+			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 			CreatedAt:       time.Now(),
 		}
 

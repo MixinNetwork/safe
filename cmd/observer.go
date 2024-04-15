@@ -27,7 +27,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	gc "github.com/ethereum/go-ethereum/crypto"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/urfave/cli/v2"
 )
 
@@ -339,7 +339,7 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 		panic(len(ilr))
 	}
 
-	priv := crypto.NewHash(ilr[:len(ilr)/2])
+	priv := crypto.Sha256Hash(ilr[:len(ilr)/2])
 	chainCode := crypto.Blake3Hash(ilr[len(ilr)/2:])
 	finger := btcutil.Hash160([]byte(masterSeed))[:4]
 	finger = binary.BigEndian.AppendUint32(finger, account)

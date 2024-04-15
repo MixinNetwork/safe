@@ -483,7 +483,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", id.String(), req.Holder, err)
 	}
-	if crypto.NewHash([]byte(req.AssetId)) != bondId {
+	if crypto.Sha256Hash([]byte(req.AssetId)) != bondId {
 		return node.store.FailRequest(ctx, req.Id)
 	}
 

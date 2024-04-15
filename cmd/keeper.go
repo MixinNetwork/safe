@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/custodian"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
@@ -32,7 +31,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 	config.HandleDevConfig(mc.Dev)
 
-	db, err := store.OpenBadger(ctx, mc.Keeper.StoreDir+"/mtg")
+	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "mtg.sqlite3")
 	if err != nil {
 		return err
 	}

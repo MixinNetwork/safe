@@ -34,12 +34,12 @@ func TestFROSTMixinSign(t *testing.T) {
 
 	in0, _ := crypto.HashFromString("5b08c51b8e678e9015edd1561be644a787df257ebd7854b427c36d57989c3a43")
 	in1, _ := crypto.HashFromString("b05c168ac64ee2c131245645d5ce36872a4229b77c4c998123550d3efd806b13")
-	ver := common.NewTransactionV4(common.XINAssetId).AsVersioned()
+	ver := common.NewTransactionV5(common.XINAssetId).AsVersioned()
 	ver.AddInput(in0, 0)
 	ver.AddInput(in1, 0)
 	script := common.NewThresholdScript(1)
 	amount := common.NewIntegerFromString("0.003")
-	seed := crypto.NewHash([]byte("mixin safe"))
+	seed := crypto.Sha256Hash([]byte("mixin safe"))
 	ver.AddScriptOutput([]*common.Address{&addr}, script, amount, append(seed[:], seed[:]...))
 
 	R0, _ := crypto.KeyFromString("d0f38355e2ee997de0344ebbfdf2110580dbd7e45bc6e136ab95b0ce163d603a")
@@ -73,7 +73,7 @@ func TestFROSTMixinSign(t *testing.T) {
 
 func writeTransactionReferences(ctx context.Context, nodes []*Node, crv byte, msg, ref []byte) {
 	sid := sc.UniqueId("sign", fmt.Sprintf("%d:%x", crv, msg))
-	hash := crypto.NewHash([]byte(sid))
+	hash := crypto.Sha256Hash([]byte(sid))
 	k := hex.EncodeToString(hash[:])
 	v := hex.EncodeToString(ref)
 	for _, n := range nodes {

@@ -71,7 +71,7 @@ func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: curve, Type: common.OperationTypeKeygenInput}
-		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now(), false)
+		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.Sha256Hash([]byte(sid)), 0, time.Now(), false)
 		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf)
 		require.Nil(err)
@@ -90,7 +90,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		require.Equal(public, pub)
 
 		op := &common.Operation{Id: sid, Curve: crv, Type: common.OperationTypeKeygenInput}
-		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.NewHash([]byte(sid)), 0, time.Now().UTC(), false)
+		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.Sha256Hash([]byte(sid)), 0, time.Now().UTC(), false)
 		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb)
 		require.Nil(err)
@@ -143,11 +143,11 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 		Extra:  msg,
 	}
 	memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))
-	out := &mtg.Output{
-		AssetID:         node.conf.KeeperAssetId,
-		Memo:            memo,
+	out := &mtg.Action{
+		AssetId:         node.conf.KeeperAssetId,
+		Extra:           memo,
 		Amount:          decimal.NewFromInt(1),
-		TransactionHash: crypto.NewHash([]byte(sop.Id)),
+		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
 		CreatedAt:       time.Now(),
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
@@ -159,7 +159,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	return op.Extra
 }
 
-func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Output, sessionId string) *common.Operation {
+func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	network := nodes[0].network.(*testNetwork)
 	for i := 0; i < 4; i++ {
 		data := common.MarshalJSONOrPanic(out)
@@ -186,13 +186,13 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.Nil(err)
 
 	conf.Signer.StoreDir = root
-	conf.Signer.MTG.App.ClientId = conf.Signer.MTG.Genesis.Members[i]
+	conf.Signer.MTG.App.AppId = conf.Signer.MTG.Genesis.Members[i]
 	conf.Signer.SaverAPI = "http://localhost:9999"
 
-	seed := crypto.NewHash([]byte(conf.Signer.MTG.App.ClientId))
+	seed := crypto.Sha256Hash([]byte(conf.Signer.MTG.App.AppId))
 	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
 	conf.Signer.SaverKey = priv.String()
-	err = saverStore.WriteNodePublicKey(ctx, conf.Signer.MTG.App.ClientId, priv.Public().String())
+	err = saverStore.WriteNodePublicKey(ctx, conf.Signer.MTG.App.AppId, priv.Public().String())
 	require.Nil(err)
 
 	if !(strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Signer.StoreDir, "/var/folders")) {
@@ -263,7 +263,7 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 		if filter[k] {
 			continue
 		}
-		var out mtg.Output
+		var out mtg.Action
 		json.Unmarshal(mob, &out)
 		node.ProcessOutput(ctx, &out)
 		filter[k] = true

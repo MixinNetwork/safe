@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -46,7 +46,7 @@ type Node struct {
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
 	node := &Node{
-		id:         party.ID(conf.MTG.App.ClientId),
+		id:         party.ID(conf.MTG.App.AppId),
 		threshold:  conf.Threshold,
 		conf:       conf,
 		group:      group,
@@ -246,7 +246,7 @@ func (node *Node) synced(ctx context.Context) (bool, error) {
 	}
 	// TODO all nodes send group timestamp to others, and not synced
 	// if one of them has a big difference
-	return node.group.Synced()
+	return node.group.Synced(ctx)
 }
 
 func (node *Node) acceptIncomingMessages(ctx context.Context) {
@@ -517,12 +517,12 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo []byte, traceId string) error {
 	if common.CheckTestEnvironment(ctx) {
-		out := &mtg.Output{Sender: string(node.id), AssetID: node.conf.AssetId, CreatedAt: time.Now()}
-		out.Memo = common.Base91Encode(memo)
+		out := &mtg.Action{Sender: string(node.id), AssetId: node.conf.AssetId, CreatedAt: time.Now()}
+		out.Extra = common.Base91Encode(memo)
 		data := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		return network.QueueMTGOutput(ctx, data)
 	}
 
-	return common.SendTransactionUntilSufficient(ctx, node.mixin, assetId, receivers, threshold, amount, common.Base91Encode(memo), traceId, node.conf.MTG.App.PIN)
+	return common.SendTransactionUntilSufficient(ctx, node.mixin, assetId, receivers, threshold, amount, common.Base91Encode(memo), traceId, node.conf.MTG.App.SpendPrivateKey)
 }

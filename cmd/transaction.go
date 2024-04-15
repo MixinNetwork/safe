@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
@@ -44,7 +44,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 
 	addr := abi.GetFactoryAssetAddress(keeper.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
-	bondId := fetchAssetId(mvm.GenerateAssetId(assetKey).String())
+	bondId := fetchAssetId(ethereum.GenerateAssetId(keeper.SafeChainMVM, assetKey))
 
 	extra := []byte(receiver)
 	sid := uuid.Must(uuid.NewV4()).String()
