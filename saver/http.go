@@ -45,7 +45,8 @@ func createItem(w http.ResponseWriter, r *http.Request, params map[string]string
 		return
 	}
 	msg := body.Id + body.NodeId + body.SessionId + body.Public + body.Share
-	if !pub.Verify([]byte(msg), body.Signature) {
+	hash := crypto.Sha256Hash([]byte(msg))
+	if !pub.Verify(hash, body.Signature) {
 		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "signature"})
 		return
 	}

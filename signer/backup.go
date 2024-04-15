@@ -34,7 +34,8 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 
 	msg := data["id"] + data["node_id"] + data["session_id"]
 	msg = msg + data["public"] + data["share"]
-	data["signature"] = node.saverKey.Sign([]byte(msg)).String()
+	hash := crypto.Sha256Hash([]byte(msg))
+	data["signature"] = node.saverKey.Sign(hash).String()
 
 	msg = string(common.MarshalJSONOrPanic(data))
 	reader := strings.NewReader(msg)
