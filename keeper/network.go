@@ -59,7 +59,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 	switch info.Chain {
 	case SafeChainBitcoin, SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
-		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
+		valid, err := node.verifyBitcoinNetworkInfo(ctx, req, info)
 		if err != nil {
 			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
@@ -120,17 +120,16 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
-func (node *Node) checkNetworkInfoForkTimestamp(info *store.NetworkInfo) bool {
-	genesis := time.Unix(0, node.conf.MTG.Genesis.Timestamp)
-	if info.CreatedAt.Before(genesis) {
+func (node *Node) checkNetworkInfoForkTimestamp(req *common.Request, info *store.NetworkInfo) bool {
+	if req.Sequence < node.conf.MTG.Genesis.Epoch {
 		panic(info.RequestId)
 	}
 	forkAt := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
 	return info.CreatedAt.Before(forkAt)
 }
 
-func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
-	if node.checkNetworkInfoForkTimestamp(info) {
+func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, req *common.Request, info *store.NetworkInfo) (bool, error) {
+	if node.checkNetworkInfoForkTimestamp(req, info) {
 		return true, nil
 	}
 	if len(info.Hash) != 64 {

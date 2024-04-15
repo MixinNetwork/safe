@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS requests (
   state       INTEGER NOT NULL,
   created_at  TIMESTAMP NOT NULL,
   updated_at  TIMESTAMP NOT NULL,
+  sequence    INTEGER NOT NULL,
   PRIMARY KEY ('request_id')
 );
 

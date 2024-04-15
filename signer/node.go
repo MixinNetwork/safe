@@ -517,7 +517,7 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo []byte, traceId string) error {
 	if common.CheckTestEnvironment(ctx) {
-		out := &mtg.Action{Sender: string(node.id), AssetId: node.conf.AssetId, CreatedAt: time.Now()}
+		out := &mtg.Action{Senders: string(node.id), AssetId: node.conf.AssetId, CreatedAt: time.Now()}
 		out.Extra = common.Base91Encode(memo)
 		data := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)

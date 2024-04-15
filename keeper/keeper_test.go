@@ -246,7 +246,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 	require.NotNil(node)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
-	require.Equal(time.Unix(0, node.conf.MTG.Genesis.Timestamp), timestamp)
+	require.Equal(node.conf.MTG.Genesis.Epoch, timestamp)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSABitcoin)
 
 	id := uuid.Must(uuid.NewV4()).String()
@@ -807,7 +807,7 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	node.ProcessOutput(ctx, out)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
-	require.Equal(out.CreatedAt.UTC(), timestamp.UTC())
+	require.Equal(out.Sequence, timestamp)
 	req, err := node.store.ReadPendingRequest(ctx)
 	require.Nil(err)
 	require.NotNil(req)

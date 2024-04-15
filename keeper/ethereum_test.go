@@ -241,7 +241,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	require.NotNil(node)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
-	require.Equal(time.Unix(0, node.conf.MTG.Genesis.Timestamp), timestamp)
+	require.Equal(node.conf.MTG.Genesis.Epoch, timestamp)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
 
 	id := uuid.Must(uuid.NewV4()).String()

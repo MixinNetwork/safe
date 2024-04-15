@@ -111,7 +111,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if common.CheckTestEnvironment(ctx) {
 		return false, nil
 	}
-	if node.checkGroupChangeTransaction(ctx, out.Extra) {
+	if node.checkGroupChangeTransaction(ctx, out) {
 		return false, nil
 	}
 
@@ -155,12 +155,12 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	return true, nil
 }
 
-func (node *Node) checkGroupChangeTransaction(ctx context.Context, memo string) bool {
-	g, t, m := mtg.DecodeMixinExtra(memo)
+func (node *Node) checkGroupChangeTransaction(ctx context.Context, output *mtg.Action) bool {
+	g, t, m := mtg.DecodeMixinExtra(output.Extra)
 	if g == "" && t == "" && m == "" {
 		return false
 	}
-	inputs, err := node.group.ListOutputsForTransaction(ctx, t)
+	inputs, err := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)
 	if err != nil {
 		panic(err)
 	}
@@ -190,12 +190,12 @@ func (node *Node) loopProcessRequests(ctx context.Context) {
 	}
 }
 
-func (node *Node) timestamp(ctx context.Context) (time.Time, error) {
+func (node *Node) timestamp(ctx context.Context) (uint64, error) {
 	req, err := node.store.ReadLatestRequest(ctx)
 	if err != nil || req == nil {
-		return time.Unix(0, node.conf.MTG.Genesis.Timestamp), err
+		return node.conf.MTG.Genesis.Epoch, err
 	}
-	return req.CreatedAt, nil
+	return req.Sequence, nil
 }
 
 // never call this function with multiple threads, and all implementations
