@@ -68,7 +68,7 @@ func (r *Session) asOperation() *common.Operation {
 	}
 }
 
-func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) bool {
+func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	switch out.AssetId {
 	case node.conf.KeeperAssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
@@ -77,7 +77,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) bool {
 		op, err := node.parseOperation(ctx, out.Extra)
 		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
 		if err != nil {
-			return false
+			return nil, ""
 		}
 		err = node.verifyKernelTransaction(ctx, out)
 		if err != nil {
@@ -97,13 +97,14 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) bool {
 			panic(err)
 		}
 	case node.conf.AssetId:
-		if node.findMember(out.Sender) < 0 {
-			return false
+		senders := strings.Split(out.Senders, ",")
+		if len(senders) != 1 || node.findMember(senders[0]) < 0 {
+			return nil, ""
 		}
 		req, err := node.parseSignerMessage(out)
 		logger.Printf("node.parseSignerMessage(%v) => %v %v", out, req, err)
 		if err != nil {
-			return false
+			return nil, ""
 		}
 		if string(req.Extra) == PrepareExtra {
 			err = node.processSignerPrepare(ctx, req, out)
@@ -119,7 +120,8 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) bool {
 			}
 		}
 	}
-	return false
+	// FIXME
+	return nil, ""
 }
 
 func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {
@@ -135,7 +137,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	} else if s.PreparedAt.Valid {
 		return nil
 	}
-	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Sender, out.CreatedAt)
+	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Senders, out.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", op, err)
 	}
@@ -364,8 +366,10 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		var mpub crypto.Key
 		pub, _ = P.MarshalBinary()
 		copy(mpub[:], pub)
-		res := mpub.Verify(msg[32:], msig)
-		logger.Printf("mixin.Verify(%x, %x) => %t", msg[32:], msig[:], res)
+		var hash crypto.Hash
+		copy(hash[:], msg)
+		res := mpub.Verify(hash, msig)
+		logger.Printf("mixin.Verify(%v, %x) => %t", hash, msig[:], res)
 		return res, sig
 	case common.CurveEdwards25519Default,
 		common.CurveSecp256k1SchnorrBitcoin:
