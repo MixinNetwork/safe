@@ -128,7 +128,7 @@ func (node *Node) writeStorageUntilSnapshot(ctx context.Context, extra []byte) c
 	}
 
 	for {
-		stx, err := node.group.BuildStorageTransaction(ctx, extra, "")
+		stx, err := node.group.BuildStorageTransaction(extra)
 		logger.Printf("group.BuildStorageTransaction(%x) => %v %v", extra, stx, err)
 		if err != nil {
 			panic(err)
