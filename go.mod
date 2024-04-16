@@ -7,7 +7,7 @@ require (
 	github.com/MixinNetwork/go-number v0.1.1
 	github.com/MixinNetwork/mixin v0.18.4
 	github.com/MixinNetwork/multi-party-sig v0.4.1
-	github.com/MixinNetwork/trusted-group v0.6.2-0.20240415155836-3fa035b985dd
+	github.com/MixinNetwork/trusted-group v0.6.2-0.20240416134708-5f147c946170
 	github.com/btcsuite/btcd v0.24.0
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/btcsuite/btcd/btcutil v1.1.5

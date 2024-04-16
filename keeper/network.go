@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -26,14 +27,14 @@ const (
 	bitcoinMaximumFeeRate = 1000
 )
 
-func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) error {
+func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.writeNetworkInfo(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 17 {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	info := &store.NetworkInfo{
@@ -46,11 +47,11 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 
 	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain, req.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
+		return nil, "", fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
 	} else if old != nil && old.RequestId == req.Id {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	} else if old != nil && old.Height > info.Height {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	if info.Chain != SafeCurveChain(req.Curve) {
@@ -61,23 +62,23 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, req, info)
 		if err != nil {
-			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
+			return nil, "", fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return node.store.FailRequest(ctx, req.Id)
+			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
 	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
-			return fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
+			return nil, "", fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return node.store.FailRequest(ctx, req.Id)
+			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	return node.store.WriteNetworkInfoFromRequest(ctx, info)
+	return nil, "", node.store.WriteNetworkInfoFromRequest(ctx, info)
 }
 
 func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) error {

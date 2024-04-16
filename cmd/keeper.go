@@ -42,6 +42,21 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 
+	s := &mixin.Keystore{
+		ClientID:          mc.Signer.MTG.App.AppId,
+		SessionID:         mc.Signer.MTG.App.SessionId,
+		SessionPrivateKey: mc.Signer.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   mc.Signer.MTG.App.ServerPublicKey,
+	}
+	client, err := mixin.NewFromKeystore(s)
+	if err != nil {
+		return err
+	}
+	_, err = client.UserMe(ctx)
+	if err != nil {
+		return err
+	}
+
 	cd, err := custodian.OpenSQLite3Store(mc.Keeper.StoreDir + "/custodian.sqlite3")
 	if err != nil {
 		return err
@@ -55,7 +70,7 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer kd.Close()
-	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG)
+	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 
 	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {

@@ -82,10 +82,10 @@ func CreateObjectUntilSufficient(ctx context.Context, memo, traceId string, uid,
 	}
 }
 
-func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) error {
+func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	b := mixin.NewSafeTransactionBuilder(utxos)
 	b.Memo = memo
@@ -98,18 +98,18 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	raw, err := tx.Dump()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req, err := createSafeTransactionRequest(ctx, client, traceId, raw)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, err = signMultisigUntilSufficient(ctx, client, req, members, spendPrivateKey)
-	return err
+	return req, err
 }
 
 func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) ([]*mixin.SafeUtxo, error) {
