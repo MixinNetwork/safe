@@ -523,5 +523,6 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 		network := node.network.(*testNetwork)
 		return network.QueueMTGOutput(ctx, data)
 	}
-	return common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, common.Base91Encode(memo), node.conf.MTG.App.SpendPrivateKey)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, common.Base91Encode(memo), node.conf.MTG.App.SpendPrivateKey)
+	return err
 }

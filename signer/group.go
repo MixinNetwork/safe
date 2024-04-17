@@ -113,14 +113,14 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 				panic(err)
 			}
 		} else {
-			err = node.processSignerResult(ctx, req, out)
-			logger.Printf("node.processSignerResult(%v, %v) => %v", req, out, err)
+			ts, asset, err := node.processSignerResult(ctx, req, out)
+			logger.Printf("node.processSignerResult(%v, %v) => %v %s %v", req, out, ts, asset, err)
 			if err != nil {
 				panic(err)
 			}
+			return ts, asset
 		}
 	}
-	// FIXME
 	return nil, ""
 }
 
@@ -153,10 +153,10 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	return err
 }
 
-func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) error {
+func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) ([]*mtg.Transaction, string, error) {
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
-		return fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err)
+		return nil, "", fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err)
 	}
 	if op.Curve != session.Curve || op.Type != session.Operation {
 		panic(session.Id)
@@ -168,23 +168,23 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	case common.OperationTypeKeygenInput:
 		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders, op.Extra, out.CreatedAt, self)
 		if err != nil {
-			return fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
+			return nil, "", fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
 		}
 	case common.OperationTypeSignInput:
 		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders, op.Extra, out.CreatedAt, self)
 		if err != nil {
-			return fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err)
+			return nil, "", fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err)
 		}
 	}
 
 	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
 	if err != nil {
-		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
+		return nil, "", fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
 	}
 	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
 	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)
 	if !finished {
-		return nil
+		return nil, "", nil
 	}
 	if l := len(signers); l <= node.threshold {
 		panic(session.Id)
@@ -199,7 +199,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		valid := node.verifySessionHolder(ctx, session.Curve, session.Public)
 		logger.Printf("node.verifySessionHolder(%v) => %t", session, valid)
 		if !valid {
-			return nil
+			return nil, "", nil
 		}
 		holder, crv, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
 		if err != nil {
@@ -230,15 +230,15 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
-			return err
+			return nil, "", err
 		}
 		if crv != op.Curve {
-			return nil
+			return nil, "", nil
 		}
 		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
 		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
 		if !valid {
-			return nil
+			return nil, "", nil
 		}
 		op.Type = common.OperationTypeSignOutput
 		op.Public = holder
@@ -247,7 +247,11 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	return node.buildKeeperTransaction(ctx, op)
+	tx, asset, err := node.buildKeeperTransaction(ctx, op, out.Sequence)
+	if err != nil || asset == "" {
+		return nil, asset, err
+	}
+	return []*mtg.Transaction{tx}, "", nil
 }
 
 func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, byte, []byte, []byte, error) {
@@ -657,7 +661,7 @@ func (node *Node) encryptOperation(op *common.Operation) []byte {
 	return common.AESEncrypt(node.aesKey[:], extra, op.Id)
 }
 
-func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation) error {
+func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation, sequence uint64) (*mtg.Transaction, string, error) {
 	extra := node.encryptOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
@@ -666,10 +670,18 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 		return node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString(extra))
 	}
 
+	balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, node.conf.KeeperAssetId, sequence)
+	if err != nil {
+		return nil, "", err
+	}
+	if balance.Cmp(decimal.NewFromInt(1)) < 0 {
+		return nil, node.conf.KeeperAssetId, nil
+	}
+
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	err := node.group.BuildTransaction(ctx, node.conf.KeeperAssetId, members, threshold, "1", string(extra), traceId, "")
+	tx := node.group.BuildTransaction(traceId, node.group.GroupId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %v", op, traceId, extra, err)
-	return err
+	return tx, "", nil
 }
