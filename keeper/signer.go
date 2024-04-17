@@ -56,7 +56,7 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 	return ts, "", node.store.FailRequest(ctx, req.Id)
 }
 
-func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.SignatureRequest, path string) error {
+func (node *Node) sendSignerSignRequest(ctx context.Context, request *common.Request, req *store.SignatureRequest, path string) (*mtg.Transaction, string, error) {
 	crv := common.NormalizeCurve(req.Curve)
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
@@ -77,7 +77,7 @@ func (node *Node) sendSignerSignRequest(ctx context.Context, req *store.Signatur
 		Public: hex.EncodeToString(fingerPath),
 		Extra:  common.DecodeHexOrPanic(req.Message),
 	}
-	return node.buildSignerTransaction(ctx, req.Sequence, op)
+	return node.buildSignerTransaction(ctx, request.Sequence, op)
 }
 
 func (node *Node) encryptSignerOperation(op *common.Operation) []byte {

@@ -295,62 +295,70 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	}
 }
 
-func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.Request) error {
+func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	chain := SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != chain {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 	if err != nil {
-		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
+		return nil, "", fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	} else if tx.Holder != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	} else if tx.State != common.RequestStateInitial {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	txRequest, err := node.store.ReadRequest(ctx, rid.String())
 	logger.Printf("store.ReadRequest(%s) => %v %v", rid.String(), txRequest, err)
 	if err != nil || txRequest == nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
 	logger.Printf("holder: node.verifySafeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
 	logger.Printf("node.fetchAssetMeta(%s) => %v %v", txRequest.AssetId, meta, err)
 	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
 	if meta.Chain != SafeChainMVM {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
+	t, asset, err := node.buildTransaction(ctx, req.Sequence, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if err != nil {
-		return err
+		return nil, "", err
+	}
+	if asset != "" {
+		return nil, asset, nil
 	}
 
-	return node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
+	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return []*mtg.Transaction{t}, "", nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
 
@@ -78,13 +79,13 @@ func SafeChainCurve(chain byte) byte {
 	}
 }
 
-func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
+func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
-	if err != nil {
-		return err
+	t, asset, err := node.buildTransaction(ctx, req.Sequence, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
+	if err != nil || asset != "" {
+		return nil, "", err
 	}
-	return node.store.FailRequest(ctx, req.Id)
+	return []*mtg.Transaction{t}, "", node.store.FailRequest(ctx, req.Id)
 }
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {

@@ -81,14 +81,14 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	return nil, "", node.store.WriteNetworkInfoFromRequest(ctx, info)
 }
 
-func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) error {
+func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.writeOperationParams(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) != 33 {
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	chain := extra[0]
@@ -102,7 +102,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	case SafeChainMVM:
 	case SafeChainPolygon:
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
@@ -118,7 +118,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 		TransactionMinimum:   minimum,
 		CreatedAt:            req.CreatedAt,
 	}
-	return node.store.WriteOperationParamsFromRequest(ctx, params)
+	return nil, "", node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
 func (node *Node) checkNetworkInfoForkTimestamp(req *common.Request, info *store.NetworkInfo) bool {

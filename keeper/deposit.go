@@ -184,22 +184,22 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	}
 
 	var t *mtg.Transaction
-	var a string
 	if !change {
-		t, a, err = node.buildTransaction(ctx, req.Sequence, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
+		tx, asset, err := node.buildTransaction(ctx, req.Sequence, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 		if err != nil {
 			return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
 		}
-		if a != "" {
-			return nil, a, nil
+		if asset != "" {
+			return nil, asset, nil
 		}
+		t = tx
 	}
 
 	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, btx)
 	if err != nil {
 		return nil, "", fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err)
 	}
-	return []*mtg.Transaction{t}, a, node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
+	return []*mtg.Transaction{t}, "", node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
 }
 
 func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) ([]*mtg.Transaction, string, error) {
@@ -232,10 +232,10 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	}
 
 	t, a, err := node.buildTransaction(ctx, req.Sequence, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
-	if err != nil {
+	if err != nil || a != "" {
 		return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
 	}
-	return []*mtg.Transaction{t}, a, node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, output.Sender)
+	return []*mtg.Transaction{t}, "", node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, output.Sender)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {
