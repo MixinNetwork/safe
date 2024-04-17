@@ -44,11 +44,8 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 		op.Id = common.UniqueId(req.Id, fmt.Sprintf("%8d", i))
 		op.Id = common.UniqueId(op.Id, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
 		tx, asset, err := node.buildSignerTransaction(ctx, req.Sequence, op)
-		if err != nil {
-			return nil, "", err
-		}
-		if asset != "" {
-			return nil, asset, nil
+		if err != nil || asset != "" {
+			return nil, asset, err
 		}
 		ts = append(ts, tx)
 	}

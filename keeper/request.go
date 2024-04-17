@@ -107,7 +107,7 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 	return raw[16:]
 }
 
-func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64, extra []byte) (*crypto.Hash, error) {
+func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64, extra []byte) crypto.Hash {
 	logger.Printf("node.writeStorageUntilSnapshot(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
 		tx := crypto.Blake3Hash(extra)
@@ -118,37 +118,35 @@ func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64
 			panic(err)
 		}
 		if o == v {
-			return &tx, nil
+			return tx
 		}
 		err = node.store.WriteProperty(ctx, k, v)
 		if err != nil {
 			panic(err)
 		}
-		return &tx, nil
+		return tx
 	}
 
-	var stx *mtg.Transaction
-	var err error
 	for {
-		stx, err = node.group.BuildStorageTransaction(ctx, extra, sequence)
+		stx, err := node.group.BuildStorageTransaction(ctx, extra, sequence)
 		logger.Printf("group.BuildStorageTransaction(%x) => %v %v", extra, stx, err)
-		switch {
-		case strings.Contains(err.Error(), "insufficient balance"):
-			break
-		default:
-			panic(err)
+		if err != nil {
+			switch {
+			case strings.Contains(err.Error(), "insufficient balance"):
+				amount, _ := decimal.NewFromString(stx.Amount)
+				tx, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.MTG.App.AppId}, 1, stx.Receivers, stx.Threshold, amount, stx.TraceId, stx.AssetId, stx.Memo, node.conf.MTG.App.SpendPrivateKey)
+				if err != nil {
+					panic(err)
+				}
+				hash, _ := crypto.HashFromString(tx.TransactionHash)
+				return hash
+			default:
+				panic(err)
+			}
 		}
 		if stx.Hash.HasValue() && stx.State >= mtg.TransactionStateSigned {
-			return &stx.Hash, nil
+			return stx.Hash
 		}
 		time.Sleep(time.Second)
 	}
-
-	amount, _ := decimal.NewFromString(stx.Amount)
-	tx, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.MTG.App.AppId}, 1, stx.Receivers, stx.Threshold, amount, stx.TraceId, stx.AssetId, stx.Memo, node.conf.MTG.App.SpendPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	hash, _ := crypto.HashFromString(tx.TransactionHash)
-	return &hash, nil
 }

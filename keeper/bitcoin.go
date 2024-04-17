@@ -208,11 +208,9 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	var ts []*mtg.Transaction
 	for _, sr := range requests {
 		t, asset, err := node.sendSignerSignRequest(ctx, req, sr, safe.Path)
-		if err != nil {
-			return nil, "", fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
-		}
-		if asset != "" {
-			return nil, asset, nil
+		if err != nil || asset != "" {
+			logger.Printf("node.sendSignerSignRequest(%v) => %v %s %v", sr, t, asset, err)
+			return nil, asset, err
 		}
 		ts = append(ts, t)
 	}
@@ -246,19 +244,14 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		UpdatedAt:       req.CreatedAt,
 	}
 
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(opsbt.Marshal())))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(opsbt.Marshal())))
 	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	t, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, *exk)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
-	}
-	if asset != "" {
-		return nil, asset, nil
+	t, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, exk, t, asset, err)
+		return nil, asset, err
 	}
 
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
@@ -345,18 +338,13 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 
 	extra := wsa.Marshal()
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionBitcoinSafeProposeAccount)
 	crv := SafeChainCurve(chain)
-	t, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, *exk)
+	t, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, exk)
 	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
-	}
-	if asset != "" {
-		return nil, asset, nil
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
+		return nil, asset, err
 	}
 
 	sp := &store.SafeProposal{
@@ -424,18 +412,13 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(sp.Extra)))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(sp.Extra)))
 	typ := byte(common.ActionBitcoinSafeApproveAccount)
 	crv := SafeChainCurve(sp.Chain)
-	t, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), *exk)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
-	}
-	if asset != "" {
-		return nil, asset, nil
+	t, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, t, asset, err)
+		return nil, asset, err
 	}
 
 	safe := &store.Safe{
@@ -608,18 +591,13 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra = psbt.Marshal()
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionBitcoinSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	t, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, *exk)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
-	}
-	if asset != "" {
-		return nil, asset, nil
+	t, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, t, asset, err)
+		return nil, asset, err
 	}
 
 	total := decimal.Zero
@@ -753,11 +731,9 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	var ts []*mtg.Transaction
 	for _, sr := range requests {
 		t, asset, err := node.sendSignerSignRequest(ctx, req, sr, safe.Path)
-		if err != nil {
-			return nil, "", fmt.Errorf("node.sendSignerSignRequest(%v) => %v", sr, err)
-		}
-		if asset != "" {
-			return nil, asset, nil
+		if err != nil || asset != "" {
+			logger.Printf("node.sendSignerSignRequest(%v) => %v %s %v", sr, t, asset, err)
+			return nil, asset, err
 		}
 		ts = append(ts, t)
 	}
@@ -824,21 +800,15 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		}}
 	}
 
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(spsbt.Marshal())))
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(spsbt.Marshal())))
 	logger.Printf("node.writeStorageUntilSnapshot(%v %x) => %v %v", spsbt.Marshal(), exk, err)
-	if err != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
-	}
-
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	t, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, *exk)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
-	}
-	if asset != "" {
-		return nil, asset, nil
+	t, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, exk, t, asset, err)
+		return nil, asset, err
 	}
 
 	raw := hex.EncodeToString(spsbt.Marshal())

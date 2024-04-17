@@ -31,7 +31,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 	config.HandleDevConfig(mc.Dev)
 
-	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "mtg.sqlite3")
+	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
 		return err
 	}

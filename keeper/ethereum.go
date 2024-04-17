@@ -201,7 +201,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 
 	tt, asset, err := node.sendSignerSignRequest(ctx, req, sr, safe.Path)
 	if err != nil || asset != "" {
-		logger.Printf("node.sendSignerSignRequest(%v) => %v", sr, err)
+		logger.Printf("node.sendSignerSignRequest(%v) => %v %s %v", sr, tt, asset, err)
 		return nil, asset, err
 	}
 
@@ -267,16 +267,13 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
 	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, *exk)
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, exk)
 	if err != nil || asset != "" {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v %s %v", id, exk, tt, asset, err)
 	}
 
 	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
@@ -383,17 +380,12 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	extra := gs.Marshal()
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeAccount)
 	crv := SafeChainCurve(chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, *exk)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
-	}
-	if asset != "" {
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, tt, asset, err)
 		return nil, asset, nil
 	}
 
@@ -533,7 +525,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return nil, "", fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
 	}
 	tt, asset, err := node.sendSignerSignRequest(ctx, req, sr, sp.Path)
-	logger.Printf("store.sendSignerSignRequest(%v, %s) => %v", sr, sp.Path, err)
+	logger.Printf("store.sendSignerSignRequest(%v, %s) => %v %s %v", sr, sp.Path, tt, asset, err)
 	if err != nil || asset != "" {
 		return nil, asset, err
 	}
@@ -760,18 +752,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	extra = t.Marshal()
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, *exk)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v", req.Id, exk, err)
-	}
-	if asset != "" {
-		return nil, asset, nil
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, tt, asset, err)
+		return nil, asset, err
 	}
 
 	data := common.MarshalJSONOrPanic(recipients)
@@ -869,7 +856,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		return nil, "", fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
 	}
 	tt, asset, err := node.sendSignerSignRequest(ctx, req, sr, safe.Path)
-	logger.Printf("store.sendSignerSignRequest(%v, %s) => %v", sr, safe.Path, err)
+	logger.Printf("store.sendSignerSignRequest(%v, %s) => %v %s %v", sr, safe.Path, tt, asset, err)
 	if err != nil || asset != "" {
 		return nil, asset, err
 	}
@@ -953,7 +940,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	}
 	tt, asset, err := node.buildTransaction(ctx, req.Sequence, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(req.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
-		return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+		return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v %s %v", req, tt, asset, err)
 	}
 
 	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req)
@@ -1022,15 +1009,11 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			return nil, "", fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 		}
-		exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(safe.Extra)))
-		if err != nil {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
-		}
-
+		exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(safe.Extra)))
 		typ := byte(common.ActionEthereumSafeApproveAccount)
 		crv := SafeChainCurve(safe.Chain)
 		id := common.UniqueId(req.Id, safe.Address)
-		tx, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), *exk)
+		tx, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), exk)
 		if err != nil || asset != "" {
 			logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, tx, asset, err)
 			return nil, asset, err
@@ -1083,16 +1066,13 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 	}
 
-	exk, err := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
-	if err != nil {
-		return nil, "", err
-	}
+	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, *exk)
-	if err != nil {
-		logger.Printf("node.sendObserverResponse(%s, %x) => %v", id, exk, err)
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, exk)
+	if err != nil || asset != "" {
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, exk, tt, asset, err)
 		return nil, asset, err
 	}
 

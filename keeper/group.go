@@ -348,11 +348,8 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	t, asset, err := node.buildTransaction(ctx, req.Sequence, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
-	if err != nil {
-		return nil, "", err
-	}
-	if asset != "" {
-		return nil, asset, nil
+	if err != nil || asset != "" {
+		return nil, asset, err
 	}
 
 	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)

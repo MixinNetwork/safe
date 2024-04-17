@@ -186,11 +186,9 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	var t *mtg.Transaction
 	if !change {
 		tx, asset, err := node.buildTransaction(ctx, req.Sequence, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
-		if err != nil {
-			return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
-		}
-		if asset != "" {
-			return nil, asset, nil
+		if err != nil || asset != "" {
+			logger.Printf("node.buildTransaction(%v) => %v %s %v", req, tx, asset, err)
+			return nil, asset, err
 		}
 		t = tx
 	}
