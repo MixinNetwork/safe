@@ -248,7 +248,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	}
 
 	tx, asset, err := node.buildKeeperTransaction(ctx, op, out.Sequence)
-	if err != nil || asset == "" {
+	if err != nil || asset != "" {
 		return nil, asset, err
 	}
 	return []*mtg.Transaction{tx}, "", nil
@@ -667,18 +667,20 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
 	}
 
-	balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, node.conf.KeeperAssetId, sequence)
-	if err != nil {
-		return nil, "", err
-	}
-	if balance.Cmp(decimal.NewFromInt(1)) < 0 {
-		return nil, node.conf.KeeperAssetId, nil
+	if !common.CheckTestEnvironment(ctx) {
+		balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, node.conf.KeeperAssetId, sequence)
+		if err != nil {
+			return nil, "", err
+		}
+		if balance.Cmp(decimal.NewFromInt(1)) < 0 {
+			return nil, node.conf.KeeperAssetId, nil
+		}
 	}
 
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := node.group.BuildTransaction(traceId, node.group.GroupId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
-	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %v", op, traceId, extra, err)
+	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
 	return tx, "", nil
 }

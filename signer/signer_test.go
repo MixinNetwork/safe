@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,6 @@ import (
 func TestCMPSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
-
 	public, chainCode := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 	sig := testCMPSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin)
 	t.Logf("testCMPSign(%s) => %x\n", public, sig)
@@ -81,6 +81,7 @@ func TestSSID(t *testing.T) {
 
 func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, []byte) {
 	sid := common.UniqueId("keygen", fmt.Sprint(400))
+	sequence := 4600000
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
 		op := &common.Operation{
@@ -88,13 +89,16 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			Id:    sid,
 			Curve: crv,
 		}
-		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(op)))
+		groupId := mixin.UniqueConversationID("signer", "test")
+		memo := mtg.EncodeMixinExtra(groupId, sid, string(node.encryptOperation(op)))
+		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
 			AssetId:         node.conf.KeeperAssetId,
 			Extra:           memo,
 			Amount:          decimal.NewFromInt(1),
 			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 			CreatedAt:       time.Now(),
+			Sequence:        uint64(sequence + i),
 		}
 
 		msg := common.MarshalJSONOrPanic(out)

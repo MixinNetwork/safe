@@ -519,6 +519,7 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 	if common.CheckTestEnvironment(ctx) {
 		out := &mtg.Action{Senders: string(node.id), AssetId: node.conf.AssetId, CreatedAt: time.Now()}
 		out.Extra = common.Base91Encode(memo)
+		out.Extra = hex.EncodeToString([]byte(out.Extra))
 		data := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		return network.QueueMTGOutput(ctx, data)

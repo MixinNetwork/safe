@@ -143,6 +143,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 		Extra:  msg,
 	}
 	memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))
+	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
 		AssetId:         node.conf.KeeperAssetId,
 		Extra:           memo,
@@ -201,7 +202,12 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	kd, err := OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")
 	require.Nil(err)
 
-	node := NewNode(kd, nil, nil, conf.Signer, conf.Keeper.MTG, nil)
+	md, err := mtg.OpenSQLite3Store(conf.Signer.StoreDir + "/mtg.sqlite3")
+	require.Nil(err)
+	group, err := mtg.BuildGroup(ctx, md, conf.Signer.MTG)
+	require.Nil(err)
+
+	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil)
 	return node
 }
 
@@ -215,8 +221,8 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 		if val == "" {
 			continue
 		}
-		b, _ := hex.DecodeString(val)
-		b = common.AESDecrypt(node.aesKey[:], b)
+		_, _, m := mtg.DecodeMixinExtra(val)
+		b := common.AESDecrypt(node.aesKey[:], []byte(m))
 		op, _ := common.DecodeOperation(b)
 		if op != nil {
 			return op
@@ -266,14 +272,17 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 		var out mtg.Action
 		json.Unmarshal(mob, &out)
 		ts, asset := node.ProcessOutput(ctx, &out)
-		if asset == "" && len(ts) > 0 {
-			for _, t := range ts {
-				op, err := common.DecodeOperation([]byte(t.Memo))
-				if err != nil {
-					panic(err)
-				}
-				node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString([]byte(t.Memo)))
+		if asset != "" {
+			panic(asset)
+		}
+		for _, t := range ts {
+			b := common.AESDecrypt(node.aesKey[:], []byte(t.Memo))
+			op, err := common.DecodeOperation(b)
+			if err != nil {
+				panic(err)
 			}
+			memo := mtg.EncodeMixinExtra(node.group.GroupId, t.TraceId, t.Memo)
+			node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString([]byte(memo)))
 		}
 		filter[k] = true
 	}
