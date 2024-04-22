@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"encoding/hex"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -69,16 +68,6 @@ func (node *Node) buildTransaction(ctx context.Context, sequence uint64, assetId
 
 func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence uint64, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) (*mtg.Transaction, string, error) {
 	logger.Printf("node.buildTransactionWithReferences(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, tx)
-	if common.CheckTestEnvironment(ctx) {
-		v := common.MarshalJSONOrPanic(map[string]any{
-			"asset_id":  assetId,
-			"amount":    amount,
-			"receivers": receivers,
-			"threshold": threshold,
-			"memo":      hex.EncodeToString(memo),
-		})
-		return node.store.WriteProperty(ctx, traceId, string(v))
-	}
 
 	balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, assetId, sequence)
 	if err != nil {

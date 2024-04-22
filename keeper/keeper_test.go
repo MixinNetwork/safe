@@ -30,6 +30,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -55,6 +56,8 @@ const (
 	testHolderObserver = 2
 )
 
+var sequence uint64 = 5000000
+
 func TestKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
@@ -62,7 +65,7 @@ func TestKeeper(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now(), Sequence: sequence})
 	input := &bitcoin.Input{
 		TransactionHash: "40e228e5a3cba99fd3fc5350a00bfeef8bafb760e26919ec74bca67776c90427",
 		Index:           0, Satoshi: 86560,
@@ -137,7 +140,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now(), Sequence: sequence})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -193,7 +196,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now(), Sequence: sequence})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -693,7 +696,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(raw)))
+	exk := node.writeStorageUntilSnapshot(ctx, sequence, []byte(common.Base91Encode(raw)))
 	rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	require.Equal(b, raw)
@@ -813,8 +816,20 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	require.NotNil(req)
 	err = req.VerifyFormat()
 	require.Nil(err)
-	err = node.processRequest(ctx, req)
+	ts, asset, err := node.processRequest(ctx, req)
 	require.Nil(err)
+	require.Equal("", asset)
+	for _, t := range ts {
+		v := common.MarshalJSONOrPanic(map[string]any{
+			"asset_id":  t.AssetId,
+			"amount":    t.Amount,
+			"receivers": t.Receivers,
+			"threshold": t.Threshold,
+			"memo":      hex.EncodeToString([]byte(t.Memo)),
+		})
+		err = node.store.WriteProperty(ctx, t.TraceId, string(v))
+		require.Nil(err)
+	}
 	req, err = node.store.ReadPendingRequest(ctx)
 	require.Nil(err)
 	require.Nil(req)
@@ -889,6 +904,8 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 }
 
 func testBuildObserverRequest(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+	sequence += 10
+
 	op := &common.Operation{
 		Id:     id,
 		Type:   action,
@@ -909,10 +926,13 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Amount:          decimal.New(1, 1),
 		CreatedAt:       timestamp,
 		UpdatedAt:       timestamp,
+		Sequence:        sequence,
 	}
 }
 
 func testBuildSignerOutput(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+	sequence += 10
+
 	path := bitcoinDefaultDerivationPath()
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
@@ -948,6 +968,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Amount:          decimal.New(1, 1),
 		CreatedAt:       timestamp,
 		UpdatedAt:       timestamp,
+		Sequence:        sequence,
 	}
 }
 
@@ -992,7 +1013,8 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.NotNil(err)
 	require.Nil(group)
 
-	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG)
+	var client *mixin.Client
+	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)
 	return node
 }
 

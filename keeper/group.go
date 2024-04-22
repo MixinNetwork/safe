@@ -47,7 +47,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	}
 
 	ts, asset, err := node.processRequest(ctx, req)
-	logger.Printf("node.processRequest(%v) => %v %s %v", req, ts, &asset, err)
+	logger.Printf("node.processRequest(%v) => %v %s %v", req, ts, asset, err)
 	if err != nil {
 		panic(err)
 	}

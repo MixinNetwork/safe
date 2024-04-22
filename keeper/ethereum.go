@@ -982,7 +982,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return nil, "", fmt.Errorf("store.ListAllSignaturesForTransaction(%s) => %v", old.TransactionHash, err)
 	}
 	if len(requests) != 1 {
-		return nil, "", fmt.Errorf("Invalid signature requests len: %d", len(requests))
+		return nil, "", fmt.Errorf("invalid signature requests len: %d", len(requests))
 	}
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	logger.Printf("ethereum.GetSortedSafeOwners(%v) => %v", safe, pubs)

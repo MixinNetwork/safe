@@ -801,7 +801,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	}
 
 	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(spsbt.Marshal())))
-	logger.Printf("node.writeStorageUntilSnapshot(%v %x) => %v %v", spsbt.Marshal(), exk, err)
+	logger.Printf("node.writeStorageUntilSnapshot(%d %x) => %v", req.Sequence, spsbt.Marshal(), exk)
 	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)

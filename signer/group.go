@@ -666,9 +666,6 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
 	}
-	if common.CheckTestEnvironment(ctx) {
-		return node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString(extra))
-	}
 
 	balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, node.conf.KeeperAssetId, sequence)
 	if err != nil {

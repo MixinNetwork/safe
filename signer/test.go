@@ -265,7 +265,16 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 		}
 		var out mtg.Action
 		json.Unmarshal(mob, &out)
-		node.ProcessOutput(ctx, &out)
+		ts, asset := node.ProcessOutput(ctx, &out)
+		if asset == "" && len(ts) > 0 {
+			for _, t := range ts {
+				op, err := common.DecodeOperation([]byte(t.Memo))
+				if err != nil {
+					panic(err)
+				}
+				node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString([]byte(t.Memo)))
+			}
+		}
 		filter[k] = true
 	}
 }
