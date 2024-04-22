@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client"
+	"github.com/MixinNetwork/bot-api-go-client/v2"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
@@ -32,12 +32,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 	startedAt := time.Now()
 
 	app := conf.MTG.App
-	path := fmt.Sprintf("/conversations/%s", conversationId)
-	accessToken, err := bot.SignAuthenticationToken(app.AppId, app.SessionId, app.SessionPrivateKey, "GET", path, "")
-	if err != nil {
-		panic(err)
-	}
-	conv, err := bot.ConversationShow(ctx, conversationId, accessToken)
+	conv, err := bot.ConversationShow(ctx, conversationId, app.AppId, app.SessionId, app.SessionPrivateKey)
 	if err != nil {
 		panic(err)
 	}
@@ -80,12 +75,13 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 		return "", err
 	}
 	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
-	sa, err := fetchAsset(ctx, conf.MTG, conf.AssetId)
+
+	sa, err := grp.CheckAssetBalanceAt(ctx, grp.GroupId, conf.AssetId, math.MaxUint64)
 	if err != nil {
 		return "", err
 	}
 	tTredecillion := decimal.New(10, 12+42)
-	amount := decimal.RequireFromString(sa.Balance).Div(tTredecillion).IntPart()
+	amount := sa.Div(tTredecillion).IntPart()
 	state = state + fmt.Sprintf("💍 MSST Balance: %d TT\n", amount)
 
 	ss, err := store.SessionsState(ctx)
@@ -106,12 +102,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 	startedAt := time.Now()
 
 	app := conf.MTG.App
-	path := fmt.Sprintf("/conversations/%s", conversationId)
-	accessToken, err := bot.SignAuthenticationToken(app.AppId, app.SessionId, app.SessionPrivateKey, "GET", path, "")
-	if err != nil {
-		panic(err)
-	}
-	conv, err := bot.ConversationShow(ctx, conversationId, accessToken)
+	conv, err := bot.ConversationShow(ctx, conversationId, app.AppId, app.SessionId, app.SessionPrivateKey)
 	if err != nil {
 		panic(err)
 	}
@@ -222,15 +213,6 @@ func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, 
 	}
 	err := bot.PostMessages(ctx, messages, app.AppId, app.SessionId, app.SessionPrivateKey)
 	logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
-}
-
-func fetchAsset(ctx context.Context, conf *mtg.Configuration, assetId string) (*bot.Asset, error) {
-	app := conf.App
-	token, err := bot.SignAuthenticationToken(app.AppId, app.SessionId, app.SessionPrivateKey, "GET", "/assets/"+assetId, "")
-	if err != nil {
-		return nil, err
-	}
-	return bot.AssetShow(ctx, assetId, token)
 }
 
 func fetchConversationUser(ctx context.Context, store UserStore, id string, conf *mtg.Configuration) (*bot.User, error) {

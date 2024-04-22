@@ -3,7 +3,7 @@ module github.com/MixinNetwork/safe
 go 1.22.2
 
 require (
-	github.com/MixinNetwork/bot-api-go-client v1.8.7
+	github.com/MixinNetwork/bot-api-go-client/v2 v2.1.0
 	github.com/MixinNetwork/go-number v0.1.1
 	github.com/MixinNetwork/mixin v0.18.4
 	github.com/MixinNetwork/multi-party-sig v0.4.1
@@ -52,6 +52,7 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
@@ -68,7 +69,6 @@ require (
 	github.com/supranational/blst v0.3.11 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect

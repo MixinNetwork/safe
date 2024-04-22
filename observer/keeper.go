@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client"
-	"github.com/MixinNetwork/go-number"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -88,7 +86,7 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 	}
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
-	traceId := fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.ClientId, members, threshold)
+	traceId := fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
 	traceId = node.safeTraceId(traceId, op.Id)
 	memo := common.Base91Encode(extra)
 	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), memo, traceId, references)
@@ -113,23 +111,6 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 
 func (node *Node) sendTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, references []crypto.Hash) error {
 	logger.Printf("node.sendTransaction(%s, %v, %d, %s, %s, %s, %v)", assetId, receivers, threshold, amount, memo, traceId, references)
-	conf := node.conf.App
-	input := &bot.TransferInput{
-		AssetId: assetId,
-		Amount:  number.FromString(amount.String()),
-		TraceId: traceId,
-		Memo:    memo,
-	}
-	for i := range references {
-		input.References = append(input.References, references[i].String())
-	}
-	if len(receivers) == 1 {
-		input.RecipientId = receivers[0]
-		_, err := bot.CreateTransfer(ctx, input, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-		return err
-	}
-	input.OpponentMultisig.Receivers = receivers
-	input.OpponentMultisig.Threshold = int64(threshold)
-	_, err := bot.CreateMultisigTransaction(ctx, input, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.App.AppId}, 1, receivers, threshold, amount, traceId, assetId, memo, node.conf.App.SpendPrivateKey)
 	return err
 }

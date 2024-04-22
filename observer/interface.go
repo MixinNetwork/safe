@@ -30,11 +30,11 @@ type Configuration struct {
 	MVMKey                string `toml:"mvm-key"`
 	EVMKey                string `toml:"evm-key"`
 	App                   struct {
-		ClientId   string `toml:"client-id"`
-		SessionId  string `toml:"session-id"`
-		PrivateKey string `toml:"private-key"`
-		PinToken   string `toml:"pin-token"`
-		PIN        string `toml:"pin"`
+		AppId             string `toml:"app-id"`
+		SessionId         string `toml:"session-id"`
+		SessionPrivateKey string `toml:"session-private-key"`
+		ServerPublicKey   string `toml:"server-public-key"`
+		SpendPrivateKey   string `toml:"spend-private-key"`
 	} `toml:"app"`
 }
 

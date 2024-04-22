@@ -58,10 +58,10 @@ func ObserverBootCmd(c *cli.Context) error {
 	defer kd.Close()
 
 	mixin, err := mixin.NewFromKeystore(&mixin.Keystore{
-		ClientID:   mc.Observer.App.ClientId,
-		SessionID:  mc.Observer.App.SessionId,
-		PrivateKey: mc.Observer.App.PrivateKey,
-		PinToken:   mc.Observer.App.PinToken,
+		AppID:             mc.Observer.App.AppId,
+		SessionID:         mc.Observer.App.SessionId,
+		SessionPrivateKey: mc.Observer.App.SessionPrivateKey,
+		ServerPublicKey:   mc.Observer.App.ServerPublicKey,
 	})
 	if err != nil {
 		return err

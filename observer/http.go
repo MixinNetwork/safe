@@ -132,7 +132,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"version":  "0.12.1",
-		"observer": node.conf.App.ClientId,
+		"observer": node.conf.App.AppId,
 		"bond": map[string]any{
 			"chain":    73927,
 			"contract": node.conf.MVMFactoryAddress,

@@ -102,8 +102,7 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 		panic(ref.String())
 	}
 
-	raw := common.DecodeMixinObjectExtra(ver.Extra)
-	raw = common.AESDecrypt(node.observerAESKey[:], raw)
+	raw := common.AESDecrypt(node.observerAESKey[:], ver.Extra)
 	return raw[16:]
 }
 

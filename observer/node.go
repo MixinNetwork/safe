@@ -430,7 +430,7 @@ func (node *Node) handleBondAsset(ctx context.Context, s *mixin.Snapshot) (bool,
 	threshold := node.keeper.Genesis.Threshold
 	traceId := node.safeTraceId(s.SnapshotID, "BOND")
 
-	_, err = common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, s.Amount, traceId, s.AssetID, "", node.conf.App.PIN)
+	_, err = common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, s.Amount, traceId, s.AssetID, "", node.conf.App.SpendPrivateKey)
 	return err == nil, err
 }
 
