@@ -282,7 +282,8 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 	for i := byte(0); i < batch; i++ {
 		pid := common.UniqueId(id, fmt.Sprintf("%8d", i))
 		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
-		v, _ := node.store.ReadProperty(ctx, pid)
+		v, err := node.store.ReadProperty(ctx, pid)
+		require.Nil(err)
 		var om map[string]any
 		json.Unmarshal([]byte(v), &om)
 		b, _ := hex.DecodeString(om["memo"].(string))
@@ -807,30 +808,12 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 }
 
 func testStep(ctx context.Context, require *require.Assertions, node *Node, out *mtg.Action) {
-	node.ProcessOutput(ctx, out)
+	_, asset := node.ProcessOutput(ctx, out)
+	require.Equal("", asset)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
 	require.Equal(out.Sequence, timestamp)
 	req, err := node.store.ReadPendingRequest(ctx)
-	require.Nil(err)
-	require.NotNil(req)
-	err = req.VerifyFormat()
-	require.Nil(err)
-	ts, asset, err := node.processRequest(ctx, req)
-	require.Nil(err)
-	require.Equal("", asset)
-	for _, t := range ts {
-		v := common.MarshalJSONOrPanic(map[string]any{
-			"asset_id":  t.AssetId,
-			"amount":    t.Amount,
-			"receivers": t.Receivers,
-			"threshold": t.Threshold,
-			"memo":      hex.EncodeToString([]byte(t.Memo)),
-		})
-		err = node.store.WriteProperty(ctx, t.TraceId, string(v))
-		require.Nil(err)
-	}
-	req, err = node.store.ReadPendingRequest(ctx)
 	require.Nil(err)
 	require.Nil(req)
 }
@@ -893,6 +876,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 		Extra:  extra,
 	}
 	memo := base64.RawURLEncoding.EncodeToString(op.Encode())
+	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		AssetId:         assetId,
 		Extra:           memo,
@@ -914,6 +898,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Extra:  extra,
 	}
 	memo := common.Base91Encode(node.encryptObserverOperation(op))
+	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
@@ -960,7 +945,8 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeSignOutput:
 		op.Public = public
 	}
-	memo := mtg.EncodeMixinExtra("", id, string(node.encryptSignerOperation(op)))
+	memo := mtg.EncodeMixinExtra(node.group.GroupId, id, string(node.encryptSignerOperation(op)))
+	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		AssetId:         node.conf.AssetId,
 		Extra:           memo,
@@ -1010,8 +996,8 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	db, err := mtg.OpenSQLite3Store(conf.Keeper.StoreDir + "/mtg.sqlite3")
 	require.Nil(err)
 	group, err := mtg.BuildGroup(ctx, db, conf.Keeper.MTG)
-	require.NotNil(err)
-	require.Nil(group)
+	require.Nil(err)
+	require.NotNil(group)
 
 	var client *mixin.Client
 	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)

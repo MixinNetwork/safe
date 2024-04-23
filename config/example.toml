@@ -32,14 +32,14 @@ members = [
 ]
 # the mtg threshold must not be smaller than the mpc threshold
 threshold = 3
-timestamp = 1676276828135856241
+timestamp = 4600000
 
 [signer.mtg.app]
-client-id = "member-id-0"
+app-id = "member-id-0"
 session-id = ""
-private-key = ""
-pin-token = ""
-pin = ""
+session-private-key = ""
+server-public-key = ""
+spend-private-key = ""
 
 
 
@@ -85,14 +85,14 @@ members = [
 ]
 # the mtg threshold is recommended to be 2/3 of the members count
 threshold = 3
-timestamp = 1676276828135856241
+timestamp = 4600000
 
 [keeper.mtg.app]
-client-id = "signer-id-0"
+app-id = "signer-id-0"
 session-id = ""
-private-key = ""
-pin-token = ""
-pin = ""
+session-private-key = ""
+server-public-key = ""
+spend-private-key = ""
 
 
 
@@ -102,7 +102,7 @@ store-dir = "/tmp/safe/observer"
 # a ed25519 private key to do ecdh with the keeper mtg
 private-key = "c56d95ec2d09ff5e0975ec0a667cc6cc5f03046935b329fc9f6fb2c3c8500109"
 # the keeper mtg database, should only be opened in read only mode
-timestamp = 1676276828135856241
+timestamp = 4600000
 keeper-store-dir = "/tmp/safe/keeper"
 keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
 asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
@@ -124,11 +124,11 @@ mvm-key = ""
 evm-key = ""
 
 [observer.app]
-client-id = "observer-id"
+app-id = "observer-id"
 session-id = ""
-private-key = ""
-pin-token = ""
-pin = ""
+session-private-key = ""
+server-public-key = ""
+spend-private-key = ""
 
 [dev]
 # set a listen port to enable go pprof

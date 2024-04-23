@@ -11,12 +11,12 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-var requestCols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at"}
+var requestCols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at", "sequence"}
 
 func requestFromRow(row *sql.Row) (*common.Request, error) {
 	var mh string
 	var r common.Request
-	err := row.Scan(&r.Id, &mh, &r.MixinIndex, &r.AssetId, &r.Amount, &r.Role, &r.Action, &r.Curve, &r.Holder, &r.Extra, &r.State, &r.CreatedAt, &time.Time{})
+	err := row.Scan(&r.Id, &mh, &r.MixinIndex, &r.AssetId, &r.Amount, &r.Role, &r.Action, &r.Curve, &r.Holder, &r.Extra, &r.State, &r.CreatedAt, &time.Time{}, &r.Sequence)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -44,7 +44,7 @@ func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *common.R
 		return err
 	}
 
-	vals := []any{req.Id, req.MixinHash.String(), req.MixinIndex, req.AssetId, req.Amount, req.Role, req.Action, req.Curve, req.Holder, req.Extra, req.State, req.CreatedAt, req.CreatedAt}
+	vals := []any{req.Id, req.MixinHash.String(), req.MixinIndex, req.AssetId, req.Amount, req.Role, req.Action, req.Curve, req.Holder, req.Extra, req.State, req.CreatedAt, req.CreatedAt, req.Sequence}
 	err = s.execOne(ctx, tx, buildInsertionSQL("requests", requestCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT requests %v", err)

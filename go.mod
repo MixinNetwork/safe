@@ -4,7 +4,6 @@ go 1.22.2
 
 require (
 	github.com/MixinNetwork/bot-api-go-client/v2 v2.1.0
-	github.com/MixinNetwork/go-number v0.1.1
 	github.com/MixinNetwork/mixin v0.18.4
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/trusted-group v0.6.2-0.20240416134708-5f147c946170
@@ -31,6 +30,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/MixinNetwork/go-number v0.1.1 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
