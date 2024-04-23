@@ -3,6 +3,7 @@ package abi
 import (
 	"encoding/hex"
 	"math/big"
+	"strings"
 
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -17,6 +18,7 @@ import (
 var factoryContractAddress string
 
 func InitFactoryContractAddress(addr string) {
+	addr = strings.ToLower(addr)
 	if ethereum.VerifyAssetKey(addr) != nil {
 		panic(addr)
 	}

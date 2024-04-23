@@ -59,7 +59,7 @@ func ParseSatoshi(amount string) int64 {
 func ParseAddress(addr string, chain byte) ([]byte, error) {
 	switch chain {
 	case ChainBitcoin, ChainLitecoin:
-		_, err := btcutil.DecodeAddress(addr, netParams(chain))
+		err := DecodeAddress(addr, NetConfig(chain))
 		if err != nil {
 			return nil, fmt.Errorf("bitcoin.VerifyAddress(%s %d) => %v", addr, chain, err)
 		}
@@ -75,6 +75,18 @@ func ParseAddress(addr string, chain byte) ([]byte, error) {
 		return nil, fmt.Errorf("txscript.PayToAddrScript(%s, %d) => %v", addr, chain, err)
 	}
 	return script, nil
+}
+
+func DecodeAddress(addr string, cfg *chaincfg.Params) error {
+	oneIndex := strings.LastIndexByte(addr, '1')
+	if oneIndex > 1 {
+		prefix := addr[:oneIndex+1]
+		if prefix != cfg.Bech32HRPSegwit+"1" {
+			return fmt.Errorf("invalid prefix: %s %s", prefix, cfg.Bech32HRPSegwit)
+		}
+	}
+	_, err := btcutil.DecodeAddress(addr, cfg)
+	return err
 }
 
 func ParseSequence(lock time.Duration, chain byte) int64 {
@@ -175,26 +187,4 @@ func BuildInsufficientInputError(cat, inSatoshi, outSatoshi string) error {
 func WriteBytes(enc *common.Encoder, b []byte) {
 	enc.WriteInt(len(b))
 	enc.Write(b)
-}
-
-func netParams(chain byte) *chaincfg.Params {
-	switch chain {
-	case ChainBitcoin:
-		return &chaincfg.MainNetParams
-	case ChainLitecoin:
-		return &chaincfg.Params{
-			Net:             0xdbb6c0fb,
-			Bech32HRPSegwit: "ltc",
-
-			PubKeyHashAddrID:        0x30,
-			ScriptHashAddrID:        0x32,
-			WitnessPubKeyHashAddrID: 0x06,
-			WitnessScriptHashAddrID: 0x0A,
-
-			HDPublicKeyID:  [4]byte{0x01, 0x9d, 0xa4, 0x64},
-			HDPrivateKeyID: [4]byte{0x01, 0x9d, 0x9c, 0xfe},
-		}
-	default:
-		panic(chain)
-	}
 }
