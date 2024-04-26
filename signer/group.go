@@ -603,6 +603,9 @@ func (node *Node) readKernelTransactionReferences(ctx context.Context, hash cryp
 			panic(err)
 		}
 		var ref crypto.Hash
+		if len(v) == 0 {
+			return nil
+		}
 		if len(v) != len(ref) {
 			panic(o)
 		}
