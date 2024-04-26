@@ -46,8 +46,8 @@ func TestFROSTMixinSign(t *testing.T) {
 	R1, _ := crypto.KeyFromString("4a3a42628e0bd26ce1e69dcaed4f495bece833a1f49af458051b1c169223bcc7")
 
 	var sig0, sig1 crypto.Signature
-	msg := ver.PayloadMarshal()
-	ref := writeStorageTransaction(ctx, nodes, msg)
+	hash := ver.PayloadHash()
+	ref := hash[:]
 
 	msk := crypto.HashScalar(crypto.KeyMultPubPriv(&R0, &addr.PrivateViewKey), 0).Bytes()
 	msk = append(msk, ref...)
@@ -82,19 +82,6 @@ func writeTransactionReferences(ctx context.Context, nodes []*Node, crv byte, ms
 			panic(err)
 		}
 	}
-}
-
-func writeStorageTransaction(ctx context.Context, nodes []*Node, extra []byte) []byte {
-	tx := crypto.Blake3Hash(extra)
-	k := hex.EncodeToString(tx[:])
-	v := hex.EncodeToString([]byte(sc.Base91Encode(extra)))
-	for _, n := range nodes {
-		err := n.store.WriteProperty(ctx, k, v)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return tx[:]
 }
 
 func mixinAddress(public string) common.Address {

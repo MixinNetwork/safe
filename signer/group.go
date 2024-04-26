@@ -371,7 +371,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		pub, _ = P.MarshalBinary()
 		copy(mpub[:], pub)
 		var hash crypto.Hash
-		copy(hash[:], msg)
+		copy(hash[:], msg[32:])
 		res := mpub.Verify(hash, msig)
 		logger.Printf("mixin.Verify(%v, %x) => %t", hash, msig[:], res)
 		return res, sig
@@ -553,8 +553,8 @@ func (node *Node) tryToFetchMessageForMixin(ctx context.Context, op *common.Oper
 	}
 
 	// mask || storage-reference
-	raw := node.readKernelStorageOrPanic(ctx, refs[0])
-	op.Extra = append(op.Extra[:32], raw...)
+	ref := refs[0]
+	op.Extra = append(op.Extra[:32], ref[:]...)
 	return nil
 }
 
