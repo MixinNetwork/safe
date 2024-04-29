@@ -134,8 +134,8 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		"version":  "0.12.1",
 		"observer": node.conf.App.AppId,
 		"bond": map[string]any{
-			"chain":    73927,
-			"contract": node.conf.MVMFactoryAddress,
+			"chain":    137,
+			"contract": node.conf.PolygonFactoryAddress,
 		},
 		"keeper": map[string]any{
 			"members":   node.keeper.Genesis.Members,

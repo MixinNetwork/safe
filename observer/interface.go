@@ -27,6 +27,7 @@ type Configuration struct {
 	MVMRPC                string `toml:"mvm-rpc"`
 	PolygonRPC            string `toml:"polygon-rpc"`
 	MVMFactoryAddress     string `toml:"mvm-factory-address"`
+	PolygonFactoryAddress string `toml:"polygon-factory-address"`
 	MVMKey                string `toml:"mvm-key"`
 	EVMKey                string `toml:"evm-key"`
 	App                   struct {

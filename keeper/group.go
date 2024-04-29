@@ -103,10 +103,15 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetId, err)
 	}
-	if meta.Chain != SafeChainMVM {
+	rpc := node.conf.PolygonRPC
+	if common.CheckTestEnvironment(ctx) {
+		rpc = node.conf.MVMRPC
+		meta.Chain = SafeChainPolygon
+	}
+	if meta.Chain != SafeChainPolygon {
 		return false, nil
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(rpc, meta.AssetKey)
 	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil {
 		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
@@ -344,7 +349,10 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
-	if meta.Chain != SafeChainMVM {
+	if common.CheckTestEnvironment(ctx) {
+		meta.Chain = SafeChainPolygon
+	}
+	if meta.Chain != SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	t, asset, err := node.buildTransaction(ctx, req.Sequence, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)

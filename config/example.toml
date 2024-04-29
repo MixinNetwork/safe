@@ -71,6 +71,7 @@ ethereum-rpc = "https://cloudflare-eth.com"
 mvm-rpc = "https://geth.mvm.dev"
 polygon-rpc = "https://polygon-bor.publicnode.com"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
+polygon-factory-address = "0x01B1f0E8a9060Cb5Bc1e7Cc2d7692d760A92E9d0"
 
 [keeper.mtg.genesis]
 # it is not necessary to include all signer mtg members here,
@@ -119,6 +120,7 @@ ethereum-rpc = "https://cloudflare-eth.com"
 mvm-rpc = "https://geth.mvm.dev"
 polygon-rpc = "https://polygon-bor.publicnode.com"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
+polygon-factory-address = "0x01B1f0E8a9060Cb5Bc1e7Cc2d7692d760A92E9d0"
 mvm-key = ""
 # evm private key to deploy contract on evm chains
 evm-key = ""

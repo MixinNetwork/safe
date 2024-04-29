@@ -53,7 +53,7 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 		mixin:       mixin,
 	}
 	node.aesKey = common.ECDHEd25519(conf.PrivateKey, conf.KeeperPublicKey)
-	abi.InitFactoryContractAddress(conf.MVMFactoryAddress)
+	abi.InitFactoryContractAddress(conf.PolygonFactoryAddress)
 	return node
 }
 
@@ -173,13 +173,7 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 		return nil
 	}
 
-	handled, err := node.handleBondAsset(ctx, s)
-	logger.Printf("node.handleBondAsset(%v) => %t %v", s, handled, err)
-	if err != nil || handled {
-		return err
-	}
-
-	handled, err = node.handleTransactionApprovalPayment(ctx, s)
+	handled, err := node.handleTransactionApprovalPayment(ctx, s)
 	logger.Printf("node.handleTransactionApprovalPayment(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
 		return err
@@ -407,31 +401,6 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 		return true, node.deployEthereumGnosisSafeAccount(ctx, data)
 	}
 	return true, nil
-}
-
-func (node *Node) handleBondAsset(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	meta, err := node.fetchAssetMeta(ctx, s.AssetID)
-	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", s.AssetID, err)
-	}
-	if meta.Chain != keeper.SafeChainMVM {
-		return false, nil
-	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
-	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil {
-		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
-	}
-	if deployed.Sign() <= 0 {
-		return false, nil
-	}
-
-	receivers := node.keeper.Genesis.Members
-	threshold := node.keeper.Genesis.Threshold
-	traceId := node.safeTraceId(s.SnapshotID, "BOND")
-
-	_, err = common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, s.Amount, traceId, s.AssetID, "", node.conf.App.SpendPrivateKey)
-	return err == nil, err
 }
 
 func (node *Node) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error) {
