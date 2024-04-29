@@ -300,3 +300,25 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 		return meta, err
 	}
 }
+
+func (node *Node) fetchGroupDepositEntry(ctx context.Context) (string, error) {
+	for {
+		// FIXME field typo and need to upgrade
+		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, node.group.GetMembers(), node.group.GetThreshold(), SafePolygonChainId)
+		if err != nil {
+			reason := strings.ToLower(err.Error())
+			switch {
+			case strings.Contains(reason, "timeout"):
+			case strings.Contains(reason, "eof"):
+			case strings.Contains(reason, "handshake"):
+			default:
+				return "", err
+			}
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		for _, a := range addrs {
+			return a.Destination, nil
+		}
+	}
+}

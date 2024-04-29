@@ -38,6 +38,7 @@ import (
 )
 
 const (
+	testGroupDepositEntry            = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
 	testAccountPriceAssetId          = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 	testAccountPriceAmount           = 3.0123
 	testBondAssetId                  = "8e85c732-3bc6-3f50-939a-be89a67a6db6"
@@ -961,9 +962,9 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 func testDeployBondContract(ctx context.Context, require *require.Assertions, node *Node, addr, assetId string) string {
 	safe, _ := node.store.ReadSafeByAddress(ctx, addr)
 	asset, _ := node.fetchAssetMeta(ctx, assetId)
-	err := abi.GetOrDeployFactoryAsset("https://geth.mvm.dev", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, safe.Holder)
+	err := abi.GetOrDeployFactoryAsset("https://polygon-bor.publicnode.com", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, testGroupDepositEntry, safe.Holder)
 	require.Nil(err)
-	bond := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, safe.Holder)
+	bond := abi.GetFactoryAssetAddress(testGroupDepositEntry, assetId, asset.Symbol, asset.Name, safe.Holder)
 	assetKey := strings.ToLower(bond.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	require.Nil(err)

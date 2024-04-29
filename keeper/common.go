@@ -98,11 +98,15 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 }
 
 func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
+	entry, err := node.fetchGroupDepositEntry(ctx)
+	if err != nil {
+		return crypto.Hash{}, 0, err
+	}
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
 		return crypto.Hash{}, 0, err
 	}
-	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
+	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {

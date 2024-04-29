@@ -42,7 +42,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 		return err
 	}
 
-	addr := abi.GetFactoryAssetAddress(keeper.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
+	addr := abi.GetFactoryAssetAddress("0x11EC02748116A983deeD59235302C3139D6e8cdD", keeper.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
 	bondId := fetchAssetId(ethereum.GenerateAssetId(keeper.SafeChainPolygon, assetKey))
 

@@ -51,11 +51,15 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 	if bond != nil {
 		return true, nil
 	}
+	entry, err := node.fetchGroupDepositEntry(ctx)
+	if err != nil {
+		return false, fmt.Errorf("node.fetchGroupDepositEntry() => %v", err)
+	}
 	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
 	if common.CheckTestEnvironment(ctx) {
 		rpc = node.conf.MVMRPC
 	}
-	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, holder)
+	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 
 func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
@@ -63,8 +67,12 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
+	entry, err := node.fetchGroupDepositEntry(ctx)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("node.fetchGroupDepositEntry() => %v", err)
+	}
 
-	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
+	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
@@ -205,5 +213,27 @@ func (node *Node) fetchMixinNetworkAsset(ctx context.Context, id string) (*Mixin
 			return nil, err
 		}
 		return body.Data, err
+	}
+}
+
+func (node *Node) fetchGroupDepositEntry(ctx context.Context) (string, error) {
+	for {
+		// FIXME field typo and need to upgrade
+		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, node.keeper.Genesis.Members, node.keeper.Genesis.Threshold, keeper.SafePolygonChainId)
+		if err != nil {
+			reason := strings.ToLower(err.Error())
+			switch {
+			case strings.Contains(reason, "timeout"):
+			case strings.Contains(reason, "eof"):
+			case strings.Contains(reason, "handshake"):
+			default:
+				return "", err
+			}
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		for _, a := range addrs {
+			return a.Destination, nil
+		}
 	}
 }

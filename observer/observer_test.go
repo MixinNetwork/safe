@@ -2,16 +2,28 @@ package observer
 
 import (
 	"context"
+	"encoding/hex"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	testBitcoinKeyHolderPrivate = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
+	testSafeAddress             = "bc1qm7qaucdjwzpapugfvmzp2xduzs7p0jd3zq7yxpvuf9dp5nml3pesx57a9x"
+	testMVMBondAssetId          = "8e85c732-3bc6-3f50-939a-be89a67a6db6"
+	testPolygonBondAssetId      = "728ed44b-a751-3b49-81e0-003815c8184c"
+	testReceiverAddress         = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
 )
 
 func TestObserver(t *testing.T) {
@@ -29,6 +41,42 @@ func TestObserver(t *testing.T) {
 	require.Nil(err)
 	require.Greater(fvb, int64(10))
 	require.Less(fvb, int64(500))
+}
+
+func TestObserverMigrateBondAsset(t *testing.T) {
+	logger.SetLevel(logger.VERBOSE)
+	ctx := context.Background()
+	ctx = common.EnableTestEnvironment(ctx)
+	require := require.New(t)
+
+	root, err := os.MkdirTemp("", "safe-observer-test")
+	require.Nil(err)
+	node := testBuildNode(ctx, require, root)
+	require.NotNil(node)
+
+	holder := testPublicKey(testBitcoinKeyHolderPrivate)
+	_, assetId := node.bitcoinParams(keeper.SafeChainBitcoin)
+	asset, err := node.fetchAssetMeta(ctx, assetId)
+	require.Nil(err)
+
+	abi.TestInitFactoryContractAddress(node.conf.MVMFactoryAddress)
+	bond := abi.GetMVMFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
+	bondId := ethereum.GenerateAssetId(keeper.SafeChainMVM, strings.ToLower(bond.Hex()))
+	require.Equal(testMVMBondAssetId, bondId)
+
+	abi.TestInitFactoryContractAddress(node.conf.PolygonFactoryAddress)
+	err = abi.GetOrDeployFactoryAsset(node.conf.PolygonRPC, os.Getenv("MVM_DEPLOYER"), assetId, asset.Symbol, asset.Name, testReceiverAddress, holder)
+	require.Nil(err)
+
+	bond = abi.GetFactoryAssetAddress(testReceiverAddress, assetId, asset.Symbol, asset.Name, holder)
+	bondId = ethereum.GenerateAssetId(keeper.SafeChainPolygon, strings.ToLower(bond.Hex()))
+	require.Equal(testPolygonBondAssetId, bondId)
+}
+
+func testPublicKey(priv string) string {
+	seed, _ := hex.DecodeString(priv)
+	_, dk := btcec.PrivKeyFromBytes(seed)
+	return hex.EncodeToString(dk.SerializeCompressed())
 }
 
 func testBuildNode(ctx context.Context, require *require.Assertions, root string) *Node {

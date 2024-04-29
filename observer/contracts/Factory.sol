@@ -4,12 +4,11 @@ pragma solidity >=0.8.0 <0.9.0;
 import {Asset} from "./Asset.sol";
 
 contract Factory {
-    address public immutable OBSERVER;
-
-    event FactoryConstructed(address indexed observer, bytes code);
+    event FactoryConstructed(bytes code);
 
     event AssetCreated(
         address indexed at,
+        address receiver,
         uint256 id,
         string holder,
         uint256 key
@@ -18,19 +17,19 @@ contract Factory {
     mapping(address => uint256) public assets;
     mapping(uint256 => address) public contracts;
 
-    constructor(address _observer) {
-        OBSERVER = _observer;
+    constructor() {
         bytes memory code = type(Asset).creationCode;
-        emit FactoryConstructed(OBSERVER, code);
+        emit FactoryConstructed(code);
     }
 
     function deploy(
+        address _receiver,
         uint256 _id,
         string memory _holder,
         string memory _symbol,
         string memory _name
     ) public returns (address) {
-        bytes memory args = abi.encodePacked(_id, _holder, _symbol, _name);
+        bytes memory args = abi.encodePacked(_receiver, _id, _holder, _symbol, _name);
         uint256 key = uint256(keccak256(args));
         address old = contracts[key];
         if (old != address(0)) {
@@ -38,11 +37,11 @@ contract Factory {
         }
 
         Asset asset = new Asset{salt: bytes32(key)}(_symbol, _name);
-        asset.transfer(OBSERVER, asset.totalSupply());
+        asset.transfer(_receiver, asset.totalSupply());
         address addr = address(asset);
         assets[addr] = _id;
         contracts[key] = addr;
-        emit AssetCreated(addr, _id, _holder, key);
+        emit AssetCreated(addr, _receiver, _id, _holder, key);
         return addr;
     }
 }
