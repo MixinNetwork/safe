@@ -967,7 +967,7 @@ func testDeployBondContract(ctx context.Context, require *require.Assertions, no
 	assetKey := strings.ToLower(bond.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	require.Nil(err)
-	asset, _ = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(SafeChainMVM, assetKey))
+	asset, _ = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(SafeChainPolygon, assetKey))
 	return asset.AssetId
 }
 

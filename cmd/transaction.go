@@ -44,7 +44,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 
 	addr := abi.GetFactoryAssetAddress(keeper.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
-	bondId := fetchAssetId(ethereum.GenerateAssetId(keeper.SafeChainMVM, assetKey))
+	bondId := fetchAssetId(ethereum.GenerateAssetId(keeper.SafeChainPolygon, assetKey))
 
 	extra := []byte(receiver)
 	sid := uuid.Must(uuid.NewV4()).String()

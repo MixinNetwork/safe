@@ -58,6 +58,10 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
 	for _, chain := range []byte{
 		keeper.SafeChainBitcoin,
 		keeper.SafeChainLitecoin,

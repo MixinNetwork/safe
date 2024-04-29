@@ -108,7 +108,7 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 	if err != nil {
 		return crypto.Hash{}, 0, err
 	}
-	return crypto.Sha256Hash([]byte(ethereum.GenerateAssetId(SafeChainMVM, assetKey))), SafeChainMVM, nil
+	return crypto.Sha256Hash([]byte(ethereum.GenerateAssetId(SafeChainPolygon, assetKey))), SafeChainPolygon, nil
 }
 
 func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {

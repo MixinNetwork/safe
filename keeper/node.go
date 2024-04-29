@@ -45,6 +45,10 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil || terminated {
 		panic(err)
 	}
+	err = node.migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (node *Node) Terminate(ctx context.Context) ([]*mtg.Transaction, string, error) {

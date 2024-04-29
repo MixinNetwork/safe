@@ -222,3 +222,31 @@ func (s *SQLite3Store) readSafe(ctx context.Context, tx *sql.Tx, holder string) 
 	row := tx.QueryRowContext(ctx, query, holder)
 	return safeFromRow(row)
 }
+
+func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Safe, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	query := fmt.Sprintf("SELECT %s FROM safes WHERE state=? ORDER BY created_at ASC, request_id ASC", safeCols)
+	rows, err := s.db.QueryContext(ctx, query, state)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var safes []*Safe
+	for rows.Next() {
+		var s Safe
+		var receivers string
+		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.CreatedAt, &s.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		s.Receivers = strings.Split(receivers, ";")
+		safes = append(safes, &s)
+	}
+	return safes, nil
+}

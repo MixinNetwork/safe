@@ -71,7 +71,7 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
-	bondId := ethereum.GenerateAssetId(keeper.SafeChainMVM, assetKey)
+	bondId := ethereum.GenerateAssetId(keeper.SafeChainPolygon, assetKey)
 	bond, err := node.fetchAssetMeta(ctx, bondId)
 	return asset, bond, bondId, err
 }
