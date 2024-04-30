@@ -34,9 +34,9 @@ const (
 	testEthereumKeyObserver    = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
 	testEthereumKeyDummyHolder = "169b5ed2deaa8ea7171e60598332560b1d01e8a28243510335196acd62fd3a71"
 
-	testEthereumBondAssetId         = "0b276a88-24a9-35d7-b94b-2ac8ba6715dd"
+	testEthereumBondAssetId         = "759e2997-e696-3f63-b29a-8685bc2a90bf"
 	testEthereumUSDTAssetId         = "218bc6f4-7927-3f8e-8568-3a3725b74361"
-	testEthereumUSDTBondAssetId     = "1b7dfd19-eaa4-37fc-b336-10fbfa953109"
+	testEthereumUSDTBondAssetId     = "d8600586-4614-3e42-86a6-d75d6c25f1f2"
 	testEthereumUSDTAddress         = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )

@@ -41,7 +41,7 @@ const (
 	testGroupDepositEntry            = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
 	testAccountPriceAssetId          = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 	testAccountPriceAmount           = 3.0123
-	testBondAssetId                  = "8e85c732-3bc6-3f50-939a-be89a67a6db6"
+	testBondAssetId                  = "e409efef-ef79-3fc4-8035-a2411eacda81"
 	testSafeBondReceiverId           = "e459de8b-4edd-44ff-a119-b1d707f8521a"
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
 	testBitcoinKeyObserverPrivate    = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"

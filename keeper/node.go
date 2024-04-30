@@ -36,7 +36,7 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, conf *Configuration, s
 	node.signerAESKey = common.ECDHEd25519(conf.SharedKey, conf.SignerPublicKey)
 	node.observerAESKey = common.ECDHEd25519(conf.SharedKey, conf.ObserverPublicKey)
 	node.mixin = mixin
-	abi.InitFactoryContractAddress(conf.MVMFactoryAddress)
+	abi.InitFactoryContractAddress(conf.PolygonFactoryAddress)
 	return node
 }
 

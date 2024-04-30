@@ -562,15 +562,10 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	rpc := node.conf.PolygonRPC
-	if common.CheckTestEnvironment(ctx) {
-		rpc = node.conf.MVMRPC
-		meta.Chain = SafeChainPolygon
-	}
 	if meta.Chain != SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(rpc, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
 		return nil, "", fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)
@@ -938,15 +933,10 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	rpc := node.conf.PolygonRPC
-	if common.CheckTestEnvironment(ctx) {
-		rpc = node.conf.MVMRPC
-		meta.Chain = SafeChainPolygon
-	}
 	if meta.Chain != SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(rpc, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
 		return nil, "", fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err)

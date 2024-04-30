@@ -302,6 +302,10 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 }
 
 func (node *Node) fetchGroupDepositEntry(ctx context.Context) (string, error) {
+	if common.CheckTestEnvironment(ctx) {
+		return "0x11EC02748116A983deeD59235302C3139D6e8cdD", nil
+	}
+
 	for {
 		// FIXME field typo and need to upgrade
 		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, node.group.GetMembers(), node.group.GetThreshold(), SafePolygonChainId)
