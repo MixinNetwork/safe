@@ -12,7 +12,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
 )
@@ -56,9 +55,6 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 		return false, fmt.Errorf("node.fetchGroupDepositEntry() => %v", err)
 	}
 	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
-	if common.CheckTestEnvironment(ctx) {
-		rpc = node.conf.MVMRPC
-	}
 	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 

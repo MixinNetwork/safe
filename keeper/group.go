@@ -103,15 +103,10 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetId, err)
 	}
-	rpc := node.conf.PolygonRPC
-	if common.CheckTestEnvironment(ctx) {
-		rpc = node.conf.MVMRPC
-		meta.Chain = SafeChainPolygon
-	}
 	if meta.Chain != SafeChainPolygon {
 		return false, nil
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(rpc, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil {
 		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)

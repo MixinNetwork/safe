@@ -127,11 +127,11 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 	if err != nil {
 		return nil, err
 	}
-	req, err := createSafeTransactionRequest(ctx, client, traceId, raw)
+	req, err := CreateSafeTransactionRequest(ctx, client, traceId, raw)
 	if err != nil {
 		return nil, err
 	}
-	_, err = signMultisigUntilSufficient(ctx, client, req, members, spendPrivateKey)
+	_, err = SignMultisigUntilSufficient(ctx, client, req, members, spendPrivateKey)
 	return req, err
 }
 
@@ -152,7 +152,7 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 	}
 }
 
-func createSafeTransactionRequest(ctx context.Context, client *mixin.Client, id, raw string) (*mixin.SafeTransactionRequest, error) {
+func CreateSafeTransactionRequest(ctx context.Context, client *mixin.Client, id, raw string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := client.SafeCreateTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      id,
@@ -167,7 +167,7 @@ func createSafeTransactionRequest(ctx context.Context, client *mixin.Client, id,
 	}
 }
 
-func signMultisigUntilSufficient(ctx context.Context, client *mixin.Client, input *mixin.SafeTransactionRequest, members []string, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, input *mixin.SafeTransactionRequest, members []string, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	key, err := mixinnet.KeyFromString(spendPrivateKey)
 	if err != nil {
 		return nil, err
