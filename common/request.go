@@ -27,6 +27,8 @@ const (
 	RequestStateDone    = 3
 	RequestStateFailed  = 4
 
+	ActionMigrateSafeToken = 99
+
 	// Observer can terminate all signer and keeper nodes
 	ActionTerminate = 100
 

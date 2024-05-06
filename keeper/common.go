@@ -98,9 +98,16 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 }
 
 func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
-	entry, err := node.fetchGroupDepositEntry(ctx)
+	safe, err := node.store.ReadSafe(ctx, holder)
 	if err != nil {
 		return crypto.Hash{}, 0, err
+	}
+	entry := safe.Receiver
+	if entry == "" {
+		entry, err = node.fetchGroupDepositEntry(ctx)
+		if err != nil {
+			return crypto.Hash{}, 0, err
+		}
 	}
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {

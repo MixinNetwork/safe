@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -72,6 +73,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionObserverSetOperationParams:
 		return common.RequestRoleObserver
+	case common.ActionMigrateSafeToken:
+		return common.RequestRoleHolder
 	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:
 		return common.RequestRoleHolder
 	case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
@@ -180,6 +183,8 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 		return node.CreateHolderDeposit(ctx, req)
 	case common.ActionObserverSetOperationParams:
 		return node.writeOperationParams(ctx, req)
+	case common.ActionMigrateSafeToken:
+		return node.processSafeTokenMigration(ctx, req)
 	case common.ActionBitcoinSafeProposeAccount:
 		return node.processBitcoinSafeProposeAccount(ctx, req)
 	case common.ActionBitcoinSafeApproveAccount:
@@ -361,4 +366,58 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 
 	return []*mtg.Transaction{t}, "", nil
+}
+
+func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
+	if err != nil {
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
+	}
+	if meta.Chain != SafeChainPolygon {
+		logger.Printf("invalid meta asset chain: %d", meta.Chain)
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
+	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
+	if err != nil {
+		return nil, "", fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
+	}
+	if deployed.Sign() <= 0 {
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
+
+	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	_, err = node.fetchAssetMeta(ctx, id.String())
+	if err != nil {
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
+	}
+	if !common.CheckTestEnvironment(ctx) {
+		spent, err := node.group.ListOutputsForAsset(ctx, node.group.GroupId, req.AssetId, math.MaxUint64, "spent", 1)
+		logger.Printf("group.ListOutputsForAsset(%s) => %d %v", req.AssetId, len(spent), err)
+		if err != nil {
+			return nil, "", fmt.Errorf("group.ListOutputsForAsset(%s) => %v", req.AssetId, err)
+		}
+		if len(spent) > 0 {
+			return nil, "", node.store.FailRequest(ctx, req.Id)
+		}
+	}
+
+	extra, _ := hex.DecodeString(req.Extra)
+	if len(extra) != 20 {
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
+	receiver := gc.BytesToAddress(extra).String()
+
+	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", req.Holder, safe, err)
+	if err != nil {
+		return nil, "", err
+	}
+	if safe == nil || safe.State != common.RequestStateDone {
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
+	err = node.store.MigrateSafeWithRequest(ctx, receiver, req, safe)
+	logger.Printf("store.MigrateSafeWithRequest(%s %s) => %v", receiver, safe.Holder, err)
+
+	return nil, "", err
 }

@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS safes (
   request_id       VARCHAR NOT NULL,
   nonce            INTEGER NOT NULL,
   state            INTEGER NOT NULL,
+  receiver         VARCHAR NOT NULL,
   created_at       TIMESTAMP NOT NULL,
   updated_at       TIMESTAMP NOT NULL,
   PRIMARY KEY ('holder')

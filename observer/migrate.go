@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
+	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
 )
@@ -116,7 +118,7 @@ func (node *Node) deployPolygonBondAssets(ctx context.Context, safes []*store.Sa
 	return nil
 }
 
-func (node *Node) distributePolygonBondAsset(ctx context.Context, safe *store.Safe, bond *Asset, amount decimal.Decimal) error {
+func (node *Node) distributePolygonBondAsset(ctx context.Context, receiver string, safe *store.Safe, bond *Asset, amount decimal.Decimal) error {
 	inputs, err := node.listOutputs(ctx, bond.AssetId, mixin.SafeUtxoStateUnspent)
 	if err != nil || len(inputs) == 0 {
 		return err
@@ -127,8 +129,39 @@ func (node *Node) distributePolygonBondAsset(ctx context.Context, safe *store.Sa
 	}
 
 	traceId := common.UniqueId(bond.AssetId, safe.RequestId)
+	crv := byte(common.CurveSecp256k1ECDSABitcoin)
+	extra := gc.HexToAddress(receiver).Bytes()
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin:
+	case keeper.SafeChainLitecoin:
+		crv = common.CurveSecp256k1ECDSALitecoin
+	case keeper.SafeChainEthereum:
+		crv = common.CurveSecp256k1ECDSAEthereum
+	case keeper.SafeChainMVM:
+		crv = common.CurveSecp256k1ECDSAMVM
+	case keeper.SafeChainPolygon:
+		crv = common.CurveSecp256k1ECDSAPolygon
+	default:
+		panic(safe.Chain)
+	}
+	op := &common.Operation{
+		Id:     traceId,
+		Type:   common.ActionMigrateSafeToken,
+		Curve:  crv,
+		Public: safe.Holder,
+		Extra:  extra,
+	}
+	memo := base64.RawURLEncoding.EncodeToString(op.Encode())
+	if len(extra) > 160 {
+		panic(fmt.Errorf("node.sendKeeperTransaction(%v) omitted %x", op, extra))
+	}
+
+	members := node.keeper.Genesis.Members
+	threshold := node.keeper.Genesis.Threshold
+	traceId = fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
+	traceId = node.safeTraceId(traceId, op.Id)
 	b := mixin.NewSafeTransactionBuilder(inputs)
-	b.Memo = "distribute"
+	b.Memo = memo
 	b.Hint = traceId
 
 	keeperShare := total.Sub(amount)
@@ -188,7 +221,7 @@ func (node *Node) distributePolygonBondAssets(ctx context.Context, safes []*stor
 				for _, o := range outputs {
 					total += o.Satoshi
 				}
-				err = node.distributePolygonBondAsset(ctx, safe, bond, decimal.NewFromInt(total).Div(decimal.New(1, 8)))
+				err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, decimal.NewFromInt(total).Div(decimal.New(1, 8)))
 				if err != nil {
 					return err
 				}
@@ -208,7 +241,7 @@ func (node *Node) distributePolygonBondAssets(ctx context.Context, safes []*stor
 						break
 					}
 					amt := decimal.NewFromBigInt(balance.Balance, -int32(bond.Decimals))
-					err = node.distributePolygonBondAsset(ctx, safe, bond, amt)
+					err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, amt)
 					if err != nil {
 						return err
 					}
