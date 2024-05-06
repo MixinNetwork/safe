@@ -104,10 +104,7 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 	}
 	entry := safe.Receiver
 	if entry == "" {
-		entry, err = node.fetchGroupDepositEntry(ctx)
-		if err != nil {
-			return crypto.Hash{}, 0, err
-		}
+		entry = node.conf.PolygonGroupEntry
 	}
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {

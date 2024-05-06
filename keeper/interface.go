@@ -23,6 +23,7 @@ type Configuration struct {
 	PolygonRPC            string             `toml:"polygon-rpc"`
 	MVMFactoryAddress     string             `toml:"mvm-factory-address"`
 	PolygonFactoryAddress string             `toml:"polygon-factory-address"`
+	PolygonGroupEntry     string             `toml:"polygon-group-entry"`
 	MTG                   *mtg.Configuration `toml:"mtg"`
 }
 
