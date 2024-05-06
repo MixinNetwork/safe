@@ -42,6 +42,21 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	return err
 }
 
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder string) (string, error) {
+	safe, err := node.keeperStore.ReadSafe(ctx, holder)
+	if err != nil {
+		return "", fmt.Errorf("keeperStore.ReadSafe(%s) => %v %v", holder, safe, err)
+	}
+	entry := safe.Receiver
+	if entry == "" {
+		entry, err = node.fetchGroupDepositEntry(ctx)
+		if err != nil {
+			return "", fmt.Errorf("node.fetchGroupDepositEntry() => %v", err)
+		}
+	}
+	return entry, nil
+}
+
 func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder string) (bool, error) {
 	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder)
 	if err != nil {
@@ -50,9 +65,9 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 	if bond != nil {
 		return true, nil
 	}
-	entry, err := node.fetchGroupDepositEntry(ctx)
+	entry, err := node.fetchBondAssetReceiver(ctx, holder)
 	if err != nil {
-		return false, fmt.Errorf("node.fetchGroupDepositEntry() => %v", err)
+		return false, fmt.Errorf("node.fetchBondAssetReceiver(%s) => %v", holder, err)
 	}
 	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
 	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
@@ -63,9 +78,9 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
-	entry, err := node.fetchGroupDepositEntry(ctx)
+	entry, err := node.fetchBondAssetReceiver(ctx, holder)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("node.fetchGroupDepositEntry() => %v", err)
+		return nil, nil, "", fmt.Errorf("node.fetchBondAssetReceiver(%s) => %v", holder, err)
 	}
 
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
