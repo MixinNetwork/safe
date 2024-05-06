@@ -98,13 +98,13 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 }
 
 func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
+	entry := node.conf.PolygonGroupEntry
 	safe, err := node.store.ReadSafe(ctx, holder)
 	if err != nil {
 		return crypto.Hash{}, 0, err
 	}
-	entry := safe.Receiver
-	if entry == "" {
-		entry = node.conf.PolygonGroupEntry
+	if safe != nil && safe.Receiver != "" {
+		entry = safe.Receiver
 	}
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {

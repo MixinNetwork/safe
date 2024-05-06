@@ -43,13 +43,13 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 }
 
 func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder string) (string, error) {
+	entry := node.conf.PolygonGroupEntry
 	safe, err := node.keeperStore.ReadSafe(ctx, holder)
 	if err != nil {
 		return "", fmt.Errorf("keeperStore.ReadSafe(%s) => %v %v", holder, safe, err)
 	}
-	entry := safe.Receiver
-	if entry == "" {
-		entry = node.conf.PolygonGroupEntry
+	if safe != nil && safe.Receiver != "" {
+		entry = safe.Receiver
 	}
 	return entry, nil
 }

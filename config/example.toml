@@ -72,7 +72,7 @@ mvm-rpc = "https://geth.mvm.dev"
 polygon-rpc = "https://polygon-bor.publicnode.com"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 polygon-factory-address = "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E"
-polygon-group-entrey = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
+polygon-group-entry = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
 
 [keeper.mtg.genesis]
 # it is not necessary to include all signer mtg members here,
@@ -122,7 +122,7 @@ mvm-rpc = "https://geth.mvm.dev"
 polygon-rpc = "https://polygon-bor.publicnode.com"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 polygon-factory-address = "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E"
-polygon-group-entrey = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
+polygon-group-entry = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
 mvm-key = ""
 # evm private key to deploy contract on evm chains
 evm-key = ""
