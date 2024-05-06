@@ -72,6 +72,10 @@ func (node *Node) Boot(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
+		err = node.sendAccountApprovals(ctx)
+		if err != nil {
+			panic(err)
+		}
 
 		switch chain {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
@@ -133,6 +137,75 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
 	return node.sendKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
+}
+
+func (node *Node) saveAccountApprovalSignature(ctx context.Context, addr, sig string) error {
+	if !common.CheckTestEnvironment(ctx) {
+		safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
+		if err != nil || safe.State == common.RequestStateDone {
+			return err
+		}
+	}
+	return node.store.SaveAccountApprovalSignature(ctx, addr, sig)
+}
+
+func (node *Node) sendAccountApprovals(ctx context.Context) error {
+	as, err := node.store.ListProposedAccountsWithSig(ctx)
+	if err != nil {
+		return err
+	}
+	for _, account := range as {
+		sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
+		if err != nil {
+			return err
+		}
+		id := common.UniqueId(account.Address, account.Signature)
+		rid := uuid.Must(uuid.FromString(sp.RequestId))
+
+		var extra []byte
+		var action byte
+		var assetId string
+		switch sp.Chain {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			_, assetId = node.bitcoinParams(sp.Chain)
+			sig, err := base64.RawURLEncoding.DecodeString(account.Signature)
+			if err != nil {
+				return err
+			}
+			action = common.ActionBitcoinSafeApproveAccount
+			extra = append(rid.Bytes(), sig...)
+		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+			_, assetId = node.ethereumParams(sp.Chain)
+			sig, err := hex.DecodeString(account.Signature)
+			if err != nil {
+				return err
+			}
+			action = common.ActionEthereumSafeApproveAccount
+			extra = append(rid.Bytes(), sig...)
+		default:
+			panic(sp.Chain)
+		}
+		asset, err := node.store.ReadAssetMeta(ctx, assetId)
+		if err != nil || asset == nil {
+			return err
+		}
+		bonded, err := node.checkOrDeployKeeperBond(ctx, sp.Chain, assetId, "", sp.Holder)
+		if err != nil {
+			return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", sp.Holder, err)
+		} else if !bonded {
+			return nil
+		}
+
+		err = node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
+		if err != nil {
+			return err
+		}
+		err = node.store.MarkAccountApproved(ctx, sp.Address)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (node *Node) snapshotsLoop(ctx context.Context) {

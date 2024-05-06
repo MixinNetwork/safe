@@ -16,6 +16,13 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 )
 
+type Account struct {
+	Address   string
+	CreatedAt time.Time
+	Approved  bool
+	Signature string
+}
+
 type Asset struct {
 	AssetId   string
 	MixinId   string
@@ -80,6 +87,8 @@ type Recovery struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
+
+var accountCols = []string{"address", "created_at", "approved", "signature"}
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
@@ -182,7 +191,7 @@ func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, addr
 		return err
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", []string{"address", "created_at"}), address, createdAt)
+	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, false, "")
 	if err != nil {
 		return fmt.Errorf("INSERT accounts %v", err)
 	}
@@ -198,6 +207,97 @@ func (s *SQLite3Store) CheckAccountProposed(ctx context.Context, addr string) (b
 	defer rows.Close()
 
 	return rows.Next(), nil
+}
+
+func (s *SQLite3Store) ReadAccount(ctx context.Context, addr string) (*Account, error) {
+	query := fmt.Sprintf("SELECT %s FROM accounts WHERE address=?", strings.Join(accountCols, ","))
+	row := s.db.QueryRowContext(ctx, query, addr)
+
+	var a Account
+	err := row.Scan(&a.Address, &a.CreatedAt, &a.Approved, &a.Signature)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &a, err
+}
+
+func (s *SQLite3Store) SaveAccountApprovalSignature(ctx context.Context, addr, sig string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	old, err := s.ReadAccount(ctx, addr)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		return fmt.Errorf("account not exists: %s", addr)
+	}
+	if old.Approved || old.Signature != "" {
+		return nil
+	}
+
+	query := "UPDATE accounts SET signature=? WHERE address=?"
+	err = s.execOne(ctx, tx, query, sig, addr)
+	if err != nil {
+		return fmt.Errorf("UPDATE accounts %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) MarkAccountApproved(ctx context.Context, addr string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	old, err := s.ReadAccount(ctx, addr)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		return fmt.Errorf("account not exists: %s", addr)
+	}
+	if old.Approved {
+		return nil
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE accounts SET approved=? WHERE address=?", true, addr)
+	if err != nil {
+		return fmt.Errorf("UPDATE accounts %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Account, error) {
+	query := fmt.Sprintf("SELECT %s FROM accounts WHERE approved=? AND signature!=? ORDER BY created_at ASC LIMIT 100", strings.Join(accountCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, false, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []*Account
+	for rows.Next() {
+		var a Account
+		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Approved, &a.Signature)
+		if err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, &a)
+	}
+	return accounts, nil
 }
 
 func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder string, state int, offset int64) ([]*Deposit, error) {

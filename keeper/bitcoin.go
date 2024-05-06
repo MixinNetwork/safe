@@ -380,6 +380,12 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	chain := SafeCurveChain(req.Curve)
+	_, assetId := node.bitcoinParams(chain)
+
+	a, _, err := node.getBondAsset(ctx, assetId, req.Holder)
+	if err != nil || !a.HasValue() {
+		return nil, "", fmt.Errorf("node.getBondAsset(%s) => %v %v", req.Holder, a, err)
+	}
 
 	extra, _ := hex.DecodeString(req.Extra)
 	if len(extra) < 64 {

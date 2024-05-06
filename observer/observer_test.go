@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -41,6 +42,30 @@ func TestObserver(t *testing.T) {
 	require.Nil(err)
 	require.Greater(fvb, int64(10))
 	require.Less(fvb, int64(500))
+
+	err = node.store.WriteAccountProposalIfNotExists(ctx, testReceiverAddress, time.Now())
+	require.Nil(err)
+	f, err := node.store.CheckAccountProposed(ctx, testReceiverAddress)
+	require.Nil(err)
+	require.True(f)
+	a, err := node.store.ReadAccount(ctx, testReceiverAddress)
+	require.Nil(err)
+	require.Equal(testReceiverAddress, a.Address)
+	require.False(a.Approved)
+	require.Equal("", a.Signature)
+	as, err := node.store.ListProposedAccountsWithSig(ctx)
+	require.Nil(err)
+	require.Len(as, 0)
+	err = node.store.SaveAccountApprovalSignature(ctx, testReceiverAddress, "signature")
+	require.Nil(err)
+	as, err = node.store.ListProposedAccountsWithSig(ctx)
+	require.Nil(err)
+	require.Len(as, 1)
+	err = node.store.MarkAccountApproved(ctx, testReceiverAddress)
+	require.Nil(err)
+	as, err = node.store.ListProposedAccountsWithSig(ctx)
+	require.Nil(err)
+	require.Len(as, 0)
 }
 
 func TestObserverMigrateBondAsset(t *testing.T) {

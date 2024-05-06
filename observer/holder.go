@@ -119,7 +119,6 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		return err
 	}
 
-	var action int
 	var sig []byte
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
@@ -127,7 +126,6 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if err != nil {
 			return err
 		}
-		action = common.ActionBitcoinSafeApproveAccount
 		ms := fmt.Sprintf("APPROVE:%s:%s", sp.RequestId, sp.Address)
 		hash := bitcoin.HashMessageForSignature(ms, sp.Chain)
 		err = bitcoin.VerifySignatureDER(sp.Holder, hash, sig)
@@ -140,7 +138,6 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if err != nil {
 			return err
 		}
-		action = common.ActionEthereumSafeApproveAccount
 		gs, err := ethereum.UnmarshalGnosisSafe(sp.Extra)
 		logger.Printf("ethereum.UnmarshalGnosisSafe(%s) => %v %v", hex.EncodeToString(sp.Extra), gs, err)
 		if err != nil {
@@ -168,11 +165,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-
-	id := common.UniqueId(addr, signature)
-	rid := uuid.Must(uuid.FromString(sp.RequestId))
-	extra := append(rid.Bytes(), sig...)
-	return node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
+	return node.saveAccountApprovalSignature(ctx, sp.Address, signature)
 }
 
 func (node *Node) httpCreateSafeAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
