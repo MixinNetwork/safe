@@ -432,7 +432,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	chain := SafeCurveChain(req.Curve)
-	_, assetId := node.bitcoinParams(chain)
+	_, assetId := node.ethereumParams(chain)
 
 	a, _, err := node.getBondAsset(ctx, assetId, req.Holder)
 	if err != nil || !a.HasValue() {
