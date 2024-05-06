@@ -28,6 +28,9 @@ jobs:
     - name: TestApps
       run: go test -v ./apps/...
 
+    - name: TestCMPEthereumSign
+      run: go test -v ./signer -run TestCMPEthereumSign -count 10
+
     - name: TestObserver
       run: go test -v ./observer/...
 
