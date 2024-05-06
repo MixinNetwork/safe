@@ -264,6 +264,7 @@ func newTestNetwork(parties party.IDSlice) *testNetwork {
 func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 	filter := make(map[string]bool)
 	loop := n.mtgChannels[node.id]
+	logger.Printf("loop: %s %d", node.id, len(loop))
 	for mob := range loop {
 		k := hex.EncodeToString(mob)
 		if filter[k] {

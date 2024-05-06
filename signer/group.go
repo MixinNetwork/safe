@@ -121,8 +121,6 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 			}
 			return ts, asset
 		}
-	default:
-		panic(node.conf.AssetId)
 	}
 	return nil, ""
 }
