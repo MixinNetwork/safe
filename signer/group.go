@@ -99,6 +99,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	case node.conf.AssetId:
 		senders := strings.Split(out.Senders, ",")
 		if len(senders) != 1 || node.findMember(senders[0]) < 0 {
+			logger.Printf("invalid senders: %s", out.Senders)
 			return nil, ""
 		}
 		req, err := node.parseSignerMessage(out)
@@ -120,6 +121,8 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 			}
 			return ts, asset
 		}
+	default:
+		panic(node.conf.AssetId)
 	}
 	return nil, ""
 }
