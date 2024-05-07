@@ -45,9 +45,9 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMes
 	}
 
 	s := &mixin.Keystore{
-		ClientID:   conf.UserId,
-		SessionID:  conf.SessionId,
-		PrivateKey: conf.Key,
+		ClientID:          conf.UserId,
+		SessionID:         conf.SessionId,
+		SessionPrivateKey: conf.Key,
 	}
 
 	client, err := mixin.NewFromKeystore(s)
