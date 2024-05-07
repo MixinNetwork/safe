@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v2"
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
@@ -32,7 +32,11 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 	startedAt := time.Now()
 
 	app := conf.MTG.App
-	conv, err := bot.ConversationShow(ctx, conversationId, app.AppId, app.SessionId, app.SessionPrivateKey)
+	conv, err := bot.ConversationShow(ctx, conversationId, &bot.SafeUser{
+		UserId:            app.AppId,
+		SessionId:         app.SessionId,
+		SessionPrivateKey: app.SessionPrivateKey,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +106,11 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 	startedAt := time.Now()
 
 	app := conf.MTG.App
-	conv, err := bot.ConversationShow(ctx, conversationId, app.AppId, app.SessionId, app.SessionPrivateKey)
+	conv, err := bot.ConversationShow(ctx, conversationId, &bot.SafeUser{
+		UserId:            app.AppId,
+		SessionId:         app.SessionId,
+		SessionPrivateKey: app.SessionPrivateKey,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -211,7 +219,11 @@ func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, 
 			Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
 		})
 	}
-	err := bot.PostMessages(ctx, messages, app.AppId, app.SessionId, app.SessionPrivateKey)
+	err := bot.PostMessages(ctx, messages, &bot.SafeUser{
+		UserId:            app.AppId,
+		SessionId:         app.SessionId,
+		SessionPrivateKey: app.SessionPrivateKey,
+	})
 	logger.Verbosef("Monitor.PostMessages(\n%s) => %d %v", msg, len(messages), err)
 }
 
@@ -228,7 +240,11 @@ func fetchConversationUser(ctx context.Context, store UserStore, id string, conf
 		return &u, err
 	}
 
-	u, err := bot.GetUser(ctx, id, app.AppId, app.SessionId, app.SessionPrivateKey)
+	u, err := bot.GetUser(ctx, id, &bot.SafeUser{
+		UserId:            app.AppId,
+		SessionId:         app.SessionId,
+		SessionPrivateKey: app.SessionPrivateKey,
+	})
 	if err != nil || u == nil {
 		return nil, err
 	}

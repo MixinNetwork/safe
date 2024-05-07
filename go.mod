@@ -3,7 +3,7 @@ module github.com/MixinNetwork/safe
 go 1.22.2
 
 require (
-	github.com/MixinNetwork/bot-api-go-client/v2 v2.1.0
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.4.9
 	github.com/MixinNetwork/mixin v0.18.5
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/trusted-group v0.6.2-0.20240507095016-68a079ce3a70
@@ -23,8 +23,8 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.9.0
-	github.com/urfave/cli/v2 v2.27.1
-	golang.org/x/crypto v0.22.0
+	github.com/urfave/cli/v2 v2.27.2
+	golang.org/x/crypto v0.23.0
 )
 
 require (
@@ -52,7 +52,7 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
@@ -77,7 +77,7 @@ require (
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/tools v0.20.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.34.0 // indirect
