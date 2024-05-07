@@ -6,7 +6,7 @@ require (
 	github.com/MixinNetwork/bot-api-go-client/v2 v2.1.0
 	github.com/MixinNetwork/mixin v0.18.5
 	github.com/MixinNetwork/multi-party-sig v0.4.1
-	github.com/MixinNetwork/trusted-group v0.6.2-0.20240504103439-d796f0aafab5
+	github.com/MixinNetwork/trusted-group v0.6.2-0.20240507095016-68a079ce3a70
 	github.com/btcsuite/btcd v0.24.0
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/btcsuite/btcd/btcutil v1.1.5
