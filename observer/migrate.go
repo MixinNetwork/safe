@@ -286,10 +286,11 @@ func (s *SQLite3Store) CheckMigration(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE accounts SET approved=?, signature=?", false, "")
+	_, err = tx.ExecContext(ctx, "UPDATE accounts SET approved=?, signature=?", false, "")
 	if err != nil {
 		return false, err
 	}
+
 	return false, tx.Commit()
 }
 
