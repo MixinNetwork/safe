@@ -44,7 +44,6 @@ func (node *Node) listOutputs(ctx context.Context, asset string, state mixin.Saf
 
 func (node *Node) fetchDepositEntry(ctx context.Context) (string, error) {
 	for {
-		// FIXME field typo and need to upgrade
 		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, []string{node.mixin.ClientID}, 1, keeper.SafePolygonChainId)
 		if err != nil {
 			reason := strings.ToLower(err.Error())

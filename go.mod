@@ -15,7 +15,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/dimfeld/httptreemux/v5 v5.5.0
 	github.com/ethereum/go-ethereum v1.13.5
-	github.com/fox-one/mixin-sdk-go/v2 v2.0.6
+	github.com/fox-one/mixin-sdk-go/v2 v2.0.7-0.20240429141459-bd977b8f5323
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/gofrs/uuid/v5 v5.1.0
 	github.com/mattn/go-sqlite3 v1.14.22
