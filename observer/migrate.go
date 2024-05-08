@@ -305,6 +305,7 @@ func (node *Node) migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	time.Sleep(10 * time.Second)
 
 	entry, err := node.fetchDepositEntry(ctx)
 	if err != nil {
