@@ -19,7 +19,6 @@ type Configuration struct {
 	OperationPriceAmount  string `toml:"operation-price-amount"`
 	TransactionMinimum    string `toml:"transaction-minimum"`
 	MixinMessengerAPI     string `toml:"mixin-messenger-api"`
-	MixinSafeRPC          string `toml:"mixin-safe-rpc"`
 	MixinRPC              string `toml:"mixin-rpc"`
 	BitcoinRPC            string `toml:"bitcoin-rpc"`
 	LitecoinRPC           string `toml:"litecoin-rpc"`

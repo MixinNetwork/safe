@@ -21,7 +21,7 @@ saver-api = ""
 # the ed25519 private key hex to sign and encrypt all the data to saver
 saver-key = ""
 # the mixin kernel node rpc
-mixin-rpc = "https://rpc.mixin.dev"
+mixin-rpc = "https://kernel.mixin.dev"
 
 [signer.mtg.genesis]
 members = [
@@ -69,7 +69,7 @@ bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
 litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
 ethereum-rpc = "https://cloudflare-eth.com"
 mvm-rpc = "https://geth.mvm.dev"
-polygon-rpc = "https://polygon-bor.publicnode.com"
+polygon-rpc = "https://palpable-little-bird.matic.quiknode.pro/c7a56ae2f897faae508bfafcf66e30ab0a29d381/"
 mvm-factory-address = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 polygon-factory-address = "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E"
 polygon-group-entry = "0x11EC02748116A983deeD59235302C3139D6e8cdD"

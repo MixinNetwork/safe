@@ -273,7 +273,7 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinSafeRPC, checkpoint, 100)
+		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinRPC, checkpoint, 100)
 		if err != nil {
 			continue
 		}
@@ -307,7 +307,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 			continue
 		}
 
-		tx, err := m.RPCGetTransaction(ctx, node.conf.MixinSafeRPC, t.References[0])
+		tx, err := m.RPCGetTransaction(ctx, node.conf.MixinRPC, t.References[0])
 		if err != nil {
 			return err
 		}
