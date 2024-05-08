@@ -90,7 +90,7 @@ func TestObserverMigrateBondAsset(t *testing.T) {
 	require.Equal(testMVMBondAssetId, bondId)
 
 	abi.TestInitFactoryContractAddress(node.conf.PolygonFactoryAddress)
-	err = abi.GetOrDeployFactoryAsset(node.conf.PolygonRPC, os.Getenv("MVM_DEPLOYER"), assetId, asset.Symbol, asset.Name, testReceiverAddress, holder)
+	err = abi.GetOrDeployFactoryAsset(ctx, node.conf.PolygonRPC, os.Getenv("MVM_DEPLOYER"), assetId, asset.Symbol, asset.Name, testReceiverAddress, holder)
 	require.Nil(err)
 
 	bond = abi.GetFactoryAssetAddress(testReceiverAddress, assetId, asset.Symbol, asset.Name, holder)

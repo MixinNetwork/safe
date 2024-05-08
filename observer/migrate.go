@@ -90,7 +90,7 @@ func (node *Node) checkOrDeployPolygonBond(ctx context.Context, entry string, ch
 		return true, nil
 	}
 	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
-	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
+	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 
 func (node *Node) deployPolygonBondAssets(ctx context.Context, safes []*store.Safe, receiver string) error {

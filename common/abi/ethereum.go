@@ -1,6 +1,7 @@
 package abi
 
 import (
+	"context"
 	"encoding/hex"
 	"math/big"
 	"strings"
@@ -37,7 +38,7 @@ func TestInitFactoryContractAddress(addr string) {
 	factoryContractAddress = addr
 }
 
-func GetOrDeployFactoryAsset(rpc, key string, assetId, symbol, name, receiver, holder string) error {
+func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symbol, name, receiver, holder string) error {
 	conn, abi, err := factoryInit(rpc)
 	if err != nil {
 		return err
@@ -56,7 +57,11 @@ func GetOrDeployFactoryAsset(rpc, key string, assetId, symbol, name, receiver, h
 	}
 	id := new(big.Int).SetBytes(uuid.Must(uuid.FromString(assetId)).Bytes())
 	symbol, name = "safe"+symbol, name+" @ Mixin Safe"
-	_, err = abi.Deploy(signer, common.HexToAddress(receiver), id, holder, symbol, name)
+	t, err := abi.Deploy(signer, common.HexToAddress(receiver), id, holder, symbol, name)
+	if err != nil {
+		return err
+	}
+	_, err = bind.WaitMined(ctx, conn, t)
 	return err
 }
 

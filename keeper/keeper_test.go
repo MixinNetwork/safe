@@ -962,7 +962,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 func testDeployBondContract(ctx context.Context, require *require.Assertions, node *Node, addr, assetId string) string {
 	safe, _ := node.store.ReadSafeByAddress(ctx, addr)
 	asset, _ := node.fetchAssetMeta(ctx, assetId)
-	err := abi.GetOrDeployFactoryAsset("https://polygon-bor.publicnode.com", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, testGroupDepositEntry, safe.Holder)
+	err := abi.GetOrDeployFactoryAsset(ctx, "https://polygon-bor.publicnode.com", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, testGroupDepositEntry, safe.Holder)
 	require.Nil(err)
 	bond := abi.GetFactoryAssetAddress(testGroupDepositEntry, assetId, asset.Symbol, asset.Name, safe.Holder)
 	assetKey := strings.ToLower(bond.String())
