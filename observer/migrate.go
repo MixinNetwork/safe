@@ -260,41 +260,7 @@ func (node *Node) distributePolygonBondAssets(ctx context.Context, safes []*stor
 	}
 }
 
-func (s *SQLite3Store) CheckMigration(ctx context.Context) (bool, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-
-	key, val := "SCHEMA:VERSION:migration", ""
-	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
-	err = row.Scan(&val)
-	if err == nil {
-		return true, nil
-	} else if err != sql.ErrNoRows {
-		return false, err
-	}
-
-	query := "ALTER TABLE accounts ADD COLUMN approved BOOLEAN;\n"
-	query = query + "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
-	_, err = tx.ExecContext(ctx, query)
-	if err != nil {
-		return false, err
-	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE accounts SET approved=?, signature=?", false, "")
-	if err != nil {
-		return false, err
-	}
-
-	return false, tx.Commit()
-}
-
-func (s *SQLite3Store) FinishMigration(ctx context.Context) error {
+func (s *SQLite3Store) UpdateDb(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -304,17 +270,39 @@ func (s *SQLite3Store) FinishMigration(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	key := "SCHEMA:VERSION:migration"
+	key, val := "SCHEMA:VERSION:migration", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil {
+		return nil
+	} else if err != sql.ErrNoRows {
+		return err
+	}
+
 	query := "ALTER TABLE accounts ADD COLUMN approved BOOLEAN;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, "UPDATE accounts SET approved=?, signature=?", false, "")
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", key, query, now)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (node *Node) migrate(ctx context.Context) error {
-	handled, err := node.store.CheckMigration(ctx)
-	if err != nil || handled {
+	err := node.store.UpdateDb(ctx)
+	if err != nil {
 		return err
 	}
 
@@ -338,10 +326,5 @@ func (node *Node) migrate(ctx context.Context) error {
 		return err
 	}
 
-	err = node.distributePolygonBondAssets(ctx, safes, entry)
-	if err != nil {
-		return err
-	}
-
-	return node.store.FinishMigration(ctx)
+	return node.distributePolygonBondAssets(ctx, safes, entry)
 }
