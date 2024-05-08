@@ -253,12 +253,6 @@ func (s *SQLite3Store) readSafe(ctx context.Context, tx *sql.Tx, holder string) 
 }
 
 func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Safe, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
 	query := fmt.Sprintf("SELECT %s FROM safes WHERE state=? ORDER BY created_at ASC, request_id ASC", safeCols)
 	rows, err := s.db.QueryContext(ctx, query, state)
 	if err != nil {

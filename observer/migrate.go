@@ -312,19 +312,23 @@ func (node *Node) migrate(ctx context.Context) error {
 	}
 	safes, err := node.keeperStore.ListSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
-		return err
+		return fmt.Errorf("store.ListSafesWithState() => %v", err)
 	}
 	for _, safe := range safes {
 		err := node.store.MarkAccountApproved(ctx, safe.Address)
 		if err != nil {
-			return err
+			return fmt.Errorf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
 		}
 	}
 
 	err = node.deployPolygonBondAssets(ctx, safes, entry)
 	if err != nil {
-		return err
+		return fmt.Errorf("node.deployPolygonBondAssets(%s) => %v", entry, err)
 	}
 
-	return node.distributePolygonBondAssets(ctx, safes, entry)
+	err = node.distributePolygonBondAssets(ctx, safes, entry)
+	if err != nil {
+		return fmt.Errorf("node.distributePolygonBondAssets(%s) => %v", entry, err)
+	}
+	return nil
 }
