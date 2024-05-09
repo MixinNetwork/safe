@@ -225,7 +225,7 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 			return false, false, err
 		}
 		return true, false, nil
-	case keeper.SafeChainEthereum, keeper.SafeChainPolygon:
+	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
 		balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
 		if err != nil {
 			return false, false, err
