@@ -72,6 +72,11 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	sa, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, node.conf.EVMKey, chainId, owners, 2, timelock, index, t)
 	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %d, %v, %d, %d, %v) => %s %v", rpc, chainId, owners, 2, timelock, t, sa, err)
+	if err != nil {
+		return err
+	}
+	err = node.store.MarkAccountApproved(ctx, safe.Address)
+	logger.Printf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
 	return err
 }
 
