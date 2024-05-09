@@ -321,7 +321,7 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 	var accounts []*Account
 	for rows.Next() {
 		var a Account
-		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Approved, &a.Signature)
+		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Migrated, &a.Approved, &a.Signature)
 		if err != nil {
 			return nil, err
 		}
