@@ -102,7 +102,7 @@ func (node *Node) deployPolygonBondAssets(ctx context.Context, safes []*store.Sa
 			if err != nil {
 				return err
 			}
-		case keeper.SafeChainEthereum, keeper.SafeChainPolygon:
+		case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
 			balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
 			if err != nil {
 				return err
