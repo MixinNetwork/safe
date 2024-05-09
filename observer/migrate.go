@@ -197,58 +197,78 @@ func (node *Node) distributePolygonBondAsset(ctx context.Context, receiver strin
 	return err
 }
 
+func userNotRegistered(err error) bool {
+	return strings.Contains(err.Error(), "User is not registered")
+}
+
+func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *store.Safe, receiver string) (bool, bool, error) {
+	switch safe.Chain {
+	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		_, assetId := node.bitcoinParams(safe.Chain)
+		_, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, assetId, "", safe.Holder)
+		if err != nil || bond == nil {
+			return false, false, err
+		}
+		outputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
+		if err != nil {
+			return false, false, err
+		}
+		var total int64
+		for _, o := range outputs {
+			total += o.Satoshi
+		}
+		err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, decimal.NewFromInt(total).Div(decimal.New(1, 8)))
+		if err != nil {
+			if userNotRegistered(err) {
+				return false, true, nil
+			}
+			return false, false, err
+		}
+		return true, false, nil
+	case keeper.SafeChainEthereum, keeper.SafeChainPolygon:
+		balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
+		if err != nil {
+			return false, false, err
+		}
+		for _, balance := range balances {
+			_, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, balance.AssetId, balance.AssetAddress, safe.Holder)
+			if err != nil || bond == nil {
+				return false, false, err
+			}
+			amt := decimal.NewFromBigInt(balance.Balance, -int32(bond.Decimals))
+			err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, amt)
+			if err != nil {
+				if userNotRegistered(err) {
+					return false, true, nil
+				}
+				return false, false, err
+			}
+		}
+		return true, false, nil
+	default:
+		panic(safe.Chain)
+	}
+}
+
 func (node *Node) distributePolygonBondAssets(ctx context.Context, safes []*store.Safe, receiver string) error {
 	for {
 		allHandled := true
 
 		for _, safe := range safes {
-			switch safe.Chain {
-			case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-				_, assetId := node.bitcoinParams(safe.Chain)
-				_, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, assetId, "", safe.Holder)
+			handled, skip, err := node.distributePolygonBondAssetsForSafe(ctx, safe, receiver)
+			if err != nil {
+				return err
+			}
+			if skip {
+				continue
+			}
+			if handled {
+				err = node.store.MarkAccountMigrated(ctx, safe.Address)
 				if err != nil {
 					return err
 				}
-				if bond == nil {
-					allHandled = false
-					continue
-				}
-				outputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
-				if err != nil {
-					return err
-				}
-				var total int64
-				for _, o := range outputs {
-					total += o.Satoshi
-				}
-				err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, decimal.NewFromInt(total).Div(decimal.New(1, 8)))
-				if err != nil {
-					return err
-				}
-			case keeper.SafeChainEthereum, keeper.SafeChainPolygon:
-				balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
-				if err != nil {
-					return err
-				}
-				handled := true
-				for _, balance := range balances {
-					_, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, balance.AssetId, balance.AssetAddress, safe.Holder)
-					if err != nil {
-						return err
-					}
-					if bond == nil {
-						handled = false
-						break
-					}
-					amt := decimal.NewFromBigInt(balance.Balance, -int32(bond.Decimals))
-					err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, amt)
-					if err != nil {
-						return err
-					}
-				}
-				if !handled {
-					allHandled = false
-				}
+			} else {
+				allHandled = false
 			}
 		}
 
@@ -279,14 +299,15 @@ func (s *SQLite3Store) UpdateDb(ctx context.Context) error {
 		return err
 	}
 
-	query := "ALTER TABLE accounts ADD COLUMN approved BOOLEAN;\n"
+	query := "ALTER TABLE accounts ADD COLUMN migrated BOOLEAN;\n"
+	query = query + "ALTER TABLE accounts ADD COLUMN approved BOOLEAN;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.ExecContext(ctx, "UPDATE accounts SET approved=?, signature=?", false, "")
+	_, err = tx.ExecContext(ctx, "UPDATE accounts SET migrated=?, approved=?, signature=?", false, false, "")
 	if err != nil {
 		return err
 	}

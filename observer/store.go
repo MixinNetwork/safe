@@ -19,6 +19,7 @@ import (
 type Account struct {
 	Address   string
 	CreatedAt time.Time
+	Migrated  bool
 	Approved  bool
 	Signature string
 }
@@ -88,7 +89,7 @@ type Recovery struct {
 	UpdatedAt       time.Time
 }
 
-var accountCols = []string{"address", "created_at", "approved", "signature"}
+var accountCols = []string{"address", "created_at", "migrated", "approved", "signature"}
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
@@ -191,7 +192,7 @@ func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, addr
 		return err
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, false, "")
+	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, true, false, "")
 	if err != nil {
 		return fmt.Errorf("INSERT accounts %v", err)
 	}
@@ -214,7 +215,7 @@ func (s *SQLite3Store) ReadAccount(ctx context.Context, addr string) (*Account, 
 	row := s.db.QueryRowContext(ctx, query, addr)
 
 	var a Account
-	err := row.Scan(&a.Address, &a.CreatedAt, &a.Approved, &a.Signature)
+	err := row.Scan(&a.Address, &a.CreatedAt, &a.Migrated, &a.Approved, &a.Signature)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -273,6 +274,35 @@ func (s *SQLite3Store) MarkAccountApproved(ctx context.Context, addr string) err
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE accounts SET approved=? WHERE address=?", true, addr)
+	if err != nil {
+		return fmt.Errorf("UPDATE accounts %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	old, err := s.ReadAccount(ctx, addr)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		return fmt.Errorf("account not exists: %s", addr)
+	}
+	if old.Approved {
+		return nil
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE accounts SET migrated=? WHERE address=?", true, addr)
 	if err != nil {
 		return fmt.Errorf("UPDATE accounts %v", err)
 	}

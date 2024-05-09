@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS observers (
 CREATE TABLE IF NOT EXISTS accounts (
   address       VARCHAR NOT NULL,
   created_at    TIMESTAMP NOT NULL,
+  migrated      BOOLEAN,
   approved      BOOLEAN,
   signature     VARCHAR,
   PRIMARY KEY ('address')
