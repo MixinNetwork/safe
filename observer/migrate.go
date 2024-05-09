@@ -231,11 +231,11 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 			return false, false, err
 		}
 		for _, balance := range balances {
-			_, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, balance.AssetId, balance.AssetAddress, safe.Holder)
+			asset, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, balance.AssetId, balance.AssetAddress, safe.Holder)
 			if err != nil || bond == nil {
 				return false, false, err
 			}
-			amt := decimal.NewFromBigInt(balance.Balance, -int32(bond.Decimals))
+			amt := decimal.NewFromBigInt(balance.Balance, -int32(asset.Decimals))
 			err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, amt)
 			if err != nil {
 				if userNotRegistered(err) {
