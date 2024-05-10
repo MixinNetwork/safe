@@ -67,7 +67,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	threshold := 1
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
-	old, err := client.SafeReadTransactionRequest(ctx, sTraceId)
+	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 	if err != nil || old != nil {
 		return old, err
 	}
@@ -106,7 +106,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 }
 
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
-	old, err := client.SafeReadTransactionRequest(ctx, traceId)
+	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 	if err != nil {
 		return nil, err
 	}
@@ -213,6 +213,24 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, inpu
 			continue
 		}
 		return req, err
+	}
+}
+
+func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeTransactionRequest, error) {
+	for {
+		req, err := client.SafeReadTransactionRequest(ctx, id)
+		logger.Verbosef("mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if mixin.IsErrorCodes(err, 404) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return req, nil
 	}
 }
 
