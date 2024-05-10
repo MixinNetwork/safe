@@ -105,6 +105,18 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	}
 }
 
+func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) []*mixin.SafeUtxo {
+	total := decimal.NewFromInt(0)
+	for i, o := range utxos {
+		total = total.Add(o.Amount)
+		if total.Cmp(amount) < 0 {
+			continue
+		}
+		return utxos[:i+1]
+	}
+	panic(fmt.Errorf("insufficient utxos to spend: %d %d", total, amount))
+}
+
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 	if err != nil {
@@ -118,6 +130,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 	if err != nil {
 		return nil, err
 	}
+	utxos = getEnoughUtxosToSpend(utxos, amount)
 	b := mixin.NewSafeTransactionBuilder(utxos)
 	b.Memo = memo
 	b.Hint = traceId
