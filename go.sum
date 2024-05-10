@@ -20,6 +20,8 @@ github.com/MixinNetwork/trusted-group v0.6.2-0.20240508034626-2fab5ba899b8 h1:U4
 github.com/MixinNetwork/trusted-group v0.6.2-0.20240508034626-2fab5ba899b8/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
 github.com/MixinNetwork/trusted-group v0.6.2-0.20240508035715-58fe2f1c7b14 h1:whEraJ879qW2cfZSSVrw7WUTA2WIgWfrOx/4sEiN/oo=
 github.com/MixinNetwork/trusted-group v0.6.2-0.20240508035715-58fe2f1c7b14/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
+github.com/MixinNetwork/trusted-group v0.6.2-0.20240510060355-5144cc9de76f h1:NebLy1YbjlXYQ2lr6O4DIS9Jd7TFS0FCsHbYQOWa/kA=
+github.com/MixinNetwork/trusted-group v0.6.2-0.20240510060355-5144cc9de76f/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/VictoriaMetrics/fastcache v1.12.1 h1:i0mICQuojGDL3KblA7wUNlY5lOK6a4bwt3uRKnkZU40=
