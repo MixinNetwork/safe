@@ -118,7 +118,7 @@ func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, para
 	}
 	defer tx.Rollback()
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM requests WHERE request_id=?", params.RequestId)
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM requests WHERE request_id=? AND state=?", params.RequestId, common.RequestStateDone)
 	if err != nil || existed {
 		return err
 	}
