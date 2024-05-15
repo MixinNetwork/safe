@@ -805,6 +805,11 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			common.RenderError(w, r, err)
 			return
 		}
+		account, err := node.store.ReadAccount(ctx, sp.Address)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":    sp.Chain,
 			"id":       sp.RequestId,
@@ -816,7 +821,8 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"bond": map[string]any{
 				"id": bondId,
 			},
-			"state": status,
+			"state":    status,
+			"migrated": account.Migrated,
 		})
 	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		_, assetId := node.ethereumParams(sp.Chain)
@@ -844,6 +850,11 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		if safe != nil {
 			nonce = int(safe.Nonce)
 		}
+		account, err := node.store.ReadAccount(ctx, sp.Address)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":          sp.Chain,
 			"id":             sp.RequestId,
@@ -855,7 +866,8 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"bond": map[string]any{
 				"id": bondId,
 			},
-			"state": status,
+			"state":    status,
+			"migrated": account.Migrated,
 		})
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
