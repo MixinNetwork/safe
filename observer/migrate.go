@@ -336,19 +336,27 @@ func (node *Node) migrate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("store.ListSafesWithState() => %v", err)
 	}
+	unmigrated := []*store.Safe{}
 	for _, safe := range safes {
 		err := node.store.MarkAccountApproved(ctx, safe.Address)
 		if err != nil {
 			return fmt.Errorf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
 		}
+		acc, err := node.store.ReadAccount(ctx, safe.Address)
+		if err != nil {
+			return err
+		}
+		if !acc.Migrated {
+			unmigrated = append(unmigrated, safe)
+		}
 	}
 
-	err = node.deployPolygonBondAssets(ctx, safes, entry)
+	err = node.deployPolygonBondAssets(ctx, unmigrated, entry)
 	if err != nil {
 		return fmt.Errorf("node.deployPolygonBondAssets(%s) => %v", entry, err)
 	}
 
-	err = node.distributePolygonBondAssets(ctx, safes, entry)
+	err = node.distributePolygonBondAssets(ctx, unmigrated, entry)
 	if err != nil {
 		return fmt.Errorf("node.distributePolygonBondAssets(%s) => %v", entry, err)
 	}
