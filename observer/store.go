@@ -269,7 +269,7 @@ func (s *SQLite3Store) MarkAccountApproved(ctx context.Context, addr string) err
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.Migrated {
+	if old.Approved {
 		return nil
 	}
 
@@ -298,7 +298,7 @@ func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) err
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.Approved {
+	if old.Migrated {
 		return nil
 	}
 
