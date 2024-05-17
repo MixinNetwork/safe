@@ -778,6 +778,15 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		common.RenderError(w, r, err)
 		return
 	}
+	safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	receiver := ""
+	if safe != nil && safe.Receiver != "" {
+		receiver = safe.Receiver
+	}
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), sp)
@@ -823,6 +832,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			},
 			"state":    status,
 			"migrated": account.Migrated,
+			"receiver": receiver,
 		})
 	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
 		_, assetId := node.ethereumParams(sp.Chain)
@@ -837,11 +847,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			return
 		}
 		pendings, err := node.keeperStore.ReadUnfinishedTransactionsByHolder(r.Context(), sp.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
@@ -868,6 +873,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			},
 			"state":    status,
 			"migrated": account.Migrated,
+			"receiver": receiver,
 		})
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
