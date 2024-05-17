@@ -778,12 +778,20 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		common.RenderError(w, r, err)
 		return
 	}
+	account, err := node.store.ReadAccount(ctx, sp.Address)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
 	safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
 	receiver := ""
+	if account.Migrated {
+		receiver = node.conf.PolygonGroupEntry
+	}
 	if safe != nil && safe.Receiver != "" {
 		receiver = safe.Receiver
 	}
@@ -810,11 +818,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			return
 		}
 		pendings, err := node.listPendingBitcoinUTXOsForHolder(r.Context(), sp.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		account, err := node.store.ReadAccount(ctx, sp.Address)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
@@ -854,11 +857,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		nonce := 0
 		if safe != nil {
 			nonce = int(safe.Nonce)
-		}
-		account, err := node.store.ReadAccount(ctx, sp.Address)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
 		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":          sp.Chain,
