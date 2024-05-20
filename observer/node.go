@@ -250,6 +250,12 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
 		return nil
 	}
 
+	memo, err := hex.DecodeString(s.Memo)
+	if err != nil {
+		return fmt.Errorf("hex.DecodeString(%s) => %v", s.Memo, err)
+	}
+	s.Memo = string(memo)
+
 	handled, err := node.handleTransactionApprovalPayment(ctx, s)
 	logger.Printf("node.handleTransactionApprovalPayment(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
