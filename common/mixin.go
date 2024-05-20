@@ -74,7 +74,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, su *
 			time.Sleep(7 * time.Second)
 			continue
 		}
-		if err != nil || old == nil {
+		if err != nil || old != nil {
 			return old, err
 		}
 		break
