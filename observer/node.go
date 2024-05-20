@@ -215,7 +215,7 @@ func (node *Node) snapshotsLoop(ctx context.Context) {
 			panic(err)
 		}
 		var snapshots []*mixin.Snapshot
-		err = node.mixin.Get(ctx, "/snapshots", map[string]string{
+		err = node.mixin.Get(ctx, "/safe/snapshots", map[string]string{
 			"limit":  "500",
 			"order":  "ASC",
 			"offset": offset.Format(time.RFC3339Nano),
