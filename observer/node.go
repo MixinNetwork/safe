@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -525,6 +526,16 @@ func (node *Node) readMixinWithdrawalsCheckpoint(ctx context.Context) (uint64, e
 
 func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset uint64) error {
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
+}
+
+func (node *Node) safeUser() *bot.SafeUser {
+	return &bot.SafeUser{
+		UserId:            node.conf.App.AppId,
+		SessionId:         node.conf.App.SessionId,
+		ServerPublicKey:   node.conf.App.ServerPublicKey,
+		SessionPrivateKey: node.conf.App.SessionPrivateKey,
+		SpendPrivateKey:   node.conf.App.SpendPrivateKey,
+	}
 }
 
 func depositCheckpointDefault(chain byte) int64 {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -62,41 +63,26 @@ func DecodeMixinObjectExtra(extra []byte) []byte {
 	return b
 }
 
-func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, traceId, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
-	members := []string{client.ClientID}
-	threshold := 1
+func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, su *bot.SafeUser, extra []byte, traceId, spendPrivateKey string) (*bot.SequencerTransactionRequest, error) {
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
-	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
-	if err != nil || old != nil {
-		return old, err
-	}
-	if len(extra) > common.ExtraSizeStorageCapacity {
-		return nil, fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity)
-	}
 
-	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
-	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
-	utxos, err := client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
-		Members:   members,
-		Threshold: uint8(threshold),
-		Asset:     mtg.StorageAssetId,
-		State:     mixin.SafeUtxoStateUnspent,
-	})
-	if err != nil {
-		return nil, err
-	}
-	total := decimal.NewFromInt(0)
-	for _, u := range utxos {
-		total = total.Add(u.Amount)
-	}
-	if common.NewIntegerFromString(total.String()).Cmp(amount) < 0 {
-		return nil, fmt.Errorf("insufficient balance")
+	for {
+		old, err := bot.GetTransactionByIdWithSafeUser(ctx, sTraceId, su)
+		logger.Printf("bot.GetTransactionByIdWithSafeUser(%s) => %v %v", sTraceId, old, err)
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		if err != nil || old == nil {
+			return old, err
+		}
+		break
 	}
 
 	for {
-		req, err := SendTransactionUntilSufficient(ctx, client, members, threshold, []string{mtg.StorageReceiverId}, 64, total, sTraceId, mtg.StorageAssetId, string(extra), spendPrivateKey)
-		logger.Printf("storage.SendTransactionUntilSufficient(%s %s %x) => %v %v", total.String(), sTraceId, extra, req, err)
+		req, err := bot.CreateObjectStorageTransaction(ctx, extra, sTraceId, nil, "", su)
+		logger.Printf("bot.CreateObjectStorageTransaction(%s %x) => %v %v", sTraceId, extra, req, err)
 		if err != nil && CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
