@@ -71,7 +71,7 @@ func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) []*m
 		}
 		return utxos[:i+1]
 	}
-	panic(fmt.Errorf("insufficient utxos to spend: %d %d", total, amount))
+	panic(fmt.Errorf("insufficient utxos to spend: %d %d", total.BigInt().Int64(), amount.BigInt().Int64()))
 }
 
 func ExtraLimit(tx mixinnet.Transaction) int {
