@@ -435,8 +435,7 @@ func (node *Node) sendToKeeperBitcoinApproveNormalTransaction(ctx context.Contex
 	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
 	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.WriteStorageUntilSufficient(ctx, node.mixin, node.safeUser(), raw, traceId, conf.SpendPrivateKey)
+	rs, err := common.WriteStorageUntilSufficient(ctx, node.mixin, raw, traceId, node.conf.App.SpendPrivateKey)
 	if err != nil {
 		return err
 	}
@@ -515,8 +514,7 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
 	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.WriteStorageUntilSufficient(ctx, node.mixin, node.safeUser(), objectRaw, traceId, conf.SpendPrivateKey)
+	rs, err := common.WriteStorageUntilSufficient(ctx, node.mixin, objectRaw, traceId, node.conf.App.SpendPrivateKey)
 	logger.Printf("common.WriteStorageUntilSufficient(%v) => %v %v", msg, rs, err)
 	if err != nil {
 		return err
