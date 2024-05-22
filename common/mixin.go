@@ -74,6 +74,62 @@ func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) []*m
 	panic(fmt.Errorf("insufficient utxos to spend: %d %d", total, amount))
 }
 
+func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.TransactionBuilder, ma *mixin.MixAddress, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
+	remain := input.TotalInputAmount()
+	for _, output := range outputs {
+		remain = remain.Sub(output.Amount)
+	}
+	if remain.IsPositive() {
+		outputs = append(outputs, &mixin.TransactionOutput{
+			Address: ma,
+			Amount:  remain,
+		})
+	}
+	if err := client.AppendOutputsToInput(ctx, input, outputs); err != nil {
+		return nil, err
+	}
+
+	var (
+		total = input.TotalInputAmount()
+		asset = input.Asset()
+	)
+	if !total.IsZero() {
+		return nil, fmt.Errorf("invalid output: amount not matched")
+	}
+	if len(input.Inputs) == 0 {
+		return nil, fmt.Errorf("no input utxo")
+	}
+	if len(input.Inputs) > mixinnet.SliceCountLimit || len(input.Outputs) > mixinnet.SliceCountLimit || len(input.References) > mixinnet.SliceCountLimit {
+		return nil, fmt.Errorf("invalid tx inputs or outputs %d %d %d", len(input.Inputs), len(input.Outputs), len(input.References))
+	}
+	for _, input := range input.Inputs {
+		if asset != input.Asset {
+			return nil, fmt.Errorf("invalid input utxo, asset not matched")
+		}
+	}
+	for _, output := range input.Outputs {
+		if total = total.Sub(decimal.RequireFromString(output.Amount.String())); total.IsNegative() {
+			return nil, fmt.Errorf("invalid output: amount exceed")
+		}
+	}
+
+	var tx = mixinnet.Transaction{
+		Version:    input.TxVersion,
+		Asset:      input.Asset(),
+		Extra:      []byte(input.Memo),
+		References: input.References,
+		Outputs:    input.Outputs,
+	}
+	if len(tx.Extra) > tx.ExtraLimit() {
+		return nil, fmt.Errorf("memo too long")
+	}
+	for _, input := range input.Inputs {
+		tx.Inputs = append(tx.Inputs, &input.Input)
+	}
+
+	return &tx, nil
+}
+
 func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, traceId, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
@@ -96,6 +152,11 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 		return nil, err
 	}
 	utxos = getEnoughUtxosToSpend(utxos, amount)
+	ma, err := mixin.NewMixAddress(utxos[0].Receivers, utxos[0].ReceiversThreshold)
+	if err != nil {
+		return nil, err
+	}
+
 	b := mixin.NewSafeTransactionBuilder(utxos)
 	b.Memo = string(extra)
 	b.Hint = traceId
@@ -103,7 +164,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	addr := common.NewAddressFromSeed(make([]byte, 64))
 	mix := mixin.RequireNewMainnetMixAddress([]string{addr.String()}, 1)
 	mix.Threshold = 64
-	tx, err := client.MakeTransaction(ctx, b, []*mixin.TransactionOutput{
+	tx, err := makeTransaction(ctx, client, b, ma, []*mixin.TransactionOutput{
 		{
 			Address: mix,
 			Amount:  amount,
