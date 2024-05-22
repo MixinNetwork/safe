@@ -101,7 +101,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	b.Hint = traceId
 
 	addr := common.NewAddressFromSeed(make([]byte, 64))
-	mix := mixin.RequireNewMixAddress([]string{addr.String()}, 1)
+	mix := mixin.RequireNewMainnetMixAddress([]string{addr.String()}, 1)
 	mix.Threshold = 64
 	tx, err := client.MakeTransaction(ctx, b, []*mixin.TransactionOutput{
 		{
