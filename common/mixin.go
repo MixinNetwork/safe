@@ -74,6 +74,35 @@ func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) []*m
 	panic(fmt.Errorf("insufficient utxos to spend: %d %d", total, amount))
 }
 
+func ExtraLimit(tx mixinnet.Transaction) int {
+	if tx.Asset != mixinnet.XINAssetId {
+		return common.ExtraSizeGeneralLimit
+	}
+	if len(tx.Outputs) < 1 {
+		return common.ExtraSizeGeneralLimit
+	}
+	out := tx.Outputs[0]
+	if len(out.Keys) != 1 {
+		return common.ExtraSizeGeneralLimit
+	}
+	if out.Type != common.OutputTypeScript {
+		return common.ExtraSizeGeneralLimit
+	}
+	if out.Script.String() != "fffe40" {
+		return common.ExtraSizeGeneralLimit
+	}
+	step := mixinnet.IntegerFromString(common.ExtraStoragePriceStep)
+	if out.Amount.Cmp(step) < 0 {
+		return common.ExtraSizeGeneralLimit
+	}
+	cells := out.Amount.Count(step)
+	limit := cells * common.ExtraSizeStorageStep
+	if limit > common.ExtraSizeStorageCapacity {
+		return common.ExtraSizeStorageCapacity
+	}
+	return int(limit)
+}
+
 func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.TransactionBuilder, ma *mixin.MixAddress, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
 	remain := input.TotalInputAmount()
 	for _, output := range outputs {
@@ -120,7 +149,7 @@ func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.Tra
 		References: input.References,
 		Outputs:    input.Outputs,
 	}
-	if len(tx.Extra) > tx.ExtraLimit() {
+	if len(tx.Extra) > ExtraLimit(tx) {
 		return nil, fmt.Errorf("memo too long")
 	}
 	for _, input := range input.Inputs {
