@@ -14,14 +14,8 @@ github.com/MixinNetwork/mixin v0.18.5 h1:X9WunhpAwOfynjgc0MjseesJSsuMov3XOeT12xr
 github.com/MixinNetwork/mixin v0.18.5/go.mod h1:4q18tY4LXnkOMmo7fl6ezXxc8J+N+o3Hx06Zh3/aj0I=
 github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
 github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240507095016-68a079ce3a70 h1:y7Bg2nmxa6/lVDEHYOZUVKgdpZfhreQSrLy0aHI4SwM=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240507095016-68a079ce3a70/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240508034626-2fab5ba899b8 h1:U4mBfTDiE6rD218zQq3GSf/O9F7jogZdDWf68QwIxbE=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240508034626-2fab5ba899b8/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240508035715-58fe2f1c7b14 h1:whEraJ879qW2cfZSSVrw7WUTA2WIgWfrOx/4sEiN/oo=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240508035715-58fe2f1c7b14/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240510060355-5144cc9de76f h1:NebLy1YbjlXYQ2lr6O4DIS9Jd7TFS0FCsHbYQOWa/kA=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240510060355-5144cc9de76f/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
+github.com/MixinNetwork/trusted-group v0.6.2-0.20240522064010-3210db15baa7 h1:4xIQ+W07Q11tIrIFsiqGP0IT7BE7XUT6kL3DJ0NT08M=
+github.com/MixinNetwork/trusted-group v0.6.2-0.20240522064010-3210db15baa7/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/VictoriaMetrics/fastcache v1.12.1 h1:i0mICQuojGDL3KblA7wUNlY5lOK6a4bwt3uRKnkZU40=

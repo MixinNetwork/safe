@@ -172,12 +172,9 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 			Asset:     assetId,
 		})
 		logger.Verbosef("mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
-		if err != nil {
-			if CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return nil, err
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
 		}
 		return utxos, err
 	}
@@ -205,12 +202,9 @@ func CreateSafeTransactionRequest(ctx context.Context, client *mixin.Client, id,
 			RawTransaction: raw,
 		})
 		logger.Verbosef("mixin.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
-		if err != nil {
-			if CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return nil, err
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
 		}
 		return req, err
 	}
@@ -253,12 +247,9 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, inpu
 			RawTransaction: signedRaw,
 		})
 		logger.Verbosef("group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
-		if err != nil {
-			if CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return nil, err
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
 		}
 		return req, err
 	}
