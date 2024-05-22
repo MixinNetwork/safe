@@ -93,9 +93,6 @@ func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.Tra
 		total = input.TotalInputAmount()
 		asset = input.Asset()
 	)
-	if !total.IsZero() {
-		return nil, fmt.Errorf("invalid output: amount not matched")
-	}
 	if len(input.Inputs) == 0 {
 		return nil, fmt.Errorf("no input utxo")
 	}
@@ -111,6 +108,9 @@ func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.Tra
 		if total = total.Sub(decimal.RequireFromString(output.Amount.String())); total.IsNegative() {
 			return nil, fmt.Errorf("invalid output: amount exceed")
 		}
+	}
+	if !total.IsZero() {
+		return nil, fmt.Errorf("invalid output: amount not matched")
 	}
 
 	var tx = mixinnet.Transaction{
