@@ -194,7 +194,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 
 	b := mixin.NewSafeTransactionBuilder(utxos)
 	b.Memo = string(extra)
-	b.Hint = traceId
+	b.Hint = sTraceId
 
 	addr := common.NewAddressFromSeed(make([]byte, 64))
 	mix := mixin.RequireNewMainnetMixAddress([]string{addr.String()}, 1)
@@ -212,7 +212,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	if err != nil {
 		return nil, err
 	}
-	req, err := CreateSafeTransactionRequest(ctx, client, traceId, raw)
+	req, err := CreateSafeTransactionRequest(ctx, client, sTraceId, raw)
 	if err != nil {
 		return nil, err
 	}
