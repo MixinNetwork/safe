@@ -163,8 +163,14 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
 	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
-	if err != nil || old != nil {
+	if err != nil {
 		return old, err
+	}
+	if old != nil {
+		if old.State == mixin.SafeUtxoStateSpent {
+			return old, nil
+		}
+		return SignMultisigUntilSufficient(ctx, client, old, []string{client.ClientID}, spendPrivateKey)
 	}
 
 	if len(extra) > common.ExtraSizeStorageCapacity {
@@ -217,10 +223,13 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 	if err != nil {
-		return nil, err
+		return old, err
 	}
-	if old != nil && old.State == mixin.SafeUtxoStateSpent {
-		return old, nil
+	if old != nil {
+		if old.State == mixin.SafeUtxoStateSpent {
+			return old, nil
+		}
+		return SignMultisigUntilSufficient(ctx, client, old, members, spendPrivateKey)
 	}
 
 	utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
