@@ -77,7 +77,7 @@ func KeeperBootCmd(c *cli.Context) error {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
 	}
 
-	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "safe"), custodian)
+	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "custodian"), custodian)
 	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "safe"), keeper)
 	group.Run(ctx)
 	return nil
