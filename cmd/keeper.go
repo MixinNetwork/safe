@@ -78,7 +78,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 
 	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "custodian"), custodian)
-	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "safe"), keeper)
+	group.AttachWorker(mixin.UniqueConversationID("group", "safe"), keeper)
 	group.Run(ctx)
 	return nil
 }

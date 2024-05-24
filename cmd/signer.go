@@ -80,7 +80,7 @@ func SignerBootCmd(c *cli.Context) error {
 		go MonitorSigner(ctx, db, kd, mc.Signer, group, mmc)
 	}
 
-	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "safe"), node)
+	group.AttachWorker(mixin.UniqueConversationID("group", "safe"), node)
 	group.Run(ctx)
 	return nil
 }
