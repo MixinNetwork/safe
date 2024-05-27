@@ -48,11 +48,8 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 	if len(senders) != 1 && senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
-	b, err := hex.DecodeString(out.Extra)
-	if err != nil {
-		return nil, err
-	}
-	b, err = common.Base91Decode(string(b))
+	_, _, m := mtg.DecodeMixinExtra(out.Extra)
+	b, err := common.Base91Decode(m)
 	if err != nil {
 		return nil, err
 	}
