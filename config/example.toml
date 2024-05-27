@@ -1,4 +1,8 @@
 [signer]
+# the id represents actions and outptus for signer group
+app-id = ""
+# the id represents actions and outptus for keeper group
+keeper-app-id = ""
 store-dir = "/tmp/safe/signer"
 # the mixin messenger group conversation id for signer communication
 messenger-conversation-id = ""
@@ -44,6 +48,10 @@ spend-private-key = ""
 
 
 [keeper]
+# the id represents actions and outptus for keeper group
+app-id = ""
+# the id represents actions and outptus for signer group
+signer-app-id = ""
 store-dir = "/tmp/safe/keeper"
 # the mixin messenger group for monitor messages
 monitor-conversation-id = ""
@@ -100,6 +108,8 @@ spend-private-key = ""
 
 
 [observer]
+# the id represents actions and outptus for keeper group
+keeper-app-id = ""
 store-dir = "/tmp/safe/observer"
 # a ed25519 private key to do ecdh with the keeper mtg
 private-key = "c56d95ec2d09ff5e0975ec0a667cc6cc5f03046935b329fc9f6fb2c3c8500109"

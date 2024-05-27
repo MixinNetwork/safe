@@ -414,11 +414,9 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 }
 
 func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
-	b, err := hex.DecodeString(out.Extra)
-	if err != nil {
-		return nil, fmt.Errorf("hex.DecodeString(%s) => %v", out.Extra, err)
-	}
-	b, err = common.Base91Decode(string(b))
+	_, _, memo := mtg.DecodeMixinExtra(out.Extra)
+
+	b, err := common.Base91Decode(memo)
 	if err != nil {
 		return nil, fmt.Errorf("common.Base91Decode(%s) => %v", string(b), err)
 	}
@@ -672,7 +670,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	}
 
 	if !common.CheckTestEnvironment(ctx) {
-		balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, node.conf.KeeperAssetId, sequence)
+		balance, err := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, node.conf.KeeperAssetId, sequence)
 		if err != nil {
 			return nil, "", err
 		}
@@ -684,7 +682,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := node.group.BuildTransaction(traceId, node.group.GroupId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
+	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
 	return tx, "", nil
 }

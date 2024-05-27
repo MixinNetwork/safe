@@ -7,6 +7,7 @@ import (
 )
 
 type Configuration struct {
+	KeeperAppId           string `toml:"keeper-app-id"`
 	StoreDir              string `toml:"store-dir"`
 	PrivateKey            string `toml:"private-key"`
 	Timestamp             int64  `toml:"timestamp"`

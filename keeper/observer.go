@@ -36,7 +36,7 @@ func (node *Node) buildObserverTransaction(ctx context.Context, op *common.Opera
 	}
 	members := []string{node.conf.ObserverUserId}
 	threshold := 1
-	t, asset, err := node.buildTransactionWithReferences(ctx, sequence, assetId, members, threshold, amount, extra, op.Id, tx)
+	t, asset, err := node.buildTransactionWithReferences(ctx, sequence, node.conf.ObserverUserId, assetId, members, threshold, amount, extra, op.Id, tx)
 	logger.Printf("node.buildObserverTransaction(%v %s %x %d) => %v %s %v", op, op.Id, extra, sequence, t, asset, err)
 	return t, asset, err
 }

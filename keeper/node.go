@@ -66,12 +66,12 @@ func (node *Node) Index() int {
 	panic(node.conf.MTG.App.AppId)
 }
 
-func (node *Node) buildTransaction(ctx context.Context, sequence uint64, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) (*mtg.Transaction, string, error) {
-	logger.Printf("node.buildTransaction(%s, %v, %d, %s, %x, %s)", assetId, receivers, threshold, amount, memo, traceId)
-	return node.buildTransactionWithReferences(ctx, sequence, assetId, receivers, threshold, amount, memo, traceId, crypto.Hash{})
+func (node *Node) buildTransaction(ctx context.Context, sequence uint64, appId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) (*mtg.Transaction, string, error) {
+	logger.Printf("node.buildTransaction(%s, %s, %v, %d, %s, %x, %s)", appId, assetId, receivers, threshold, amount, memo, traceId)
+	return node.buildTransactionWithReferences(ctx, sequence, appId, assetId, receivers, threshold, amount, memo, traceId, crypto.Hash{})
 }
 
-func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence uint64, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) (*mtg.Transaction, string, error) {
+func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence uint64, appId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) (*mtg.Transaction, string, error) {
 	logger.Printf("node.buildTransactionWithReferences(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, tx)
 
 	if common.CheckTestEnvironment(ctx) {
@@ -87,7 +87,7 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence u
 			return nil, "", err
 		}
 	} else {
-		balance, err := node.group.CheckAssetBalanceAt(ctx, node.group.GroupId, assetId, sequence)
+		balance, err := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, assetId, sequence)
 		if err != nil {
 			return nil, "", err
 		}
@@ -102,9 +102,9 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence u
 
 	traceId = common.UniqueId(node.group.GenesisId(), traceId)
 	if tx.HasValue() {
-		return node.group.BuildTransactionWithReference(traceId, node.group.GroupId, assetId, amount, string(memo), receivers, threshold, sequence, tx), "", nil
+		return node.group.BuildTransactionWithReference(traceId, appId, assetId, amount, string(memo), receivers, threshold, sequence, tx), "", nil
 	}
-	return node.group.BuildTransaction(traceId, node.group.GroupId, assetId, amount, string(memo), receivers, threshold, sequence), "", nil
+	return node.group.BuildTransaction(traceId, appId, assetId, amount, string(memo), receivers, threshold, sequence), "", nil
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {

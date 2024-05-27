@@ -8,6 +8,8 @@ import (
 )
 
 type Configuration struct {
+	AppId                   string             `toml:"app-id"`
+	KeeperAppId             string             `toml:"keeper-app-id"`
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
 	MonitorConversaionId    string             `toml:"monitor-conversation-id"`

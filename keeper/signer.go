@@ -89,7 +89,7 @@ func (node *Node) buildSignerTransaction(ctx context.Context, sequence uint64, o
 	}
 	members := node.signer.Genesis.Members
 	threshold := node.signer.Genesis.Threshold
-	tx, asset, err := node.buildTransaction(ctx, sequence, node.conf.AssetId, members, threshold, "1", extra, op.Id)
+	tx, asset, err := node.buildTransaction(ctx, sequence, node.conf.SignerAppId, node.conf.AssetId, members, threshold, "1", extra, op.Id)
 	logger.Printf("node.buildSignerTransaction(%v %s %x) => %v %s %v", op, op.Id, extra, tx, asset, err)
 	return tx, asset, err
 }

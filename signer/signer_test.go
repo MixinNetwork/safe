@@ -15,7 +15,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -89,7 +88,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			Id:    sid,
 			Curve: crv,
 		}
-		groupId := mixin.UniqueConversationID("signer", "test")
+		groupId := common.UniqueId("signer", "test")
 		memo := mtg.EncodeMixinExtra(groupId, sid, string(node.encryptOperation(op)))
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{

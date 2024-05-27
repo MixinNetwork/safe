@@ -946,7 +946,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeSignOutput:
 		op.Public = public
 	}
-	memo := mtg.EncodeMixinExtra(node.group.GroupId, id, string(node.encryptSignerOperation(op)))
+	memo := mtg.EncodeMixinExtra(node.conf.AppId, id, string(node.encryptSignerOperation(op)))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		AssetId:         node.conf.AssetId,

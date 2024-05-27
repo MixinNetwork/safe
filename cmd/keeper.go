@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/custodian"
 	"github.com/MixinNetwork/safe/keeper"
@@ -77,8 +78,8 @@ func KeeperBootCmd(c *cli.Context) error {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
 	}
 
-	group.AttachWorker(mixin.UniqueConversationID(group.GenesisId(), "custodian"), custodian)
-	group.AttachWorker(mixin.UniqueConversationID("group", "safe"), keeper)
+	group.AttachWorker(common.UniqueId(mc.Keeper.AppId, "custodian"), custodian)
+	group.AttachWorker(mc.Keeper.AppId, keeper)
 	group.Run(ctx)
 	return nil
 }

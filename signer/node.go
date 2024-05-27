@@ -519,11 +519,13 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 	if common.CheckTestEnvironment(ctx) {
 		out := &mtg.Action{Senders: string(node.id), AssetId: node.conf.AssetId, CreatedAt: time.Now()}
 		out.Extra = common.Base91Encode(memo)
+		out.Extra = mtg.EncodeMixinExtra(node.conf.AppId, traceId, out.Extra)
 		out.Extra = hex.EncodeToString([]byte(out.Extra))
 		data := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		return network.QueueMTGOutput(ctx, data)
 	}
-	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, common.Base91Encode(memo), node.conf.MTG.App.SpendPrivateKey)
+	m := mtg.EncodeMixinExtra(node.conf.AppId, traceId, common.Base91Encode(memo))
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, m, node.conf.MTG.App.SpendPrivateKey)
 	return err
 }

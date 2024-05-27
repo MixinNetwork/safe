@@ -282,7 +282,7 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 			if err != nil {
 				panic(err)
 			}
-			memo := mtg.EncodeMixinExtra(node.group.GroupId, t.TraceId, t.Memo)
+			memo := mtg.EncodeMixinExtra(node.conf.AppId, t.TraceId, t.Memo)
 			err = node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString([]byte(memo)))
 			if err != nil {
 				panic(err)

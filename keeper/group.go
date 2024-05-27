@@ -123,7 +123,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
-	spent, err := node.group.ListOutputsForAsset(ctx, node.group.GroupId, out.AssetId, math.MaxInt64, "spent", 1)
+	spent, err := node.group.ListOutputsForAsset(ctx, node.conf.AppId, out.AssetId, math.MaxInt64, "spent", 1)
 	if err != nil {
 		return false, fmt.Errorf("group.ListOutputsForAsset(%s) => %v", out.AssetId, err)
 	}
@@ -351,7 +351,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if meta.Chain != SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	t, asset, err := node.buildTransaction(ctx, req.Sequence, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
+	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
 		return nil, asset, err
 	}
@@ -388,7 +388,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
 	if !common.CheckTestEnvironment(ctx) {
-		spent, err := node.group.ListOutputsForAsset(ctx, node.group.GroupId, req.AssetId, math.MaxInt64, "spent", 1)
+		spent, err := node.group.ListOutputsForAsset(ctx, node.conf.AppId, req.AssetId, math.MaxInt64, "spent", 1)
 		logger.Printf("group.ListOutputsForAsset(%s) => %d %v", req.AssetId, len(spent), err)
 		if err != nil {
 			return nil, "", fmt.Errorf("group.ListOutputsForAsset(%s) => %v", req.AssetId, err)
