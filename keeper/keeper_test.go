@@ -898,7 +898,8 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := common.Base91Encode(node.encryptObserverOperation(op))
+	memo := string(node.encryptObserverOperation(op))
+	memo = mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), memo)
 	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {

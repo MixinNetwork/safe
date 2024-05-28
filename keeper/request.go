@@ -49,11 +49,7 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
 	_, _, m := mtg.DecodeMixinExtra(out.Extra)
-	b, err := common.Base91Decode(m)
-	if err != nil {
-		return nil, err
-	}
-	b = common.AESDecrypt(node.observerAESKey[:], b)
+	b := common.AESDecrypt(node.observerAESKey[:], []byte(m))
 	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }

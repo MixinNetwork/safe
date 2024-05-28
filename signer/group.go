@@ -416,12 +416,7 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
 	_, _, memo := mtg.DecodeMixinExtra(out.Extra)
 
-	b, err := common.Base91Decode(memo)
-	if err != nil {
-		return nil, fmt.Errorf("common.Base91Decode(%s) => %v", string(b), err)
-	}
-
-	b = common.AESDecrypt(node.aesKey[:], b)
+	b := common.AESDecrypt(node.aesKey[:], []byte(memo))
 	req, err := common.DecodeOperation(b)
 	if err != nil {
 		return nil, fmt.Errorf("common.DecodeOperation(%x) => %v", b, err)
