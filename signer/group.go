@@ -677,7 +677,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
+	tx := node.group.BuildTransaction(traceId, node.conf.AppId, node.conf.KeeperAppId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
 	return tx, "", nil
 }
