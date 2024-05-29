@@ -125,8 +125,7 @@ func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64
 		if err != nil {
 			switch {
 			case strings.Contains(err.Error(), "insufficient balance"):
-				amount, _ := decimal.NewFromString(stx.Amount)
-				tx, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.MTG.App.AppId}, 1, stx.Receivers, stx.Threshold, amount, stx.TraceId, stx.AssetId, stx.Memo, node.conf.MTG.App.SpendPrivateKey)
+				tx, err := common.WriteStorageUntilSufficient(ctx, node.mixin, extra, stx.TraceId, node.conf.MTG.App.SpendPrivateKey)
 				if err != nil {
 					panic(err)
 				}
