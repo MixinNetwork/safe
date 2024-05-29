@@ -459,15 +459,15 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 	copy(stx[:], op.Extra)
 	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
 	if err != nil {
-		panic(stx.String())
+		panic(fmt.Errorf("common.ReadKernelTransaction(%s) => %v", stx.String(), err))
 	}
 	g, t, m = mtg.DecodeMixinExtra(string(tx.Extra))
 	if g == "" && t == "" && m == "" {
-		panic(stx.String())
+		m = string(tx.Extra)
 	}
 	data, err := common.Base91Decode(m)
 	if err != nil || len(data) < 32 {
-		panic(s.TransactionHash)
+		panic(fmt.Errorf("common.Base91Decode(%s) => %d %v", m, len(data), err))
 	}
 
 	switch op.Type {
