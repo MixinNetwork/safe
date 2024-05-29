@@ -417,7 +417,7 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	g, t, m := mtg.DecodeMixinExtra(s.Memo)
+	g, t, m := mtg.DecodeMixinExtra(hex.EncodeToString([]byte(s.Memo)))
 	if g == "" && t == "" && m == "" {
 		return false, nil
 	}
