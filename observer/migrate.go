@@ -3,7 +3,6 @@ package observer
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
@@ -156,15 +156,16 @@ func (node *Node) distributePolygonBondAsset(ctx context.Context, receiver strin
 		Public: safe.Holder,
 		Extra:  extra,
 	}
-	memo := base64.RawURLEncoding.EncodeToString(op.Encode())
-	if len(extra) > 160 {
-		panic(fmt.Errorf("node.sendKeeperTransaction(%v) omitted %x", op, extra))
-	}
-
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId = fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
 	traceId = node.safeTraceId(traceId, op.Id)
+
+	memo := mtg.EncodeMixinExtra(node.conf.KeeperAppId, traceId, string(op.Encode()))
+	if len(extra) > 160 {
+		panic(fmt.Errorf("node.sendKeeperTransaction(%v) omitted %x", op, extra))
+	}
+
 	b := mixin.NewSafeTransactionBuilder(inputs)
 	b.Memo = memo
 	b.Hint = traceId

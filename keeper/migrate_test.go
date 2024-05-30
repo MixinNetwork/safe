@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"testing"
 	"time"
@@ -42,7 +41,7 @@ func testBuildObserverMigrateRequest(node *Node, id, public string, action byte,
 		Public: public,
 		Extra:  extra,
 	}
-	memo := base64.RawURLEncoding.EncodeToString(op.Encode())
+	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), string(op.Encode()))
 	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {
