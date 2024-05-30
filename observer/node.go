@@ -143,7 +143,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 func (node *Node) saveAccountApprovalSignature(ctx context.Context, addr, sig string) error {
 	if !common.CheckTestEnvironment(ctx) {
 		safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
-		if err != nil || safe.State == common.RequestStateDone {
+		if err != nil || (safe != nil && safe.State == common.RequestStateDone) {
 			return err
 		}
 	}
