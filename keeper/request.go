@@ -65,11 +65,11 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) 
 }
 
 func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
-	b, err := hex.DecodeString(out.Extra)
-	if err != nil {
-		return nil, err
+	g, t, m := mtg.DecodeMixinExtra(out.Extra)
+	if g == "" && t == "" && m == "" {
+		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
 	}
-	b, err = base64.RawURLEncoding.DecodeString(string(b))
+	b, err := base64.RawURLEncoding.DecodeString(m)
 	if err != nil {
 		return nil, err
 	}
