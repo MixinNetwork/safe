@@ -69,12 +69,8 @@ func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
 	if g == "" && t == "" && m == "" {
 		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
 	}
-	b, err := base64.RawURLEncoding.DecodeString(m)
-	if err != nil {
-		return nil, err
-	}
 	role := node.requestRole(out.AssetId)
-	return common.DecodeRequest(out, b, role)
+	return common.DecodeRequest(out, []byte(m), role)
 }
 
 func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {

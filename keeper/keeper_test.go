@@ -876,7 +876,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := base64.RawURLEncoding.EncodeToString(op.Encode())
+	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), string(op.Encode()))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		AssetId:         assetId,
