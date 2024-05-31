@@ -125,6 +125,9 @@ func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64
 				if err != nil {
 					panic(err)
 				}
+				if tx == nil {
+					continue
+				}
 				hash, _ := crypto.HashFromString(tx.TransactionHash)
 				return hash
 			default:

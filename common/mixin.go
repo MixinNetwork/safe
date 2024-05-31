@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -169,6 +170,9 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	if old != nil {
 		if old.State == mixin.SafeUtxoStateSpent {
 			return old, nil
+		}
+		if !slices.Contains(old.Senders, client.ClientID) {
+			return nil, nil
 		}
 		return SignMultisigUntilSufficient(ctx, client, old, []string{client.ClientID}, spendPrivateKey)
 	}
