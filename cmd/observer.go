@@ -28,6 +28,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	gc "github.com/ethereum/go-ethereum/crypto"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/urfave/cli/v2"
 )
 
@@ -66,6 +67,15 @@ func ObserverBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	me, err := mixin.UserMe(ctx)
+	if err != nil {
+		return err
+	}
+	key, err := mixinnet.ParseKeyWithPub(mc.Observer.App.SpendPrivateKey, me.SpendPublicKey)
+	if err != nil {
+		return err
+	}
+	mc.Observer.App.SpendPrivateKey = key.String()
 
 	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin)
 	go node.StartHTTP(c.App.Metadata["README"].(string))

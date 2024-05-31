@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
@@ -44,19 +45,24 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 
 	s := &mixin.Keystore{
-		ClientID:          mc.Signer.MTG.App.AppId,
-		SessionID:         mc.Signer.MTG.App.SessionId,
-		SessionPrivateKey: mc.Signer.MTG.App.SessionPrivateKey,
-		ServerPublicKey:   mc.Signer.MTG.App.ServerPublicKey,
+		ClientID:          mc.Keeper.MTG.App.AppId,
+		SessionID:         mc.Keeper.MTG.App.SessionId,
+		SessionPrivateKey: mc.Keeper.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   mc.Keeper.MTG.App.ServerPublicKey,
 	}
 	client, err := mixin.NewFromKeystore(s)
 	if err != nil {
 		return err
 	}
-	_, err = client.UserMe(ctx)
+	me, err := client.UserMe(ctx)
 	if err != nil {
 		return err
 	}
+	key, err := mixinnet.ParseKeyWithPub(mc.Keeper.MTG.App.SpendPrivateKey, me.SpendPublicKey)
+	if err != nil {
+		return err
+	}
+	mc.Keeper.MTG.App.SpendPrivateKey = key.String()
 
 	cd, err := custodian.OpenSQLite3Store(mc.Keeper.StoreDir + "/custodian.sqlite3")
 	if err != nil {

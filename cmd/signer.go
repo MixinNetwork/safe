@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/mdp/qrterminal"
 	"github.com/shopspring/decimal"
@@ -68,10 +69,15 @@ func SignerBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = client.UserMe(ctx)
+	me, err := client.UserMe(ctx)
 	if err != nil {
 		return err
 	}
+	key, err := mixinnet.ParseKeyWithPub(mc.Signer.MTG.App.SpendPrivateKey, me.SpendPublicKey)
+	if err != nil {
+		return err
+	}
+	mc.Signer.MTG.App.SpendPrivateKey = key.String()
 
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
 	node.Boot(ctx)
