@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
@@ -112,4 +113,14 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 		return nil
 	}
 	return common.VerifyKernelTransaction(node.conf.MixinRPC, out, time.Minute)
+}
+
+func (node *Node) safeUser() bot.SafeUser {
+	return bot.SafeUser{
+		UserId:            node.conf.MTG.App.AppId,
+		SessionId:         node.conf.MTG.App.SessionId,
+		ServerPublicKey:   node.conf.MTG.App.ServerPublicKey,
+		SessionPrivateKey: node.conf.MTG.App.SessionPrivateKey,
+		SpendPrivateKey:   node.conf.MTG.App.SpendPrivateKey,
+	}
 }

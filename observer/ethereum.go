@@ -513,11 +513,11 @@ func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Conte
 	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
 	traceId := common.UniqueId(msg, msg)
-	rs, err := common.WriteStorageUntilSufficient(ctx, node.mixin, raw, traceId, node.conf.App.SpendPrivateKey)
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, raw, traceId, node.safeUser())
 	if err != nil {
 		return err
 	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	ref, err := crypto.HashFromString(hash)
 	if err != nil {
 		return err
 	}
@@ -587,12 +587,12 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
 	traceId := common.UniqueId(msg, msg)
-	rs, err := common.WriteStorageUntilSufficient(ctx, node.mixin, objectRaw, traceId, node.conf.App.SpendPrivateKey)
-	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %s %v", msg, hash, err)
 	if err != nil {
 		return err
 	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	ref, err := crypto.HashFromString(hash)
 	if err != nil {
 		return err
 	}

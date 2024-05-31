@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -160,68 +161,39 @@ func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.Tra
 	return &tx, nil
 }
 
-func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, traceId, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, traceId string, su bot.SafeUser) (string, error) {
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
-	old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
-	if err != nil {
-		return old, err
-	}
-	if old != nil {
-		if old.State == mixin.SafeUtxoStateSpent {
-			return old, nil
+
+	for {
+		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
+		if err != nil {
+			return "", err
 		}
-		if !slices.Contains(old.Senders, client.ClientID) {
-			return nil, nil
+		if old != nil {
+			if old.State == mixin.SafeUtxoStateSpent {
+				return old.TransactionHash, nil
+			}
+			if !slices.Contains(old.Senders, client.ClientID) {
+				continue
+			}
+			req, err := SignMultisigUntilSufficient(ctx, client, old, []string{client.ClientID}, su.SpendPrivateKey)
+			if err != nil {
+				return "", nil
+			}
+			return req.TransactionHash, nil
 		}
-		return SignMultisigUntilSufficient(ctx, client, old, []string{client.ClientID}, spendPrivateKey)
-	}
 
-	if len(extra) > common.ExtraSizeStorageCapacity {
-		return nil, fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity)
+		req, err := bot.CreateObjectStorageTransaction(ctx, extra, traceId, nil, "", &su)
+		if err != nil {
+			if CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			return "", nil
+		}
+		return req.TransactionHash, nil
 	}
-	step, err := decimal.NewFromString(common.ExtraStoragePriceStep)
-	if err != nil {
-		return nil, err
-	}
-	amount := step.Mul(decimal.NewFromInt(int64(len(extra)/common.ExtraSizeStorageStep + 1)))
-
-	utxos, err := listSafeUtxosUntilSufficient(ctx, client, []string{client.ClientID}, 1, common.XINAssetId.String())
-	if err != nil {
-		return nil, err
-	}
-	utxos = getEnoughUtxosToSpend(utxos, amount)
-	ma, err := mixin.NewMixAddress(utxos[0].Receivers, utxos[0].ReceiversThreshold)
-	if err != nil {
-		return nil, err
-	}
-
-	b := mixin.NewSafeTransactionBuilder(utxos)
-	b.Memo = string(extra)
-	b.Hint = sTraceId
-
-	addr := common.NewAddressFromSeed(make([]byte, 64))
-	mix := mixin.RequireNewMainnetMixAddress([]string{addr.String()}, 1)
-	mix.Threshold = 64
-	tx, err := makeTransaction(ctx, client, b, ma, []*mixin.TransactionOutput{
-		{
-			Address: mix,
-			Amount:  amount,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	raw, err := tx.Dump()
-	if err != nil {
-		return nil, err
-	}
-	req, err := CreateSafeTransactionRequest(ctx, client, sTraceId, raw)
-	if err != nil {
-		return nil, err
-	}
-	_, err = SignMultisigUntilSufficient(ctx, client, req, []string{client.ClientID}, spendPrivateKey)
-	return req, err
 }
 
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
@@ -314,11 +286,7 @@ func CreateSafeTransactionRequest(ctx context.Context, client *mixin.Client, id,
 }
 
 func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, input *mixin.SafeTransactionRequest, members []string, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
-	spendPublicKey, err := GetSpendPublicKeyUntilSufficient(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-	key, err := mixinnet.ParseKeyWithPub(spendPrivateKey, spendPublicKey)
+	key, err := mixinnet.KeyFromString(spendPrivateKey)
 	if err != nil {
 		return nil, err
 	}

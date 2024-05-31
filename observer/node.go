@@ -527,8 +527,8 @@ func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset ui
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
 }
 
-func (node *Node) safeUser() *bot.SafeUser {
-	return &bot.SafeUser{
+func (node *Node) safeUser() bot.SafeUser {
+	return bot.SafeUser{
 		UserId:            node.conf.App.AppId,
 		SessionId:         node.conf.App.SessionId,
 		ServerPublicKey:   node.conf.App.ServerPublicKey,

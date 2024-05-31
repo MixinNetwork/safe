@@ -121,14 +121,14 @@ func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64
 		if err != nil {
 			switch {
 			case strings.Contains(err.Error(), "insufficient balance"):
-				tx, err := common.WriteStorageUntilSufficient(ctx, node.mixin, extra, stx.TraceId, node.conf.MTG.App.SpendPrivateKey)
+				h, err := common.WriteStorageUntilSufficient(ctx, node.mixin, extra, stx.TraceId, node.safeUser())
 				if err != nil {
 					panic(err)
 				}
-				if tx == nil {
+				if h == "" {
 					continue
 				}
-				hash, _ := crypto.HashFromString(tx.TransactionHash)
+				hash, _ := crypto.HashFromString(h)
 				return hash
 			default:
 				panic(err)
