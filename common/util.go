@@ -88,6 +88,7 @@ func CheckRetryableError(err error) bool {
 	case strings.Contains(es, "Client.Timeout"):
 	case strings.Contains(es, "Bad Gateway"):
 	case strings.Contains(es, "Internal Server Error"):
+	case strings.Contains(es, "invalid character '<' looking for beginning of value"):
 	default:
 		return false
 	}
