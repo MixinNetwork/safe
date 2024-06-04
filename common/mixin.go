@@ -105,94 +105,43 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 	return int(limit)
 }
 
-func makeTransaction(ctx context.Context, client *mixin.Client, input *mixin.TransactionBuilder, ma *mixin.MixAddress, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
-	remain := input.TotalInputAmount()
-	for _, output := range outputs {
-		remain = remain.Sub(output.Amount)
-	}
-	if remain.IsPositive() {
-		outputs = append(outputs, &mixin.TransactionOutput{
-			Address: ma,
-			Amount:  remain,
-		})
-	}
-	if err := client.AppendOutputsToInput(ctx, input, outputs); err != nil {
-		return nil, err
-	}
-
-	var (
-		total = input.TotalInputAmount()
-		asset = input.Asset()
-	)
-	if len(input.Inputs) == 0 {
-		return nil, fmt.Errorf("no input utxo")
-	}
-	if len(input.Inputs) > mixinnet.SliceCountLimit || len(input.Outputs) > mixinnet.SliceCountLimit || len(input.References) > mixinnet.SliceCountLimit {
-		return nil, fmt.Errorf("invalid tx inputs or outputs %d %d %d", len(input.Inputs), len(input.Outputs), len(input.References))
-	}
-	for _, input := range input.Inputs {
-		if asset != input.Asset {
-			return nil, fmt.Errorf("invalid input utxo, asset not matched")
-		}
-	}
-	for _, output := range input.Outputs {
-		if total = total.Sub(decimal.RequireFromString(output.Amount.String())); total.IsNegative() {
-			return nil, fmt.Errorf("invalid output: amount exceed")
-		}
-	}
-	if !total.IsZero() {
-		return nil, fmt.Errorf("invalid output: amount not matched")
-	}
-
-	var tx = mixinnet.Transaction{
-		Version:    input.TxVersion,
-		Asset:      input.Asset(),
-		Extra:      []byte(input.Memo),
-		References: input.References,
-		Outputs:    input.Outputs,
-	}
-	if len(tx.Extra) > ExtraLimit(tx) {
-		return nil, fmt.Errorf("memo too long")
-	}
-	for _, input := range input.Inputs {
-		tx.Inputs = append(tx.Inputs, &input.Input)
-	}
-
-	return &tx, nil
-}
-
 func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, traceId string, su bot.SafeUser) (string, error) {
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
 
 	for {
-		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
+		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
+		if err != nil {
+			return "", err
+		}
+		if req != nil && req.State == mixin.SafeUtxoStateSpent {
+			return req.TransactionHash, nil
+		}
+		old, err := SafeReadMultisigRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
 			return "", err
 		}
 		if old != nil {
-			if old.State == mixin.SafeUtxoStateSpent {
-				return old.TransactionHash, nil
-			}
-			if !slices.Contains(old.Senders, client.ClientID) {
+			if slices.Contains(old.Signers, client.ClientID) {
 				continue
 			}
-			req, err := SignMultisigUntilSufficient(ctx, client, old, []string{client.ClientID}, su.SpendPrivateKey)
+			_, err = SignMultisigUntilSufficient(ctx, client, req, []string{client.ClientID}, su.SpendPrivateKey)
 			if err != nil {
 				return "", err
 			}
-			return req.TransactionHash, nil
+			time.Sleep(3 * time.Second)
+			continue
 		}
 
-		req, err := bot.CreateObjectStorageTransaction(ctx, extra, traceId, nil, "", &su)
+		storageReq, err := bot.CreateObjectStorageTransaction(ctx, extra, traceId, nil, "", &su)
 		if err != nil {
-			if CheckRetryableError(err) {
+			if CheckRetryableError(err) || strings.Contains(err.Error(), "signature verification failed") {
 				time.Sleep(3 * time.Second)
 				continue
 			}
 			return "", err
 		}
-		return req.TransactionHash, nil
+		return storageReq.TransactionHash, nil
 	}
 }
 
@@ -330,6 +279,24 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 	for {
 		req, err := client.SafeReadTransactionRequest(ctx, id)
 		logger.Verbosef("mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if mixin.IsErrorCodes(err, 404) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return req, nil
+	}
+}
+
+func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeMultisigRequest, error) {
+	for {
+		req, err := client.SafeReadMultisigRequests(ctx, id)
+		logger.Verbosef("mixin.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
 		if err != nil {
 			if CheckRetryableError(err) {
 				time.Sleep(3 * time.Second)
