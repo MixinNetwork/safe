@@ -514,6 +514,7 @@ func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Conte
 	msg := base64.RawURLEncoding.EncodeToString(raw)
 	traceId := common.UniqueId(msg, msg)
 	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, raw, traceId, node.safeUser())
+	logger.Printf("WriteStorageUntilSufficient(%s) => %s %v", traceId, hash, err)
 	if err != nil {
 		return err
 	}

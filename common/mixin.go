@@ -179,7 +179,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 			}
 			req, err := SignMultisigUntilSufficient(ctx, client, old, []string{client.ClientID}, su.SpendPrivateKey)
 			if err != nil {
-				return "", nil
+				return "", err
 			}
 			return req.TransactionHash, nil
 		}
