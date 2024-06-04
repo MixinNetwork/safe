@@ -195,11 +195,11 @@ func (node *Node) distributePolygonBondAsset(ctx context.Context, receiver strin
 	if err != nil {
 		return err
 	}
-	req, err := common.CreateSafeTransactionRequest(ctx, node.mixin, traceId, raw)
+	req, err := common.CreateMultisigRequestUntilSufficient(ctx, node.mixin, traceId, raw)
 	if err != nil {
 		return err
 	}
-	_, err = common.SignMultisigUntilSufficient(ctx, node.mixin, req, []string{node.mixin.ClientID}, node.conf.App.SpendPrivateKey)
+	_, err = common.SignMultisigUntilSufficient(ctx, node.mixin, req.RequestID, req.RawTransaction, req.Views, []string{node.mixin.ClientID}, node.conf.App.SpendPrivateKey)
 	return err
 }
 
