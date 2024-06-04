@@ -214,14 +214,9 @@ func (node *Node) snapshotsLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		var snapshots []*mixin.Snapshot
-		err = node.mixin.Get(ctx, "/safe/snapshots", map[string]string{
-			"limit":  "500",
-			"order":  "ASC",
-			"offset": offset.Format(time.RFC3339Nano),
-		}, &snapshots)
+		snapshots, err := node.mixin.ReadSafeSnapshots(ctx, "", offset, "ASC", 500)
 		if err != nil {
-			logger.Printf("mixin.GetSnapshots(%s) => %v", offset, err)
+			logger.Printf("mixin.ReadSafeSnapshots(%s) => %v", offset, err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -244,7 +239,7 @@ func (node *Node) snapshotsLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
+func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) error {
 	logger.Verbosef("node.handleSnapshot(%v)", s)
 	if s.Amount.Sign() < 0 {
 		return nil
@@ -351,7 +346,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 	return nil
 }
 
-func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	if s.AssetID != node.conf.CustomKeyPriceAssetId {
 		return false, nil
 	}
@@ -397,7 +392,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 	return true, nil
 }
 
-func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
 	if err != nil || approval == nil {
 		return false, err
@@ -415,7 +410,7 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 	return true, node.holderPayTransactionApproval(ctx, approval.Chain, s.Memo)
 }
 
-func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	g, t, m := mtg.DecodeMixinExtra(hex.EncodeToString([]byte(s.Memo)))
 	if g == "" && t == "" && m == "" {
 		return false, nil
