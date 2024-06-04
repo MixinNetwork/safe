@@ -190,7 +190,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 				time.Sleep(3 * time.Second)
 				continue
 			}
-			return "", nil
+			return "", err
 		}
 		return req.TransactionHash, nil
 	}
