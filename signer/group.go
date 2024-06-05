@@ -226,6 +226,10 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			if err != nil {
 				panic(err)
 			}
+			session, err = node.store.ReadSession(ctx, op.Id)
+			if err != nil {
+				panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
+			}
 		}
 
 		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
