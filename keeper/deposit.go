@@ -229,7 +229,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	t, a, err := node.buildTransaction(ctx, req.Sequence, bondId, node.conf.AppId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	t, a, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if err != nil || a != "" {
 		return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
 	}
