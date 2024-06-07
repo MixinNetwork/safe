@@ -950,7 +950,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	}
 	tt, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(req.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
-		return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v %s %v", req, tt, asset, err)
+		return nil, asset, fmt.Errorf("node.buildTransaction(%v) => %v %s %v", req, tt, asset, err)
 	}
 
 	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, balanceMap)

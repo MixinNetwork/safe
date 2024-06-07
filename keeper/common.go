@@ -83,7 +83,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
 	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
-		return nil, "", err
+		return nil, asset, err
 	}
 	return []*mtg.Transaction{t}, "", node.store.FailRequest(ctx, req.Id)
 }
