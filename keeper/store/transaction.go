@@ -285,7 +285,7 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Transaction, safe *Safe, req *common.Request) error {
+func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Transaction, safe *Safe, req *common.Request, bm map[string]*SafeBalance) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -313,6 +313,13 @@ func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Tran
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
+	for _, balance := range bm {
+		err = s.createOrUpdateEthereumBalance(ctx, tx, safe, balance.Balance, balance.AssetId, balance.AssetAddress)
+		if err != nil {
+			return err
+		}
+	}
+
 	return tx.Commit()
 }
 
@@ -334,6 +341,17 @@ func transactionHasOutputs(chain byte) bool {
 		return true
 	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
 		return false
+	default:
+		panic(chain)
+	}
+}
+
+func transactionHasBalance(chain byte) bool {
+	switch chain {
+	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
+		return false
+	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
+		return true
 	default:
 		panic(chain)
 	}

@@ -59,16 +59,7 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) CreateOrUpdateEthereumBalance(ctx context.Context, safe *Safe, balance *big.Int, assetId, assetAddress string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
+func (s *SQLite3Store) createOrUpdateEthereumBalance(ctx context.Context, tx *sql.Tx, safe *Safe, balance *big.Int, assetId, assetAddress string) error {
 	existed, err := s.checkExistence(ctx, tx, "SELECT balance FROM ethereum_balances WHERE address=? AND asset_id=?", safe.Address, assetId)
 	if err != nil {
 		return err
@@ -86,7 +77,7 @@ func (s *SQLite3Store) CreateOrUpdateEthereumBalance(ctx context.Context, safe *
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId string) (*SafeBalance, error) {

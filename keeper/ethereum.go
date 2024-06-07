@@ -910,6 +910,8 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	if err != nil {
 		panic(err)
 	}
+
+	balanceMap := make(map[string]*store.SafeBalance)
 	outputs := st.ExtractOutputs()
 	_, ethereumAssetId := node.ethereumParams(safe.Chain)
 	for _, o := range outputs {
@@ -917,16 +919,15 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 		if o.TokenAddress != ethereum.EthereumEmptyAddress {
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
-		b, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, b, err)
-		if err != nil {
-			return nil, "", err
+		if _, ok := balanceMap[assetId]; !ok {
+			balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+			logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
+			if err != nil {
+				return nil, "", err
+			}
+			balanceMap[assetId] = balance
 		}
-		closeBalance := new(big.Int).Add(b.Balance, o.Amount)
-		err = node.store.CreateOrUpdateEthereumBalance(ctx, safe, closeBalance, b.AssetId, b.AssetAddress)
-		if err != nil {
-			return nil, "", err
-		}
+		balanceMap[assetId].Balance = new(big.Int).Add(balanceMap[assetId].Balance, o.Amount)
 	}
 
 	txRequest, err := node.store.ReadRequest(ctx, tx.RequestId)
@@ -952,7 +953,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 		return nil, "", fmt.Errorf("node.buildTransaction(%v) => %v %s %v", req, tt, asset, err)
 	}
 
-	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req)
+	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, balanceMap)
 	logger.Printf("store.FailTransactionWithRequest(%v %v %v) => %v", tx, safe, req, err)
 	if err != nil {
 		return nil, "", err
@@ -1051,6 +1052,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 
 	_, ethereumAssetId := node.ethereumParams(safe.Chain)
+	balanceMap := make(map[string]*store.SafeBalance)
 	outputs := t.ExtractOutputs()
 	for _, o := range outputs {
 		assetId := ethereumAssetId
@@ -1058,21 +1060,20 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
 		}
 
-		balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
-		if err != nil {
-			return nil, "", err
+		if _, ok := balanceMap[assetId]; !ok {
+			balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+			logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
+			if err != nil {
+				return nil, "", err
+			}
+			balanceMap[assetId] = balance
 		}
-		closeBalance := balance.Balance.Sub(balance.Balance, o.Amount)
+		closeBalance := big.NewInt(0).Sub(balanceMap[assetId].Balance, o.Amount)
 		if closeBalance.Cmp(big.NewInt(0)) < 0 {
 			logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
 			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
-		err = node.store.CreateOrUpdateEthereumBalance(ctx, safe, closeBalance, assetId, balance.AssetAddress)
-		logger.Printf("store.CreateOrUpdateEthereumBalance(%v, %s, %s, %s) => %v", safe, closeBalance.String(), assetId, balance.AssetAddress, err)
-		if err != nil {
-			return nil, "", err
-		}
+		balanceMap[assetId].Balance = closeBalance
 	}
 
 	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
@@ -1085,7 +1086,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return nil, asset, err
 	}
 
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, balanceMap)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	if err != nil {
 		return nil, "", err

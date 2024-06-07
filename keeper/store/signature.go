@@ -121,7 +121,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe) error {
+func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -148,6 +148,14 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, transactionHash)
 		if err != nil {
 			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
+		}
+	}
+	if transactionHasBalance(safe.Chain) {
+		for _, balance := range bm {
+			err = s.createOrUpdateEthereumBalance(ctx, tx, safe, balance.Balance, balance.AssetId, balance.AssetAddress)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
