@@ -7,6 +7,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/gofrs/uuid"
 )
 
 func (node *Node) sendObserverResponseWithReferences(ctx context.Context, id string, sequence uint64, typ, crv byte, storageTraceId string) (*mtg.Transaction, string, error) {
@@ -18,7 +19,7 @@ func (node *Node) sendObserverResponseWithAssetAndReferences(ctx context.Context
 		Type:  typ,
 		Id:    id,
 		Curve: crv,
-		// TODO Extra
+		Extra: uuid.FromStringOrNil(storageTraceId).Bytes(),
 	}
 	return node.buildObserverTransaction(ctx, op, sequence, assetId, amount, storageTraceId)
 }

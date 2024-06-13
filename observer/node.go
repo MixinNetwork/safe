@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -418,7 +417,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	b := common.AESDecrypt(node.aesKey[:], []byte(m))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
-	if err != nil || len(op.Extra) != 32 {
+	if err != nil || len(op.Extra) != 16 {
 		return false, err
 	}
 	chain := keeper.SafeCurveChain(op.Curve)
@@ -449,11 +448,10 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 		return false, nil
 	}
 
-	var stx crypto.Hash
-	copy(stx[:], op.Extra)
-	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
+	rid := uuid.FromBytesOrNil(op.Extra).String()
+	tx, err := common.SafeReadTransactionRequestUntilSufficient(ctx, node.mixin, rid)
 	if err != nil {
-		panic(fmt.Errorf("common.ReadKernelTransaction(%s) => %v", stx.String(), err))
+		return false, err
 	}
 	g, t, m = mtg.DecodeMixinExtra(string(tx.Extra))
 	if g == "" && t == "" && m == "" {
