@@ -84,8 +84,8 @@ func KeeperBootCmd(c *cli.Context) error {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
 	}
 
-	group.AttachWorker(common.UniqueId(mc.Keeper.AppId, "custodian"), custodian)
-	group.AttachWorker(mc.Keeper.AppId, keeper)
+	group.AttachWorker(common.UniqueId(mc.Keeper.AppId, "custodian"), "", custodian)
+	group.AttachWorker(mc.Keeper.AppId, mc.Keeper.PolygonGroupEntry, keeper)
 	group.Run(ctx)
 	return nil
 }

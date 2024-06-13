@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -95,48 +94,34 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 	return raw[16:]
 }
 
-func (node *Node) writeStorageUntilSnapshot(ctx context.Context, sequence uint64, extra []byte) crypto.Hash {
-	logger.Printf("node.writeStorageUntilSnapshot(%x)", extra)
+func (node *Node) writeStorageTransaction(ctx context.Context, sequence uint64, extra []byte) (*mtg.Transaction, error) {
+	logger.Printf("node.writeStorageTransaction(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
-		tx := crypto.Blake3Hash(extra)
-		k := hex.EncodeToString(tx[:])
+		sTraceId := crypto.Blake3Hash(extra).String()
+		sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+		hash := crypto.Blake3Hash(extra)
+		tx := &mtg.Transaction{
+			TraceId: sTraceId,
+			Hash:    hash,
+		}
+
+		k := hex.EncodeToString(hash[:])
 		v := hex.EncodeToString(extra)
 		o, err := node.store.ReadProperty(ctx, k)
 		if err != nil {
 			panic(err)
 		}
 		if o == v {
-			return tx
+			return tx, nil
 		}
 		err = node.store.WriteProperty(ctx, k, v)
 		if err != nil {
 			panic(err)
 		}
-		return tx
+		return tx, nil
 	}
 
-	for {
-		stx, err := node.group.BuildStorageTransaction(ctx, extra, sequence)
-		logger.Printf("group.BuildStorageTransaction(%x) => %v %v", extra, stx, err)
-		if err != nil {
-			switch {
-			case strings.Contains(err.Error(), "insufficient balance"):
-				h, err := common.WriteStorageUntilSufficient(ctx, node.mixin, extra, stx.TraceId, node.safeUser())
-				if err != nil {
-					panic(err)
-				}
-				if h == "" {
-					continue
-				}
-				hash, _ := crypto.HashFromString(h)
-				return hash
-			default:
-				panic(err)
-			}
-		}
-		if stx.Hash.HasValue() && stx.State >= mtg.TransactionStateSigned {
-			return stx.Hash
-		}
-		time.Sleep(time.Second)
-	}
+	stx, err := node.group.BuildStorageTransaction(ctx, node.conf.AppId, extra, sequence)
+	logger.Printf("group.BuildStorageTransaction(%x) => %v %v", extra, stx, err)
+	return stx, err
 }

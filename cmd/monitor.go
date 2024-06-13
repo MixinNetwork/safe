@@ -58,17 +58,17 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
 
-	tl, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
+	tl, _, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
 	if err != nil {
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Initial Transactions: %d\n", len(tl))
-	tl, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigning, 1000)
+	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigning, 1000)
 	if err != nil {
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Signing Transactions: %d\n", len(tl))
-	tl, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
+	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
 	if err != nil {
 		return "", err
 	}
@@ -145,17 +145,17 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 		state = state + fmt.Sprintf("🚴 Bitcoin height: %d\n", info.Height)
 	}
 
-	tl, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
+	tl, _, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
 	if err != nil {
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Initial Transactions: %d\n", len(tl))
-	tl, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigning, 1000)
+	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigning, 1000)
 	if err != nil {
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Signing Transactions: %d\n", len(tl))
-	tl, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
+	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
 	if err != nil {
 		return "", err
 	}

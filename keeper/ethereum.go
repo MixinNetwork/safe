@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -270,13 +271,16 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
-	id := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
+	if err != nil {
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
+	id := common.UniqueId(tx.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, exk)
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v %s %v", id, exk, tt, asset, err)
+		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v %s %v", id, stx.TraceId, tt, asset, err)
 	}
 
 	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
@@ -383,12 +387,15 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	extra := gs.Marshal()
-	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
+	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
+	if err != nil {
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
 	typ := byte(common.ActionEthereumSafeProposeAccount)
 	crv := SafeChainCurve(chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, exk)
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
-		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, tt, asset, err)
+		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
 		return nil, asset, nil
 	}
 
@@ -761,12 +768,20 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	extra = t.Marshal()
-	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
+	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "insufficient balance"):
+			return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		default:
+			return nil, "", node.store.FailRequest(ctx, req.Id)
+		}
+	}
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, exk)
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
-		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, tt, asset, err)
+		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
 		return nil, asset, err
 	}
 
@@ -1019,13 +1034,16 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			return nil, "", fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 		}
-		exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(safe.Extra)))
+		stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(safe.Extra)))
+		if err != nil {
+			return nil, "", node.store.FailRequest(ctx, req.Id)
+		}
 		typ := byte(common.ActionEthereumSafeApproveAccount)
 		crv := SafeChainCurve(safe.Chain)
 		id := common.UniqueId(req.Id, safe.Address)
-		tx, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), exk)
+		tx, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), stx.TraceId)
 		if err != nil || asset != "" {
-			logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, exk, tx, asset, err)
+			logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, stx.TraceId, tx, asset, err)
 			return nil, asset, err
 		}
 
@@ -1076,13 +1094,16 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		balanceMap[assetId].Balance = closeBalance
 	}
 
-	exk := node.writeStorageUntilSnapshot(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
-	id := common.UniqueId(old.TransactionHash, hex.EncodeToString(exk[:]))
+	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
+	if err != nil {
+		return nil, "", node.store.FailRequest(ctx, req.Id)
+	}
+	id := common.UniqueId(old.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
-	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, exk)
+	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
-		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, exk, tt, asset, err)
+		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, stx.TraceId, tt, asset, err)
 		return nil, asset, err
 	}
 

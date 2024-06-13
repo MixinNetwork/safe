@@ -108,6 +108,39 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence u
 	return node.group.BuildTransaction(traceId, node.conf.AppId, opponentAppId, assetId, amount, string(memo), receivers, threshold, sequence), "", nil
 }
 
+func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId, storageTraceId string) (*mtg.Transaction, string, error) {
+	logger.Printf("node.buildTransactionWithStorageTraceId(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, storageTraceId)
+
+	if common.CheckTestEnvironment(ctx) {
+		v := common.MarshalJSONOrPanic(map[string]any{
+			"asset_id":  assetId,
+			"amount":    amount,
+			"receivers": receivers,
+			"threshold": threshold,
+			"memo":      hex.EncodeToString(memo),
+		})
+		err := node.store.WriteProperty(ctx, traceId, string(v))
+		if err != nil {
+			return nil, "", err
+		}
+	} else {
+		balance, err := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, assetId, sequence)
+		if err != nil {
+			return nil, "", err
+		}
+		amt, err := decimal.NewFromString(amount)
+		if err != nil {
+			return nil, "", err
+		}
+		if balance.Cmp(amt) < 0 {
+			return nil, assetId, nil
+		}
+	}
+
+	traceId = common.UniqueId(node.group.GenesisId(), traceId)
+	return node.group.BuildTransactionWithStorageTraceId(traceId, node.conf.AppId, opponentAppId, assetId, amount, string(memo), receivers, threshold, sequence, storageTraceId), "", nil
+}
+
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {
 	if common.CheckTestEnvironment(ctx) {
 		return nil
