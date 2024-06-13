@@ -143,8 +143,9 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(common.RequestStateFailed, int(safe.State))
 
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
-	exk := mc.Blake3Hash([]byte(common.Base91Encode(mb)))
-	rid := common.UniqueId(tx.TransactionHash, hex.EncodeToString(exk[:]))
+	sTraceId := mc.Blake3Hash([]byte(common.Base91Encode(mb))).String()
+	sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+	rid := common.UniqueId(tx.TransactionHash, sTraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeApproveTransaction)
 	require.Equal(mb, b)
 

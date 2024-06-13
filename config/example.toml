@@ -65,7 +65,7 @@ signer-public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b
 asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
 # the asset id that the observer send requests to the keeper mtg
 # this asset must be fully controlled by the observer
-observer-asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
+observer-asset-id = "5ee8ddb6-de43-33b8-a758-e32f908a3096"
 # the observer ed25519 public key to do ecdh with the shared key
 # and this key is used to verify the signature of all requests
 observer-public-key = "b5f8cfaca5004b88bdb5173bde966b4b7ee19a5471d7d4f8027b3516fcef7e46"
