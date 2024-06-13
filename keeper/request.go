@@ -105,16 +105,15 @@ func (node *Node) writeStorageTransaction(ctx context.Context, sequence uint64, 
 			Hash:    hash,
 		}
 
-		k := hex.EncodeToString(hash[:])
 		v := hex.EncodeToString(extra)
-		o, err := node.store.ReadProperty(ctx, k)
+		o, err := node.store.ReadProperty(ctx, sTraceId)
 		if err != nil {
 			panic(err)
 		}
 		if o == v {
 			return tx, nil
 		}
-		err = node.store.WriteProperty(ctx, k, v)
+		err = node.store.WriteProperty(ctx, sTraceId, v)
 		if err != nil {
 			panic(err)
 		}

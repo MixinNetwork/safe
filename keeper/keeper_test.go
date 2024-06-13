@@ -463,8 +463,9 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		signed[r.InputIndex] = b
 	}
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
-	exk := crypto.Blake3Hash([]byte(common.Base91Encode(mb)))
-	rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
+	sTraceId := crypto.Blake3Hash([]byte(common.Base91Encode(mb))).String()
+	sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+	rid := common.UniqueId(transactionHash, sTraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	require.Equal(mb, b)
 
@@ -656,8 +657,10 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 			signed[r.InputIndex] = b
 		}
 		mb := common.DecodeHexOrPanic(tx.RawTransaction)
-		exk := crypto.Blake3Hash([]byte(common.Base91Encode(mb)))
-		rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
+
+		sTraceId := crypto.Blake3Hash([]byte(common.Base91Encode(mb))).String()
+		sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+		rid := common.UniqueId(transactionHash, sTraceId)
 		b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 		require.Equal(mb, b)
 
@@ -856,8 +859,8 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	require.Nil(err)
 	require.Equal(typ, op.Type)
 	require.Equal(id, op.Id)
-	require.Len(op.Extra, 32)
-	v, _ = node.store.ReadProperty(ctx, hex.EncodeToString(op.Extra))
+	require.Len(op.Extra, 16)
+	v, _ = node.store.ReadProperty(ctx, uuid.FromBytesOrNil(op.Extra).String())
 	b, _ = hex.DecodeString(v)
 	b, _ = common.Base91Decode(string(b))
 	return b

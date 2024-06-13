@@ -345,9 +345,6 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
-	if common.CheckTestEnvironment(ctx) {
-		meta.Chain = SafeChainPolygon
-	}
 	if meta.Chain != SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}

@@ -44,9 +44,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	if common.CheckTestEnvironment(ctx) {
-		meta.Chain = SafeChainPolygon
-	}
 	if meta.Chain != SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
