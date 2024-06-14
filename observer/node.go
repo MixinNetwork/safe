@@ -453,9 +453,10 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	if err != nil {
 		return false, err
 	}
-	g, t, m = mtg.DecodeMixinExtra(string(tx.Extra))
+	g, t, m = mtg.DecodeMixinExtra(tx.Extra)
 	if g == "" && t == "" && m == "" {
-		m = string(tx.Extra)
+		data, _ := hex.DecodeString(tx.Extra)
+		m = string(data)
 	}
 	data, err := common.Base91Decode(m)
 	if err != nil || len(data) < 32 {
