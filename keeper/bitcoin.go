@@ -349,7 +349,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	typ := byte(common.ActionBitcoinSafeProposeAccount)
 	crv := SafeChainCurve(chain)
 	t, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
-	if err != nil {
+	if err != nil || asset != "" {
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v", req.Id, stx.TraceId, err)
 		return nil, asset, err
 	}

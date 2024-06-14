@@ -277,7 +277,8 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	crv := SafeChainCurve(safe.Chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
-		return nil, "", fmt.Errorf("node.sendObserverResponse(%s, %x) => %v %s %v", id, stx.TraceId, tt, asset, err)
+		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", id, stx.TraceId, tt, asset, err)
+		return nil, asset, err
 	}
 
 	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
@@ -393,7 +394,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
-		return nil, asset, nil
+		return nil, asset, err
 	}
 
 	path := ethereumDefaultDerivationPath()
@@ -962,7 +963,8 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	}
 	tt, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(req.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
-		return nil, asset, fmt.Errorf("node.buildTransaction(%v) => %v %s %v", req, tt, asset, err)
+		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, tt, asset, err)
+		return nil, asset, err
 	}
 
 	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, balanceMap)

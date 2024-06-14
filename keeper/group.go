@@ -350,6 +350,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
+		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, t, asset, err)
 		return nil, asset, err
 	}
 

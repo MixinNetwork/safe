@@ -231,7 +231,8 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 
 	t, a, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if err != nil || a != "" {
-		return nil, a, fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, t, a, err)
+		return nil, a, err
 	}
 	return []*mtg.Transaction{t}, "", node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, output.Sender)
 }
