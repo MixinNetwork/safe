@@ -14,8 +14,8 @@ github.com/MixinNetwork/mixin v0.18.5 h1:X9WunhpAwOfynjgc0MjseesJSsuMov3XOeT12xr
 github.com/MixinNetwork/mixin v0.18.5/go.mod h1:4q18tY4LXnkOMmo7fl6ezXxc8J+N+o3Hx06Zh3/aj0I=
 github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
 github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240617133946-30ee4a2a41ba h1:sWMzWbLe6CwHgQsBE0MhRDPsvYQ9XhGUlm9Cz88fQuI=
-github.com/MixinNetwork/trusted-group v0.6.2-0.20240617133946-30ee4a2a41ba/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
+github.com/MixinNetwork/trusted-group v0.6.2-0.20240618055209-5075168f2512 h1:8RgKbsQ3JEcWSBXkO1paxNkiD1Z74qNmm3Bl7ZBqIcI=
+github.com/MixinNetwork/trusted-group v0.6.2-0.20240618055209-5075168f2512/go.mod h1:RkQzsoZrlG9lYcLJZaGDZIQ82N8AGDTQzibWZ27xB+E=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/VictoriaMetrics/fastcache v1.12.1 h1:i0mICQuojGDL3KblA7wUNlY5lOK6a4bwt3uRKnkZU40=
