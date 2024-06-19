@@ -26,6 +26,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 
 	query := "ALTER TABLE requests ADD COLUMN sequence INTEGER;\n"
 	query = query + "ALTER TABLE safes ADD COLUMN receiver VARCHAR;\n"
+	query = query + "ALTER TABLE ethereum_balances ADD COLUMN migrated BOOLEAN;\n"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
@@ -36,6 +37,10 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 		return err
 	}
 	_, err = tx.ExecContext(ctx, "UPDATE safes SET receiver=?", "")
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET migrated=?", false)
 	if err != nil {
 		return err
 	}

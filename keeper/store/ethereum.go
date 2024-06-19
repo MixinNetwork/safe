@@ -17,6 +17,7 @@ type SafeBalance struct {
 	Balance      *big.Int
 	LatestTxHash string
 	UpdatedAt    time.Time
+	Migrated     bool
 }
 
 func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, safe *Safe, txHash string, index int64, amount *big.Int, req *common.Request, assetId, assetAddress, sender string) error {
@@ -33,8 +34,8 @@ func (s *SQLite3Store) UpdateEthereumBalanceFromRequest(ctx context.Context, saf
 	if err != nil {
 		return err
 	} else if !existed {
-		cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at"}
-		vals := []any{safe.Address, assetId, assetAddress, amount.String(), txHash, time.Now().UTC()}
+		cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at", "migrated"}
+		vals := []any{safe.Address, assetId, assetAddress, amount.String(), txHash, time.Now().UTC(), false}
 		err = s.execOne(ctx, tx, buildInsertionSQL("ethereum_balances", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
@@ -64,8 +65,8 @@ func (s *SQLite3Store) createOrUpdateEthereumBalance(ctx context.Context, tx *sq
 	if err != nil {
 		return err
 	} else if !existed {
-		cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at"}
-		vals := []any{safe.Address, assetId, assetAddress, balance.String(), "", time.Now().UTC()}
+		cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at", "migrated"}
+		vals := []any{safe.Address, assetId, assetAddress, balance.String(), "", time.Now().UTC(), false}
 		err = s.execOne(ctx, tx, buildInsertionSQL("ethereum_balances", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT ethereum_balances %v", err)
@@ -87,12 +88,12 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 	}
 	defer tx.Rollback()
 
-	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=? AND asset_id=?"
+	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at,migrated FROM ethereum_balances WHERE address=? AND asset_id=?"
 	row := tx.QueryRowContext(ctx, query, address, assetId)
 
 	var sb SafeBalance
 	var bStr string
-	err = row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &bStr, &sb.LatestTxHash, &sb.UpdatedAt)
+	err = row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &bStr, &sb.LatestTxHash, &sb.UpdatedAt, &sb.Migrated)
 	if err == sql.ErrNoRows {
 		return &SafeBalance{
 			Address:      address,
@@ -100,6 +101,7 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 			Balance:      big.NewInt(0),
 			LatestTxHash: "",
 			UpdatedAt:    time.Now().UTC(),
+			Migrated:     false,
 		}, nil
 	} else if err != nil {
 		return nil, err
@@ -116,7 +118,7 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 	}
 	defer tx.Rollback()
 
-	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
+	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at,migrated FROM ethereum_balances WHERE address=?"
 	rows, err := s.db.QueryContext(ctx, query, address)
 	if err != nil {
 		return nil, err
@@ -127,7 +129,7 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 	for rows.Next() {
 		var b SafeBalance
 		var bStr string
-		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &bStr, &b.LatestTxHash, &b.UpdatedAt)
+		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &bStr, &b.LatestTxHash, &b.UpdatedAt, &b.Migrated)
 		if err != nil {
 			return nil, err
 		}
@@ -136,4 +138,23 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 		sbs = append(sbs, &b)
 	}
 	return sbs, nil
+}
+
+func (s *SQLite3Store) CheckEthereumAssetMigrated(ctx context.Context, address, assetId string) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM ethereum_balances WHERE address=? AND asset_id=?", address, assetId)
+	if err != nil || !existed {
+		return existed, err
+	}
+
+	b, err := s.ReadEthereumBalance(ctx, address, assetId)
+	if err != nil {
+		return false, err
+	}
+	return b.Migrated, nil
 }

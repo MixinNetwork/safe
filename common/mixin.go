@@ -110,36 +110,10 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
 
 	for {
-		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
-		if err != nil {
-			return "", err
-		}
-		if req != nil && req.State == mixin.SafeUtxoStateSpent {
-			return req.TransactionHash, nil
-		}
-
-		old, err := SafeReadMultisigRequestUntilSufficient(ctx, client, sTraceId)
-		if err != nil {
-			return "", err
-		}
-		if old != nil {
-			if !slices.Contains(old.Signers, client.ClientID) {
-				_, err = SignMultisigUntilSufficient(ctx, client, old.RequestID, old.RawTransaction, old.Views, []string{client.ClientID}, su.SpendPrivateKey)
-				if err != nil {
-					return "", err
-				}
-			}
+		storageReq, err := bot.CreateObjectStorageTransaction(ctx, extra, sTraceId, nil, "", &su)
+		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
-		}
-
-		storageReq, err := bot.CreateObjectStorageTransaction(ctx, extra, sTraceId, nil, "", &su)
-		if err != nil {
-			if mtg.CheckRetryableError(err) || strings.Contains(err.Error(), "signature verification failed") {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return "", err
 		}
 		return storageReq.TransactionHash, nil
 	}

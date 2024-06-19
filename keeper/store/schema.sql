@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS ethereum_balances (
   balance            VARCHAR NOT NULL,
   latest_tx_hash     VARCHAR NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
+  migrated           BOOLEAN,
   PRIMARY KEY ('address', 'asset_id')
 );
 

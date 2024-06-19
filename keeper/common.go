@@ -104,9 +104,26 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 	if err != nil {
 		return crypto.Hash{}, 0, err
 	}
-	if safe != nil && safe.Receiver != "" {
-		entry = safe.Receiver
+	if safe != nil {
+		if safe.Receiver != "" {
+			entry = safe.Receiver
+		}
+		switch safe.Chain {
+		case SafeChainBitcoin, SafeChainLitecoin:
+		case SafeChainEthereum, SafeChainPolygon, SafeChainMVM:
+			migrated, err := node.store.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
+			if err != nil {
+				return crypto.Hash{}, 0, err
+			}
+			if !migrated {
+				entry = node.conf.PolygonGroupEntry
+			}
+		}
 	}
+	if common.CheckTestEnvironment(ctx) && assetId == "218bc6f4-7927-3f8e-8568-3a3725b74361" {
+		entry = node.conf.PolygonGroupEntry
+	}
+
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
 		return crypto.Hash{}, 0, err

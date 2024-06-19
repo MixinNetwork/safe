@@ -221,6 +221,11 @@ func (s *SQLite3Store) MigrateSafeWithRequest(ctx context.Context, receiver stri
 		return fmt.Errorf("UPDATE safes %v", err)
 	}
 
+	_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET migrated=? WHERE address=?", true, safe.Address)
+	if err != nil {
+		return fmt.Errorf("UPDATE ethereum_balances %v", err)
+	}
+
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {

@@ -47,14 +47,27 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	return err
 }
 
-func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder string) (string, error) {
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder, assetId string) (string, error) {
 	entry := node.conf.PolygonGroupEntry
 	safe, err := node.keeperStore.ReadSafe(ctx, holder)
 	if err != nil {
 		return "", fmt.Errorf("keeperStore.ReadSafe(%s) => %v %v", holder, safe, err)
 	}
-	if safe != nil && safe.Receiver != "" {
-		entry = safe.Receiver
+	if safe != nil {
+		if safe.Receiver != "" {
+			entry = safe.Receiver
+		}
+		switch safe.Chain {
+		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+			migrated, err := node.keeperStore.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
+			if err != nil {
+				return "", fmt.Errorf("keeperStore.CheckEthereumAsset(%s %s) => %v", safe.Address, assetId, err)
+			}
+			if !migrated {
+				entry = node.conf.PolygonGroupEntry
+			}
+		}
 	}
 	return entry, nil
 }
@@ -67,9 +80,9 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 	if bond != nil {
 		return true, nil
 	}
-	entry, err := node.fetchBondAssetReceiver(ctx, holder)
+	entry, err := node.fetchBondAssetReceiver(ctx, holder, assetId)
 	if err != nil {
-		return false, fmt.Errorf("node.fetchBondAssetReceiver(%s) => %v", holder, err)
+		return false, fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
 	}
 	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
 	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
@@ -80,9 +93,9 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
-	entry, err := node.fetchBondAssetReceiver(ctx, holder)
+	entry, err := node.fetchBondAssetReceiver(ctx, holder, assetId)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("node.fetchBondAssetReceiver(%s) => %v", holder, err)
+		return nil, nil, "", fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
 	}
 
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
