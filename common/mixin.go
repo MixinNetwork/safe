@@ -115,6 +115,9 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 			time.Sleep(3 * time.Second)
 			continue
 		}
+		if err != nil {
+			return "", err
+		}
 		return storageReq.TransactionHash, nil
 	}
 }
