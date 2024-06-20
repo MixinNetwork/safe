@@ -792,8 +792,8 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		return
 	}
 	receiver := ""
-	if account.Migrated {
-		receiver = node.conf.PolygonGroupEntry
+	if safe != nil && safe.Receiver != "" {
+		receiver = safe.Receiver
 	}
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
