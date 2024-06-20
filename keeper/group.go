@@ -345,7 +345,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon {
+	if meta.Chain != SafeChainPolygon && meta.Chain != SafeChainMVM {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
