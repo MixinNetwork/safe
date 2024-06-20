@@ -718,7 +718,7 @@ type AssetBalance struct {
 	Migrated     bool   `json:"migrated"`
 }
 
-func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]*AssetBalance {
+func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) (map[string]*AssetBalance, map[string]*AssetBalance) {
 	pendingBalances := viewPendingBalances(txs)
 
 	assetBalance := make(map[string]*AssetBalance, 0)
@@ -739,7 +739,7 @@ func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]
 			Migrated:     b.Migrated,
 		}
 	}
-	return assetBalance
+	return assetBalance, pendingBalances
 }
 
 func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
@@ -861,12 +861,13 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		if safe != nil {
 			nonce = int(safe.Nonce)
 		}
+		bs, ps := viewBalances(balances, pendings)
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":          sp.Chain,
 			"id":             sp.RequestId,
 			"address":        sp.Address,
-			"balances":       viewBalances(balances, pendings),
-			"pendingbalance": viewPendingBalances(pendings),
+			"balances":       bs,
+			"pendingbalance": ps,
 			"nonce":          nonce,
 			"keys":           node.viewSafeXPubs(r.Context(), sp),
 			"bond": map[string]any{
