@@ -715,7 +715,7 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 type AssetBalance struct {
 	AssetAddress string `json:"asset_address"`
 	Amount       string `json:"amount"`
-	Migrated     bool   `json:"migrated,omitempty"`
+	Migrated     bool   `json:"migrated"`
 }
 
 func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]*AssetBalance {
@@ -728,6 +728,7 @@ func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]
 		if balance != nil {
 			pending, _ := new(big.Int).SetString(balance.Amount, 10)
 			amount = new(big.Int).Sub(amount, pending)
+			pendingBalances[b.AssetId].Migrated = b.Migrated
 		}
 		if amount.Cmp(big.NewInt(0)) < 1 {
 			continue
