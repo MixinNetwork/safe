@@ -715,7 +715,7 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 type AssetBalance struct {
 	AssetAddress string `json:"asset_address"`
 	Amount       string `json:"amount"`
-	Migrated     bool   `json:"migrated"`
+	Migrated     bool   `json:"migrated,omitempty"`
 }
 
 func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]*AssetBalance {
