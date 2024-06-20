@@ -348,7 +348,17 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if meta.Chain != SafeChainPolygon && meta.Chain != SafeChainMVM {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
+
+	bondId, _, err := node.getBondAsset(ctx, tx.AssetId, tx.Holder)
+	if err != nil || !bondId.HasValue() {
+		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %s %v", tx.AssetId, tx.Holder, bondId.String(), err)
+	}
+	bond, err := node.fetchAssetMeta(ctx, bondId.String())
+	logger.Printf("node.fetchAssetMeta(%v, %s) => %v %v", req, bondId.String(), bond, err)
+	if err != nil {
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
+	}
+	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if err != nil || asset != "" {
 		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, t, asset, err)
 		return nil, asset, err
