@@ -795,9 +795,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 	if account.Migrated {
 		receiver = node.conf.PolygonGroupEntry
 	}
-	if safe != nil && safe.Receiver != "" {
-		receiver = safe.Receiver
-	}
 	switch sp.Chain {
 	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), sp)
