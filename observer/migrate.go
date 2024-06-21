@@ -243,6 +243,14 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 		}
 		bs, _ := viewBalances(balances, pendings)
 
+		_, chainAssetId := node.ethereumParams(safe.Chain)
+		if _, ok := bs[chainAssetId]; !ok {
+			bs[chainAssetId] = &AssetBalance{
+				AssetAddress: ethereum.EthereumEmptyAddress,
+				Amount:       "0",
+			}
+		}
+
 		for assetId, balance := range bs {
 			asset, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, assetId, balance.AssetAddress, safe.Holder)
 			if err != nil || bond == nil {
