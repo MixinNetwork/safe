@@ -60,11 +60,11 @@ func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder, assetId st
 		switch safe.Chain {
 		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
 		case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
-			migrated, err := node.keeperStore.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
+			existed, migrated, err := node.keeperStore.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
 			if err != nil {
 				return "", fmt.Errorf("keeperStore.CheckEthereumAsset(%s %s) => %v", safe.Address, assetId, err)
 			}
-			if !migrated {
+			if existed && !migrated {
 				entry = node.conf.PolygonGroupEntry
 			}
 		}

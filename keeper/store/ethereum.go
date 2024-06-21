@@ -140,21 +140,21 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 	return sbs, nil
 }
 
-func (s *SQLite3Store) CheckEthereumAssetMigrated(ctx context.Context, address, assetId string) (bool, error) {
+func (s *SQLite3Store) CheckEthereumAssetMigrated(ctx context.Context, address, assetId string) (bool, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	defer tx.Rollback()
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM ethereum_balances WHERE address=? AND asset_id=?", address, assetId)
 	if err != nil || !existed {
-		return existed, err
+		return false, false, err
 	}
 
 	b, err := s.ReadEthereumBalance(ctx, address, assetId)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
-	return b.Migrated, nil
+	return true, b.Migrated, nil
 }

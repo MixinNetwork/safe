@@ -111,11 +111,11 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 		switch safe.Chain {
 		case SafeChainBitcoin, SafeChainLitecoin:
 		case SafeChainEthereum, SafeChainPolygon, SafeChainMVM:
-			migrated, err := node.store.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
+			existed, migrated, err := node.store.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
 			if err != nil {
 				return crypto.Hash{}, 0, err
 			}
-			if !migrated {
+			if existed && !migrated {
 				entry = node.conf.PolygonGroupEntry
 			}
 		}
