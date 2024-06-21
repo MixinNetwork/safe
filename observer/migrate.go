@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -236,12 +237,19 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 		if err != nil {
 			return false, false, err
 		}
-		for _, balance := range balances {
-			asset, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, balance.AssetId, balance.AssetAddress, safe.Holder)
+		pendings, err := node.keeperStore.ReadUnfinishedTransactionsByHolder(ctx, safe.Address)
+		if err != nil {
+			return false, false, err
+		}
+		bs, _ := viewBalances(balances, pendings)
+
+		for assetId, balance := range bs {
+			asset, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, assetId, balance.AssetAddress, safe.Holder)
 			if err != nil || bond == nil {
 				return false, false, err
 			}
-			amt := decimal.NewFromBigInt(balance.Balance, -int32(asset.Decimals))
+			cur, _ := new(big.Int).SetString(balance.Amount, 10)
+			amt := decimal.NewFromBigInt(cur, -int32(asset.Decimals))
 			err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, amt)
 			if err != nil {
 				if userNotRegistered(err) {
