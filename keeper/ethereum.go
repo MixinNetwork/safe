@@ -726,7 +726,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			return nil, "", err
 		}
 		for _, b := range balances {
-			if b.AssetId == balance.AssetId {
+			if b.AssetId == balance.AssetId || b.Balance.Cmp(big.NewInt(0)) == 0 {
 				continue
 			}
 			output := &ethereum.Output{
@@ -754,6 +754,12 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			recipients = append(recipients, r)
 		}
 		txType = ethereum.TypeMultiSendTx
+		if len(outputs) == 1 {
+			txType = ethereum.TypeETHTx
+			if outputs[0].TokenAddress != ethereum.EthereumEmptyAddress {
+				txType = ethereum.TypeERC20Tx
+			}
+		}
 		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
 			txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
