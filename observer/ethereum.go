@@ -354,7 +354,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
-	rpc, ethAssetId := node.ethereumParams(chain)
+	rpc, _ := node.ethereumParams(chain)
 	deposits, err := node.parseEthereumBlockDeposits(ctx, chain, transfers)
 	if err != nil || len(deposits) == 0 {
 		return err
@@ -368,27 +368,29 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		}
 		address, tokenAddress := items[0], items[1]
 
-		var assetId string
-		var balance *big.Int
 		var err error
+		var balancePrev, balanceNow *big.Int
 		switch tokenAddress {
 		case ethereum.EthereumEmptyAddress:
-			assetId = ethAssetId
-			balance, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Number, address)
+			prev := fmt.Sprintf("0x%x", block.Height-1)
+			balancePrev, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, prev, address)
+			if err != nil {
+				return err
+			}
+			balanceNow, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Number, address)
 		default:
-			assetId = ethereum.GenerateAssetId(chain, tokenAddress)
-			balance, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height)))
+			balancePrev, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height-1)))
+			if err != nil {
+				return err
+			}
+			balanceNow, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height)))
 		}
 		if err != nil {
 			return err
 		}
-		safeBalance, err := node.keeperStore.ReadEthereumBalance(ctx, address, assetId)
-		if err != nil {
-			return err
-		}
-		balanceAfterDeposit := new(big.Int).Add(safeBalance.Balance, deposits[k])
-		if balance.Cmp(balanceAfterDeposit) != 0 {
-			logger.Printf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balance, safeBalance.Balance, deposits[k])
+		balanceAfterDeposit := new(big.Int).Add(balancePrev, deposits[k])
+		if balanceNow.Cmp(balanceAfterDeposit) != 0 {
+			logger.Printf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balanceNow, balancePrev, deposits[k])
 			skips = append(skips, k)
 		}
 	}
