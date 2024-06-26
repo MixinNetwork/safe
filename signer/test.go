@@ -145,12 +145,12 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
-			AssetId:         node.conf.KeeperAssetId,
-			Extra:           memo,
-			Amount:          decimal.NewFromInt(1),
-			TransactionHash: crypto.Sha256Hash([]byte(sop.Id)),
-			CreatedAt:       time.Now(),
+			AssetId:   node.conf.KeeperAssetId,
+			Extra:     memo,
+			Amount:    decimal.NewFromInt(1),
+			CreatedAt: time.Now(),
 		},
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)

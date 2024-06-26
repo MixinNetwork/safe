@@ -93,15 +93,15 @@ func testBuildObserverMigrateRequest(node *Node, id, public string, action byte,
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
 	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
-			Senders:         []string{node.conf.ObserverUserId},
-			AssetId:         testSafeBondId,
-			Extra:           memo,
-			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
-			Amount:          decimal.New(1, 1),
-			CreatedAt:       timestamp,
-			UpdatedAt:       timestamp,
-			Sequence:        sequence,
+			Senders:   []string{node.conf.ObserverUserId},
+			AssetId:   testSafeBondId,
+			Extra:     memo,
+			Amount:    decimal.New(1, 1),
+			CreatedAt: timestamp,
+			UpdatedAt: timestamp,
+			Sequence:  sequence,
 		},
 	}
 }

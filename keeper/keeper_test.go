@@ -904,13 +904,13 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), string(op.Encode()))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
-			AssetId:         assetId,
-			Extra:           memo,
-			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
-			Amount:          amount,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
+			AssetId:   assetId,
+			Extra:     memo,
+			Amount:    amount,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		},
 	}
 }
@@ -933,15 +933,15 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
 	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
-			Senders:         []string{node.conf.ObserverUserId},
-			AssetId:         node.conf.ObserverAssetId,
-			Extra:           memo,
-			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
-			Amount:          decimal.New(1, 1),
-			CreatedAt:       timestamp,
-			UpdatedAt:       timestamp,
-			Sequence:        sequence,
+			Senders:   []string{node.conf.ObserverUserId},
+			AssetId:   node.conf.ObserverAssetId,
+			Extra:     memo,
+			Amount:    decimal.New(1, 1),
+			CreatedAt: timestamp,
+			UpdatedAt: timestamp,
+			Sequence:  sequence,
 		},
 	}
 }
@@ -979,14 +979,14 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	memo := mtg.EncodeMixinExtra(node.conf.AppId, id, string(node.encryptSignerOperation(op)))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
-			AssetId:         node.conf.AssetId,
-			Extra:           memo,
-			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
-			Amount:          decimal.New(1, 1),
-			CreatedAt:       timestamp,
-			UpdatedAt:       timestamp,
-			Sequence:        sequence,
+			AssetId:   node.conf.AssetId,
+			Extra:     memo,
+			Amount:    decimal.New(1, 1),
+			CreatedAt: timestamp,
+			UpdatedAt: timestamp,
+			Sequence:  sequence,
 		},
 	}
 }
