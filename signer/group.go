@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -97,8 +96,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 			panic(err)
 		}
 	case node.conf.AssetId:
-		senders := strings.Split(out.Senders, ",")
-		if len(senders) != 1 || node.findMember(senders[0]) < 0 {
+		if len(out.Senders) != 1 || node.findMember(out.Senders[0]) < 0 {
 			logger.Printf("invalid senders: %s", out.Senders)
 			return nil, ""
 		}
@@ -138,7 +136,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	} else if s.PreparedAt.Valid {
 		return nil
 	}
-	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Senders, out.CreatedAt)
+	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], out.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", op, err)
 	}
@@ -163,16 +161,15 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	senders := strings.Split(out.Senders, ",")
-	self := len(senders) == 1 && senders[0] == string(node.id)
+	self := len(out.Senders) == 1 && out.Senders[0] == string(node.id)
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
-		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders, op.Extra, out.CreatedAt, self)
+		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.CreatedAt, self)
 		if err != nil {
 			return nil, "", fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
 		}
 	case common.OperationTypeSignInput:
-		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders, op.Extra, out.CreatedAt, self)
+		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders[0], op.Extra, out.CreatedAt, self)
 		if err != nil {
 			return nil, "", fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err)
 		}

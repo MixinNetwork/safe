@@ -38,11 +38,13 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(op)))
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
-			AssetId:         node.conf.KeeperAssetId,
-			Extra:           memo,
-			Amount:          decimal.NewFromInt(1),
-			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-			CreatedAt:       time.Now(),
+			UnifiedOutput: mtg.UnifiedOutput{
+				AssetId:         node.conf.KeeperAssetId,
+				Extra:           memo,
+				Amount:          decimal.NewFromInt(1),
+				TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
+				CreatedAt:       time.Now(),
+			},
 		}
 
 		msg := common.MarshalJSONOrPanic(out)
@@ -80,11 +82,13 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
-		AssetId:         node.conf.KeeperAssetId,
-		Extra:           memo,
-		Amount:          decimal.NewFromInt(1),
-		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
-		CreatedAt:       time.Now(),
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:         node.conf.KeeperAssetId,
+			Extra:           memo,
+			Amount:          decimal.NewFromInt(1),
+			TransactionHash: crypto.Sha256Hash([]byte(sop.Id)),
+			CreatedAt:       time.Now(),
+		},
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
 

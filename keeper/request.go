@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -43,8 +42,7 @@ func (node *Node) requestRole(assetId string) uint8 {
 }
 
 func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error) {
-	senders := strings.Split(out.Senders, ",")
-	if len(senders) != 1 && senders[0] != node.conf.ObserverUserId {
+	if len(out.Senders) != 1 && out.Senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
 	_, _, m := mtg.DecodeMixinExtra(out.Extra)

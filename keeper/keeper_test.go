@@ -66,7 +66,14 @@ func TestKeeper(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now(), Sequence: sequence})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   bondId,
+			Amount:    decimal.NewFromInt(1000000),
+			CreatedAt: time.Now(),
+			Sequence:  sequence,
+		},
+	})
 	input := &bitcoin.Input{
 		TransactionHash: "40e228e5a3cba99fd3fc5350a00bfeef8bafb760e26919ec74bca67776c90427",
 		Index:           0, Satoshi: 86560,
@@ -141,7 +148,14 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now(), Sequence: sequence})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   bondId,
+			Amount:    decimal.NewFromInt(1000000),
+			CreatedAt: time.Now(),
+			Sequence:  sequence,
+		},
+	})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -197,7 +211,14 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now(), Sequence: sequence})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   bondId,
+			Amount:    decimal.NewFromInt(1000000),
+			CreatedAt: time.Now(),
+			Sequence:  sequence,
+		},
+	})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -883,12 +904,14 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), string(op.Encode()))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
-		AssetId:         assetId,
-		Extra:           memo,
-		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-		Amount:          amount,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:         assetId,
+			Extra:           memo,
+			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
+			Amount:          amount,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		},
 	}
 }
 
@@ -910,14 +933,16 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
 	return &mtg.Action{
-		Senders:         node.conf.ObserverUserId,
-		AssetId:         node.conf.ObserverAssetId,
-		Extra:           memo,
-		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-		Amount:          decimal.New(1, 1),
-		CreatedAt:       timestamp,
-		UpdatedAt:       timestamp,
-		Sequence:        sequence,
+		UnifiedOutput: mtg.UnifiedOutput{
+			Senders:         []string{node.conf.ObserverUserId},
+			AssetId:         node.conf.ObserverAssetId,
+			Extra:           memo,
+			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
+			Amount:          decimal.New(1, 1),
+			CreatedAt:       timestamp,
+			UpdatedAt:       timestamp,
+			Sequence:        sequence,
+		},
 	}
 }
 
@@ -954,13 +979,15 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	memo := mtg.EncodeMixinExtra(node.conf.AppId, id, string(node.encryptSignerOperation(op)))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
-		AssetId:         node.conf.AssetId,
-		Extra:           memo,
-		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-		Amount:          decimal.New(1, 1),
-		CreatedAt:       timestamp,
-		UpdatedAt:       timestamp,
-		Sequence:        sequence,
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:         node.conf.AssetId,
+			Extra:           memo,
+			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
+			Amount:          decimal.New(1, 1),
+			CreatedAt:       timestamp,
+			UpdatedAt:       timestamp,
+			Sequence:        sequence,
+		},
 	}
 }
 

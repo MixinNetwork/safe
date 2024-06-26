@@ -27,7 +27,13 @@ func TestKeeperMigration(t *testing.T) {
 	holder := testPublicKey(testEthereumKeyHolder)
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: testEthereumBondAssetId, Amount: decimal.NewFromInt(100000000000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   testEthereumBondAssetId,
+			Amount:    decimal.NewFromInt(100000000000000),
+			CreatedAt: time.Now(),
+		},
+	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	safe, err := node.store.ReadSafe(ctx, holder)
@@ -58,7 +64,13 @@ func TestKeeperMigration(t *testing.T) {
 	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
 	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
-	node.ProcessOutput(ctx, &mtg.Action{AssetId: cnbBondId, Amount: decimal.NewFromInt(100), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   cnbBondId,
+			Amount:    decimal.NewFromInt(100),
+			CreatedAt: time.Now(),
+		},
+	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
 
 	b, err := node.store.ReadEthereumBalance(ctx, safe.Address, cnbAssetId)
@@ -81,13 +93,15 @@ func testBuildObserverMigrateRequest(node *Node, id, public string, action byte,
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
 	return &mtg.Action{
-		Senders:         node.conf.ObserverUserId,
-		AssetId:         testSafeBondId,
-		Extra:           memo,
-		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-		Amount:          decimal.New(1, 1),
-		CreatedAt:       timestamp,
-		UpdatedAt:       timestamp,
-		Sequence:        sequence,
+		UnifiedOutput: mtg.UnifiedOutput{
+			Senders:         []string{node.conf.ObserverUserId},
+			AssetId:         testSafeBondId,
+			Extra:           memo,
+			TransactionHash: crypto.Sha256Hash([]byte(op.Id)),
+			Amount:          decimal.New(1, 1),
+			CreatedAt:       timestamp,
+			UpdatedAt:       timestamp,
+			Sequence:        sequence,
+		},
 	}
 }
