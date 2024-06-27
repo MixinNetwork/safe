@@ -292,6 +292,7 @@ func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, e
 			case strings.Contains(reason, "timeout"):
 			case strings.Contains(reason, "eof"):
 			case strings.Contains(reason, "handshake"):
+			case strings.Contains(reason, "unexpected end of JSON input"):
 			default:
 				return res, err
 			}
