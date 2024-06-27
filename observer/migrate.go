@@ -90,7 +90,7 @@ func (node *Node) checkOrDeployPolygonBond(ctx context.Context, entry string, ch
 	if bond != nil {
 		return true, nil
 	}
-	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
+	rpc, key := node.conf.PolygonRPC, node.conf.EVMKey
 	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 

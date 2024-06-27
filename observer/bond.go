@@ -84,7 +84,7 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 	if err != nil {
 		return false, fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
 	}
-	rpc, key := node.conf.PolygonRPC, node.conf.MVMKey
+	rpc, key := node.conf.PolygonRPC, node.conf.EVMKey
 	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 

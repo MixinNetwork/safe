@@ -214,6 +214,13 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			accountant := make(map[string]any)
 			accountant["outputs"] = outputs
 			chain["accountant"] = accountant
+		case keeper.SafeChainEthereum, keeper.SafeChainPolygon:
+			addr, err := ethereum.PrivToAddress(node.conf.EVMKey)
+			if err != nil {
+				common.RenderError(w, r, err)
+				return
+			}
+			chain["sender"] = addr
 		}
 		cs = append(cs, chain)
 	}
