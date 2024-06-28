@@ -239,8 +239,7 @@ func ParseAmount(amount string, decimals int32) *big.Int {
 }
 
 func UnitAmount(amount *big.Int, decimals int32) string {
-	amt := decimal.NewFromBigInt(amount, 0)
-	amt = amt.Div(decimal.New(1, decimals))
+	amt := decimal.NewFromBigInt(amount, -decimals)
 	return amt.String()
 }
 
