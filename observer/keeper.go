@@ -89,7 +89,7 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 	threshold := node.keeper.Genesis.Threshold
 	traceId := fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
 	traceId = node.safeTraceId(traceId, op.Id)
-	memo := mtg.EncodeMixinExtra(node.conf.KeeperAppId, traceId, string(extra))
+	memo := mtg.EncodeMixinExtra(node.conf.KeeperAppId, string(extra))
 	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), memo, traceId, references)
 	logger.Printf("node.sendKeeperTransaction(%v) => %s %x %v", op, op.Id, extra, err)
 	return err

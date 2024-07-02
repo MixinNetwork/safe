@@ -415,7 +415,7 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 }
 
 func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
-	_, _, memo := mtg.DecodeMixinExtra(out.Extra)
+	_, memo := mtg.DecodeMixinExtra(out.Extra)
 
 	b := common.AESDecrypt(node.aesKey[:], []byte(memo))
 	req, err := common.DecodeOperation(b)
@@ -575,8 +575,8 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash)
 	if err != nil {
 		panic(stx.String())
 	}
-	g, t, m := mtg.DecodeMixinExtra(string(tx.Extra))
-	if g == "" && t == "" && m == "" {
+	a, m := mtg.DecodeMixinExtra(string(tx.Extra))
+	if a == "" && m == "" {
 		panic(stx.String())
 	}
 	data, err := common.Base91Decode(m)
@@ -624,8 +624,8 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
-	g, t, m := mtg.DecodeMixinExtra(memo)
-	if g == "" && t == "" && m == "" {
+	a, m := mtg.DecodeMixinExtra(memo)
+	if a == "" && m == "" {
 		return nil, fmt.Errorf("mtg.DecodeMixinExtra(%s)", memo)
 	}
 	b := common.AESDecrypt(node.aesKey[:], []byte(m))
@@ -678,7 +678,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := node.group.BuildTransaction(traceId, node.conf.AppId, node.conf.KeeperAppId, node.conf.KeeperAssetId, "1", string(extra), members, threshold, sequence)
+	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, "1", string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
 	return tx, "", nil
 }

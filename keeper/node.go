@@ -103,9 +103,9 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence u
 
 	traceId = common.UniqueId(node.group.GenesisId(), traceId)
 	if tx.HasValue() {
-		return node.group.BuildTransactionWithReference(traceId, node.conf.AppId, opponentAppId, assetId, amount, string(memo), receivers, threshold, sequence, tx), "", nil
+		return node.group.BuildTransactionWithReference(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, tx), "", nil
 	}
-	return node.group.BuildTransaction(traceId, node.conf.AppId, opponentAppId, assetId, amount, string(memo), receivers, threshold, sequence), "", nil
+	return node.group.BuildTransaction(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold), "", nil
 }
 
 func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId, storageTraceId string) (*mtg.Transaction, string, error) {
@@ -138,7 +138,7 @@ func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, sequen
 	}
 
 	traceId = common.UniqueId(node.group.GenesisId(), traceId)
-	return node.group.BuildTransactionWithStorageTraceId(traceId, node.conf.AppId, opponentAppId, assetId, amount, string(memo), receivers, threshold, sequence, storageTraceId), "", nil
+	return node.group.BuildTransactionWithStorageTraceId(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, storageTraceId), "", nil
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {

@@ -35,7 +35,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 			Id:    sid,
 			Curve: curve,
 		}
-		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(op)))
+		memo := mtg.EncodeMixinExtra("", string(node.encryptOperation(op)))
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
 			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
@@ -79,7 +79,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		Public: hex.EncodeToString(fingerPath),
 		Extra:  msg,
 	}
-	memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(sop)))
+	memo := mtg.EncodeMixinExtra("", string(node.encryptOperation(sop)))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),

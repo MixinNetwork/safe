@@ -139,8 +139,8 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 }
 
 func (node *Node) checkGroupChangeTransaction(ctx context.Context, output *mtg.Action) bool {
-	g, t, m := mtg.DecodeMixinExtra(output.Extra)
-	if g == "" && t == "" && m == "" {
+	a, m := mtg.DecodeMixinExtra(output.Extra)
+	if a == "" && m == "" {
 		return false
 	}
 	inputs, err := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)

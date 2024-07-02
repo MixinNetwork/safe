@@ -20,7 +20,7 @@ func DecodeOperation(c *cli.Context) error {
 		return err
 	}
 
-	_, _, m := mtg.DecodeMixinExtra(string(b))
+	_, m := mtg.DecodeMixinExtra(string(b))
 	b = common.AESDecrypt(k, []byte(m))
 	op, err := common.DecodeOperation(b)
 	if err != nil {

@@ -59,7 +59,7 @@ func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration)
 }
 
 func DecodeMixinObjectExtra(extra []byte) []byte {
-	_, _, m := mtg.DecodeMixinExtra(hex.EncodeToString(extra))
+	_, m := mtg.DecodeMixinExtra(hex.EncodeToString(extra))
 	b, _ := base64.RawURLEncoding.DecodeString(m)
 	return b
 }

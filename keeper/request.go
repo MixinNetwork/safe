@@ -45,15 +45,15 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 	if len(out.Senders) != 1 && out.Senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
-	_, _, m := mtg.DecodeMixinExtra(out.Extra)
+	_, m := mtg.DecodeMixinExtra(out.Extra)
 	b := common.AESDecrypt(node.observerAESKey[:], []byte(m))
 	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) {
-	g, t, m := mtg.DecodeMixinExtra(out.Extra)
-	if g == "" && t == "" && m == "" {
+	a, m := mtg.DecodeMixinExtra(out.Extra)
+	if a == "" && m == "" {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
 	b := common.AESDecrypt(node.signerAESKey[:], []byte(m))
@@ -62,8 +62,8 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) 
 }
 
 func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
-	g, t, m := mtg.DecodeMixinExtra(out.Extra)
-	if g == "" && t == "" && m == "" {
+	a, m := mtg.DecodeMixinExtra(out.Extra)
+	if a == "" && m == "" {
 		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
 	}
 	role := node.requestRole(out.AssetId)

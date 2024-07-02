@@ -89,7 +89,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			Curve: crv,
 		}
 		groupId := common.UniqueId("signer", "test")
-		memo := mtg.EncodeMixinExtra(groupId, sid, string(node.encryptOperation(op)))
+		memo := mtg.EncodeMixinExtra(groupId, string(node.encryptOperation(op)))
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
 			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),

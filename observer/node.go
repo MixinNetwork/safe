@@ -410,8 +410,8 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
-	g, t, m := mtg.DecodeMixinExtra(hex.EncodeToString([]byte(s.Memo)))
-	if g == "" && t == "" && m == "" {
+	a, m := mtg.DecodeMixinExtra(hex.EncodeToString([]byte(s.Memo)))
+	if a == "" && m == "" {
 		return false, nil
 	}
 	b := common.AESDecrypt(node.aesKey[:], []byte(m))
@@ -453,8 +453,8 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	if err != nil {
 		return false, err
 	}
-	g, t, m = mtg.DecodeMixinExtra(tx.Extra)
-	if g == "" && t == "" && m == "" {
+	a, m = mtg.DecodeMixinExtra(tx.Extra)
+	if a == "" && m == "" {
 		data, _ := hex.DecodeString(tx.Extra)
 		m = string(data)
 	}

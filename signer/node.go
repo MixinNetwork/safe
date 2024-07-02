@@ -537,13 +537,13 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 				CreatedAt: time.Now(),
 			},
 		}
-		out.Extra = mtg.EncodeMixinExtra(node.conf.AppId, traceId, string(memo))
+		out.Extra = mtg.EncodeMixinExtra(node.conf.AppId, string(memo))
 		out.Extra = hex.EncodeToString([]byte(out.Extra))
 		data := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		return network.QueueMTGOutput(ctx, data)
 	}
-	m := mtg.EncodeMixinExtra(node.conf.AppId, traceId, string(memo))
+	m := mtg.EncodeMixinExtra(node.conf.AppId, string(memo))
 	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, m, node.conf.MTG.App.SpendPrivateKey)
 	return err
 }

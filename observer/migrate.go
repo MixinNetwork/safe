@@ -162,7 +162,7 @@ func (node *Node) distributePolygonBondAsset(ctx context.Context, receiver strin
 	traceId = fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
 	traceId = node.safeTraceId(traceId, op.Id)
 
-	memo := mtg.EncodeMixinExtra(node.conf.KeeperAppId, traceId, string(op.Encode()))
+	memo := mtg.EncodeMixinExtra(node.conf.KeeperAppId, string(op.Encode()))
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendKeeperTransaction(%v) omitted %x", op, extra))
 	}

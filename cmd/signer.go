@@ -178,7 +178,7 @@ func makeSignerPaymentRequest(conf *signer.Configuration, op *common.Operation, 
 	}
 	input.OpponentMultisig.Receivers = conf.MTG.Genesis.Members
 	input.OpponentMultisig.Threshold = uint8(conf.MTG.Genesis.Threshold)
-	input.Memo = mtg.EncodeMixinExtra("", op.Id, string(extra))
+	input.Memo = mtg.EncodeMixinExtra(conf.AppId, string(extra))
 	pay, err := client.VerifyPayment(ctx, input)
 	if err != nil {
 		return err

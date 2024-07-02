@@ -268,10 +268,13 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
+	var txs []*mtg.Transaction
 	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
 	if err != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
+	txs = append(txs, stx)
+
 	id := common.UniqueId(tx.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
@@ -280,12 +283,13 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", id, stx.TraceId, tt, asset, err)
 		return nil, asset, err
 	}
+	txs = append(txs, tt)
 
 	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
 	if err != nil {
 		return nil, "", err
 	}
-	return []*mtg.Transaction{tt}, "", nil
+	return txs, "", nil
 }
 
 func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -385,10 +389,13 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	extra := gs.Marshal()
+	var txs []*mtg.Transaction
 	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
 	if err != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
+	txs = append(txs, stx)
+
 	typ := byte(common.ActionEthereumSafeProposeAccount)
 	crv := SafeChainCurve(chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
@@ -396,6 +403,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
 		return nil, asset, err
 	}
+	txs = append(txs, tt)
 
 	path := ethereumDefaultDerivationPath()
 	sp := &store.SafeProposal{
@@ -418,7 +426,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		return nil, "", err
 	}
 
-	return []*mtg.Transaction{tt}, "", nil
+	return txs, "", nil
 }
 
 func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -772,6 +780,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 
 	extra = t.Marshal()
+	var txs []*mtg.Transaction
 	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
 	if err != nil {
 		switch {
@@ -781,6 +790,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
 	}
+	txs = append(txs, stx)
+
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
 	crv := SafeChainCurve(safe.Chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
@@ -788,6 +799,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
 		return nil, asset, err
 	}
+	txs = append(txs, tt)
 
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
@@ -808,7 +820,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return nil, "", nil
 	}
 
-	return []*mtg.Transaction{tt}, "", nil
+	return txs, "", nil
 }
 
 func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -1039,10 +1051,14 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			return nil, "", fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 		}
+
+		var txs []*mtg.Transaction
 		stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(safe.Extra)))
 		if err != nil {
 			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
+		txs = append(txs, stx)
+
 		typ := byte(common.ActionEthereumSafeApproveAccount)
 		crv := SafeChainCurve(safe.Chain)
 		id := common.UniqueId(req.Id, safe.Address)
@@ -1051,6 +1067,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", req.Id, stx.TraceId, tx, asset, err)
 			return nil, asset, err
 		}
+		txs = append(txs, tx)
 
 		chainId := ethereum.GetEvmChainID(int64(sp.Chain))
 		timelock := uint64(sp.Timelock / time.Hour)
@@ -1071,7 +1088,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			return nil, "", err
 		}
 
-		return []*mtg.Transaction{tx}, "", nil
+		return txs, "", nil
 	}
 
 	_, ethereumAssetId := node.ethereumParams(safe.Chain)
@@ -1099,10 +1116,13 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		balanceMap[assetId].Balance = closeBalance
 	}
 
+	var txs []*mtg.Transaction
 	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(t.Marshal())))
 	if err != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
+	txs = append(txs, stx)
+
 	id := common.UniqueId(old.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
 	crv := SafeChainCurve(safe.Chain)
@@ -1111,6 +1131,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, stx.TraceId, tt, asset, err)
 		return nil, asset, err
 	}
+	txs = append(txs, tt)
 
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, balanceMap)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
@@ -1118,7 +1139,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return nil, "", err
 	}
 
-	return []*mtg.Transaction{tt}, "", nil
+	return txs, "", nil
 }
 
 func (node *Node) checkEthereumTransactionSignedBy(safe *store.Safe, t *ethereum.SafeTransaction, public string) (bool, error) {
