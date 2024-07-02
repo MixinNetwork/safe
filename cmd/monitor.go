@@ -216,7 +216,7 @@ func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, 
 			RecipientId:    s.UserId,
 			Category:       bot.MessageCategoryPlainText,
 			MessageId:      common.UniqueId(msg, s.UserId),
-			Data:           base64.RawURLEncoding.EncodeToString([]byte(msg)),
+			DataBase64:     base64.RawURLEncoding.EncodeToString([]byte(msg)),
 		})
 	}
 	err := bot.PostMessages(ctx, messages, &bot.SafeUser{

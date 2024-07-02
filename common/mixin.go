@@ -132,7 +132,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 			continue
 		}
 
-		storageReq, err := bot.CreateObjectStorageTransaction(ctx, extra, sTraceId, nil, "", &su)
+		storageReq, err := bot.CreateObjectStorageTransaction(ctx, nil, extra, sTraceId, nil, "", &su)
 		if err != nil {
 			if mtg.CheckRetryableError(err) || strings.Contains(err.Error(), "signature verification failed") {
 				time.Sleep(3 * time.Second)

@@ -7,7 +7,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (node *Node) sendObserverResponseWithReferences(ctx context.Context, id string, sequence uint64, typ, crv byte, storageTraceId string) (*mtg.Transaction, string, error) {

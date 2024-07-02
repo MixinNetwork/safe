@@ -180,7 +180,7 @@ func (mm *MixinMessenger) OnMessage(ctx context.Context, msg bot.MessageView, us
 	if msg.ConversationId != mm.conversationId {
 		return nil
 	}
-	data, err := base64.StdEncoding.DecodeString(msg.Data)
+	data, err := base64.RawURLEncoding.DecodeString(msg.DataBase64)
 	if err != nil {
 		return nil
 	}
