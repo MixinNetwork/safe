@@ -1057,7 +1057,9 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
-		txs = append(txs, stx)
+		if stx.State == mtg.TransactionStateInitial {
+			txs = append(txs, stx)
+		}
 
 		typ := byte(common.ActionEthereumSafeApproveAccount)
 		crv := SafeChainCurve(safe.Chain)
