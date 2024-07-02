@@ -439,9 +439,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	if err != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	if stx.State == mtg.TransactionStateInitial {
-		txs = append(txs, stx)
-	}
+	txs = append(txs, stx)
 
 	typ := byte(common.ActionBitcoinSafeApproveAccount)
 	crv := SafeChainCurve(sp.Chain)

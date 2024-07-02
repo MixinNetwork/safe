@@ -249,11 +249,6 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	req, err := common.SafeReadMultisigRequestUntilSufficient(ctx, node.mixin, common.UniqueId(node.group.GenesisId(), op.Id))
-	if err != nil || req != nil {
-		return nil, "", err
-	}
-
 	tx, asset, err := node.buildKeeperTransaction(ctx, op, out.Sequence)
 	if err != nil || asset != "" {
 		return nil, asset, err
