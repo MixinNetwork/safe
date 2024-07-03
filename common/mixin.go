@@ -105,10 +105,7 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 	return int(limit)
 }
 
-func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, traceId string, su bot.SafeUser) (string, error) {
-	sTraceId := crypto.Blake3Hash(extra).String()
-	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
-
+func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, sTraceId string, su bot.SafeUser) (string, error) {
 	for {
 		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
