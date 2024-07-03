@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -309,7 +310,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if err != nil {
 		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", sender, err)
 	}
-	if isSafe && confirmations > 0 {
+	if isSafe && (confirmations > 0 || node.checkDepositTrustedConfirmForkTimestamp(req.CreatedAt)) {
 		confirmations = 1000000
 	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
@@ -346,7 +347,7 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	if err != nil {
 		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", t.Sender, err)
 	}
-	if isSafe && confirmations > 0 {
+	if isSafe && (confirmations > 0 || node.checkDepositTrustedConfirmForkTimestamp(req.CreatedAt)) {
 		confirmations = 1000000
 	}
 	if !ethereum.CheckFinalization(confirmations, safe.Chain) {
@@ -369,4 +370,13 @@ func (node *Node) checkTrustedSender(ctx context.Context, address string) (bool,
 		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", address, err)
 	}
 	return safe != nil, nil
+}
+
+func (node *Node) checkDepositTrustedConfirmForkTimestamp(createdAt time.Time) bool {
+	genesis := time.Unix(0, node.conf.MTG.Genesis.Timestamp)
+	if createdAt.Before(genesis) {
+		panic(createdAt.String())
+	}
+	forkAt := time.Date(2024, 5, 4, 0, 0, 0, 0, time.UTC)
+	return createdAt.Before(forkAt)
 }
