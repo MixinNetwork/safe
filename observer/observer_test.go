@@ -84,12 +84,12 @@ func TestObserverMigrateBondAsset(t *testing.T) {
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	require.Nil(err)
 
-	abi.TestInitFactoryContractAddress(node.conf.MVMFactoryAddress)
+	abi.TestInitFactoryContractAddress(ctx, node.conf.MVMFactoryAddress)
 	bond := abi.GetMVMFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
 	bondId := ethereum.GenerateAssetId(keeper.SafeChainMVM, strings.ToLower(bond.Hex()))
 	require.Equal(testMVMBondAssetId, bondId)
 
-	abi.TestInitFactoryContractAddress(node.conf.PolygonFactoryAddress)
+	abi.TestInitFactoryContractAddress(ctx, node.conf.PolygonFactoryAddress)
 	err = abi.GetOrDeployFactoryAsset(ctx, node.conf.PolygonRPC, os.Getenv("MVM_DEPLOYER"), assetId, asset.Symbol, asset.Name, testReceiverAddress, holder)
 	require.Nil(err)
 

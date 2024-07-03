@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
-	"github.com/MixinNetwork/safe/custodian"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -64,14 +62,6 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	mc.Keeper.MTG.App.SpendPrivateKey = key.String()
 
-	cd, err := custodian.OpenSQLite3Store(mc.Keeper.StoreDir + "/custodian.sqlite3")
-	if err != nil {
-		return err
-	}
-	defer cd.Close()
-	custodian := custodian.NewWorker(cd)
-	custodian.Boot(ctx)
-
 	kd, err := keeper.OpenSQLite3Store(mc.Keeper.StoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err
@@ -84,7 +74,6 @@ func KeeperBootCmd(c *cli.Context) error {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
 	}
 
-	group.AttachWorker(common.UniqueId(mc.Keeper.AppId, "custodian"), custodian)
 	group.AttachWorker(mc.Keeper.AppId, keeper)
 	group.RegisterDepositEntry(mc.Keeper.AppId, mtg.DepositEntry{
 		Destination: mc.Keeper.PolygonGroupEntry,

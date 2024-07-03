@@ -59,10 +59,6 @@ func ParseSatoshi(amount string) int64 {
 func ParseAddress(addr string, chain byte) ([]byte, error) {
 	switch chain {
 	case ChainBitcoin, ChainLitecoin:
-		err := DecodeAddress(addr, NetConfig(chain))
-		if err != nil {
-			return nil, fmt.Errorf("bitcoin.VerifyAddress(%s %d) => %v", addr, chain, err)
-		}
 	default:
 		return nil, fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
 	}
@@ -70,23 +66,14 @@ func ParseAddress(addr string, chain byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("btcutil.DecodeAddress(%s, %d) => %v", addr, chain, err)
 	}
+	if !bda.IsForNet(NetConfig(chain)) {
+		return nil, fmt.Errorf("btcutil.IsForNet(%s, %d)", addr, chain)
+	}
 	script, err := txscript.PayToAddrScript(bda)
 	if err != nil {
 		return nil, fmt.Errorf("txscript.PayToAddrScript(%s, %d) => %v", addr, chain, err)
 	}
 	return script, nil
-}
-
-func DecodeAddress(addr string, cfg *chaincfg.Params) error {
-	oneIndex := strings.LastIndexByte(addr, '1')
-	if oneIndex > 1 {
-		prefix := addr[:oneIndex+1]
-		if prefix != cfg.Bech32HRPSegwit+"1" {
-			return fmt.Errorf("invalid prefix: %s %s", prefix, cfg.Bech32HRPSegwit)
-		}
-	}
-	_, err := btcutil.DecodeAddress(addr, cfg)
-	return err
 }
 
 func ParseSequence(lock time.Duration, chain byte) int64 {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	sc "github.com/MixinNetwork/safe/common"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -30,7 +31,10 @@ func InitFactoryContractAddress(addr string) {
 		panic(factoryContractAddress)
 	}
 }
-func TestInitFactoryContractAddress(addr string) {
+func TestInitFactoryContractAddress(ctx context.Context, addr string) {
+	if !sc.CheckTestEnvironment(ctx) {
+		panic(addr)
+	}
 	addr = strings.ToLower(addr)
 	if ethereum.VerifyAssetKey(addr) != nil {
 		panic(addr)

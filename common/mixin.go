@@ -225,12 +225,9 @@ func GetSpendPublicKeyUntilSufficient(ctx context.Context, client *mixin.Client)
 	for {
 		me, err := client.UserMe(ctx)
 		logger.Verbosef("mixin.UserMe() => %v\n", err)
-		if err != nil {
-			if mtg.CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return "", err
+		if err != nil && mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
 		}
 		return me.SpendPublicKey, err
 	}
@@ -256,12 +253,7 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requ
 	if err != nil {
 		return nil, err
 	}
-	index := -1
-	for i, id := range members {
-		if id == client.ClientID {
-			index = i
-		}
-	}
+	index := slices.Index(members, client.ClientID)
 	if index == -1 {
 		return nil, fmt.Errorf("invalid signer index: %d", index)
 	}
