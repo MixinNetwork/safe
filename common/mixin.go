@@ -107,16 +107,21 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 
 func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, sTraceId string, su bot.SafeUser) (string, error) {
 	for {
-		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
+		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
+		if err != nil {
+			return "", err
+		}
+		if old != nil && old.State == mixin.SafeUtxoStateSpent {
+			return old.TransactionHash, nil
+		}
+
+		req, err := SafeReadMultisigRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
 			return "", err
 		}
 		if req != nil {
-			if req.State == mixin.SafeUtxoStateSpent {
-				return req.TransactionHash, nil
-			}
 			if !slices.Contains(req.Signers, client.ClientID) {
-				_, err = SignTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, su.SpendPrivateKey)
+				_, err = SignMultisigUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, []string{client.ClientID}, su.SpendPrivateKey)
 				if err != nil {
 					return "", err
 				}
@@ -230,7 +235,7 @@ func CreateTransactionRequestUntilSufficient(ctx context.Context, client *mixin.
 	}
 }
 
-func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, spendPrivateKey string) (*mixin.SafeMultisigRequest, error) {
+func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	key, err := mixinnet.KeyFromString(spendPrivateKey)
 	if err != nil {
 		return nil, err
@@ -240,6 +245,42 @@ func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, r
 		return nil, err
 	}
 	err = mixin.SafeSignTransaction(ver, key, views, uint16(0))
+	if err != nil {
+		return nil, err
+	}
+	signedRaw, err := ver.Dump()
+	if err != nil {
+		return nil, err
+	}
+	for {
+		req, err := client.SafeSubmitTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID:      requestId,
+			RawTransaction: signedRaw,
+		})
+		logger.Verbosef("group.SafeSubmitTransactionRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
+		if err != nil && mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return req, err
+	}
+}
+
+func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, members []string, spendPrivateKey string) (*mixin.SafeMultisigRequest, error) {
+	key, err := mixinnet.KeyFromString(spendPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	index := slices.Index(members, client.ClientID)
+	if index == -1 {
+		return nil, fmt.Errorf("invalid signer index: %d", index)
+	}
+
+	ver, err := mixinnet.TransactionFromRaw(raw)
+	if err != nil {
+		return nil, err
+	}
+	err = mixin.SafeSignTransaction(ver, key, views, uint16(index))
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +306,24 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 	for {
 		req, err := client.SafeReadTransactionRequest(ctx, id)
 		logger.Verbosef("mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if mtg.CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if mixin.IsErrorCodes(err, 404) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return req, nil
+	}
+}
+
+func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeMultisigRequest, error) {
+	for {
+		req, err := client.SafeReadMultisigRequests(ctx, id)
+		logger.Verbosef("mixin.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
 		if err != nil {
 			if mtg.CheckRetryableError(err) {
 				time.Sleep(3 * time.Second)
