@@ -247,22 +247,7 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*store.Asset,
 		return nil, err
 	}
 	asset := body.Data
-
-	var chain byte
-	switch asset.ChainId {
-	case common.SafeBitcoinChainId:
-		chain = common.SafeChainBitcoin
-	case common.SafeLitecoinChainId:
-		chain = common.SafeChainLitecoin
-	case common.SafeEthereumChainId:
-		chain = common.SafeChainEthereum
-	case common.SafeMVMChainId:
-		chain = common.SafeChainMVM
-	case common.SafePolygonChainId:
-		chain = common.SafeChainPolygon
-	default:
-		panic(asset.ChainId)
-	}
+	chain := common.SafeAssetIdChain(asset.ChainId)
 
 	meta := &store.Asset{
 		AssetId:   asset.AssetId,

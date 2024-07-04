@@ -9,7 +9,7 @@ const (
 	SafeChainBitcoin  = bitcoin.ChainBitcoin
 	SafeChainLitecoin = bitcoin.ChainLitecoin
 	SafeChainEthereum = ethereum.ChainEthereum
-	SafeChainMVM      = ethereum.ChainMVM
+	SafeChainMVM      = ethereum.ChainMVM // FIXME remove mvm related code
 	SafeChainPolygon  = ethereum.ChainPolygon
 
 	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
@@ -67,5 +67,22 @@ func SafeChainAssetId(chain byte) string {
 		return SafePolygonChainId
 	default:
 		panic(chain)
+	}
+}
+
+func SafeAssetIdChain(chainId string) byte {
+	switch chainId {
+	case SafeBitcoinChainId:
+		return SafeChainBitcoin
+	case SafeLitecoinChainId:
+		return SafeChainLitecoin
+	case SafeEthereumChainId:
+		return SafeChainEthereum
+	case SafeMVMChainId:
+		return SafeChainMVM
+	case SafePolygonChainId:
+		return SafeChainPolygon
+	default:
+		panic(chainId)
 	}
 }
