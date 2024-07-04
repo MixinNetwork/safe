@@ -139,27 +139,17 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
-		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
-		if err != nil {
-			return nil, err
-		}
-		if old != nil && old.State == mixin.SafeUtxoStateSpent {
-			return old, nil
-		}
-
 		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 		if err != nil {
 			return nil, err
 		}
 		if req != nil {
-			if !slices.Contains(req.Signers, client.ClientID) {
-				_, err = SignTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
-				if err != nil {
-					return nil, err
-				}
+			if req.State == mixin.SafeUtxoStateSpent {
+				return req, nil
+			} else {
+				time.Sleep(3 * time.Second)
+				continue
 			}
-			time.Sleep(3 * time.Second)
-			continue
 		}
 
 		utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
