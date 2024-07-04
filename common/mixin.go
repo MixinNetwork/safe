@@ -125,15 +125,15 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 			continue
 		}
 
-		storageReq, err := bot.CreateObjectStorageTransaction(ctx, nil, extra, sTraceId, nil, "", &su)
+		_, err = bot.CreateObjectStorageTransaction(ctx, nil, extra, sTraceId, nil, "", &su)
 		if err != nil {
+			// FIXME the sdk error in signature
 			if mtg.CheckRetryableError(err) || strings.Contains(err.Error(), "signature verification failed") {
 				time.Sleep(3 * time.Second)
 				continue
 			}
 			return "", err
 		}
-		return storageReq.TransactionHash, nil
 	}
 }
 
@@ -146,10 +146,9 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		if req != nil {
 			if req.State == mixin.SafeUtxoStateSpent {
 				return req, nil
-			} else {
-				time.Sleep(3 * time.Second)
-				continue
 			}
+			time.Sleep(3 * time.Second)
+			continue
 		}
 
 		utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)

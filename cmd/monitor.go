@@ -85,8 +85,9 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	if err != nil {
 		return "", err
 	}
-	amount := sa.Div(int(decimal.New(10, 18).BigInt().Int64()))
-	state = state + fmt.Sprintf("💍 MSST Balance: %s TT\n", amount.String())
+	tTredecillion := decimal.New(10, 12+42)
+	amount := decimal.RequireFromString(sa.String()).Div(tTredecillion).IntPart()
+	state = state + fmt.Sprintf("💍 MSST Balance: %d TT\n", amount)
 
 	ss, err := store.SessionsState(ctx)
 	if err != nil {
