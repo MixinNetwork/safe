@@ -106,7 +106,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon {
+	if meta.Chain != common.SafeChainPolygon {
 		return false, nil
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
@@ -287,9 +287,9 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	switch safe.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
 	default:
 		panic(safe.Chain)
@@ -300,7 +300,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -345,7 +345,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon && meta.Chain != SafeChainMVM {
+	if meta.Chain != common.SafeChainPolygon && meta.Chain != common.SafeChainMVM {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -377,7 +377,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon {
+	if meta.Chain != common.SafeChainPolygon {
 		logger.Printf("invalid meta asset chain: %d", meta.Chain)
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}

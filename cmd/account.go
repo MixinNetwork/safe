@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -24,7 +23,7 @@ import (
 func GenerateTestSafeApproval(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}
@@ -43,7 +42,7 @@ func GenerateTestSafeApproval(c *cli.Context) error {
 func GenerateTestSafeProposal(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}

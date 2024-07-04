@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
@@ -172,7 +173,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = db.WriteAccountantKeys(ctx, keeper.SafeChainCurve(chain), keys)
+	err = db.WriteAccountantKeys(ctx, common.SafeChainCurve(chain), keys)
 	if err != nil {
 		return err
 	}
@@ -212,8 +213,8 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 	scanner.Split(bufio.ScanLines)
 
 	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainEthereum:
+	case common.SafeChainBitcoin:
+	case common.SafeChainEthereum:
 	default:
 		return nil, fmt.Errorf("invalid chain %d", chain)
 	}
@@ -256,8 +257,8 @@ func generateAccountantKey(chain byte) (*btcec.PrivateKey, string, error) {
 func GenerateObserverKeys(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainEthereum:
+	case common.SafeChainBitcoin:
+	case common.SafeChainEthereum:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}

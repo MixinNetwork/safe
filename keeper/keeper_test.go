@@ -64,7 +64,7 @@ func TestKeeper(t *testing.T) {
 	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
@@ -146,7 +146,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
@@ -209,7 +209,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
@@ -333,7 +333,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
 	id := uuid.Must(uuid.NewV4()).String()
 
-	extra := []byte{SafeChainBitcoin}
+	extra := []byte{common.SafeChainBitcoin}
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
@@ -341,7 +341,7 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	plan, err := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
+	plan, err := node.store.ReadLatestOperationParams(ctx, common.SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
 	require.Equal(fmt.Sprint(testAccountPriceAmount), plan.OperationPriceAmount.String())
@@ -353,7 +353,7 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	fee, height := bitcoinMinimumFeeRate, uint64(blockHeight)
 	hash, _ := crypto.HashFromString(blockHash)
 
-	extra := []byte{SafeChainBitcoin}
+	extra := []byte{common.SafeChainBitcoin}
 	extra = binary.BigEndian.AppendUint64(extra, uint64(fee))
 	extra = binary.BigEndian.AppendUint64(extra, height)
 	extra = append(extra, hash[:]...)
@@ -361,10 +361,10 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.NotNil(info)
-	require.Equal(byte(SafeChainBitcoin), info.Chain)
+	require.Equal(byte(common.SafeChainBitcoin), info.Chain)
 	require.Equal(uint64(fee), info.Fee)
 	require.Equal(height, info.Height)
 	require.Equal(hash.String(), info.Hash)
@@ -378,7 +378,7 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 
 	var sig []byte
 	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
-	msg := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
+	msg := bitcoin.HashMessageForSignature(ms, common.SafeChainBitcoin)
 	if signByObserver {
 		observer := testGetDerivedObserverPrivate(require)
 		sig = ecdsa.Sign(observer, msg).Serialize()
@@ -499,7 +499,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -536,7 +536,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -746,14 +746,14 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 func testObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer string, input *bitcoin.Input, t int) {
 	id := uuid.Must(uuid.NewV4()).String()
 	hash, _ := crypto.HashFromString(input.TransactionHash)
-	extra := []byte{SafeChainBitcoin}
-	extra = append(extra, uuid.Must(uuid.FromString(SafeBitcoinChainId)).Bytes()...)
+	extra := []byte{common.SafeChainBitcoin}
+	extra = append(extra, uuid.Must(uuid.FromString(common.SafeBitcoinChainId)).Bytes()...)
 	extra = append(extra, hash[:]...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(input.Index))
 	extra = append(extra, big.NewInt(input.Satoshi).Bytes()...)
 
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
+	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
@@ -789,7 +789,7 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
+	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafeAddress, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -804,7 +804,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	id := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	ms := fmt.Sprintf("APPROVE:%s:%s", rid, publicKey)
-	hash := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
+	hash := bitcoin.HashMessageForSignature(ms, common.SafeChainBitcoin)
 	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
 	hp, _ := btcec.PrivKeyFromBytes(hb)
 	signature := ecdsa.Sign(hp, hash)
@@ -824,7 +824,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
+	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafeAddress, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -863,11 +863,11 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
 	switch typ {
 	case common.ActionBitcoinSafeApproveAccount:
-		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
+		params, _ := node.store.ReadLatestOperationParams(ctx, common.SafeChainBitcoin, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	case common.ActionEthereumSafeApproveAccount:
-		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainPolygon, time.Now())
+		params, _ := node.store.ReadLatestOperationParams(ctx, common.SafeChainPolygon, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	default:
@@ -1000,7 +1000,7 @@ func testDeployBondContract(ctx context.Context, require *require.Assertions, no
 	assetKey := strings.ToLower(bond.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	require.Nil(err)
-	asset, _ = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(SafeChainPolygon, assetKey))
+	asset, _ = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
 	return asset.AssetId
 }
 

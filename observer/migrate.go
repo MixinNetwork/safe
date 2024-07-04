@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
@@ -45,7 +44,7 @@ func (node *Node) listOutputs(ctx context.Context, asset string, state mixin.Saf
 
 func (node *Node) fetchDepositEntry(ctx context.Context) (string, error) {
 	for {
-		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, []string{node.mixin.ClientID}, 1, keeper.SafePolygonChainId)
+		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, []string{node.mixin.ClientID}, 1, common.SafePolygonChainId)
 		if err != nil {
 			reason := strings.ToLower(err.Error())
 			switch {
@@ -77,7 +76,7 @@ func (node *Node) fetchPolygonBondAsset(ctx context.Context, entry string, chain
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
-	bondId := ethereum.GenerateAssetId(keeper.SafeChainPolygon, assetKey)
+	bondId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
 	bond, err := node.fetchAssetMeta(ctx, bondId)
 	return asset, bond, bondId, err
 }
@@ -97,13 +96,13 @@ func (node *Node) checkOrDeployPolygonBond(ctx context.Context, entry string, ch
 func (node *Node) deployPolygonBondAssets(ctx context.Context, safes []*store.Safe, receiver string) error {
 	for _, safe := range safes {
 		switch safe.Chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			_, assetId := node.bitcoinParams(safe.Chain)
 			_, err := node.checkOrDeployPolygonBond(ctx, receiver, safe.Chain, assetId, "", safe.Holder)
 			if err != nil {
 				return err
 			}
-		case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+		case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 			_, assetId := node.ethereumParams(safe.Chain)
 			balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
 			if err != nil {
@@ -138,14 +137,14 @@ func (node *Node) distributePolygonBondAsset(ctx context.Context, receiver strin
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	extra := gc.HexToAddress(receiver).Bytes()
 	switch safe.Chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin:
+	case common.SafeChainLitecoin:
 		crv = common.CurveSecp256k1ECDSALitecoin
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
-	case keeper.SafeChainMVM:
+	case common.SafeChainMVM:
 		crv = common.CurveSecp256k1ECDSAMVM
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		crv = common.CurveSecp256k1ECDSAPolygon
 	default:
 		panic(safe.Chain)
@@ -210,7 +209,7 @@ func userNotRegistered(err error) bool {
 
 func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *store.Safe, receiver string) (bool, bool, error) {
 	switch safe.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		_, assetId := node.bitcoinParams(safe.Chain)
 		_, bond, _, err := node.fetchPolygonBondAsset(ctx, receiver, safe.Chain, assetId, "", safe.Holder)
 		if err != nil || bond == nil {
@@ -232,7 +231,7 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 			return false, false, err
 		}
 		return true, false, nil
-	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+	case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 		balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
 		if err != nil {
 			return false, false, err

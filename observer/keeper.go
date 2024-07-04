@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
@@ -55,14 +54,14 @@ func (node *Node) sendKeeperResponse(ctx context.Context, holder string, typ, ch
 func (node *Node) sendKeeperResponseWithReferences(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte, references []crypto.Hash) error {
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin:
+	case common.SafeChainLitecoin:
 		crv = common.CurveSecp256k1ECDSALitecoin
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
-	case keeper.SafeChainMVM:
+	case common.SafeChainMVM:
 		crv = common.CurveSecp256k1ECDSAMVM
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		crv = common.CurveSecp256k1ECDSAPolygon
 	default:
 		panic(chain)

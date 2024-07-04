@@ -18,7 +18,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/dimfeld/httptreemux/v5"
@@ -125,7 +124,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 
-	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), keeper.SafeChainBitcoin, time.Now())
+	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), common.SafeChainBitcoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -161,7 +160,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var cs []map[string]any
-	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainPolygon, keeper.SafeChainEthereum} {
+	for _, c := range []byte{common.SafeChainBitcoin, common.SafeChainLitecoin, common.SafeChainPolygon, common.SafeChainEthereum} {
 		info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), c, time.Now())
 		if err != nil {
 			common.RenderError(w, r, err)
@@ -177,16 +176,16 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		}
 		var id string
 		switch c {
-		case keeper.SafeChainBitcoin:
-			id = keeper.SafeBitcoinChainId
-		case keeper.SafeChainLitecoin:
-			id = keeper.SafeLitecoinChainId
-		case keeper.SafeChainEthereum:
-			id = keeper.SafeEthereumChainId
-		case keeper.SafeChainMVM:
-			id = keeper.SafeMVMChainId
-		case keeper.SafeChainPolygon:
-			id = keeper.SafePolygonChainId
+		case common.SafeChainBitcoin:
+			id = common.SafeBitcoinChainId
+		case common.SafeChainLitecoin:
+			id = common.SafeLitecoinChainId
+		case common.SafeChainEthereum:
+			id = common.SafeEthereumChainId
+		case common.SafeChainMVM:
+			id = common.SafeMVMChainId
+		case common.SafeChainPolygon:
+			id = common.SafePolygonChainId
 		}
 		head := make(map[string]any)
 		head["id"] = info.RequestId
@@ -202,7 +201,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			"checkpoint": ckp,
 		}
 		switch c {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			c, s, err := node.readChainAccountantBalance(r.Context(), int(c))
 			if err != nil {
 				common.RenderError(w, r, err)
@@ -214,7 +213,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			accountant := make(map[string]any)
 			accountant["outputs"] = outputs
 			chain["accountant"] = accountant
-		case keeper.SafeChainEthereum, keeper.SafeChainPolygon:
+		case common.SafeChainEthereum, common.SafeChainPolygon:
 			addr, err := ethereum.PrivToAddress(node.conf.EVMKey)
 			if err != nil {
 				common.RenderError(w, r, err)
@@ -677,7 +676,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			dm["sent_hash"] = d.TransactionHash
 		} else {
 			switch d.Chain {
-			case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			case common.SafeChainBitcoin, common.SafeChainLitecoin:
 				dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
 			}
 		}
@@ -803,7 +802,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		receiver = safe.Receiver
 	}
 	switch sp.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), sp)
 		if err != nil {
 			common.RenderError(w, r, err)
@@ -844,7 +843,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"migrated": account.Migrated,
 			"receiver": receiver,
 		})
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
 		_, assetId := node.ethereumParams(sp.Chain)
 		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, assetId, "", sp.Holder)
 		if err != nil {

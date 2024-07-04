@@ -54,11 +54,11 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	if info.Chain != SafeCurveChain(req.Curve) {
+	if info.Chain != common.SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	switch info.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, req, info)
 		if err != nil {
@@ -66,7 +66,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		} else if !valid {
 			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
@@ -92,15 +92,15 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	}
 
 	chain := extra[0]
-	if chain != SafeCurveChain(req.Curve) {
+	if chain != common.SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	switch chain {
-	case SafeChainBitcoin:
-	case SafeChainLitecoin:
-	case SafeChainEthereum:
-	case SafeChainMVM:
-	case SafeChainPolygon:
+	case common.SafeChainBitcoin:
+	case common.SafeChainLitecoin:
+	case common.SafeChainEthereum:
+	case common.SafeChainMVM:
+	case common.SafeChainPolygon:
 	default:
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -170,10 +170,10 @@ func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info *store.Net
 
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
-	case SafeChainBitcoin:
-		return node.conf.BitcoinRPC, SafeBitcoinChainId
-	case SafeChainLitecoin:
-		return node.conf.LitecoinRPC, SafeLitecoinChainId
+	case common.SafeChainBitcoin:
+		return node.conf.BitcoinRPC, common.SafeBitcoinChainId
+	case common.SafeChainLitecoin:
+		return node.conf.LitecoinRPC, common.SafeLitecoinChainId
 	default:
 		panic(chain)
 	}
@@ -181,12 +181,12 @@ func (node *Node) bitcoinParams(chain byte) (string, string) {
 
 func (node *Node) ethereumParams(chain byte) (string, string) {
 	switch chain {
-	case SafeChainEthereum:
-		return node.conf.EthereumRPC, SafeEthereumChainId
-	case SafeChainMVM:
-		return node.conf.MVMRPC, SafeMVMChainId
-	case SafeChainPolygon:
-		return node.conf.PolygonRPC, SafePolygonChainId
+	case common.SafeChainEthereum:
+		return node.conf.EthereumRPC, common.SafeEthereumChainId
+	case common.SafeChainMVM:
+		return node.conf.MVMRPC, common.SafeMVMChainId
+	case common.SafeChainPolygon:
+		return node.conf.PolygonRPC, common.SafePolygonChainId
 	default:
 		panic(chain)
 	}
@@ -198,9 +198,9 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		return meta, err
 	}
 	switch chain {
-	case SafeChainEthereum:
-	case SafeChainMVM:
-	case SafeChainPolygon:
+	case common.SafeChainEthereum:
+	case common.SafeChainMVM:
+	case common.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -250,16 +250,16 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*store.Asset,
 
 	var chain byte
 	switch asset.ChainId {
-	case SafeBitcoinChainId:
-		chain = SafeChainBitcoin
-	case SafeLitecoinChainId:
-		chain = SafeChainLitecoin
-	case SafeEthereumChainId:
-		chain = SafeChainEthereum
-	case SafeMVMChainId:
-		chain = SafeChainMVM
-	case SafePolygonChainId:
-		chain = SafeChainPolygon
+	case common.SafeBitcoinChainId:
+		chain = common.SafeChainBitcoin
+	case common.SafeLitecoinChainId:
+		chain = common.SafeChainLitecoin
+	case common.SafeEthereumChainId:
+		chain = common.SafeChainEthereum
+	case common.SafeMVMChainId:
+		chain = common.SafeChainMVM
+	case common.SafePolygonChainId:
+		chain = common.SafeChainPolygon
 	default:
 		panic(asset.ChainId)
 	}

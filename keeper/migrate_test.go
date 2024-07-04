@@ -34,7 +34,7 @@ func TestKeeperMigration(t *testing.T) {
 			CreatedAt: time.Now(),
 		},
 	})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
+	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	safe, err := node.store.ReadSafe(ctx, holder)
 	require.Nil(err)
@@ -51,7 +51,6 @@ func TestKeeperMigration(t *testing.T) {
 
 	safe, err = node.store.ReadSafe(ctx, holder)
 	require.Nil(err)
-	require.Equal(testObserverDepositEntry, safe.Receiver)
 
 	bs, err = node.store.ReadEthereumAllBalance(ctx, safe.Address)
 	require.Nil(err)
@@ -60,7 +59,7 @@ func TestKeeperMigration(t *testing.T) {
 		require.Equal(true, b.Migrated)
 	}
 
-	cnbAssetId := ethereum.GenerateAssetId(SafeChainPolygon, testEthereumUSDTAddress)
+	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
 	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
 	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)

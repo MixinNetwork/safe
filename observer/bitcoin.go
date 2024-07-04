@@ -29,10 +29,10 @@ const (
 
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
-	case keeper.SafeChainBitcoin:
-		return node.conf.BitcoinRPC, keeper.SafeBitcoinChainId
-	case keeper.SafeChainLitecoin:
-		return node.conf.LitecoinRPC, keeper.SafeLitecoinChainId
+	case common.SafeChainBitcoin:
+		return node.conf.BitcoinRPC, common.SafeBitcoinChainId
+	case common.SafeChainLitecoin:
+		return node.conf.LitecoinRPC, common.SafeLitecoinChainId
 	default:
 		panic(chain)
 	}
@@ -312,9 +312,9 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
 	duration := 3 * time.Minute
 	switch chain {
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainLitecoin:
 		duration = 1 * time.Minute
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 	}
 
 	for {

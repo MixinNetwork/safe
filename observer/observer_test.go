@@ -38,7 +38,7 @@ func TestObserver(t *testing.T) {
 	node := testBuildNode(ctx, require, root)
 	require.NotNil(node)
 
-	fvb, err := bitcoin.EstimateAvgFee(keeper.SafeChainBitcoin, node.conf.BitcoinRPC)
+	fvb, err := bitcoin.EstimateAvgFee(common.SafeChainBitcoin, node.conf.BitcoinRPC)
 	require.Nil(err)
 	require.Greater(fvb, int64(10))
 	require.Less(fvb, int64(500))
@@ -80,13 +80,13 @@ func TestObserverMigrateBondAsset(t *testing.T) {
 	require.NotNil(node)
 
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	_, assetId := node.bitcoinParams(keeper.SafeChainBitcoin)
+	_, assetId := node.bitcoinParams(common.SafeChainBitcoin)
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	require.Nil(err)
 
 	abi.TestInitFactoryContractAddress(ctx, node.conf.MVMFactoryAddress)
 	bond := abi.GetMVMFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
-	bondId := ethereum.GenerateAssetId(keeper.SafeChainMVM, strings.ToLower(bond.Hex()))
+	bondId := ethereum.GenerateAssetId(common.SafeChainMVM, strings.ToLower(bond.Hex()))
 	require.Equal(testMVMBondAssetId, bondId)
 
 	abi.TestInitFactoryContractAddress(ctx, node.conf.PolygonFactoryAddress)
@@ -94,7 +94,7 @@ func TestObserverMigrateBondAsset(t *testing.T) {
 	require.Nil(err)
 
 	bond = abi.GetFactoryAssetAddress(testReceiverAddress, assetId, asset.Symbol, asset.Name, holder)
-	bondId = ethereum.GenerateAssetId(keeper.SafeChainPolygon, strings.ToLower(bond.Hex()))
+	bondId = ethereum.GenerateAssetId(common.SafeChainPolygon, strings.ToLower(bond.Hex()))
 	require.Equal(testPolygonBondAssetId, bondId)
 }
 

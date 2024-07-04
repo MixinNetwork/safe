@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
@@ -33,8 +32,8 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 		return err
 	}
 	switch tx.Chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin:
+	case common.SafeChainLitecoin:
 	default:
 		panic(spsbt.Hash())
 	}
@@ -145,9 +144,9 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 		return err
 	}
 	switch safe.Chain {
-	case keeper.SafeChainEthereum:
-	case keeper.SafeChainMVM:
-	case keeper.SafeChainPolygon:
+	case common.SafeChainEthereum:
+	case common.SafeChainMVM:
+	case common.SafeChainPolygon:
 	default:
 		panic(st.TxHash)
 	}

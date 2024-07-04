@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcec/v2"
 )
@@ -139,7 +138,7 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 
 	opk, spk := safe.Observer, safe.Signer
 	switch safe.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		var err error
 		opk, err = node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
 		if err != nil {
@@ -155,9 +154,9 @@ func (t *Transaction) Signers(ctx context.Context, node *Node, safe *store.Safe)
 	for idx, pub := range pubs {
 		isSigned := false
 		switch safe.Chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			isSigned = bitcoin.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
-		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+		case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
 			isSigned = ethereum.CheckTransactionPartiallySignedBy(t.RawTransaction, pub)
 		default:
 			panic(safe.Chain)

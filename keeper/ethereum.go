@@ -25,7 +25,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -44,7 +44,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon {
+	if meta.Chain != common.SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
@@ -277,7 +277,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 
 	id := common.UniqueId(tx.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
-	crv := SafeChainCurve(safe.Chain)
+	crv := common.SafeChainCurve(safe.Chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", id, stx.TraceId, tt, asset, err)
@@ -315,7 +315,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	if err != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", chain, plan, err)
@@ -397,7 +397,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	txs = append(txs, stx)
 
 	typ := byte(common.ActionEthereumSafeProposeAccount)
-	crv := SafeChainCurve(chain)
+	crv := common.SafeChainCurve(chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
@@ -444,7 +444,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	} else if old != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	_, assetId := node.ethereumParams(chain)
 
 	a, _, err := node.getBondAsset(ctx, assetId, req.Holder)
@@ -558,7 +558,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -581,7 +581,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon {
+	if meta.Chain != common.SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
@@ -793,7 +793,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	txs = append(txs, stx)
 
 	typ := byte(common.ActionEthereumSafeProposeTransaction)
-	crv := SafeChainCurve(safe.Chain)
+	crv := common.SafeChainCurve(safe.Chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
 		logger.Printf("node.sendObserverResponse(%s, %s) => %v %s %v", req.Id, stx.TraceId, tt, asset, err)
@@ -827,7 +827,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -907,7 +907,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
@@ -971,7 +971,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
 	}
-	if meta.Chain != SafeChainPolygon {
+	if meta.Chain != common.SafeChainPolygon {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
@@ -1060,7 +1060,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		txs = append(txs, stx)
 
 		typ := byte(common.ActionEthereumSafeApproveAccount)
-		crv := SafeChainCurve(safe.Chain)
+		crv := common.SafeChainCurve(safe.Chain)
 		id := common.UniqueId(req.Id, safe.Address)
 		tx, asset, err := node.sendObserverResponseWithAssetAndReferences(ctx, id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), stx.TraceId)
 		if err != nil || asset != "" {
@@ -1125,7 +1125,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 
 	id := common.UniqueId(old.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)
-	crv := SafeChainCurve(safe.Chain)
+	crv := common.SafeChainCurve(safe.Chain)
 	tt, asset, err := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if err != nil || asset != "" {
 		logger.Printf("node.sendObserverResponse(%s, %x) => %v %s %v", id, stx.TraceId, tt, asset, err)

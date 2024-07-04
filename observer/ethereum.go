@@ -82,12 +82,12 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 
 func (node *Node) ethereumParams(chain byte) (string, string) {
 	switch chain {
-	case keeper.SafeChainEthereum:
-		return node.conf.EthereumRPC, keeper.SafeEthereumChainId
-	case keeper.SafeChainMVM:
-		return node.conf.MVMRPC, keeper.SafeMVMChainId
-	case keeper.SafeChainPolygon:
-		return node.conf.PolygonRPC, keeper.SafePolygonChainId
+	case common.SafeChainEthereum:
+		return node.conf.EthereumRPC, common.SafeEthereumChainId
+	case common.SafeChainMVM:
+		return node.conf.MVMRPC, common.SafeMVMChainId
+	case common.SafeChainPolygon:
+		return node.conf.PolygonRPC, common.SafePolygonChainId
 	default:
 		panic(chain)
 	}

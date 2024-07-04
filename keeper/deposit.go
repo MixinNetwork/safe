@@ -38,19 +38,19 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		Chain: extra[0],
 		Asset: uuid.Must(uuid.FromBytes(extra[1:17])).String(),
 	}
-	if deposit.Chain != SafeCurveChain(req.Curve) {
+	if deposit.Chain != common.SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	extra = extra[17:]
 	switch deposit.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		deposit.Hash = hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
@@ -118,9 +118,9 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	}
 
 	switch deposit.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
 		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
 		return nil, "", node.store.FailRequest(ctx, req.Id)

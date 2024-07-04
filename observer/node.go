@@ -16,7 +16,6 @@ import (
 	m "github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -63,10 +62,10 @@ func (node *Node) Boot(ctx context.Context) {
 		panic(err)
 	}
 	for _, chain := range []byte{
-		keeper.SafeChainBitcoin,
-		keeper.SafeChainLitecoin,
-		keeper.SafeChainPolygon,
-		keeper.SafeChainEthereum,
+		common.SafeChainBitcoin,
+		common.SafeChainLitecoin,
+		common.SafeChainPolygon,
+		common.SafeChainEthereum,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
@@ -74,13 +73,13 @@ func (node *Node) Boot(ctx context.Context) {
 		}
 
 		switch chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			go node.bitcoinNetworkInfoLoop(ctx, chain)
 			go node.bitcoinRPCBlocksLoop(ctx, chain)
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+		case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
@@ -88,8 +87,8 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.ethereumTransactionSpendLoop(ctx, chain)
 		}
 	}
-	go node.safeKeyLoop(ctx, keeper.SafeChainBitcoin)
-	go node.safeKeyLoop(ctx, keeper.SafeChainEthereum)
+	go node.safeKeyLoop(ctx, common.SafeChainBitcoin)
+	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
 	go node.mixinWithdrawalsLoop(ctx)
 	go node.sendAccountApprovals(ctx)
 	node.snapshotsLoop(ctx)
@@ -98,9 +97,9 @@ func (node *Node) Boot(ctx context.Context) {
 func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	var assetId string
 	switch chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)
@@ -164,7 +163,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			var action byte
 			var assetId string
 			switch sp.Chain {
-			case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			case common.SafeChainBitcoin, common.SafeChainLitecoin:
 				_, assetId = node.bitcoinParams(sp.Chain)
 				sig, err := base64.RawURLEncoding.DecodeString(account.Signature)
 				if err != nil {
@@ -172,7 +171,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				}
 				action = common.ActionBitcoinSafeApproveAccount
 				extra = append(rid.Bytes(), sig...)
-			case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+			case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
 				_, assetId = node.ethereumParams(sp.Chain)
 				sig, err := hex.DecodeString(account.Signature)
 				if err != nil {
@@ -326,14 +325,14 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 		}
 		hash := string(extra[64:])
 		switch chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			rpc, _ := node.bitcoinParams(chain)
 			btx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
 			if err != nil {
 				return err
 			}
 			return node.bitcoinProcessTransaction(ctx, btx, chain)
-		case keeper.SafeChainEthereum, keeper.SafeChainMVM, keeper.SafeChainPolygon:
+		case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
 			rpc, _ := node.ethereumParams(chain)
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 			if err != nil {
@@ -380,7 +379,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return true, nil
 	}
 
-	chain := keeper.SafeCurveChain(extra[0])
+	chain := common.SafeCurveChain(extra[0])
 	id := common.UniqueId(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
@@ -420,7 +419,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	if err != nil || len(op.Extra) != 16 {
 		return false, err
 	}
-	chain := keeper.SafeCurveChain(op.Curve)
+	chain := common.SafeCurveChain(op.Curve)
 	params, err := node.keeperStore.ReadLatestOperationParams(ctx, chain, s.CreatedAt)
 	if err != nil || params == nil {
 		return false, err
@@ -533,15 +532,15 @@ func (node *Node) safeUser() bot.SafeUser {
 
 func depositCheckpointDefault(chain byte) int64 {
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		return 802220
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainLitecoin:
 		return 2523300
-	case keeper.SafeChainMVM:
+	case common.SafeChainMVM:
 		return 52680000
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		return 52950000
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		return 19175473
 	default:
 		panic(chain)
@@ -550,9 +549,9 @@ func depositCheckpointDefault(chain byte) int64 {
 
 func depositCheckpointKey(chain byte) string {
 	switch chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
-	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+	case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
 	default:
 		panic(chain)
@@ -569,13 +568,13 @@ func (node *Node) safeTraceId(params ...string) string {
 
 func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		return 3
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainLitecoin:
 		return 6
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		return 32
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		return 512
 	default:
 		panic(chain)
@@ -585,16 +584,16 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
 	var chain byte
 	switch chainId {
-	case keeper.SafeBitcoinChainId:
-		chain = keeper.SafeChainBitcoin
-	case keeper.SafeLitecoinChainId:
-		chain = keeper.SafeChainLitecoin
-	case keeper.SafeEthereumChainId:
-		chain = keeper.SafeChainEthereum
-	case keeper.SafeMVMChainId:
-		chain = keeper.SafeChainMVM
-	case keeper.SafePolygonChainId:
-		chain = keeper.SafeChainPolygon
+	case common.SafeBitcoinChainId:
+		chain = common.SafeChainBitcoin
+	case common.SafeLitecoinChainId:
+		chain = common.SafeChainLitecoin
+	case common.SafeEthereumChainId:
+		chain = common.SafeChainEthereum
+	case common.SafeMVMChainId:
+		chain = common.SafeChainMVM
+	case common.SafePolygonChainId:
+		chain = common.SafeChainPolygon
 	}
 	return chain
 }

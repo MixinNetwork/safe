@@ -17,18 +17,6 @@ import (
 )
 
 const (
-	SafeChainBitcoin  = bitcoin.ChainBitcoin
-	SafeChainLitecoin = bitcoin.ChainLitecoin
-	SafeChainEthereum = ethereum.ChainEthereum
-	SafeChainMVM      = ethereum.ChainMVM
-	SafeChainPolygon  = ethereum.ChainPolygon
-
-	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
-	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
-	SafeMVMChainId      = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
-	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
-	SafePolygonChainId  = "b7938396-3f94-4e0a-9179-d3440718156f"
-
 	SafeSignatureTimeout  = 10 * time.Minute
 	SafeKeyBackupMaturity = 24 * time.Hour
 
@@ -45,40 +33,6 @@ func ethereumDefaultDerivationPath() []byte {
 	return []byte{0, 0, 0, 0}
 }
 
-func SafeCurveChain(crv byte) byte {
-	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin:
-		return SafeChainBitcoin
-	case common.CurveSecp256k1ECDSALitecoin:
-		return SafeChainLitecoin
-	case common.CurveSecp256k1ECDSAEthereum:
-		return SafeChainEthereum
-	case common.CurveSecp256k1ECDSAMVM:
-		return SafeChainMVM
-	case common.CurveSecp256k1ECDSAPolygon:
-		return SafeChainPolygon
-	default:
-		panic(crv)
-	}
-}
-
-func SafeChainCurve(chain byte) byte {
-	switch chain {
-	case SafeChainBitcoin:
-		return common.CurveSecp256k1ECDSABitcoin
-	case SafeChainLitecoin:
-		return common.CurveSecp256k1ECDSALitecoin
-	case SafeChainEthereum:
-		return common.CurveSecp256k1ECDSAEthereum
-	case SafeChainMVM:
-		return common.CurveSecp256k1ECDSAMVM
-	case SafeChainPolygon:
-		return common.CurveSecp256k1ECDSAPolygon
-	default:
-		panic(chain)
-	}
-}
-
 func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
 	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
@@ -91,7 +45,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
-	case SafeBitcoinChainId, SafeLitecoinChainId, SafeEthereumChainId, SafeMVMChainId, SafePolygonChainId:
+	case common.SafeBitcoinChainId, common.SafeLitecoinChainId, common.SafeEthereumChainId, common.SafeMVMChainId, common.SafePolygonChainId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
@@ -99,18 +53,21 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 }
 
 func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
-	entry := node.conf.PolygonGroupEntry
 	safe, err := node.store.ReadSafe(ctx, holder)
 	if err != nil {
 		return crypto.Hash{}, 0, err
+	}
+	switch safe.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+	case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 	}
 	if safe != nil {
 		if safe.Receiver != "" {
 			entry = safe.Receiver
 		}
 		switch safe.Chain {
-		case SafeChainBitcoin, SafeChainLitecoin:
-		case SafeChainEthereum, SafeChainPolygon, SafeChainMVM:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 			existed, migrated, err := node.store.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
 			if err != nil {
 				return crypto.Hash{}, 0, err
@@ -134,11 +91,11 @@ func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (cry
 	if err != nil {
 		return crypto.Hash{}, 0, err
 	}
-	return crypto.Sha256Hash([]byte(ethereum.GenerateAssetId(SafeChainPolygon, assetKey))), SafeChainPolygon, nil
+	return crypto.Sha256Hash([]byte(ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))), common.SafeChainPolygon, nil
 }
 
 func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {
-	switch common.NormalizeCurve(SafeChainCurve(safe.Chain)) {
+	switch common.NormalizeCurve(common.SafeChainCurve(safe.Chain)) {
 	case common.CurveSecp256k1ECDSABitcoin:
 		msg := bitcoin.HashMessageForSignature(ms, safe.Chain)
 		err := bitcoin.VerifySignatureDER(safe.Holder, msg, sig)

@@ -12,8 +12,8 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper"
 )
 
 type MixinNetworkAsset struct {
@@ -58,8 +58,8 @@ func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder, assetId st
 			entry = safe.Receiver
 		}
 		switch safe.Chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
-		case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 			existed, migrated, err := node.keeperStore.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
 			if err != nil {
 				return "", fmt.Errorf("keeperStore.CheckEthereumAsset(%s %s) => %v", safe.Address, assetId, err)
@@ -105,7 +105,7 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
-	bondId := ethereum.GenerateAssetId(keeper.SafeChainPolygon, assetKey)
+	bondId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
 	bond, err := node.fetchAssetMeta(ctx, bondId)
 	return asset, bond, bondId, err
 }
@@ -116,9 +116,9 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		return meta, err
 	}
 	switch chain {
-	case keeper.SafeChainEthereum:
-	case keeper.SafeChainMVM:
-	case keeper.SafeChainPolygon:
+	case common.SafeChainEthereum:
+	case common.SafeChainMVM:
+	case common.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -160,16 +160,16 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 
 	var chain byte
 	switch asset.ChainId {
-	case keeper.SafeBitcoinChainId:
-		chain = keeper.SafeChainBitcoin
-	case keeper.SafeLitecoinChainId:
-		chain = keeper.SafeChainLitecoin
-	case keeper.SafeEthereumChainId:
-		chain = keeper.SafeChainEthereum
-	case keeper.SafeMVMChainId:
-		chain = keeper.SafeChainMVM
-	case keeper.SafePolygonChainId:
-		chain = keeper.SafeChainPolygon
+	case common.SafeBitcoinChainId:
+		chain = common.SafeChainBitcoin
+	case common.SafeLitecoinChainId:
+		chain = common.SafeChainLitecoin
+	case common.SafeEthereumChainId:
+		chain = common.SafeChainEthereum
+	case common.SafeMVMChainId:
+		chain = common.SafeChainMVM
+	case common.SafePolygonChainId:
+		chain = common.SafeChainPolygon
 	default:
 		panic(asset.ChainId)
 	}
