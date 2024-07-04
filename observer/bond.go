@@ -47,18 +47,16 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	return err
 }
 
-func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) (string, error) {
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) string {
 	migrated, err := node.keeperStore.CheckMigrateAsset(ctx, address, assetId)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 
-	entry := node.conf.PolygonGroupEntry
 	if migrated {
-		entry = node.conf.PolygonObserverEntry
+		return node.conf.PolygonObserverDepositEntry
 	}
-
-	return entry, nil
+	return node.conf.PolygonKeeperDepositEntry
 }
 
 func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder, address string) (bool, error) {
@@ -69,10 +67,7 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 	if bond != nil {
 		return true, nil
 	}
-	entry, err := node.fetchBondAssetReceiver(ctx, address, assetId)
-	if err != nil {
-		return false, fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
-	}
+	entry := node.fetchBondAssetReceiver(ctx, address, assetId)
 	rpc, key := node.conf.PolygonRPC, node.conf.EVMKey
 	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
@@ -82,10 +77,7 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
-	entry, err := node.fetchBondAssetReceiver(ctx, address, assetId)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
-	}
+	entry := node.fetchBondAssetReceiver(ctx, address, assetId)
 
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())

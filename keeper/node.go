@@ -55,7 +55,6 @@ func (node *Node) Boot(ctx context.Context) {
 func (node *Node) Terminate(ctx context.Context) ([]*mtg.Transaction, string, error) {
 	err := node.store.WriteTerminate(ctx)
 	panic(err)
-	return nil, "", err
 }
 
 func (node *Node) Index() int {
@@ -159,7 +158,7 @@ func (node *Node) safeUser() bot.SafeUser {
 }
 
 func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId string) (*store.MigrateAsset, error) {
-	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonObserverEntry, assetId, safe.Holder)
+	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonObserverDepositEntry, assetId, safe.Holder)
 	if err != nil {
 		return nil, err
 	}

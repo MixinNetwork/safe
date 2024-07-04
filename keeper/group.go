@@ -348,15 +348,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	migrated, err := node.store.CheckMigrateAsset(ctx, safe.Address, tx.AssetId)
-	if err != nil {
-		return nil, "", fmt.Errorf("store.CheckMigrateAsset(%s, %s) => %t %v", safe.Address, tx.AssetId, migrated, err)
-	}
-	entry := node.conf.PolygonGroupEntry
-	if migrated {
-		entry = node.conf.PolygonObserverEntry
-	}
-
+	entry := node.fetchBondAssetReceiver(ctx, safe.Address, tx.AssetId)
 	bondId, _, _, err := node.getBondAsset(ctx, entry, tx.AssetId, tx.Holder)
 	if err != nil || !bondId.HasValue() {
 		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %s %v", tx.AssetId, tx.Holder, bondId.String(), err)
@@ -419,7 +411,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	receiver := gc.BytesToAddress(extra).String()
-	if receiver != node.conf.PolygonObserverEntry {
+	if receiver != node.conf.PolygonObserverDepositEntry {
 		panic(receiver)
 	}
 

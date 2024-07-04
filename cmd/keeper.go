@@ -76,7 +76,7 @@ func KeeperBootCmd(c *cli.Context) error {
 
 	group.AttachWorker(mc.Keeper.AppId, keeper)
 	group.RegisterDepositEntry(mc.Keeper.AppId, mtg.DepositEntry{
-		Destination: mc.Keeper.PolygonGroupEntry,
+		Destination: mc.Keeper.PolygonKeeperDepositEntry,
 		Tag:         "",
 	})
 	group.Run(ctx)

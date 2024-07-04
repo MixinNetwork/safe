@@ -85,15 +85,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	migrated, err := node.store.CheckMigrateAsset(ctx, safe.Address, deposit.Asset)
-	if err != nil {
-		return nil, "", fmt.Errorf("store.CheckMigrateAsset(%s, %s) => %t %v", safe.Address, deposit.Asset, migrated, err)
-	}
-	entry := node.conf.PolygonGroupEntry
-	if migrated {
-		entry = node.conf.PolygonObserverEntry
-	}
-
+	entry := node.fetchBondAssetReceiver(ctx, safe.Address, deposit.Asset)
 	bondId, _, bondChain, err := node.getBondAsset(ctx, entry, deposit.Asset, req.Holder)
 	logger.Printf("node.getBondAsset(%s %s) => %s %d %v", deposit.Asset, req.Holder, bondId, bondChain, err)
 	if err != nil {

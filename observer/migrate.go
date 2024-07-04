@@ -328,7 +328,7 @@ func (node *Node) migrate(ctx context.Context) error {
 	}
 	time.Sleep(10 * time.Second)
 
-	entry := node.conf.PolygonObserverEntry
+	entry := node.conf.PolygonObserverDepositEntry
 	safes, err := node.keeperStore.ListSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
 		return fmt.Errorf("store.ListSafesWithState() => %v", err)

@@ -52,11 +52,19 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 	}
 }
 
-func (node *Node) getBondAsset(ctx context.Context, entry, assetId, holder string) (crypto.Hash, string, byte, error) {
-	if common.CheckTestEnvironment(ctx) && assetId == "218bc6f4-7927-3f8e-8568-3a3725b74361" {
-		entry = node.conf.PolygonGroupEntry
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) string {
+	migrated, err := node.store.CheckMigrateAsset(ctx, address, assetId)
+	if err != nil {
+		panic(err)
 	}
 
+	if migrated {
+		return node.conf.PolygonObserverDepositEntry
+	}
+	return node.conf.PolygonKeeperDepositEntry
+}
+
+func (node *Node) getBondAsset(ctx context.Context, entry, assetId, holder string) (crypto.Hash, string, byte, error) {
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
 		return crypto.Hash{}, "", 0, err

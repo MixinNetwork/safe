@@ -394,7 +394,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	chain := common.SafeCurveChain(req.Curve)
 	_, assetId := node.bitcoinParams(chain)
 
-	a, _, _, err := node.getBondAsset(ctx, node.conf.PolygonGroupEntry, assetId, req.Holder)
+	a, _, _, err := node.getBondAsset(ctx, node.conf.PolygonKeeperDepositEntry, assetId, req.Holder)
 	if err != nil || !a.HasValue() {
 		return nil, "", fmt.Errorf("node.getBondAsset(%s) => %v %v", req.Holder, a, err)
 	}
@@ -525,15 +525,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	migrated, err := node.store.CheckMigrateAsset(ctx, safe.Address, id.String())
-	if err != nil {
-		return nil, "", fmt.Errorf("store.CheckMigrateAsset(%s, %s) => %t %v", safe.Address, id.String(), migrated, err)
-	}
-	entry := node.conf.PolygonGroupEntry
-	if migrated {
-		entry = node.conf.PolygonObserverEntry
-	}
-
+	entry := node.fetchBondAssetReceiver(ctx, safe.Address, id.String())
 	bondId, _, _, err := node.getBondAsset(ctx, entry, id.String(), req.Holder)
 	logger.Printf("node.getBondAsset(%s, %s) => %s %v", id.String(), req.Holder, bondId, err)
 	if err != nil {
