@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
@@ -80,13 +81,12 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	}
 	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
 
-	sa, err := grp.CheckAssetBalanceAt(ctx, conf.AppId, conf.AssetId, math.MaxInt64)
+	sa, err := fetchAsset(ctx, conf.MTG, conf.AssetId)
 	if err != nil {
 		return "", err
 	}
-	tTredecillion := decimal.New(10, 12+42)
-	amount := sa.Div(tTredecillion).IntPart()
-	state = state + fmt.Sprintf("💍 MSST Balance: %d TT\n", amount)
+	amount := sa.Div(int(decimal.New(10, 18).BigInt().Int64()))
+	state = state + fmt.Sprintf("💍 MSST Balance: %s TT\n", amount.String())
 
 	ss, err := store.SessionsState(ctx)
 	if err != nil {
@@ -196,6 +196,15 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
 	return state, nil
+}
+
+func fetchAsset(ctx context.Context, conf *mtg.Configuration, assetId string) (mc.Integer, error) {
+	return bot.AssetBalanceWithSafeUser(ctx, assetId, &bot.SafeUser{
+		UserId:            conf.App.AppId,
+		SessionId:         conf.App.SessionId,
+		SessionPrivateKey: conf.App.SessionPrivateKey,
+		ServerPublicKey:   conf.App.ServerPublicKey,
+	})
 }
 
 func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, conf *mtg.Configuration, msg string) {
