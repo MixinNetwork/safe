@@ -46,7 +46,7 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil || terminated {
 		panic(err)
 	}
-	err = node.store.Migrate(ctx)
+	err = node.Migrate(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -156,4 +156,54 @@ func (node *Node) safeUser() bot.SafeUser {
 		SessionPrivateKey: node.conf.MTG.App.SessionPrivateKey,
 		SpendPrivateKey:   node.conf.MTG.App.SpendPrivateKey,
 	}
+}
+
+func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId string) (*store.MigrateAsset, error) {
+	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonObserverEntry, assetId, safe.Holder)
+	if err != nil {
+		return nil, err
+	}
+	return &store.MigrateAsset{
+		Chain:       safe.Chain,
+		Address:     safe.Address,
+		AssetId:     assetId,
+		SafeAssetId: safeAssetId,
+	}, nil
+}
+
+func (node *Node) Migrate(ctx context.Context) error {
+	safes, err := node.store.ListSafesWithState(ctx, common.RequestStateDone)
+	if err != nil {
+		return err
+	}
+
+	var ms []*store.MigrateAsset
+	for _, safe := range safes {
+		chainAssetId := common.SafeChainAssetId(safe.Chain)
+		ma, err := node.getMigrateAsset(ctx, safe, chainAssetId)
+		if err != nil {
+			return err
+		}
+		ms = append(ms, ma)
+
+		switch safe.Chain {
+		case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+			bs, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
+			if err != nil {
+				return err
+			}
+			for _, balance := range bs {
+				if balance.AssetId == chainAssetId {
+					continue
+				}
+				ma, err := node.getMigrateAsset(ctx, safe, balance.AssetId)
+				if err != nil {
+					return err
+				}
+				ms = append(ms, ma)
+			}
+		}
+	}
+
+	return node.store.Migrate(ctx, ms)
 }

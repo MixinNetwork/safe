@@ -52,46 +52,23 @@ func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string)
 	}
 }
 
-func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
-	safe, err := node.store.ReadSafe(ctx, holder)
-	if err != nil {
-		return crypto.Hash{}, 0, err
-	}
-	switch safe.Chain {
-	case common.SafeChainBitcoin, common.SafeChainLitecoin:
-	case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
-	}
-	if safe != nil {
-		if safe.Receiver != "" {
-			entry = safe.Receiver
-		}
-		switch safe.Chain {
-		case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
-			existed, migrated, err := node.store.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
-			if err != nil {
-				return crypto.Hash{}, 0, err
-			}
-			if existed && !migrated {
-				entry = node.conf.PolygonGroupEntry
-			}
-		}
-	}
+func (node *Node) getBondAsset(ctx context.Context, entry, assetId, holder string) (crypto.Hash, string, byte, error) {
 	if common.CheckTestEnvironment(ctx) && assetId == "218bc6f4-7927-3f8e-8568-3a3725b74361" {
 		entry = node.conf.PolygonGroupEntry
 	}
 
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
-		return crypto.Hash{}, 0, err
+		return crypto.Hash{}, "", 0, err
 	}
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
-		return crypto.Hash{}, 0, err
+		return crypto.Hash{}, "", 0, err
 	}
-	return crypto.Sha256Hash([]byte(ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))), common.SafeChainPolygon, nil
+	safeAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
+	return crypto.Sha256Hash([]byte(safeAssetId)), safeAssetId, common.SafeChainPolygon, nil
 }
 
 func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {

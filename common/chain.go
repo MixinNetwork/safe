@@ -52,3 +52,20 @@ func SafeChainCurve(chain byte) byte {
 		panic(chain)
 	}
 }
+
+func SafeChainAssetId(chain byte) string {
+	switch chain {
+	case SafeChainBitcoin:
+		return SafeBitcoinChainId
+	case SafeChainLitecoin:
+		return SafeLitecoinChainId
+	case SafeChainEthereum:
+		return SafeEthereumChainId
+	case SafeChainMVM:
+		return SafeMVMChainId
+	case SafeChainPolygon:
+		return SafePolygonChainId
+	default:
+		panic(chain)
+	}
+}

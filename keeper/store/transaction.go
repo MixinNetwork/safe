@@ -314,7 +314,7 @@ func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Tran
 	}
 
 	for _, balance := range bm {
-		err = s.createOrUpdateEthereumBalance(ctx, tx, safe, balance.Balance, balance.AssetId, balance.AssetAddress)
+		err = s.createOrUpdateEthereumBalance(ctx, tx, safe, balance.Balance, balance.AssetId, balance.SafeAssetId, balance.AssetAddress)
 		if err != nil {
 			return err
 		}

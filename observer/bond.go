@@ -37,7 +37,7 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder, safe.Address)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
@@ -47,40 +47,29 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	return err
 }
 
-func (node *Node) fetchBondAssetReceiver(ctx context.Context, holder, assetId string) (string, error) {
-	entry := node.conf.PolygonGroupEntry
-	safe, err := node.keeperStore.ReadSafe(ctx, holder)
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) (string, error) {
+	migrated, err := node.keeperStore.CheckMigrateAsset(ctx, address, assetId)
 	if err != nil {
-		return "", fmt.Errorf("keeperStore.ReadSafe(%s) => %v %v", holder, safe, err)
+		return "", err
 	}
-	if safe != nil {
-		if safe.Receiver != "" {
-			entry = safe.Receiver
-		}
-		switch safe.Chain {
-		case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
-			existed, migrated, err := node.keeperStore.CheckEthereumAssetMigrated(ctx, safe.Address, assetId)
-			if err != nil {
-				return "", fmt.Errorf("keeperStore.CheckEthereumAsset(%s %s) => %v", safe.Address, assetId, err)
-			}
-			if existed && !migrated {
-				entry = node.conf.PolygonGroupEntry
-			}
-		}
+
+	entry := node.conf.PolygonGroupEntry
+	if migrated {
+		entry = node.conf.PolygonObserverEntry
 	}
+
 	return entry, nil
 }
 
-func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder string) (bool, error) {
-	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder)
+func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder, address string) (bool, error) {
+	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder, address)
 	if err != nil {
 		return false, fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, holder, err)
 	}
 	if bond != nil {
 		return true, nil
 	}
-	entry, err := node.fetchBondAssetReceiver(ctx, holder, assetId)
+	entry, err := node.fetchBondAssetReceiver(ctx, address, assetId)
 	if err != nil {
 		return false, fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
 	}
@@ -88,12 +77,12 @@ func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, asset
 	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 
-func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
+func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder, address string) (*Asset, *Asset, string, error) {
 	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, assetId, assetAddress, chain)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
-	entry, err := node.fetchBondAssetReceiver(ctx, holder, assetId)
+	entry, err := node.fetchBondAssetReceiver(ctx, address, assetId)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchBondAssetReceiver(%s %s) => %v", holder, assetId, err)
 	}

@@ -42,27 +42,6 @@ func (node *Node) listOutputs(ctx context.Context, asset string, state mixin.Saf
 	}
 }
 
-func (node *Node) fetchDepositEntry(ctx context.Context) (string, error) {
-	for {
-		addrs, err := node.mixin.SafeCreateDepositEntries(ctx, []string{node.mixin.ClientID}, 1, common.SafePolygonChainId)
-		if err != nil {
-			reason := strings.ToLower(err.Error())
-			switch {
-			case strings.Contains(reason, "timeout"):
-			case strings.Contains(reason, "eof"):
-			case strings.Contains(reason, "handshake"):
-			default:
-				return "", err
-			}
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		for _, a := range addrs {
-			return a.Destination, nil
-		}
-	}
-}
-
 func (node *Node) fetchPolygonBondAsset(ctx context.Context, entry string, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
 	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, assetId, assetAddress, chain)
 	if err != nil {
@@ -349,10 +328,7 @@ func (node *Node) migrate(ctx context.Context) error {
 	}
 	time.Sleep(10 * time.Second)
 
-	entry, err := node.fetchDepositEntry(ctx)
-	if err != nil {
-		return fmt.Errorf("node.fetchDepositEntry() => %v", err)
-	}
+	entry := node.conf.PolygonObserverEntry
 	safes, err := node.keeperStore.ListSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
 		return fmt.Errorf("store.ListSafesWithState() => %v", err)

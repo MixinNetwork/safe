@@ -41,7 +41,7 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v", gs.Address, err)
 	}
 	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, ethereumAssetId, "", sp.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, ethereumAssetId, "", sp.Holder, sp.Address)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", ethereumAssetId, sp.Holder, err)
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return err
 	}
 
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder, safe.Address)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
 	}
@@ -241,7 +241,11 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil || asset == nil {
 		return err
 	}
-	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, deposit.AssetId, asset.AssetKey, deposit.Holder)
+	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
+	if err != nil || safe == nil {
+		return err
+	}
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, deposit.AssetId, asset.AssetKey, deposit.Holder, safe.Address)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {

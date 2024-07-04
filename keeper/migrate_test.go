@@ -17,7 +17,6 @@ import (
 
 const (
 	testObserverDepositEntry = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
-	testSafeBondId           = "728ed44b-a751-3b49-81e0-003815c8184c"
 )
 
 func TestKeeperMigration(t *testing.T) {
@@ -36,48 +35,21 @@ func TestKeeperMigration(t *testing.T) {
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
-	safe, err := node.store.ReadSafe(ctx, holder)
+	err := node.Migrate(ctx)
 	require.Nil(err)
-	bs, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
-	require.Nil(err)
-	require.True(len(bs) > 0)
-	for _, b := range bs {
-		require.Equal(false, b.Migrated)
-	}
 
 	id := uuid.Must(uuid.NewV4()).String()
-	out := testBuildObserverMigrateRequest(node, id, holder, common.ActionMigrateSafeToken, gc.HexToAddress(testObserverDepositEntry).Bytes(), common.CurveSecp256k1ECDSAEthereum)
+	_, asset, _, err := node.getBondAsset(ctx, node.conf.PolygonObserverEntry, common.SafePolygonChainId, holder)
+	require.Nil(err)
+	out := testBuildObserverMigrateRequest(node, id, holder, common.ActionMigrateSafeToken, gc.HexToAddress(testObserverDepositEntry).Bytes(), common.CurveSecp256k1ECDSAEthereum, asset)
 	testStep(ctx, require, node, out)
 
-	safe, err = node.store.ReadSafe(ctx, holder)
+	safe, err := node.store.ReadSafe(ctx, holder)
 	require.Nil(err)
-
-	bs, err = node.store.ReadEthereumAllBalance(ctx, safe.Address)
-	require.Nil(err)
-	require.True(len(bs) > 0)
-	for _, b := range bs {
-		require.Equal(true, b.Migrated)
-	}
-
-	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
-	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
-	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
-	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
-	node.ProcessOutput(ctx, &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			AssetId:   cnbBondId,
-			Amount:    decimal.NewFromInt(100),
-			CreatedAt: time.Now(),
-		},
-	})
-	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
-
-	b, err := node.store.ReadEthereumBalance(ctx, safe.Address, cnbAssetId)
-	require.Nil(err)
-	require.Equal(false, b.Migrated)
+	require.Equal(asset, safe.SafeAssetId)
 }
 
-func testBuildObserverMigrateRequest(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+func testBuildObserverMigrateRequest(node *Node, id, public string, action byte, extra []byte, crv byte, asset string) *mtg.Action {
 	op := &common.Operation{
 		Id:     id,
 		Type:   action,
@@ -95,7 +67,7 @@ func testBuildObserverMigrateRequest(node *Node, id, public string, action byte,
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
 			Senders:   []string{node.conf.ObserverUserId},
-			AssetId:   testSafeBondId,
+			AssetId:   asset,
 			Extra:     memo,
 			Amount:    decimal.New(1, 1),
 			CreatedAt: timestamp,

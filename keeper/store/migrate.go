@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/MixinNetwork/safe/common"
 )
 
 // FIXME remove this
-func (s *SQLite3Store) Migrate(ctx context.Context) error {
+func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -24,23 +26,41 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	query := "ALTER TABLE requests ADD COLUMN sequence INTEGER;\n"
-	query = query + "ALTER TABLE safes ADD COLUMN receiver VARCHAR;\n"
-	query = query + "ALTER TABLE ethereum_balances ADD COLUMN migrated BOOLEAN;\n"
-	_, err = tx.ExecContext(ctx, query)
+	query := ""
+	if !common.CheckTestEnvironment(ctx) {
+		query = "ALTER TABLE requests ADD COLUMN sequence INTEGER;\n"
+		query = query + "ALTER TABLE safes ADD COLUMN safe_asset_id VARCHAR;\n"
+		query = query + "ALTER TABLE ethereum_balances ADD COLUMN safe_asset_id VARCHAR;\n"
+		_, err = tx.ExecContext(ctx, query)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, asset := range ms {
+		chainAssetId := common.SafeChainAssetId(asset.Chain)
+		if asset.AssetId == chainAssetId {
+			_, err = tx.ExecContext(ctx, "UPDATE safes SET safe_asset_id=? where address=?", asset.SafeAssetId, asset.Address)
+			if err != nil {
+				return err
+			}
+		}
+		switch asset.Chain {
+		case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+			_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET safe_asset_id=? where address=? AND asset_id=?", asset.SafeAssetId, asset.Address, asset.AssetId)
+			if err != nil {
+				return err
+			}
+		default:
+			panic(asset.Chain)
+		}
+	}
+	err = s.createMigrateAssets(ctx, tx, ms)
 	if err != nil {
 		return err
 	}
 
 	_, err = tx.ExecContext(ctx, "UPDATE requests SET sequence=0")
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, "UPDATE safes SET receiver=?", "")
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET migrated=?", false)
 	if err != nil {
 		return err
 	}

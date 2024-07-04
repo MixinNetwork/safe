@@ -27,30 +27,30 @@ type SafeProposal struct {
 }
 
 type Safe struct {
-	Holder    string
-	Chain     byte
-	Signer    string
-	Observer  string
-	Timelock  time.Duration
-	Path      string
-	Address   string
-	Extra     []byte
-	Receivers []string
-	Threshold byte
-	RequestId string
-	Nonce     int64
-	State     byte
-	Receiver  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Holder      string
+	Chain       byte
+	Signer      string
+	Observer    string
+	Timelock    time.Duration
+	Path        string
+	Address     string
+	Extra       []byte
+	Receivers   []string
+	Threshold   byte
+	RequestId   string
+	Nonce       int64
+	State       byte
+	SafeAssetId string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "receiver", "created_at", "updated_at"}
+var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "safe_asset_id", "created_at", "updated_at"}
 
 var safeProposalCols = []string{"request_id", "chain", "holder", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "created_at", "updated_at"}
 
 func (s *Safe) values() []any {
-	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.Nonce, s.State, s.Receiver, s.CreatedAt, s.UpdatedAt}
+	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.Nonce, s.State, s.SafeAssetId, s.CreatedAt, s.UpdatedAt}
 }
 
 func (s *SafeProposal) values() []any {
@@ -60,7 +60,7 @@ func (s *SafeProposal) values() []any {
 func safeFromRow(row *sql.Row) (*Safe, error) {
 	var s Safe
 	var receivers string
-	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.Receiver, &s.CreatedAt, &s.UpdatedAt)
+	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -202,39 +202,6 @@ func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHas
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MigrateSafeWithRequest(ctx context.Context, receiver string, req *common.Request, safe *Safe) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if safe.State != common.RequestStateDone {
-		panic(safe.State)
-	}
-	err = s.execOne(ctx, tx, "UPDATE safes SET receiver=?, updated_at=? WHERE holder=? AND state=?",
-		receiver, time.Now().UTC(), safe.Holder, common.RequestStateDone)
-	if err != nil {
-		return fmt.Errorf("UPDATE safes %v", err)
-	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET migrated=? WHERE address=?", true, safe.Address)
-	if err != nil {
-		return fmt.Errorf("UPDATE ethereum_balances %v", err)
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-		common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-
-	return tx.Commit()
-}
-
 func (s *SQLite3Store) ReadSafe(ctx context.Context, holder string) (*Safe, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -269,7 +236,7 @@ func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Sa
 	for rows.Next() {
 		var s Safe
 		var receivers string
-		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.Receiver, &s.CreatedAt, &s.UpdatedAt)
+		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

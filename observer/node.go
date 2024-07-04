@@ -186,7 +186,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			if err != nil || asset == nil {
 				panic(err)
 			}
-			bonded, err := node.checkOrDeployKeeperBond(ctx, sp.Chain, assetId, "", sp.Holder)
+			bonded, err := node.checkOrDeployKeeperBond(ctx, sp.Chain, assetId, "", sp.Holder, sp.Address)
 			if err != nil {
 				panic(fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", sp.Holder, err))
 			} else if !bonded {

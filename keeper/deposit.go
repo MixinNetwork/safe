@@ -85,7 +85,16 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	bondId, bondChain, err := node.getBondAsset(ctx, deposit.Asset, req.Holder)
+	migrated, err := node.store.CheckMigrateAsset(ctx, safe.Address, deposit.Asset)
+	if err != nil {
+		return nil, "", fmt.Errorf("store.CheckMigrateAsset(%s, %s) => %t %v", safe.Address, deposit.Asset, migrated, err)
+	}
+	entry := node.conf.PolygonGroupEntry
+	if migrated {
+		entry = node.conf.PolygonObserverEntry
+	}
+
+	bondId, _, bondChain, err := node.getBondAsset(ctx, entry, deposit.Asset, req.Holder)
 	logger.Printf("node.getBondAsset(%s %s) => %s %d %v", deposit.Asset, req.Holder, bondId, bondChain, err)
 	if err != nil {
 		return nil, "", fmt.Errorf("node.getBondAsset(%s, %s) => %v", deposit.Asset, req.Holder, err)
@@ -219,6 +228,9 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return nil, "", err
 	}
 	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
+	if safeBalance.SafeAssetId == "" {
+		safeBalance.SafeAssetId = bondId
+	}
 
 	output, err := node.verifyEthereumTransaction(ctx, req, deposit, safe)
 	logger.Printf("node.verifyEthereumTransaction(%v) => %v %v", req, output, err)
@@ -234,7 +246,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, t, a, err)
 		return nil, a, err
 	}
-	return []*mtg.Transaction{t}, "", node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, output.Sender)
+	return []*mtg.Transaction{t}, "", node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, safe.SafeAssetId, deposit.AssetAddress, output.Sender)
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {

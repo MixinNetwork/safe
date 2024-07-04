@@ -239,7 +239,11 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
 
-	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder)
+	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
+	if err != nil || safe == nil {
+		return err
+	}
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder, safe.Address)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {

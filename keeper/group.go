@@ -349,7 +349,16 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	bondId, _, err := node.getBondAsset(ctx, tx.AssetId, tx.Holder)
+	migrated, err := node.store.CheckMigrateAsset(ctx, safe.Address, tx.AssetId)
+	if err != nil {
+		return nil, "", fmt.Errorf("store.CheckMigrateAsset(%s, %s) => %t %v", safe.Address, tx.AssetId, migrated, err)
+	}
+	entry := node.conf.PolygonGroupEntry
+	if migrated {
+		entry = node.conf.PolygonObserverEntry
+	}
+
+	bondId, _, _, err := node.getBondAsset(ctx, entry, tx.AssetId, tx.Holder)
 	if err != nil || !bondId.HasValue() {
 		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %s %v", tx.AssetId, tx.Holder, bondId.String(), err)
 	}
@@ -411,6 +420,9 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 	receiver := gc.BytesToAddress(extra).String()
+	if receiver != node.conf.PolygonObserverEntry {
+		panic(receiver)
+	}
 
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", req.Holder, safe, err)
@@ -420,8 +432,27 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 	if safe == nil || safe.State != common.RequestStateDone {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	err = node.store.MigrateSafeWithRequest(ctx, receiver, req, safe)
-	logger.Printf("store.MigrateSafeWithRequest(%s %s) => %v", receiver, safe.Holder, err)
+	switch safe.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		if safe.SafeAssetId != req.AssetId {
+			panic(req.AssetId)
+		}
+	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+		bs, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
+		if err != nil {
+			return nil, "", err
+		}
+		matched := false
+		for _, balance := range bs {
+			if balance.SafeAssetId == req.AssetId {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			panic(req.AssetId)
+		}
+	}
 
-	return nil, "", err
+	return nil, "", node.store.FailRequest(ctx, req.Id)
 }

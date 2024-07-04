@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS safes (
   request_id       VARCHAR NOT NULL,
   nonce            INTEGER NOT NULL,
   state            INTEGER NOT NULL,
-  receiver         VARCHAR NOT NULL,
+  safe_asset_id    VARCHAR NOT NULL,
   created_at       TIMESTAMP NOT NULL,
   updated_at       TIMESTAMP NOT NULL,
   PRIMARY KEY ('holder')
@@ -141,6 +141,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS safes_by_signer ON safes(signer);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_observer ON safes(observer);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_address ON safes(address);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_request_id ON safes(request_id);
+CREATE UNIQUE INDEX IF NOT EXISTS safes_by_safe_asset_id ON safes(safe_asset_id);
 
 
 
@@ -174,10 +175,10 @@ CREATE TABLE IF NOT EXISTS ethereum_balances (
   address            VARCHAR NOT NULL,
   asset_id           VARCHAR NOT NULL,
   asset_address      VARCHAR NOT NULL,
+  safe_asset_id      VARCHAR NOT NULL,
   balance            VARCHAR NOT NULL,
   latest_tx_hash     VARCHAR NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
-  migrated           BOOLEAN,
   PRIMARY KEY ('address', 'asset_id')
 );
 
@@ -244,6 +245,21 @@ CREATE TABLE IF NOT EXISTS signature_requests (
 );
 
 CREATE INDEX IF NOT EXISTS signature_requests_by_transaction_state_created ON signature_requests(transaction_hash, state, created_at);
+
+
+
+
+
+CREATE TABLE IF NOT EXISTS migrate_assets (
+  safe_asset_id    VARCHAR NOT NULL,
+  chain            INTEGER NOT NULL,
+  address          VARCHAR NOT NULL,
+  asset_id         VARCHAR NOT NULL,
+  PRIMARY KEY ('safe_asset_id')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS migrate_assets_by_address_asset ON migrate_assets(address, asset_id);
+
 
 
 
