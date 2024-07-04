@@ -64,16 +64,16 @@ func DecodeMixinObjectExtra(extra []byte) []byte {
 	return b
 }
 
-func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) []*mixin.SafeUtxo {
+func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) ([]*mixin.SafeUtxo, bool) {
 	total := decimal.NewFromInt(0)
 	for i, o := range utxos {
 		total = total.Add(o.Amount)
 		if total.Cmp(amount) < 0 {
 			continue
 		}
-		return utxos[:i+1]
+		return utxos[:i+1], true
 	}
-	panic(fmt.Errorf("insufficient utxos to spend: %d %d", total.BigInt().Int64(), amount.BigInt().Int64()))
+	return nil, false
 }
 
 func ExtraLimit(tx mixinnet.Transaction) int {
@@ -160,7 +160,11 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		if err != nil {
 			return nil, err
 		}
-		utxos = getEnoughUtxosToSpend(utxos, amount)
+		utxos, sufficient := getEnoughUtxosToSpend(utxos, amount)
+		if !sufficient {
+			time.Sleep(10 * time.Second)
+			continue
+		}
 		b := mixin.NewSafeTransactionBuilder(utxos)
 		b.Memo = memo
 		b.Hint = traceId
