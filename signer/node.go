@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -497,15 +496,9 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", op.Id, string(node.id))
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
-	for {
-		err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
-		logger.Printf("node.sendSignerPrepareTransaction(%v) => %s %x %v", op, op.Id, extra, err)
-		if err != nil && strings.Contains(err.Error(), "spent by other transaction") {
-			traceId = common.UniqueId(traceId, traceId)
-			continue
-		}
-		return err
-	}
+
+	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
+	return err
 }
 
 func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Operation) error {
@@ -517,15 +510,9 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
-	for {
-		err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
-		logger.Printf("node.sendSignerResultTransaction(%v) => %s %x %v", op, op.Id, extra, err)
-		if err != nil && strings.Contains(err.Error(), "spent by other transaction") {
-			traceId = common.UniqueId(traceId, traceId)
-			continue
-		}
-		return err
-	}
+
+	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
+	return err
 }
 
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo []byte, traceId string) error {

@@ -184,6 +184,10 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		}
 		_, err = SignTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
 		if err != nil {
+			if strings.Contains(err.Error(), "spent by other transaction") {
+				traceId = UniqueId(traceId, traceId)
+				continue
+			}
 			return nil, err
 		}
 		time.Sleep(3 * time.Second)
