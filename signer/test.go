@@ -20,7 +20,6 @@ import (
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -143,7 +142,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 		Public: hex.EncodeToString(fingerPath),
 		Extra:  msg,
 	}
-	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), node.encryptOperation(sop))
+	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptOperation(sop))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),

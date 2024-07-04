@@ -71,6 +71,7 @@ func TestKeeper(t *testing.T) {
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
+			Extra:     testGenerateDummyExtra(node),
 			Sequence:  sequence,
 		},
 	})
@@ -153,6 +154,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
+			Extra:     testGenerateDummyExtra(node),
 			Sequence:  sequence,
 		},
 	})
@@ -216,6 +218,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
+			Extra:     testGenerateDummyExtra(node),
 			Sequence:  sequence,
 		},
 	})
@@ -901,7 +904,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), op.Encode())
+	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, op.Encode())
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
@@ -925,7 +928,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), node.encryptObserverOperation(op))
+	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptObserverOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {
@@ -963,10 +966,13 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Extra: extra,
 	}
 	timestamp := time.Now()
+	appId := node.conf.AppId
 	switch action {
 	case common.OperationTypeKeygenInput:
+		appId = node.conf.SignerAppId
 		op.Public = hex.EncodeToString(common.Fingerprint(public))
 	case common.OperationTypeSignInput:
+		appId = node.conf.SignerAppId
 		fingerPath := append(common.Fingerprint(public), path...)
 		op.Public = hex.EncodeToString(fingerPath)
 	case common.OperationTypeKeygenOutput:
@@ -975,7 +981,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeSignOutput:
 		op.Public = public
 	}
-	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptSignerOperation(op))
+	memo := mtg.EncodeMixinExtraBase64(appId, node.encryptSignerOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
@@ -1077,4 +1083,9 @@ func testGetDerivedObserverPrivate(require *require.Assertions) *btcec.PrivateKe
 	priv, err := extPub.ECPrivKey()
 	require.Nil(err)
 	return priv
+}
+
+func testGenerateDummyExtra(node *Node) string {
+	e := mtg.EncodeMixinExtraBase64(node.conf.AppId, nil)
+	return hex.EncodeToString([]byte(e))
 }

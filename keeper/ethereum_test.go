@@ -50,6 +50,7 @@ func TestEthereumKeeper(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})
@@ -72,6 +73,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})
@@ -85,6 +87,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   cnbBondId,
 			Amount:    decimal.NewFromInt(100),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})
@@ -106,6 +109,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})
@@ -119,6 +123,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   cnbBondId,
 			Amount:    decimal.NewFromInt(100),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})
@@ -201,6 +206,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})
@@ -214,6 +220,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 		UnifiedOutput: mtg.UnifiedOutput{
 			AssetId:   cnbBondId,
 			Amount:    decimal.NewFromInt(100),
+			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
 	})

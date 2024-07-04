@@ -138,8 +138,15 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 }
 
 func (node *Node) checkGroupChangeTransaction(ctx context.Context, output *mtg.Action) bool {
+	// FIXME should mtg pass change output as action to the app?
 	a, m := mtg.DecodeMixinExtraHEX(output.Extra)
-	if a == "" && m == nil {
+	if a != node.conf.AppId {
+		panic(output.Extra)
+	}
+	if m == nil {
+		return false
+	}
+	if output.OutputIndex != 1 {
 		return false
 	}
 	inputs, err := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)

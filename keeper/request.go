@@ -46,7 +46,10 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
 	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
-	if a == "" || m == nil {
+	if a != node.conf.AppId {
+		panic(out.Extra)
+	}
+	if m == nil {
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
 	b := common.AESDecrypt(node.observerAESKey[:], []byte(m))
@@ -56,7 +59,10 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) {
 	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
-	if a == "" || m == nil {
+	if a != node.conf.AppId {
+		panic(out.Extra)
+	}
+	if m == nil {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
 	b := common.AESDecrypt(node.signerAESKey[:], []byte(m))
@@ -66,7 +72,10 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) 
 
 func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
 	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
-	if a == "" || m == nil {
+	if a != node.conf.AppId {
+		panic(out.Extra)
+	}
+	if m == nil {
 		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
 	}
 	role := node.requestRole(out.AssetId)

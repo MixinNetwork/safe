@@ -415,7 +415,10 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 }
 
 func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
-	_, memo := mtg.DecodeMixinExtraHEX(out.Extra)
+	a, memo := mtg.DecodeMixinExtraHEX(out.Extra)
+	if a != node.conf.AppId {
+		panic(out.Extra)
+	}
 
 	b := common.AESDecrypt(node.aesKey[:], memo)
 	req, err := common.DecodeOperation(b)
@@ -620,7 +623,10 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
-	_, m := mtg.DecodeMixinExtraHEX(memo)
+	a, m := mtg.DecodeMixinExtraHEX(memo)
+	if a != node.conf.AppId {
+		panic(memo)
+	}
 	if m == nil {
 		return nil, fmt.Errorf("mtg.DecodeMixinExtraHEX(%s)", memo)
 	}
