@@ -31,7 +31,7 @@ func (node *Node) sendSignerKeygenRequest(ctx context.Context, req *common.Reque
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	batch, ok := new(big.Int).SetString(req.Extra, 16)
+	batch, ok := new(big.Int).SetString(req.ExtraHEX, 16)
 	if !ok || batch.Cmp(big.NewInt(1)) < 0 || batch.Cmp(big.NewInt(SignerKeygenMaximum)) > 0 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}

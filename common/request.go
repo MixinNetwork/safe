@@ -76,7 +76,7 @@ type Request struct {
 	Action     uint8
 	Curve      uint8
 	Holder     string
-	Extra      string
+	ExtraHEX   string
 	State      uint8
 	CreatedAt  time.Time
 	Sequence   uint64
@@ -90,14 +90,17 @@ type AccountProposal struct {
 }
 
 func (req *Request) Operation() *Operation {
-	extra := DecodeHexOrPanic(req.Extra)
 	return &Operation{
 		Id:     req.Id,
 		Type:   req.Action,
 		Curve:  req.Curve,
 		Public: req.Holder,
-		Extra:  extra,
+		Extra:  req.ExtraBytes(),
 	}
+}
+
+func (req *Request) ExtraBytes() []byte {
+	return DecodeHexOrPanic(req.ExtraHEX)
 }
 
 func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
@@ -114,7 +117,7 @@ func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 		Id:         op.Id,
 		Curve:      op.Curve,
 		Holder:     op.Public,
-		Extra:      hex.EncodeToString(op.Extra),
+		ExtraHEX:   hex.EncodeToString(op.Extra),
 		MixinHash:  h,
 		MixinIndex: out.OutputIndex,
 		AssetId:    out.AssetId,

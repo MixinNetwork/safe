@@ -30,9 +30,9 @@ type Deposit struct {
 }
 
 func parseDepositExtra(req *common.Request) (*Deposit, error) {
-	extra, err := hex.DecodeString(req.Extra)
-	if err != nil || len(extra) < 1+16+32+8 {
-		return nil, fmt.Errorf("invalid deposit extra %s", req.Extra)
+	extra := req.ExtraBytes()
+	if len(extra) < 1+16+32+8 {
+		return nil, fmt.Errorf("invalid deposit extra %s", req.ExtraHEX)
 	}
 	deposit := &Deposit{
 		Chain: extra[0],

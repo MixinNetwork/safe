@@ -901,7 +901,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), string(op.Encode()))
+	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), op.Encode())
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
@@ -925,8 +925,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := string(node.encryptObserverOperation(op))
-	memo = mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), memo)
+	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), node.encryptObserverOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {
@@ -976,7 +975,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeSignOutput:
 		op.Public = public
 	}
-	memo := mtg.EncodeMixinExtra(node.conf.AppId, string(node.encryptSignerOperation(op)))
+	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptSignerOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),

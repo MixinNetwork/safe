@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math"
 
@@ -139,8 +138,8 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 }
 
 func (node *Node) checkGroupChangeTransaction(ctx context.Context, output *mtg.Action) bool {
-	a, m := mtg.DecodeMixinExtra(output.Extra)
-	if a == "" && m == "" {
+	a, m := mtg.DecodeMixinExtraHEX(output.Extra)
+	if a == "" && m == nil {
 		return false
 	}
 	inputs, err := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)
@@ -221,7 +220,7 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mt
 	if old != nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 34 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -309,7 +308,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 64 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -415,7 +414,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		}
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 20 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}

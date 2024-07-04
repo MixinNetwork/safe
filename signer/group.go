@@ -415,9 +415,9 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 }
 
 func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
-	_, memo := mtg.DecodeMixinExtra(out.Extra)
+	_, memo := mtg.DecodeMixinExtraHEX(out.Extra)
 
-	b := common.AESDecrypt(node.aesKey[:], []byte(memo))
+	b := common.AESDecrypt(node.aesKey[:], memo)
 	req, err := common.DecodeOperation(b)
 	if err != nil {
 		return nil, fmt.Errorf("common.DecodeOperation(%x) => %v", b, err)
@@ -575,11 +575,7 @@ func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash)
 	if err != nil {
 		panic(stx.String())
 	}
-	a, m := mtg.DecodeMixinExtra(string(tx.Extra))
-	if a == "" && m == "" {
-		panic(stx.String())
-	}
-	data, err := common.Base91Decode(m)
+	data, err := common.Base91Decode(string(tx.Extra))
 	if err != nil || len(data) < 32 {
 		panic(stx.String())
 	}
@@ -624,11 +620,11 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
-	a, m := mtg.DecodeMixinExtra(memo)
-	if a == "" && m == "" {
-		return nil, fmt.Errorf("mtg.DecodeMixinExtra(%s)", memo)
+	_, m := mtg.DecodeMixinExtraHEX(memo)
+	if m == nil {
+		return nil, fmt.Errorf("mtg.DecodeMixinExtraHEX(%s)", memo)
 	}
-	b := common.AESDecrypt(node.aesKey[:], []byte(m))
+	b := common.AESDecrypt(node.aesKey[:], m)
 	op, err := common.DecodeOperation(b)
 	if err != nil {
 		return nil, fmt.Errorf("common.DecodeOperation(%x) => %v", b, err)

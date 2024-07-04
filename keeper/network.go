@@ -32,7 +32,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 17 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -86,7 +86,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 33 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}

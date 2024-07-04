@@ -56,7 +56,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 48 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -275,14 +275,11 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if req.Role != common.RequestRoleHolder {
 		panic(req.Role)
 	}
-	rce, err := hex.DecodeString(req.Extra)
-	if err != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
-	}
+	rce := req.ExtraBytes()
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
-	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.Extra {
+	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.ExtraHEX {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-		rce = common.DecodeMixinObjectExtra(stx.Extra)
+		rce = stx.Extra
 	}
 	arp, err := req.ParseMixinRecipient(rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %v", req, arp, err)
@@ -402,7 +399,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		return nil, "", fmt.Errorf("node.getBondAsset(%s) => %v %v", req.Holder, a, err)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 64 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -546,7 +543,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 33 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -583,7 +580,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
 	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-		extra := common.DecodeMixinObjectExtra(stx.Extra)
+		extra := stx.Extra
 		var recipients [][2]string // TODO better encoding
 		err = json.Unmarshal(extra, &recipients)
 		if err != nil {
@@ -701,7 +698,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 48 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -799,7 +796,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	if err != nil {
 		return nil, "", fmt.Errorf("node.deriveBIP32WithPath(%s, %s) => %v", safe.Signer, safe.Path, err)
 	}
-	sig, _ := hex.DecodeString(req.Extra)
+	sig := req.ExtraBytes()
 	msg := common.DecodeHexOrPanic(old.Message)
 	err = bitcoin.VerifySignatureDER(spk, msg, sig)
 	logger.Printf("node.verifyBitcoinSignatureWithPath(%v) => %v", req, err)

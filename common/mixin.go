@@ -3,7 +3,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -56,12 +55,6 @@ func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration)
 	}
 
 	return nil
-}
-
-func DecodeMixinObjectExtra(extra []byte) []byte {
-	_, m := mtg.DecodeMixinExtra(hex.EncodeToString(extra))
-	b, _ := base64.RawURLEncoding.DecodeString(m)
-	return b
 }
 
 func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) ([]*mixin.SafeUtxo, bool) {
@@ -187,15 +180,10 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 			return nil, err
 		}
 		_, err = SignTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
-		if err != nil {
-			if strings.Contains(err.Error(), "spent by other transaction") {
-				time.Sleep(3 * time.Second)
-				continue
-			}
+		if err != nil && !strings.Contains(err.Error(), "spent by other transaction") {
 			return nil, err
 		}
 		time.Sleep(3 * time.Second)
-		continue
 	}
 }
 

@@ -57,7 +57,7 @@ func testBuildObserverMigrateRequest(node *Node, id, public string, action byte,
 		Public: public,
 		Extra:  extra,
 	}
-	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), string(op.Encode()))
+	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), op.Encode())
 	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {

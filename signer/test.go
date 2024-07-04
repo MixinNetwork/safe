@@ -143,7 +143,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 		Public: hex.EncodeToString(fingerPath),
 		Extra:  msg,
 	}
-	memo := mtg.EncodeMixinExtra(uuid.Must(uuid.NewV4()).String(), string(node.encryptOperation(sop)))
+	memo := mtg.EncodeMixinExtraBase64(uuid.Must(uuid.NewV4()).String(), node.encryptOperation(sop))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
@@ -224,7 +224,7 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 		if val == "" {
 			continue
 		}
-		_, m := mtg.DecodeMixinExtra(val)
+		_, m := mtg.DecodeMixinExtraHEX(val)
 		b := common.AESDecrypt(node.aesKey[:], []byte(m))
 		op, _ := common.DecodeOperation(b)
 		if op != nil {
@@ -285,7 +285,7 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 			if err != nil {
 				panic(err)
 			}
-			memo := mtg.EncodeMixinExtra(node.conf.AppId, t.Memo)
+			memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, []byte(t.Memo))
 			err = node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString([]byte(memo)))
 			if err != nil {
 				panic(err)

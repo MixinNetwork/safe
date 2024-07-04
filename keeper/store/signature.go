@@ -114,7 +114,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE signature_requests SET signature=?, state=?, updated_at=? WHERE request_id=? AND state=?",
-		req.Extra, common.RequestStatePending, req.CreatedAt, req.Id, common.RequestStateInitial)
+		req.ExtraHEX, common.RequestStatePending, req.CreatedAt, req.Id, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE signature_requests %v", err)
 	}

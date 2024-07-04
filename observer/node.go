@@ -243,12 +243,6 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) err
 		return nil
 	}
 
-	memo, err := hex.DecodeString(s.Memo)
-	if err != nil {
-		return fmt.Errorf("hex.DecodeString(%s) => %v", s.Memo, err)
-	}
-	s.Memo = string(memo)
-
 	handled, err := node.handleTransactionApprovalPayment(ctx, s)
 	logger.Printf("node.handleTransactionApprovalPayment(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
@@ -409,8 +403,8 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 }
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
-	a, m := mtg.DecodeMixinExtra(hex.EncodeToString([]byte(s.Memo)))
-	if a == "" && m == "" {
+	a, m := mtg.DecodeMixinExtraHEX(s.Memo)
+	if a == "" && m == nil {
 		return false, nil
 	}
 	b := common.AESDecrypt(node.aesKey[:], []byte(m))
@@ -452,12 +446,8 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	if err != nil {
 		return false, err
 	}
-	a, m = mtg.DecodeMixinExtra(tx.Extra)
-	if a == "" && m == "" {
-		data, _ := hex.DecodeString(tx.Extra)
-		m = string(data)
-	}
-	data, err := common.Base91Decode(m)
+	data, _ := hex.DecodeString(tx.Extra)
+	data, err = common.Base91Decode(string(data))
 	if err != nil || len(data) < 32 {
 		panic(fmt.Errorf("common.Base91Decode(%s) => %d %v", m, len(data), err))
 	}

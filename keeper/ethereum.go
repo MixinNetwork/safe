@@ -71,7 +71,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return nil, "", fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 48 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -301,14 +301,11 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	default:
 		panic(req.Curve)
 	}
-	rce, err := hex.DecodeString(req.Extra)
-	if err != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
-	}
+	rce := req.ExtraBytes()
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
-	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.Extra {
+	if len(rce) == 32 && len(ver.References) == 1 && bytes.Equal(ver.References[0][:], rce) {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-		rce = common.DecodeMixinObjectExtra(stx.Extra)
+		rce = stx.Extra
 	}
 	arp, err := req.ParseMixinRecipient(rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %v", req, arp, err)
@@ -452,7 +449,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return nil, "", fmt.Errorf("node.getBondAsset(%s) => %v %v", req.Holder, a, err)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 64 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -620,7 +617,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 33 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -659,7 +656,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
 	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
-		extra := common.DecodeMixinObjectExtra(stx.Extra)
+		extra := stx.Extra
 		var recipients [][2]string // TODO better encoding
 		err = json.Unmarshal(extra, &recipients)
 		if err != nil {
@@ -845,7 +842,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 48 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -925,7 +922,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 16 {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
@@ -1007,7 +1004,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		panic(req.Role)
 	}
 
-	sig, _ := hex.DecodeString(req.Extra)
+	sig := req.ExtraBytes()
 	msg := common.DecodeHexOrPanic(old.Message)
 	err := ethereum.VerifyHashSignature(safe.Signer, msg, sig)
 	logger.Printf("node.VerifyHashSignature(%v) => %v", req, err)
