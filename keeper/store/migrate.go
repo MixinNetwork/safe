@@ -87,6 +87,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 		query = "ALTER TABLE requests ADD COLUMN sequence INTEGER;\n"
 		query = query + "ALTER TABLE safes ADD COLUMN safe_asset_id VARCHAR;\n"
 		query = query + "ALTER TABLE ethereum_balances ADD COLUMN safe_asset_id VARCHAR;\n"
+		query = query + "CREATE UNIQUE INDEX IF NOT EXISTS safes_by_safe_asset_id ON safes(safe_asset_id);\n"
 		_, err = tx.ExecContext(ctx, query)
 		if err != nil {
 			return err
