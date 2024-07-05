@@ -94,6 +94,19 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 		}
 	}
 
+	_, err = tx.ExecContext(ctx, "UPDATE requests SET sequence=0")
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE safes SET safe_asset_id=''")
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET safe_asset_id=''")
+	if err != nil {
+		return err
+	}
+
 	for _, asset := range ms {
 		chainAssetId := common.SafeChainAssetId(asset.Chain)
 		if asset.AssetId == chainAssetId {
@@ -111,11 +124,6 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 		}
 	}
 	err = s.createMigrateAssets(ctx, tx, ms)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE requests SET sequence=0")
 	if err != nil {
 		return err
 	}
