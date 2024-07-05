@@ -121,18 +121,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return nil, "", node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
-func (node *Node) checkNetworkInfoForkTimestamp(req *common.Request, info *store.NetworkInfo) bool {
-	if req.Sequence < node.conf.MTG.Genesis.Epoch {
-		panic(info.RequestId)
-	}
-	forkAt := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
-	return info.CreatedAt.Before(forkAt)
-}
-
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, req *common.Request, info *store.NetworkInfo) (bool, error) {
-	if node.checkNetworkInfoForkTimestamp(req, info) {
-		return true, nil
-	}
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
