@@ -93,8 +93,7 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 
 	var sb SafeBalance
 	var bStr string
-	var safeAssetId sql.NullString
-	err = row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &safeAssetId, &bStr, &sb.LatestTxHash, &sb.UpdatedAt)
+	err = row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &sb.SafeAssetId, &bStr, &sb.LatestTxHash, &sb.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return &SafeBalance{
 			Address:      address,
@@ -108,7 +107,6 @@ func (s *SQLite3Store) ReadEthereumBalance(ctx context.Context, address, assetId
 	}
 	balance, _ := new(big.Int).SetString(bStr, 10)
 	sb.Balance = balance
-	sb.SafeAssetId = safeAssetId.String
 	return &sb, nil
 }
 
@@ -130,14 +128,12 @@ func (s *SQLite3Store) ReadEthereumAllBalance(ctx context.Context, address strin
 	for rows.Next() {
 		var b SafeBalance
 		var bStr string
-		var safeAssetId sql.NullString
-		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &safeAssetId, &bStr, &b.LatestTxHash, &b.UpdatedAt)
+		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &b.SafeAssetId, &bStr, &b.LatestTxHash, &b.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
 		balance, _ := new(big.Int).SetString(bStr, 10)
 		b.Balance = balance
-		b.SafeAssetId = safeAssetId.String
 		sbs = append(sbs, &b)
 	}
 	return sbs, nil

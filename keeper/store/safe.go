@@ -60,15 +60,13 @@ func (s *SafeProposal) values() []any {
 func safeFromRow(row *sql.Row) (*Safe, error) {
 	var s Safe
 	var receivers string
-	var safeAssetId sql.NullString
-	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &safeAssetId, &s.CreatedAt, &s.UpdatedAt)
+	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
 	s.Receivers = strings.Split(receivers, ";")
-	s.SafeAssetId = safeAssetId.String
 	return &s, err
 }
 
@@ -238,13 +236,11 @@ func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Sa
 	for rows.Next() {
 		var s Safe
 		var receivers string
-		var safeAssetId sql.NullString
-		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &safeAssetId, &s.CreatedAt, &s.UpdatedAt)
+		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
 		s.Receivers = strings.Split(receivers, ";")
-		s.SafeAssetId = safeAssetId.String
 		safes = append(safes, &s)
 	}
 	return safes, nil
