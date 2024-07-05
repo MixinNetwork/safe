@@ -108,8 +108,6 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 			if err != nil {
 				return err
 			}
-		default:
-			panic(asset.Chain)
 		}
 	}
 	err = s.createMigrateAssets(ctx, tx, ms)
