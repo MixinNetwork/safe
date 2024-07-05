@@ -136,7 +136,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 }
 
 func (node *Node) saveAccountApprovalSignature(ctx context.Context, addr, sig string) error {
-	if !common.CheckTestEnvironment(ctx) {
+	if !common.CheckTestEnvironment(ctx) { // FIXME remove this and do better test
 		safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
 		if err != nil || (safe != nil && safe.State == common.RequestStateDone) {
 			return err
@@ -242,6 +242,8 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) err
 	if s.Amount.Sign() < 0 {
 		return nil
 	}
+
+	// FIXME should read kernel rpc for the transaction details
 
 	memo, err := hex.DecodeString(s.Memo)
 	if err != nil {
@@ -452,6 +454,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	if err != nil {
 		return false, err
 	}
+	// FIXME should check transaction references and read kernel storage transaction
 	data, _ := hex.DecodeString(tx.Extra)
 	data, err = common.Base91Decode(string(data))
 	if err != nil || len(data) < 32 {

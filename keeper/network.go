@@ -60,7 +60,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	switch info.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
-		valid, err := node.verifyBitcoinNetworkInfo(ctx, req, info)
+		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
 			return nil, "", fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
@@ -121,7 +121,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return nil, "", node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
-func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, req *common.Request, info *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
