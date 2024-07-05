@@ -171,7 +171,7 @@ func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId
 }
 
 func (node *Node) Migrate(ctx context.Context) error {
-	safes, err := node.store.ListSafesWithState(ctx, common.RequestStateDone)
+	safes, err := node.store.ListUnmigratedSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (node *Node) Migrate(ctx context.Context) error {
 
 		switch safe.Chain {
 		case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
-			bs, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
+			bs, err := node.store.ReadUnmigratedEthereumAllBalance(ctx, safe.Address)
 			if err != nil {
 				return err
 			}

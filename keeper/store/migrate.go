@@ -3,10 +3,66 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
 )
+
+var unmigratedSafeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "created_at", "updated_at"}
+
+func (s *SQLite3Store) ListUnmigratedSafesWithState(ctx context.Context, state int) ([]*Safe, error) {
+	query := fmt.Sprintf("SELECT %s FROM safes WHERE state=? ORDER BY created_at ASC, request_id ASC", strings.Join(unmigratedSafeCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, state)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var safes []*Safe
+	for rows.Next() {
+		var s Safe
+		var receivers string
+		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.CreatedAt, &s.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		s.Receivers = strings.Split(receivers, ";")
+		safes = append(safes, &s)
+	}
+	return safes, nil
+}
+
+func (s *SQLite3Store) ReadUnmigratedEthereumAllBalance(ctx context.Context, address string) ([]*SafeBalance, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
+	rows, err := s.db.QueryContext(ctx, query, address)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sbs []*SafeBalance
+	for rows.Next() {
+		var b SafeBalance
+		var bStr string
+		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &bStr, &b.LatestTxHash, &b.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		balance, _ := new(big.Int).SetString(bStr, 10)
+		b.Balance = balance
+		sbs = append(sbs, &b)
+	}
+	return sbs, nil
+}
 
 // FIXME remove this
 func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
