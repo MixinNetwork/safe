@@ -93,8 +93,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 			return err
 		}
 	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE ethereum_balances SET safe_asset_id=''")
+	_, err = tx.ExecContext(ctx, "UPDATE requests SET sequence=0")
 	if err != nil {
 		return err
 	}
