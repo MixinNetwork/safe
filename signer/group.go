@@ -667,12 +667,10 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
 	}
 
+	amount := decimal.NewFromInt(1)
 	if !common.CheckTestEnvironment(ctx) {
-		balance, err := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, node.conf.KeeperAssetId, sequence)
-		if err != nil {
-			return nil, "", err
-		}
-		if balance.Cmp(decimal.NewFromInt(1)) < 0 {
+		balance := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, node.conf.KeeperAssetId, sequence)
+		if balance.Cmp(amount) < 0 {
 			return nil, node.conf.KeeperAssetId, nil
 		}
 	}
@@ -680,7 +678,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, "1", string(extra), members, threshold)
+	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
 	return tx, "", nil
 }

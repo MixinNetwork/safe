@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 	"encoding/hex"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
@@ -58,10 +59,9 @@ func (node *Node) Terminate(ctx context.Context) ([]*mtg.Transaction, string, er
 }
 
 func (node *Node) Index() int {
-	for i, id := range node.conf.MTG.Genesis.Members {
-		if node.conf.MTG.App.AppId == id {
-			return i
-		}
+	index := slices.Index(node.conf.MTG.Genesis.Members, node.conf.MTG.App.AppId)
+	if index >= 0 {
+		return index
 	}
 	panic(node.conf.MTG.App.AppId)
 }
@@ -73,34 +73,11 @@ func (node *Node) buildTransaction(ctx context.Context, sequence uint64, opponen
 
 func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) (*mtg.Transaction, string, error) {
 	logger.Printf("node.buildTransactionWithReferences(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, tx)
-
-	if common.CheckTestEnvironment(ctx) {
-		v := common.MarshalJSONOrPanic(map[string]any{
-			"asset_id":  assetId,
-			"amount":    amount,
-			"receivers": receivers,
-			"threshold": threshold,
-			"memo":      hex.EncodeToString(memo),
-		})
-		err := node.store.WriteProperty(ctx, traceId, string(v))
-		if err != nil {
-			return nil, "", err
-		}
-	} else {
-		balance, err := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, assetId, sequence)
-		if err != nil {
-			return nil, "", err
-		}
-		amt, err := decimal.NewFromString(amount)
-		if err != nil {
-			return nil, "", err
-		}
-		if balance.Cmp(amt) < 0 {
-			return nil, assetId, nil
-		}
+	traceId, compact, err := node.checkTransaction(ctx, sequence, assetId, receivers, threshold, amount, memo, traceId)
+	if err != nil || compact != "" {
+		return nil, compact, err
 	}
 
-	traceId = common.UniqueId(node.group.GenesisId(), traceId)
 	if tx.HasValue() {
 		return node.group.BuildTransactionWithReference(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, tx), "", nil
 	}
@@ -109,7 +86,15 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence u
 
 func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId, storageTraceId string) (*mtg.Transaction, string, error) {
 	logger.Printf("node.buildTransactionWithStorageTraceId(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, storageTraceId)
+	traceId, compact, err := node.checkTransaction(ctx, sequence, assetId, receivers, threshold, amount, memo, traceId)
+	if err != nil || compact != "" {
+		return nil, compact, err
+	}
 
+	return node.group.BuildTransactionWithStorageTraceId(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, storageTraceId), "", nil
+}
+
+func (node *Node) checkTransaction(ctx context.Context, sequence uint64, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) (string, string, error) {
 	if common.CheckTestEnvironment(ctx) {
 		v := common.MarshalJSONOrPanic(map[string]any{
 			"asset_id":  assetId,
@@ -120,24 +105,21 @@ func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, sequen
 		})
 		err := node.store.WriteProperty(ctx, traceId, string(v))
 		if err != nil {
-			return nil, "", err
+			return "", "", err
 		}
 	} else {
-		balance, err := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, assetId, sequence)
-		if err != nil {
-			return nil, "", err
-		}
+		balance := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, assetId, sequence)
 		amt, err := decimal.NewFromString(amount)
 		if err != nil {
-			return nil, "", err
+			panic(amount)
 		}
 		if balance.Cmp(amt) < 0 {
-			return nil, assetId, nil
+			return "", assetId, nil
 		}
 	}
 
 	traceId = common.UniqueId(node.group.GenesisId(), traceId)
-	return node.group.BuildTransactionWithStorageTraceId(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, storageTraceId), "", nil
+	return traceId, "", nil
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {

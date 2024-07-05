@@ -64,11 +64,6 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Initial Transactions: %d\n", len(tl))
-	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigning, 1000)
-	if err != nil {
-		return "", err
-	}
-	state = state + fmt.Sprintf("🫰 Signing Transactions: %d\n", len(tl))
 	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
 	if err != nil {
 		return "", err
@@ -151,11 +146,6 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 		return "", err
 	}
 	state = state + fmt.Sprintf("🫰 Initial Transactions: %d\n", len(tl))
-	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigning, 1000)
-	if err != nil {
-		return "", err
-	}
-	state = state + fmt.Sprintf("🫰 Signing Transactions: %d\n", len(tl))
 	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
 	if err != nil {
 		return "", err

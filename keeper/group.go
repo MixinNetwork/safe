@@ -122,10 +122,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
-	spent, err := node.group.ListOutputsForAsset(ctx, node.conf.AppId, out.AssetId, math.MaxInt64, "spent", 1)
-	if err != nil {
-		return false, fmt.Errorf("group.ListOutputsForAsset(%s) => %v", out.AssetId, err)
-	}
+	spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, out.AssetId, math.MaxInt64, "spent", 1)
 	if len(spent) > 0 {
 		return false, nil
 	}
@@ -149,10 +146,7 @@ func (node *Node) checkGroupChangeTransaction(ctx context.Context, output *mtg.A
 	if output.OutputIndex != 1 {
 		return false
 	}
-	inputs, err := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)
-	if err != nil {
-		panic(err)
-	}
+	inputs := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)
 	return len(inputs) > 0
 }
 
@@ -403,11 +397,8 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
 	if !common.CheckTestEnvironment(ctx) {
-		spent, err := node.group.ListOutputsForAsset(ctx, node.conf.AppId, req.AssetId, math.MaxInt64, "spent", 1)
-		logger.Printf("group.ListOutputsForAsset(%s) => %d %v", req.AssetId, len(spent), err)
-		if err != nil {
-			return nil, "", fmt.Errorf("group.ListOutputsForAsset(%s) => %v", req.AssetId, err)
-		}
+		spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, req.AssetId, math.MaxInt64, "spent", 1)
+		logger.Printf("group.ListOutputsForAsset(%s) => %d", req.AssetId, len(spent))
 		if len(spent) > 0 {
 			return nil, "", node.store.FailRequest(ctx, req.Id)
 		}

@@ -725,8 +725,8 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	stx, err := node.writeStorageTransaction(ctx, sequence, []byte(common.Base91Encode(raw)))
-	require.Nil(err)
+	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence}, []byte(common.Base91Encode(raw)))
+	require.NotNil(stx)
 	rid := common.UniqueId(transactionHash, stx.TraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	require.Equal(b, raw)

@@ -6,7 +6,7 @@ require (
 	github.com/MixinNetwork/bot-api-go-client/v3 v3.6.0
 	github.com/MixinNetwork/mixin v0.18.9
 	github.com/MixinNetwork/multi-party-sig v0.4.1
-	github.com/MixinNetwork/trusted-group v0.7.2
+	github.com/MixinNetwork/trusted-group v0.7.3
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.3
 	github.com/btcsuite/btcd/btcutil v1.1.5
@@ -44,8 +44,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
-	github.com/ethereum/c-kzg-4844 v1.0.0 // indirect
-	github.com/ethereum/c-kzg-4844/bindings/go v0.0.0-20230126171313-363c7d7593b4 // indirect
+	github.com/ethereum/c-kzg-4844 v1.0.2 // indirect
 	github.com/fox-one/msgpack v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

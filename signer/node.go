@@ -94,9 +94,9 @@ func (node *Node) Boot(ctx context.Context) {
 func (node *Node) loopInitialSessions(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		synced, err := node.synced(ctx)
-		if err != nil || !synced {
-			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+		synced := node.synced(ctx)
+		if !synced {
+			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
 			continue
 		}
 		sessions, err := node.store.ListInitialSessions(ctx, 64)
@@ -123,9 +123,9 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 func (node *Node) loopPreparedSessions(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		synced, err := node.synced(ctx)
-		if err != nil || !synced {
-			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+		synced := node.synced(ctx)
+		if !synced {
+			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
 			continue
 		}
 		sessions := node.listPreparedSessions(ctx)
@@ -180,9 +180,9 @@ func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
 func (node *Node) loopPendingSessions(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		synced, err := node.synced(ctx)
-		if err != nil || !synced {
-			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+		synced := node.synced(ctx)
+		if !synced {
+			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
 			continue
 		}
 		sessions, err := node.store.ListPendingSessions(ctx, 64)
@@ -240,9 +240,9 @@ func (node *Node) findMember(m string) int {
 	return -1
 }
 
-func (node *Node) synced(ctx context.Context) (bool, error) {
+func (node *Node) synced(ctx context.Context) bool {
 	if common.CheckTestEnvironment(ctx) {
-		return true, nil
+		return true
 	}
 	// TODO all nodes send group timestamp to others, and not synced
 	// if one of them has a big difference

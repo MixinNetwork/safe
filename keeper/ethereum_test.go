@@ -266,8 +266,8 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	out := testBuildObserverRequest(node, id, holder, common.ActionEthereumSafeCloseAccount, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
-	stx, err := node.writeStorageTransaction(ctx, sequence, []byte(common.Base91Encode(raw)))
-	require.Nil(err)
+	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence}, []byte(common.Base91Encode(raw)))
+	require.NotNil(stx)
 	rid := common.UniqueId(st.TxHash, stx.TraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeApproveTransaction)
 	require.Equal(b, raw)

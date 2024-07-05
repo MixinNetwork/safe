@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -245,12 +244,11 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 		UpdatedAt:       req.CreatedAt,
 	}
 
-	var txs []*mtg.Transaction
-	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(opsbt.Marshal())))
-	if err != nil {
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(opsbt.Marshal())))
+	if stx == nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	txs = append(txs, stx)
+	txs := []*mtg.Transaction{stx}
 
 	id := common.UniqueId(tx.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
@@ -343,12 +341,11 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	}
 
 	extra := wsa.Marshal()
-	var txs []*mtg.Transaction
-	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
-	if err != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(extra)))
+	if stx == nil {
+		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
 	}
-	txs = append(txs, stx)
+	txs := []*mtg.Transaction{stx}
 
 	typ := byte(common.ActionBitcoinSafeProposeAccount)
 	crv := common.SafeChainCurve(chain)
@@ -431,12 +428,11 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		return nil, "", fmt.Errorf("store.ReadRequest(%s) => %v", sp.RequestId, err)
 	}
 
-	var txs []*mtg.Transaction
-	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(sp.Extra)))
-	if err != nil {
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(sp.Extra)))
+	if stx == nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	txs = append(txs, stx)
+	txs := []*mtg.Transaction{stx}
 
 	typ := byte(common.ActionBitcoinSafeApproveAccount)
 	crv := common.SafeChainCurve(sp.Chain)
@@ -618,17 +614,11 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	extra = psbt.Marshal()
-	var txs []*mtg.Transaction
-	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(extra)))
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "insufficient balance"):
-			return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
-		default:
-			return nil, "", node.store.FailRequest(ctx, req.Id)
-		}
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(extra)))
+	if stx == nil {
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
-	txs = append(txs, stx)
+	txs := []*mtg.Transaction{stx}
 
 	typ := byte(common.ActionBitcoinSafeProposeTransaction)
 	crv := common.SafeChainCurve(safe.Chain)
@@ -839,12 +829,11 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 		}}
 	}
 
-	var txs []*mtg.Transaction
-	stx, err := node.writeStorageTransaction(ctx, req.Sequence, []byte(common.Base91Encode(spsbt.Marshal())))
-	if err != nil {
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(spsbt.Marshal())))
+	if stx == nil {
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
-	txs = append(txs, stx)
+	txs := []*mtg.Transaction{stx}
 
 	id := common.UniqueId(old.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
