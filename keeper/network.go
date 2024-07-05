@@ -34,7 +34,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	}
 	extra := req.ExtraBytes()
 	if len(extra) < 17 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	info := &store.NetworkInfo{
@@ -49,9 +49,9 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
 	} else if old != nil && old.RequestId == req.Id {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	} else if old != nil && old.Height > info.Height {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	if info.Chain != common.SafeCurveChain(req.Curve) {
@@ -64,7 +64,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		if err != nil {
 			return nil, "", fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
@@ -72,10 +72,10 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		if err != nil {
 			return nil, "", fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	return nil, "", node.store.WriteNetworkInfoFromRequest(ctx, info)
@@ -88,7 +88,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	}
 	extra := req.ExtraBytes()
 	if len(extra) != 33 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	chain := extra[0]
@@ -102,7 +102,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	case common.SafeChainMVM:
 	case common.SafeChainPolygon:
 	default:
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))

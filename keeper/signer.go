@@ -27,12 +27,12 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 	case common.CurveSecp256k1ECDSABitcoin:
 	case common.CurveSecp256k1ECDSAEthereum:
 	default:
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	batch, ok := new(big.Int).SetString(req.ExtraHEX, 16)
 	if !ok || batch.Cmp(big.NewInt(1)) < 0 || batch.Cmp(big.NewInt(SignerKeygenMaximum)) > 0 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	var ts []*mtg.Transaction
 	for i := 0; i < int(batch.Int64()); i++ {
@@ -44,7 +44,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 		op.Id = common.UniqueId(op.Id, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
 		tx := node.buildSignerTransaction(ctx, req.Sequence, op)
 		if tx == nil {
-			return nil, node.conf.AssetId, node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 		ts = append(ts, tx)
 	}

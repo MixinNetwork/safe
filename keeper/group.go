@@ -219,43 +219,43 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mt
 		return nil, "", fmt.Errorf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
 	}
 	if old != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	extra := req.ExtraBytes()
 	if len(extra) != 34 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch extra[0] {
 	case common.RequestRoleSigner:
 		if req.Role != common.RequestRoleSigner {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	case common.RequestRoleObserver:
 		if req.Role != common.RequestRoleObserver {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	chainCode, flags := extra[1:33], extra[33]
 	switch flags {
 	case common.RequestFlagNone:
 	case common.RequestFlagCustomObserverKey:
 	default:
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch req.Curve {
 	case common.CurveSecp256k1ECDSABitcoin:
 		err = bitcoin.CheckDerivation(req.Holder, chainCode, 1000)
 		logger.Printf("bitcoin.CheckDerivation(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 		err = ethereum.VerifyHolderKey(req.Holder)
 		logger.Printf("ethereum.VerifyHolderKey(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
 		panic(req.Curve)
@@ -273,7 +273,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return nil, "", fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
 	}
 	if old == nil || old.State == common.RequestStateDone {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
 	if err != nil {
@@ -284,7 +284,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
 	}
 	if safe.Signer != req.Holder {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch safe.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
@@ -306,38 +306,38 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != chain {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	extra := req.ExtraBytes()
 	if len(extra) < 64 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 	if err != nil {
 		return nil, "", fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	} else if tx.Holder != req.Holder {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	} else if tx.State != common.RequestStateInitial {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	txRequest, err := node.store.ReadRequest(ctx, rid.String())
 	logger.Printf("store.ReadRequest(%s) => %v %v", rid.String(), txRequest, err)
 	if err != nil || txRequest == nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
 	logger.Printf("holder: node.verifySafeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
 	if err != nil {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
@@ -346,7 +346,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
 	if meta.Chain != common.SafeChainPolygon && meta.Chain != common.SafeChainMVM {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	entry := node.fetchBondAssetReceiver(ctx, safe.Address, tx.AssetId)
@@ -361,7 +361,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if t == nil {
-		return nil, bond.AssetId, node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, bond.AssetId)
 	}
 
 	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
@@ -379,7 +379,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 	}
 	if meta.Chain != common.SafeChainPolygon {
 		logger.Printf("invalid meta asset chain: %d", meta.Chain)
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
@@ -387,7 +387,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		return nil, "", fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
 	}
 	if deployed.Sign() <= 0 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
@@ -399,13 +399,13 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, req.AssetId, math.MaxInt64, "spent", 1)
 		logger.Printf("group.ListOutputsForAsset(%s) => %d", req.AssetId, len(spent))
 		if len(spent) > 0 {
-			return nil, "", node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	}
 
 	extra := req.ExtraBytes()
 	if len(extra) != 20 {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	receiver := gc.BytesToAddress(extra).String()
 	if receiver != node.conf.PolygonObserverDepositEntry {
@@ -418,7 +418,7 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		return nil, "", err
 	}
 	if safe == nil || safe.State != common.RequestStateDone {
-		return nil, "", node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch safe.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
@@ -442,5 +442,5 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 		}
 	}
 
-	return nil, "", node.store.FailRequest(ctx, req.Id)
+	return node.failRequest(ctx, req, "")
 }
