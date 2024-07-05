@@ -152,7 +152,7 @@ func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId
 }
 
 func (node *Node) Migrate(ctx context.Context) error {
-	safes, err := node.store.ListUnmigratedSafesWithState(ctx, common.RequestStateDone)
+	safes, err := node.store.ListUnmigratedSafesWithState(ctx)
 	if err != nil {
 		return err
 	}

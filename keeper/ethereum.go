@@ -497,22 +497,28 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return nil, "", fmt.Errorf("store.UpdateInitialTransaction(%v) => %v", tx, err)
 	}
 
+	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonKeeperDepositEntry, assetId, sp.Holder)
+	if err != nil {
+		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %v", assetId, sp.Holder, err)
+	}
+
 	safe := &store.Safe{
-		Holder:    sp.Holder,
-		Chain:     sp.Chain,
-		Signer:    sp.Signer,
-		Observer:  sp.Observer,
-		Timelock:  sp.Timelock,
-		Path:      sp.Path,
-		Address:   sp.Address,
-		Extra:     sp.Extra,
-		Receivers: sp.Receivers,
-		Threshold: sp.Threshold,
-		RequestId: req.Id,
-		State:     SafeStatePending,
-		Nonce:     0,
-		CreatedAt: req.CreatedAt,
-		UpdatedAt: req.CreatedAt,
+		Holder:      sp.Holder,
+		Chain:       sp.Chain,
+		Signer:      sp.Signer,
+		Observer:    sp.Observer,
+		Timelock:    sp.Timelock,
+		Path:        sp.Path,
+		Address:     sp.Address,
+		Extra:       sp.Extra,
+		Receivers:   sp.Receivers,
+		Threshold:   sp.Threshold,
+		RequestId:   req.Id,
+		State:       SafeStatePending,
+		Nonce:       0,
+		SafeAssetId: safeAssetId,
+		CreatedAt:   req.CreatedAt,
+		UpdatedAt:   req.CreatedAt,
 	}
 	err = node.store.WriteUnfinishedSafe(ctx, safe)
 	if err != nil {

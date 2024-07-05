@@ -797,6 +797,10 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		common.RenderError(w, r, err)
 		return
 	}
+	safeAssetId := ""
+	if safe != nil {
+		safeAssetId = safe.SafeAssetId
+	}
 	switch sp.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), sp)
@@ -826,7 +830,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"pendings":      viewOutputs(pendings),
 			"script":        hex.EncodeToString(wsa.Script),
 			"keys":          node.viewSafeXPubs(r.Context(), sp),
-			"safe_asset_id": safe.SafeAssetId,
+			"safe_asset_id": safeAssetId,
 			"state":         status,
 			"migrated":      account.Migrated,
 		})
@@ -854,7 +858,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"pendingbalance": ps,
 			"nonce":          nonce,
 			"keys":           node.viewSafeXPubs(r.Context(), sp),
-			"safe_asset_id":  safe.SafeAssetId,
+			"safe_asset_id":  safeAssetId,
 			"state":          status,
 			"migrated":       account.Migrated,
 		})

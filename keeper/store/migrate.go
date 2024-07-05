@@ -13,9 +13,9 @@ import (
 
 var unmigratedSafeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "created_at", "updated_at"}
 
-func (s *SQLite3Store) ListUnmigratedSafesWithState(ctx context.Context, state int) ([]*Safe, error) {
-	query := fmt.Sprintf("SELECT %s FROM safes WHERE state=? ORDER BY created_at ASC, request_id ASC", strings.Join(unmigratedSafeCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, state)
+func (s *SQLite3Store) ListUnmigratedSafesWithState(ctx context.Context) ([]*Safe, error) {
+	query := fmt.Sprintf("SELECT %s FROM safes ORDER BY created_at ASC, request_id ASC", strings.Join(unmigratedSafeCols, ","))
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}

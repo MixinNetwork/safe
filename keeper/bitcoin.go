@@ -435,21 +435,27 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	}
 	txs = append(txs, t)
 
+	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonKeeperDepositEntry, assetId, sp.Holder)
+	if err != nil {
+		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %v", assetId, sp.Holder, err)
+	}
+
 	safe := &store.Safe{
-		Holder:    sp.Holder,
-		Chain:     sp.Chain,
-		Signer:    sp.Signer,
-		Observer:  sp.Observer,
-		Timelock:  sp.Timelock,
-		Path:      sp.Path,
-		Address:   sp.Address,
-		Extra:     sp.Extra,
-		Receivers: sp.Receivers,
-		Threshold: sp.Threshold,
-		RequestId: req.Id,
-		State:     SafeStateApproved,
-		CreatedAt: req.CreatedAt,
-		UpdatedAt: req.CreatedAt,
+		Holder:      sp.Holder,
+		Chain:       sp.Chain,
+		Signer:      sp.Signer,
+		Observer:    sp.Observer,
+		Timelock:    sp.Timelock,
+		Path:        sp.Path,
+		Address:     sp.Address,
+		Extra:       sp.Extra,
+		Receivers:   sp.Receivers,
+		Threshold:   sp.Threshold,
+		RequestId:   req.Id,
+		State:       SafeStateApproved,
+		SafeAssetId: safeAssetId,
+		CreatedAt:   req.CreatedAt,
+		UpdatedAt:   req.CreatedAt,
 	}
 	err = node.store.WriteSafeWithRequest(ctx, safe)
 	if err != nil {
