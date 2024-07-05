@@ -172,7 +172,7 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 	case common.ActionObserverAddKey:
 		return node.processKeyAdd(ctx, req)
 	case common.ActionObserverRequestSignerKeys:
-		return node.sendSignerKeygenRequest(ctx, req)
+		return node.processSignerKeygenRequests(ctx, req)
 	case common.ActionObserverUpdateNetworkStatus:
 		return node.writeNetworkInfo(ctx, req)
 	case common.ActionObserverHolderDeposit:
@@ -359,10 +359,9 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
 	}
-	t, asset, err := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
-	if err != nil || asset != "" {
-		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, t, asset, err)
-		return nil, asset, err
+	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
+	if t == nil {
+		return nil, bond.AssetId, node.store.FailRequest(ctx, req.Id)
 	}
 
 	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)

@@ -186,10 +186,9 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 
 	var txs []*mtg.Transaction
 	if !change {
-		tx, asset, err := node.buildTransaction(ctx, req.Sequence, safe.RequestId, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
-		if err != nil || asset != "" {
-			logger.Printf("node.buildTransaction(%v) => %v %s %v", req, tx, asset, err)
-			return nil, asset, err
+		tx := node.buildTransaction(ctx, req.Sequence, safe.RequestId, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
+		if tx == nil {
+			return nil, bondId, node.store.FailRequest(ctx, req.Id)
 		}
 		txs = append(txs, tx)
 	}
@@ -233,10 +232,9 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return nil, "", node.store.FailRequest(ctx, req.Id)
 	}
 
-	t, a, err := node.buildTransaction(ctx, req.Sequence, safe.RequestId, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
-	if err != nil || a != "" {
-		logger.Printf("node.buildTransaction(%v) => %v %s %v", req, t, a, err)
-		return nil, a, err
+	t := node.buildTransaction(ctx, req.Sequence, safe.RequestId, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	if t == nil {
+		return nil, bondId, node.store.FailRequest(ctx, req.Id)
 	}
 	return []*mtg.Transaction{t}, "", node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, safe.SafeAssetId, deposit.AssetAddress, output.Sender)
 }
