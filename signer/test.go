@@ -25,13 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteProperty(ctx context.Context, node *Node, k, v string) {
-	err := node.store.WriteProperty(ctx, k, v)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()

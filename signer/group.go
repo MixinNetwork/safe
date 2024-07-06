@@ -1,7 +1,6 @@
 package signer
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/binary"
@@ -79,10 +78,6 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 			return nil, ""
 		}
 		err = node.verifyKernelTransaction(ctx, out)
-		if err != nil {
-			panic(err)
-		}
-		err = node.tryToFetchMessageForMixin(ctx, op, out)
 		if err != nil {
 			panic(err)
 		}
@@ -529,89 +524,6 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
 	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, extra, err)
 	return err
-}
-
-func (node *Node) tryToFetchMessageForMixin(ctx context.Context, op *common.Operation, out *mtg.Action) error {
-	if op.Curve != common.CurveEdwards25519Mixin {
-		return nil
-	}
-	if op.Type != common.OperationTypeSignInput {
-		return nil
-	}
-	if len(op.Extra) != 64 {
-		return nil
-	}
-	hash, err := crypto.HashFromString(out.TransactionHash)
-	if err != nil {
-		panic(err)
-	}
-	refs := node.readKernelTransactionReferences(ctx, hash)
-	if len(refs) != 1 || !bytes.Equal(refs[0][:], op.Extra[32:]) {
-		return nil
-	}
-
-	// mask || storage-reference
-	ref := refs[0]
-	op.Extra = append(op.Extra[:32], ref[:]...)
-	return nil
-}
-
-func (node *Node) readKernelStorageOrPanic(ctx context.Context, stx crypto.Hash) []byte {
-	if common.CheckTestEnvironment(ctx) {
-		k := hex.EncodeToString(stx[:])
-		o, err := node.store.ReadProperty(ctx, k)
-		if err != nil {
-			panic(err)
-		}
-		v, err := hex.DecodeString(o)
-		if err != nil {
-			panic(err)
-		}
-		data, err := common.Base91Decode(string(v))
-		if err != nil || len(data) < 32 {
-			panic(stx.String())
-		}
-		return data
-	}
-
-	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
-	if err != nil {
-		panic(stx.String())
-	}
-	data, err := common.Base91Decode(string(tx.Extra))
-	if err != nil || len(data) < 32 {
-		panic(stx.String())
-	}
-	return data
-}
-
-func (node *Node) readKernelTransactionReferences(ctx context.Context, hash crypto.Hash) []crypto.Hash {
-	if common.CheckTestEnvironment(ctx) {
-		k := hex.EncodeToString(hash[:])
-		o, err := node.store.ReadProperty(ctx, k)
-		if err != nil {
-			panic(err)
-		}
-		v, err := hex.DecodeString(o)
-		if err != nil {
-			panic(err)
-		}
-		var ref crypto.Hash
-		if len(v) == 0 {
-			return nil
-		}
-		if len(v) != len(ref) {
-			panic(o)
-		}
-		copy(ref[:], v)
-		return []crypto.Hash{ref}
-	}
-
-	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, hash)
-	if err != nil {
-		panic(hash.String())
-	}
-	return tx.References
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {
