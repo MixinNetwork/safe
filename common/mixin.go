@@ -98,25 +98,25 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 	return int(limit)
 }
 
-func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, sTraceId string, su bot.SafeUser) (string, error) {
+func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
 	for {
 		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
-			return "", err
+			return crypto.Hash{}, err
 		}
 		if old != nil && old.State == mixin.SafeUtxoStateSpent {
-			return old.TransactionHash, nil
+			return crypto.HashFromString(old.TransactionHash)
 		}
 
 		req, err := SafeReadMultisigRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
-			return "", err
+			return crypto.Hash{}, err
 		}
 		if req != nil {
 			if !slices.Contains(req.Signers, client.ClientID) {
 				_, err = SignMultisigUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, []string{client.ClientID}, su.SpendPrivateKey)
 				if err != nil {
-					return "", err
+					return crypto.Hash{}, err
 				}
 			}
 			time.Sleep(3 * time.Second)
@@ -130,7 +130,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 				time.Sleep(3 * time.Second)
 				continue
 			}
-			return "", err
+			return crypto.Hash{}, err
 		}
 	}
 }

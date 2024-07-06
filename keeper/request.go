@@ -52,7 +52,7 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 	if m == nil {
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
-	b := common.AESDecrypt(node.observerAESKey[:], []byte(m))
+	b := common.AESDecrypt(node.observerAESKey[:], m)
 	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
@@ -65,7 +65,7 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) 
 	if m == nil {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
-	b := common.AESDecrypt(node.signerAESKey[:], []byte(m))
+	b := common.AESDecrypt(node.signerAESKey[:], m)
 	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
@@ -79,7 +79,7 @@ func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
 		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
 	}
 	role := node.requestRole(out.AssetId)
-	return common.DecodeRequest(out, []byte(m), role)
+	return common.DecodeRequest(out, m, role)
 }
 
 func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
