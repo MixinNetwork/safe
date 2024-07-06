@@ -185,9 +185,10 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(mb, b)
 
 	_, assetId := node.ethereumParams(common.SafeChainPolygon)
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonKeeperDepositEntry, assetId, safe.Holder)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId, safeAssetId)
 	require.Nil(err)
-	require.Equal(int64(0), balance.Balance.Int64())
+	require.Equal(int64(0), balance.BigBalance().Int64())
 
 	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
 	require.Equal(int64(2), safe.Nonce)
@@ -230,13 +231,13 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	chainId := ethereum.GetEvmChainID(common.SafeChainPolygon)
 	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
 
-	safeBalances, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
+	safeBalances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
 	require.Nil(err)
 	var outputs []*ethereum.Output
 	for _, b := range safeBalances {
 		output := &ethereum.Output{
 			Destination:  testEthereumTransactionReceiver,
-			Amount:       b.Balance,
+			Amount:       b.BigBalance(),
 			TokenAddress: b.AssetAddress,
 		}
 		outputs = append(outputs, output)
@@ -507,9 +508,10 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
 
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
+	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonKeeperDepositEntry, assetId, holder)
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId, safeAssetId)
 	require.Nil(err)
-	require.Equal(int64(0), balance.Balance.Int64())
+	require.Equal(int64(0), balance.BigBalance().Int64())
 
 	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
 	require.Equal(int64(2), safe.Nonce)
@@ -681,9 +683,10 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
-	safeBalance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, assetId)
+	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonKeeperDepositEntry, assetId, holder)
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, assetId, safeAssetId)
 	require.Nil(err)
-	require.Equal(balance, safeBalance.Balance.String())
+	require.Equal(balance, safeBalance.BigBalance().String())
 }
 
 func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node, blockHeight int, blockHash string) {

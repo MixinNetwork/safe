@@ -729,7 +729,7 @@ func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) (map[string
 
 	assetBalance := make(map[string]*AssetBalance, 0)
 	for _, b := range bs {
-		amount := b.Balance
+		amount := b.BigBalance()
 		balance := pendingBalances[b.AssetId]
 		if balance != nil {
 			pending, _ := new(big.Int).SetString(balance.Amount, 10)
@@ -835,7 +835,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"migrated":      account.Migrated,
 		})
 	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
-		balances, err := node.keeperStore.ReadEthereumAllBalance(r.Context(), sp.Address)
+		balances, err := node.keeperStore.ReadAllEthereumTokenBalances(r.Context(), sp.Address)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return

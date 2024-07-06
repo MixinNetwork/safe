@@ -83,7 +83,7 @@ func (node *Node) deployPolygonBondAssets(ctx context.Context, safes []*store.Sa
 			}
 		case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
 			_, assetId := node.ethereumParams(safe.Chain)
-			balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
+			balances, err := node.keeperStore.ReadAllEthereumTokenBalances(ctx, safe.Address)
 			if err != nil {
 				return err
 			}
@@ -211,7 +211,7 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 		}
 		return true, false, nil
 	case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
-		balances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
+		balances, err := node.keeperStore.ReadAllEthereumTokenBalances(ctx, safe.Address)
 		if err != nil {
 			return false, false, err
 		}

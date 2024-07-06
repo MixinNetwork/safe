@@ -695,7 +695,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		}
 	}
 
-	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	rpc, _ := node.ethereumParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
@@ -718,30 +718,19 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	safeBalances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
-	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
+	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
-	} else if len(safeBalances) == 0 {
-		return fmt.Errorf("safe %s is has no balances", safe.Address)
 	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != len(safeBalances) {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(safeBalances))
+	if len(outputs) != len(sbm) {
+		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		b, err := node.keeperStore.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, safeBalances, err)
-		if err != nil {
-			return err
-		}
-		if b.Balance.Cmp(o.Amount) != 0 {
-			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
 		}
 	}
 
@@ -804,7 +793,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	}
 	signedRaw := st.Marshal()
 
-	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	rpc, _ := node.ethereumParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
@@ -827,30 +816,19 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	safeBalances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
-	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
+	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
-	} else if len(safeBalances) == 0 {
-		return fmt.Errorf("safe %s is has no balances", safe.Address)
 	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != len(safeBalances) {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(safeBalances))
+	if len(outputs) != len(sbm) {
+		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		b, err := node.keeperStore.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, safeBalances, err)
-		if err != nil {
-			return err
-		}
-		if b.Balance.Cmp(o.Amount) != 0 {
-			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
 		}
 	}
 

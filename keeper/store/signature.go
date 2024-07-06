@@ -151,8 +151,8 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		}
 	}
 	if transactionHasBalance(safe.Chain) {
-		for _, balance := range bm {
-			err = s.createOrUpdateEthereumBalance(ctx, tx, safe, balance.Balance, balance.AssetId, balance.SafeAssetId, balance.AssetAddress)
+		for _, sb := range bm {
+			err = s.createOrUpdateEthereumBalance(ctx, tx, sb)
 			if err != nil {
 				return err
 			}

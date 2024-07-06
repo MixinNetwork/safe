@@ -313,8 +313,8 @@ func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Tran
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	for _, balance := range bm {
-		err = s.createOrUpdateEthereumBalance(ctx, tx, safe, balance.Balance, balance.AssetId, balance.SafeAssetId, balance.AssetAddress)
+	for _, sb := range bm {
+		err = s.createOrUpdateEthereumBalance(ctx, tx, sb)
 		if err != nil {
 			return err
 		}

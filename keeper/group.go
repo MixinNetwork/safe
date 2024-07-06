@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -11,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
@@ -425,18 +427,14 @@ func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Req
 			panic(req.AssetId)
 		}
 	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
-		bs, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
+		bs, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
 		if err != nil {
 			return nil, "", err
 		}
-		matched := false
-		for _, balance := range bs {
-			if balance.SafeAssetId == req.AssetId {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		found := slices.IndexFunc(bs, func(sb *store.SafeBalance) bool {
+			return sb.SafeAssetId == req.AssetId
+		})
+		if found < 0 {
 			panic(req.AssetId)
 		}
 	}

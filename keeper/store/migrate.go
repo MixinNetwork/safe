@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -52,13 +51,10 @@ func (s *SQLite3Store) ReadUnmigratedEthereumAllBalance(ctx context.Context, add
 	var sbs []*SafeBalance
 	for rows.Next() {
 		var b SafeBalance
-		var bStr string
-		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &bStr, &b.LatestTxHash, &b.UpdatedAt)
+		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &b.balance, &b.LatestTxHash, &b.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
-		balance, _ := new(big.Int).SetString(bStr, 10)
-		b.Balance = balance
 		sbs = append(sbs, &b)
 	}
 	return sbs, nil

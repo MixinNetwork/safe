@@ -47,7 +47,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.failRequest(ctx, req, "")
 	}
 
-	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	rpc, _ := node.ethereumParams(safe.Chain)
 	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s) => %v %v", safe.Address, latestTxTime, err)
 	if err != nil {
@@ -94,41 +94,26 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.failRequest(ctx, req, "")
 	}
 
-	safeBalances, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
-	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
+	sbm, err := node.store.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return nil, "", err
 	}
-	if len(safeBalances) == 0 {
-		return node.failRequest(ctx, req, "")
-	}
 	outputs := t.ExtractOutputs()
-	if len(outputs) != len(safeBalances) {
+	if len(outputs) != len(sbm) {
 		return node.failRequest(ctx, req, "")
 	}
 
-	var destination string
+	destination := outputs[0].Destination
 	for i, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		if destination == "" {
-			destination = o.Destination
-		}
 		if destination != o.Destination {
 			logger.Printf("invalid close outputs destination: %d, %v", i, o)
 			return node.failRequest(ctx, req, "")
 		}
 
-		b, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, b, err)
-		if err != nil {
-			return nil, "", err
-		}
-		if b.Balance.Cmp(o.Amount) != 0 {
-			logger.Printf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			logger.Printf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
 			return node.failRequest(ctx, req, "")
 		}
 	}
@@ -609,13 +594,16 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if info == nil || info.Chain != safe.Chain {
 		return node.failRequest(ctx, req, "")
 	}
-	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, id.String())
+	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, id.String(), safeAssetId)
 	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, id.String(), balance, err)
 	if err != nil {
 		return nil, "", err
 	}
 	if ethereum.NormalizeAddress(balance.AssetAddress) != balance.AssetAddress {
 		panic(balance.AssetAddress)
+	}
+	if balance.SafeAssetId != req.AssetId {
+		panic(balance.SafeAssetId)
 	}
 	decimals := int32(ethereum.ValuePrecision)
 	if balance.AssetAddress != ethereum.EthereumEmptyAddress {
@@ -709,18 +697,18 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			logger.Printf("invalid recovery transaction outputs: %d", len(outputs))
 			return node.failRequest(ctx, req, "")
 		}
-		balances, err := node.store.ReadEthereumAllBalance(ctx, safe.Address)
-		logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, balances, err)
+		balances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
+		logger.Printf("store.ReadAllEthereumTokenBalances(%s) => %v %v", safe.Address, balances, err)
 		if err != nil {
 			return nil, "", err
 		}
 		for _, b := range balances {
-			if b.AssetId == balance.AssetId || b.Balance.Cmp(big.NewInt(0)) == 0 {
+			if b.AssetId == balance.AssetId || b.BigBalance().Cmp(big.NewInt(0)) == 0 {
 				continue
 			}
 			output := &ethereum.Output{
 				Destination:  string(extra[16:]),
-				Amount:       b.Balance,
+				Amount:       b.BigBalance(),
 				TokenAddress: b.AssetAddress,
 			}
 			outputs = append(outputs, output)
@@ -913,23 +901,14 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 		panic(err)
 	}
 
-	balanceMap := make(map[string]*store.SafeBalance)
+	sbm, err := node.store.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	if err != nil {
+		return nil, "", err
+	}
 	outputs := st.ExtractOutputs()
-	_, ethereumAssetId := node.ethereumParams(safe.Chain)
 	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-		if _, ok := balanceMap[assetId]; !ok {
-			balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-			logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
-			if err != nil {
-				return nil, "", err
-			}
-			balanceMap[assetId] = balance
-		}
-		balanceMap[assetId].Balance = new(big.Int).Add(balanceMap[assetId].Balance, o.Amount)
+		sbm[o.TokenAddress].UpdateBalance(o.Amount)
 	}
 
 	txRequest, err := node.store.ReadRequest(ctx, tx.RequestId)
@@ -955,7 +934,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 		return node.failRequest(ctx, req, txRequest.AssetId)
 	}
 
-	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, balanceMap)
+	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, sbm)
 	logger.Printf("store.FailTransactionWithRequest(%v %v %v) => %v", tx, safe, req, err)
 	if err != nil {
 		return nil, "", err
@@ -1059,29 +1038,19 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return txs, "", nil
 	}
 
-	_, ethereumAssetId := node.ethereumParams(safe.Chain)
-	balanceMap := make(map[string]*store.SafeBalance)
+	sbm, err := node.store.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	if err != nil {
+		return nil, "", err
+	}
 	outputs := t.ExtractOutputs()
 	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		if _, ok := balanceMap[assetId]; !ok {
-			balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, assetId)
-			logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, assetId, balance, err)
-			if err != nil {
-				return nil, "", err
-			}
-			balanceMap[assetId] = balance
-		}
-		closeBalance := big.NewInt(0).Sub(balanceMap[assetId].Balance, o.Amount)
+		closeBalance := big.NewInt(0).Sub(sbm[o.TokenAddress].BigBalance(), o.Amount)
 		if closeBalance.Cmp(big.NewInt(0)) < 0 {
 			logger.Printf("safe %s close balance %d lower than 0", safe.Address, closeBalance)
 			return node.failRequest(ctx, req, "")
 		}
-		balanceMap[assetId].Balance = closeBalance
+		sbm[o.TokenAddress].UpdateBalance(new(big.Int).Neg(o.Amount))
 	}
 
 	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(t.Marshal())))
@@ -1099,7 +1068,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 	txs = append(txs, tt)
 
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, balanceMap)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, sbm)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	if err != nil {
 		return nil, "", err

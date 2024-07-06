@@ -471,6 +471,9 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if safe.State != SafeStateApproved {
 		return node.failRequest(ctx, req, "")
 	}
+	if safe.SafeAssetId != req.AssetId {
+		return node.failRequest(ctx, req, "")
+	}
 
 	assetId := common.SafeBitcoinChainId
 	switch safe.Chain {
