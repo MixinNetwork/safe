@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"slices"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -86,21 +87,16 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	}
 
 	entry := node.fetchBondAssetReceiver(ctx, safe.Address, deposit.Asset)
-	bondId, _, bondChain, err := node.getBondAsset(ctx, entry, deposit.Asset, req.Holder)
-	logger.Printf("node.getBondAsset(%s %s) => %s %d %v", deposit.Asset, req.Holder, bondId, bondChain, err)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.getBondAsset(%s, %s) => %v", deposit.Asset, req.Holder, err)
-	}
+	safeAssetId := node.getBondAssetId(ctx, entry, deposit.Asset, req.Holder)
+	logger.Printf("node.getBondAssetId(%s %s) => %s", deposit.Asset, req.Holder, safeAssetId)
+	bondId := crypto.Sha256Hash([]byte(safeAssetId))
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
 	logger.Printf("node.fetchAssetMeta(%v, %s) => %v %v", req, bondId.String(), bond, err)
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
 	}
-	if bond.Chain != bondChain {
+	if bond.Decimals != 18 {
 		panic(bond.AssetId)
-	}
-	if bond == nil || bond.Decimals != 18 {
-		return node.failRequest(ctx, req, "")
 	}
 	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, deposit.Asset, deposit.AssetAddress, deposit.Chain)
 	if err != nil {

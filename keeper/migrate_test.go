@@ -40,8 +40,7 @@ func TestKeeperMigration(t *testing.T) {
 	require.Nil(err)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	_, asset, _, err := node.getBondAsset(ctx, node.conf.PolygonObserverDepositEntry, common.SafePolygonChainId, holder)
-	require.Nil(err)
+	asset := node.getBondAssetId(ctx, node.conf.PolygonObserverDepositEntry, common.SafePolygonChainId, holder)
 	out := testBuildObserverMigrateRequest(node, id, holder, common.ActionMigrateSafeToken, gc.HexToAddress(testObserverDepositEntry).Bytes(), common.CurveSecp256k1ECDSAEthereum, asset)
 	testStep(ctx, require, node, out)
 

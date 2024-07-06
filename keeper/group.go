@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -350,10 +351,8 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 
 	entry := node.fetchBondAssetReceiver(ctx, safe.Address, tx.AssetId)
-	bondId, _, _, err := node.getBondAsset(ctx, entry, tx.AssetId, tx.Holder)
-	if err != nil || !bondId.HasValue() {
-		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %s %v", tx.AssetId, tx.Holder, bondId.String(), err)
-	}
+	safeAssetId := node.getBondAssetId(ctx, entry, tx.AssetId, tx.Holder)
+	bondId := crypto.Sha256Hash([]byte(safeAssetId))
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
 	logger.Printf("node.fetchAssetMeta(%v, %s) => %v %v", req, bondId.String(), bond, err)
 	if err != nil {

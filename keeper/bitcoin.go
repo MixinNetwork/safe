@@ -383,11 +383,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 	}
 	chain := common.SafeCurveChain(req.Curve)
 	_, assetId := node.bitcoinParams(chain)
-
-	a, _, _, err := node.getBondAsset(ctx, node.conf.PolygonKeeperDepositEntry, assetId, req.Holder)
-	if err != nil || !a.HasValue() {
-		return nil, "", fmt.Errorf("node.getBondAsset(%s) => %v %v", req.Holder, a, err)
-	}
+	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonKeeperDepositEntry, assetId, req.Holder)
 
 	extra := req.ExtraBytes()
 	if len(extra) < 64 {
@@ -434,11 +430,6 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		return node.failRequest(ctx, req, spr.AssetId)
 	}
 	txs = append(txs, t)
-
-	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonKeeperDepositEntry, assetId, sp.Holder)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.getBondAsset(%s %s) => %v", assetId, sp.Holder, err)
-	}
 
 	safe := &store.Safe{
 		Holder:      sp.Holder,
@@ -520,12 +511,9 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	entry := node.fetchBondAssetReceiver(ctx, safe.Address, id.String())
-	bondId, _, _, err := node.getBondAsset(ctx, entry, id.String(), req.Holder)
-	logger.Printf("node.getBondAsset(%s, %s) => %s %v", id.String(), req.Holder, bondId, err)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.getBondAsset(%s, %s) => %v", id.String(), req.Holder, err)
-	}
-	if crypto.Sha256Hash([]byte(req.AssetId)) != bondId {
+	safeAssetId := node.getBondAssetId(ctx, entry, id.String(), req.Holder)
+	logger.Printf("node.getBondAssetId(%s, %s) => %s", id.String(), req.Holder, safeAssetId)
+	if req.AssetId != safeAssetId {
 		return node.failRequest(ctx, req, "")
 	}
 

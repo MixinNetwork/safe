@@ -139,10 +139,7 @@ func (node *Node) safeUser() bot.SafeUser {
 }
 
 func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId string) (*store.MigrateAsset, error) {
-	_, safeAssetId, _, err := node.getBondAsset(ctx, node.conf.PolygonObserverDepositEntry, assetId, safe.Holder)
-	if err != nil {
-		return nil, err
-	}
+	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonObserverDepositEntry, assetId, safe.Holder)
 	return &store.MigrateAsset{
 		Chain:       safe.Chain,
 		Address:     safe.Address,

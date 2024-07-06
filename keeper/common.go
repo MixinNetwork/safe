@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -67,19 +66,19 @@ func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId s
 	return node.conf.PolygonKeeperDepositEntry
 }
 
-func (node *Node) getBondAsset(ctx context.Context, entry, assetId, holder string) (crypto.Hash, string, byte, error) {
+func (node *Node) getBondAssetId(ctx context.Context, entry, assetId, holder string) string {
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
-		return crypto.Hash{}, "", 0, err
+		panic(err)
 	}
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
-		return crypto.Hash{}, "", 0, err
+		panic(assetKey)
 	}
 	safeAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
-	return crypto.Sha256Hash([]byte(safeAssetId)), safeAssetId, common.SafeChainPolygon, nil
+	return safeAssetId
 }
 
 func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {
