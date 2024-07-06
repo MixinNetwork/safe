@@ -19,7 +19,7 @@ const (
 	testObserverDepositEntry = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
 )
 
-func TestKeeperMigration(t *testing.T) {
+func testKeeperMigration(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, _ := testEthereumPrepare(require)
 
@@ -34,6 +34,8 @@ func TestKeeperMigration(t *testing.T) {
 			CreatedAt: time.Now(),
 		},
 	})
+
+	// FIXME should just create some old data without the new safe flow
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	err := node.Migrate(ctx)

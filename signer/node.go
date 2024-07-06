@@ -492,13 +492,9 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerPrepareTransaction(%v) omitted %x", op, extra))
 	}
-	members := node.conf.MTG.Genesis.Members
-	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", op.Id, string(node.id))
-	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 
-	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
-	return err
+	return node.sendTransactionToSignerGroupUntilSufficient(ctx, extra, traceId)
 }
 
 func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Operation) error {
@@ -506,16 +502,17 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
 	}
-	members := node.conf.MTG.Genesis.Members
-	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
-	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 
-	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
-	return err
+	return node.sendTransactionToSignerGroupUntilSufficient(ctx, extra, traceId)
 }
 
-func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo []byte, traceId string) error {
+func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Context, memo []byte, traceId string) error {
+	receivers := node.conf.MTG.Genesis.Members
+	threshold := node.conf.MTG.Genesis.Threshold
+	amount := decimal.NewFromInt(1)
+	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
+
 	if common.CheckTestEnvironment(ctx) {
 		out := &mtg.Action{
 			UnifiedOutput: mtg.UnifiedOutput{
@@ -531,6 +528,6 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 		return network.QueueMTGOutput(ctx, data)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, m, node.conf.MTG.App.SpendPrivateKey)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, node.conf.MTG.App.SpendPrivateKey)
 	return err
 }

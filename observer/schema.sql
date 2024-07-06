@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS observers (
 
 
 
-
+/* FIXME use migrated_at and approved_at */
 CREATE TABLE IF NOT EXISTS accounts (
   address       VARCHAR NOT NULL,
   created_at    TIMESTAMP NOT NULL,
