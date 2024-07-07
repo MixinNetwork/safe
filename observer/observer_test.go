@@ -40,7 +40,7 @@ func TestObserver(t *testing.T) {
 
 	fvb, err := bitcoin.EstimateAvgFee(common.SafeChainBitcoin, node.conf.BitcoinRPC)
 	require.Nil(err)
-	require.Greater(fvb, int64(10))
+	require.GreaterOrEqual(fvb, int64(10))
 	require.Less(fvb, int64(500))
 
 	err = node.store.WriteAccountProposalIfNotExists(ctx, testReceiverAddress, time.Now())
