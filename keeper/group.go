@@ -100,9 +100,6 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if common.CheckTestEnvironment(ctx) {
 		return false, nil
 	}
-	if node.checkGroupChangeTransaction(ctx, out) {
-		return false, nil
-	}
 
 	meta, err := node.fetchAssetMeta(ctx, out.AssetId)
 	if err != nil {
@@ -135,22 +132,6 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 		panic(err)
 	}
 	return true, nil
-}
-
-func (node *Node) checkGroupChangeTransaction(ctx context.Context, output *mtg.Action) bool {
-	// FIXME should mtg pass change output as action to the app?
-	a, m := mtg.DecodeMixinExtraHEX(output.Extra)
-	if a != node.conf.AppId {
-		panic(output.Extra)
-	}
-	if m == nil {
-		return false
-	}
-	if output.OutputIndex != 1 {
-		return false
-	}
-	inputs := node.group.ListOutputsForTransaction(ctx, output.TraceId, output.Sequence)
-	return len(inputs) > 0
 }
 
 func (node *Node) timestamp(ctx context.Context) (uint64, error) {
