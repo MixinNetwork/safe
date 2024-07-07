@@ -24,13 +24,10 @@ type Configuration struct {
 	BitcoinRPC                  string `toml:"bitcoin-rpc"`
 	LitecoinRPC                 string `toml:"litecoin-rpc"`
 	EthereumRPC                 string `toml:"ethereum-rpc"`
-	MVMRPC                      string `toml:"mvm-rpc"`
 	PolygonRPC                  string `toml:"polygon-rpc"`
-	MVMFactoryAddress           string `toml:"mvm-factory-address"`
 	PolygonFactoryAddress       string `toml:"polygon-factory-address"`
 	PolygonObserverDepositEntry string `toml:"polygon-observer-deposit-entry"`
 	PolygonKeeperDepositEntry   string `toml:"polygon-keeper-deposit-entry"`
-	MVMKey                      string `toml:"mvm-key"`
 	EVMKey                      string `toml:"evm-key"`
 	App                         struct {
 		AppId             string `toml:"app-id"`

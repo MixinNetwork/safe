@@ -84,8 +84,6 @@ func (node *Node) ethereumParams(chain byte) (string, string) {
 	switch chain {
 	case common.SafeChainEthereum:
 		return node.conf.EthereumRPC, common.SafeEthereumChainId
-	case common.SafeChainMVM:
-		return node.conf.MVMRPC, common.SafeMVMChainId
 	case common.SafeChainPolygon:
 		return node.conf.PolygonRPC, common.SafePolygonChainId
 	default:
