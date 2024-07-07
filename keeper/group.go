@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"slices"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -12,9 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -170,7 +167,7 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 	case common.ActionObserverSetOperationParams:
 		return node.writeOperationParams(ctx, req)
 	case common.ActionMigrateSafeToken:
-		return node.processSafeTokenMigration(ctx, req)
+		return node.checkSafeTokenMigration(ctx, req)
 	case common.ActionBitcoinSafeProposeAccount:
 		return node.processBitcoinSafeProposeAccount(ctx, req)
 	case common.ActionBitcoinSafeApproveAccount:
@@ -358,73 +355,4 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 
 	return []*mtg.Transaction{t}, "", nil
-}
-
-func (node *Node) processSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
-	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
-	if err != nil {
-		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
-	}
-	if meta.Chain != common.SafeChainPolygon {
-		logger.Printf("invalid meta asset chain: %d", meta.Chain)
-		return node.failRequest(ctx, req, "")
-	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
-	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil {
-		return nil, "", fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
-	}
-	if deployed.Sign() <= 0 {
-		return node.failRequest(ctx, req, "")
-	}
-
-	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
-	_, err = node.fetchAssetMeta(ctx, id.String())
-	if err != nil {
-		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
-	}
-	if !common.CheckTestEnvironment(ctx) {
-		spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, req.AssetId, math.MaxInt64, "spent", 1)
-		logger.Printf("group.ListOutputsForAsset(%s) => %d", req.AssetId, len(spent))
-		if len(spent) > 0 {
-			return node.failRequest(ctx, req, "")
-		}
-	}
-
-	extra := req.ExtraBytes()
-	if len(extra) != 20 {
-		return node.failRequest(ctx, req, "")
-	}
-	receiver := gc.BytesToAddress(extra).String()
-	if receiver != node.conf.PolygonObserverDepositEntry {
-		panic(receiver)
-	}
-
-	safe, err := node.store.ReadSafe(ctx, req.Holder)
-	logger.Printf("store.ReadSafe(%s) => %v %v", req.Holder, safe, err)
-	if err != nil {
-		return nil, "", err
-	}
-	if safe == nil || safe.State != common.RequestStateDone {
-		return node.failRequest(ctx, req, "")
-	}
-	switch safe.Chain {
-	case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		if safe.SafeAssetId != req.AssetId {
-			panic(req.AssetId)
-		}
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
-		bs, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
-		if err != nil {
-			return nil, "", err
-		}
-		found := slices.IndexFunc(bs, func(sb *store.SafeBalance) bool {
-			return sb.SafeAssetId == req.AssetId
-		})
-		if found < 0 {
-			panic(req.AssetId)
-		}
-	}
-
-	return node.failRequest(ctx, req, "")
 }
