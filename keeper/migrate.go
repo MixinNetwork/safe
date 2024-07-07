@@ -35,7 +35,7 @@ func (node *Node) Migrate(ctx context.Context) error {
 
 		switch safe.Chain {
 		case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
-			bs, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
+			bs, err := node.store.ReadUnmigratedEthereumAllBalance(ctx, safe.Address)
 			if err != nil {
 				return err
 			}

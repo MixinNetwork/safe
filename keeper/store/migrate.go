@@ -34,6 +34,32 @@ func (s *SQLite3Store) ListUnmigratedSafesWithState(ctx context.Context) ([]*Saf
 	return safes, nil
 }
 
+func (s *SQLite3Store) ReadUnmigratedEthereumAllBalance(ctx context.Context, address string) ([]*SafeBalance, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	query := "SELECT address,asset_id,asset_address,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
+	rows, err := s.db.QueryContext(ctx, query, address)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sbs []*SafeBalance
+	for rows.Next() {
+		var b SafeBalance
+		err = rows.Scan(&b.Address, &b.AssetId, &b.AssetAddress, &b.balance, &b.LatestTxHash, &b.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		sbs = append(sbs, &b)
+	}
+	return sbs, nil
+}
+
 // FIXME remove this
 func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 	s.mutex.Lock()

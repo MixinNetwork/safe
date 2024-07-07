@@ -217,7 +217,7 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 			continue
 		}
 		_, m := mtg.DecodeMixinExtraHEX(val)
-		b := common.AESDecrypt(node.aesKey[:], []byte(m))
+		b := common.AESDecrypt(node.aesKey[:], m)
 		op, _ := common.DecodeOperation(b)
 		if op != nil {
 			return op
