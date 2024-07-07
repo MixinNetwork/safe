@@ -302,14 +302,14 @@ curl https://observer.mixin.one/transactions/36c2075c-5af0-4593-b156-e72f58f9f42
   -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5"}'
 ```
 
-Once the transaction approval has succeeded, we will need to transfer 20pUSD to the observer(c91eb626-eb89-4fbd-ae21-76f0bd763da5), using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
+Once the transaction approval has succeeded, we will need to transfer 20pUSD to Mixin Safe Observer node(c91eb626-eb89-4fbd-ae21-76f0bd763da5), using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
 
 https://blockstream.info/tx/0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f?expand
 
 
 ## Custom Recovery Key
 
-It's possible to have your own recovery key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your recovery public key and a chain code according to Bitcoin extended public key specification. Then add this key to the recovery(c91eb626-eb89-4fbd-ae21-76f0bd763da5) by transferring 100pUSD, and the memo should be:
+It's possible to have your own recovery key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your recovery public key and a chain code according to Bitcoin extended public key specification. Then add this key to Mixin Safe Observer node(c91eb626-eb89-4fbd-ae21-76f0bd763da5) by transferring 100pUSD, and the memo should be:
 
 ```golang
 const CurveSecp256k1ECDSABitcoin = 1
