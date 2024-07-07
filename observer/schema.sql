@@ -48,13 +48,14 @@ CREATE TABLE IF NOT EXISTS observers (
 
 
 
-/* FIXME use migrated_at and approved_at */
 CREATE TABLE IF NOT EXISTS accounts (
   address       VARCHAR NOT NULL,
   created_at    TIMESTAMP NOT NULL,
   migrated      BOOLEAN,
+  migrated_at   TIMESTAMP NOT NULL,
   approved      BOOLEAN,
   signature     VARCHAR,
+  approved_at   TIMESTAMP NOT NULL,
   PRIMARY KEY ('address')
 );
 

@@ -298,14 +298,16 @@ func (s *SQLite3Store) UpdateDb(ctx context.Context) error {
 	}
 
 	query := "ALTER TABLE accounts ADD COLUMN migrated BOOLEAN;\n"
+	query = query + "ALTER TABLE accounts ADD COLUMN migrated_at TIMESTAMP;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN approved BOOLEAN;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
+	query = query + "ALTER TABLE accounts ADD COLUMN approved_at TIMESTAMP;\n"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.ExecContext(ctx, "UPDATE accounts SET migrated=?, approved=?, signature=?", false, false, "")
+	_, err = tx.ExecContext(ctx, "UPDATE accounts SET migrated=?, migrated_at=?, approved=?, signature=?, approved_at=?", false, time.Time{}, false, "", time.Time{})
 	if err != nil {
 		return err
 	}

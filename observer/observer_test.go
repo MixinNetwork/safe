@@ -50,6 +50,8 @@ func TestObserver(t *testing.T) {
 	require.GreaterOrEqual(fvb, int64(10))
 	require.Less(fvb, int64(500))
 
+	now := time.Now().UTC()
+
 	err = node.store.WriteAccountProposalIfNotExists(ctx, testReceiverAddress, time.Now())
 	require.Nil(err)
 	f, err := node.store.CheckAccountProposed(ctx, testReceiverAddress)
@@ -70,6 +72,9 @@ func TestObserver(t *testing.T) {
 	require.Len(as, 1)
 	err = node.store.MarkAccountApproved(ctx, testReceiverAddress)
 	require.Nil(err)
+	a, err = node.store.ReadAccount(ctx, testReceiverAddress)
+	require.Nil(err)
+	require.True(a.ApprovedAt.After(now))
 	as, err = node.store.ListProposedAccountsWithSig(ctx)
 	require.Nil(err)
 	require.Len(as, 0)
