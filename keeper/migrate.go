@@ -116,7 +116,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 		found := slices.IndexFunc(bs, func(sb *store.SafeBalance) bool {
 			return sb.SafeAssetId == req.AssetId
 		})
-		if found < 0 {
+		if found < 0 && req.AssetId != safe.SafeAssetId {
 			panic(req.AssetId)
 		}
 	}
