@@ -297,17 +297,10 @@ func (s *SQLite3Store) UpdateDb(ctx context.Context) error {
 		return err
 	}
 
-	query := "ALTER TABLE accounts ADD COLUMN migrated BOOLEAN;\n"
-	query = query + "ALTER TABLE accounts ADD COLUMN migrated_at TIMESTAMP;\n"
-	query = query + "ALTER TABLE accounts ADD COLUMN approved BOOLEAN;\n"
-	query = query + "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
+	query := "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN approved_at TIMESTAMP;\n"
+	query = query + "ALTER TABLE accounts ADD COLUMN migrated_at TIMESTAMP;\n"
 	_, err = tx.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE accounts SET migrated=?, migrated_at=?, approved=?, signature=?, approved_at=?", false, time.Time{}, false, "", time.Time{})
 	if err != nil {
 		return err
 	}
@@ -343,7 +336,7 @@ func (node *Node) migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if !acc.Migrated {
+		if !acc.MigratedAt.Valid {
 			unmigrated = append(unmigrated, safe)
 		}
 	}

@@ -775,11 +775,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		common.RenderError(w, r, err)
 		return
 	}
-	account, err := node.store.ReadAccount(ctx, sp.Address)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
 	safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
 	if err != nil {
 		common.RenderError(w, r, err)
@@ -820,7 +815,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"keys":          node.viewSafeXPubs(r.Context(), sp),
 			"safe_asset_id": safeAssetId,
 			"state":         status,
-			"migrated":      account.Migrated,
 		})
 	case common.SafeChainPolygon, common.SafeChainEthereum:
 		balances, err := node.keeperStore.ReadAllEthereumTokenBalances(r.Context(), sp.Address)
@@ -848,7 +842,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"keys":           node.viewSafeXPubs(r.Context(), sp),
 			"safe_asset_id":  safeAssetId,
 			"state":          status,
-			"migrated":       account.Migrated,
 		})
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})

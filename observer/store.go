@@ -18,11 +18,9 @@ import (
 type Account struct {
 	Address    string
 	CreatedAt  time.Time
-	Migrated   bool
-	MigratedAt time.Time
-	Approved   bool
-	Signature  string
-	ApprovedAt time.Time
+	Signature  sql.NullString
+	ApprovedAt sql.NullTime
+	MigratedAt sql.NullTime
 }
 
 type Asset struct {
@@ -90,7 +88,7 @@ type Recovery struct {
 	UpdatedAt       time.Time
 }
 
-var accountCols = []string{"address", "created_at", "migrated", "migrated_at", "approved", "signature", "approved_at"}
+var accountCols = []string{"address", "created_at", "signature", "approved_at", "migrated_at"}
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
@@ -193,7 +191,7 @@ func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, addr
 		return err
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, true, createdAt, false, "", time.Time{})
+	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, sql.NullString{}, sql.NullTime{}, createdAt)
 	if err != nil {
 		return fmt.Errorf("INSERT accounts %v", err)
 	}
@@ -212,11 +210,21 @@ func (s *SQLite3Store) CheckAccountProposed(ctx context.Context, addr string) (b
 }
 
 func (s *SQLite3Store) ReadAccount(ctx context.Context, addr string) (*Account, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	return s.readAccount(ctx, tx, addr)
+}
+
+func (s *SQLite3Store) readAccount(ctx context.Context, txn *sql.Tx, addr string) (*Account, error) {
 	query := fmt.Sprintf("SELECT %s FROM accounts WHERE address=?", strings.Join(accountCols, ","))
-	row := s.db.QueryRowContext(ctx, query, addr)
+	row := txn.QueryRowContext(ctx, query, addr)
 
 	var a Account
-	err := row.Scan(&a.Address, &a.CreatedAt, &a.Migrated, &a.MigratedAt, &a.Approved, &a.Signature, &a.ApprovedAt)
+	err := row.Scan(&a.Address, &a.CreatedAt, &a.Signature, &a.ApprovedAt, &a.MigratedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -233,14 +241,14 @@ func (s *SQLite3Store) SaveAccountApprovalSignature(ctx context.Context, addr, s
 	}
 	defer tx.Rollback()
 
-	old, err := s.ReadAccount(ctx, addr)
+	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
 		return err
 	}
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.Approved || old.Signature != "" {
+	if old.ApprovedAt.Valid || old.Signature.Valid {
 		return nil
 	}
 
@@ -263,18 +271,18 @@ func (s *SQLite3Store) MarkAccountApproved(ctx context.Context, addr string) err
 	}
 	defer tx.Rollback()
 
-	old, err := s.ReadAccount(ctx, addr)
+	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
 		return err
 	}
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.Approved {
+	if old.ApprovedAt.Valid {
 		return nil
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE accounts SET approved=?, approved_at=? WHERE address=?", true, time.Now().UTC(), addr)
+	err = s.execOne(ctx, tx, "UPDATE accounts SET approved_at=? WHERE address=?", time.Now().UTC(), addr)
 	if err != nil {
 		return fmt.Errorf("UPDATE accounts %v", err)
 	}
@@ -292,18 +300,18 @@ func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) err
 	}
 	defer tx.Rollback()
 
-	old, err := s.ReadAccount(ctx, addr)
+	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
 		return err
 	}
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.Migrated {
+	if old.MigratedAt.Valid {
 		return nil
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE accounts SET migrated=?, migrated_at=? WHERE address=?", true, time.Now().UTC(), addr)
+	err = s.execOne(ctx, tx, "UPDATE accounts SET migrated_at=? WHERE address=?", time.Now().UTC(), addr)
 	if err != nil {
 		return fmt.Errorf("UPDATE accounts %v", err)
 	}
@@ -312,8 +320,8 @@ func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) err
 }
 
 func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Account, error) {
-	query := fmt.Sprintf("SELECT %s FROM accounts WHERE approved=? AND signature!=? ORDER BY created_at ASC LIMIT 100", strings.Join(accountCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, false, "")
+	query := fmt.Sprintf("SELECT %s FROM accounts WHERE approved_at IS NULL AND signature IS NOT NULL ORDER BY created_at ASC LIMIT 100", strings.Join(accountCols, ","))
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +330,7 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 	var accounts []*Account
 	for rows.Next() {
 		var a Account
-		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Migrated, &a.MigratedAt, &a.Approved, &a.Signature, &a.ApprovedAt)
+		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Signature, &a.ApprovedAt, &a.ApprovedAt)
 		if err != nil {
 			return nil, err
 		}

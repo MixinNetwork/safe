@@ -156,7 +156,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			id := common.UniqueId(account.Address, account.Signature)
+			id := common.UniqueId(account.Address, account.Signature.String)
 			rid := uuid.Must(uuid.FromString(sp.RequestId))
 
 			var extra []byte
@@ -165,7 +165,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			switch sp.Chain {
 			case common.SafeChainBitcoin, common.SafeChainLitecoin:
 				_, assetId = node.bitcoinParams(sp.Chain)
-				sig, err := base64.RawURLEncoding.DecodeString(account.Signature)
+				sig, err := base64.RawURLEncoding.DecodeString(account.Signature.String)
 				if err != nil {
 					panic(err)
 				}
@@ -173,7 +173,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				extra = append(rid.Bytes(), sig...)
 			case common.SafeChainPolygon, common.SafeChainEthereum:
 				_, assetId = node.ethereumParams(sp.Chain)
-				sig, err := hex.DecodeString(account.Signature)
+				sig, err := hex.DecodeString(account.Signature.String)
 				if err != nil {
 					panic(err)
 				}
