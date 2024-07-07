@@ -278,7 +278,8 @@ func (node *Node) distributePolygonBondAssets(ctx context.Context, safes []*stor
 	}
 }
 
-func (s *SQLite3Store) UpdateDb(ctx context.Context) error {
+// FIXME remove this
+func (s *SQLite3Store) MigrateDB(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -314,13 +315,7 @@ func (s *SQLite3Store) UpdateDb(ctx context.Context) error {
 	return tx.Commit()
 }
 
-func (node *Node) migrate(ctx context.Context) error {
-	err := node.store.UpdateDb(ctx)
-	if err != nil {
-		return err
-	}
-	time.Sleep(10 * time.Second)
-
+func (node *Node) MigrateSafeAssets(ctx context.Context) error {
 	entry := node.conf.PolygonObserverDepositEntry
 	safes, err := node.keeperStore.ListSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
