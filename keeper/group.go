@@ -19,7 +19,15 @@ import (
 )
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	_, err := node.handleBondAsset(ctx, out)
+	isDeposit, err := node.verifyKernelTransaction(ctx, out)
+	if err != nil {
+		panic(err)
+	}
+	if isDeposit {
+		return nil, ""
+	}
+
+	_, err = node.handleBondAsset(ctx, out)
 	if err != nil {
 		panic(err)
 	}
@@ -30,16 +38,18 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		return nil, ""
 	}
 
+	// TODO use this to make mtg ProcessOutput consistent with retry
+	// txs, assetId, done := node.store.ReadRequestTransactions(ctx, req)
+	// if done {
+	//   return txs, assetId
+	// }
+	// then processRequest should always write txs in store
+
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
 		return nil, ""
 	}
 
-	// FIXME this blocks the main group loop
-	err = node.verifyKernelTransaction(ctx, out)
-	if err != nil {
-		panic(err)
-	}
 	err = req.VerifyFormat()
 	if err != nil {
 		panic(err)
@@ -127,10 +137,6 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 		return false, nil
 	}
 
-	err = node.verifyKernelTransaction(ctx, out)
-	if err != nil {
-		panic(err)
-	}
 	return true, nil
 }
 

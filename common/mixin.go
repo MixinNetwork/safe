@@ -23,14 +23,14 @@ import (
 
 // TODO the output should include the snapshot signature, then it can just be
 // verified against the active kernel nodes public key
-func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration) error {
+func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration) (*common.VersionedTransaction, error) {
 	hash, err := crypto.HashFromString(out.TransactionHash)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	signed, err := ReadKernelTransaction(rpc, hash)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger.Printf("common.readKernelTransaction(%s) => %v %v", out.TransactionHash, signed, err)
 
@@ -38,23 +38,23 @@ func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration)
 		time.Sleep(5 * time.Second)
 		return VerifyKernelTransaction(rpc, out, timeout)
 	} else if err != nil || signed == nil {
-		return fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
+		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
 	}
 
 	if !strings.Contains(string(signed.Extra), out.Extra) && !strings.Contains(hex.EncodeToString(signed.Extra), out.Extra) {
-		return fmt.Errorf("common.VerifyKernelTransaction(%v) memo mismatch %x", out, signed.Extra)
+		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) memo mismatch %x", out, signed.Extra)
 	}
 	if signed.Asset != crypto.Sha256Hash([]byte(out.AssetId)) {
-		return fmt.Errorf("common.VerifyKernelTransaction(%v) asset mismatch %s", out, signed.Asset)
+		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) asset mismatch %s", out, signed.Asset)
 	}
 	if len(signed.Outputs) < out.OutputIndex+1 {
-		return fmt.Errorf("common.VerifyKernelTransaction(%v) output mismatch %d", out, len(signed.Outputs))
+		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) output mismatch %d", out, len(signed.Outputs))
 	}
 	if a, _ := decimal.NewFromString(signed.Outputs[out.OutputIndex].Amount.String()); !a.Equal(out.Amount) {
-		return fmt.Errorf("common.VerifyKernelTransaction(%v) amount mismatch %s", out, a)
+		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) amount mismatch %s", out, a)
 	}
 
-	return nil
+	return signed, nil
 }
 
 func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) ([]*mixin.SafeUtxo, bool) {

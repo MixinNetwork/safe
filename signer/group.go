@@ -67,6 +67,13 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	isDeposit, err := node.verifyKernelTransaction(ctx, out)
+	if err != nil {
+		panic(err)
+	}
+	if isDeposit {
+		return nil, ""
+	}
 	switch out.AssetId {
 	case node.conf.KeeperAssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
@@ -76,10 +83,6 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
 		if err != nil {
 			return nil, ""
-		}
-		err = node.verifyKernelTransaction(ctx, out)
-		if err != nil {
-			panic(err)
 		}
 		needsCommittment := op.Type == common.OperationTypeSignInput
 		hash, err := crypto.HashFromString(out.TransactionHash)
@@ -526,12 +529,16 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	return err
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {
+func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) (bool, error) {
 	if common.CheckTestEnvironment(ctx) {
-		return nil
+		return false, nil
 	}
 
-	return common.VerifyKernelTransaction(node.conf.MixinRPC, out, KernelTimeout)
+	ver, err := common.VerifyKernelTransaction(node.conf.MixinRPC, out, KernelTimeout)
+	if err != nil {
+		return false, err
+	}
+	return ver.DepositData() != nil, nil
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {

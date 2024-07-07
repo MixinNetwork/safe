@@ -121,11 +121,15 @@ func (node *Node) checkTransaction(ctx context.Context, sequence uint64, assetId
 	return common.UniqueId(node.group.GenesisId(), traceId)
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) error {
+func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) (bool, error) {
 	if common.CheckTestEnvironment(ctx) {
-		return nil
+		return false, nil
 	}
-	return common.VerifyKernelTransaction(node.conf.MixinRPC, out, time.Minute)
+	ver, err := common.VerifyKernelTransaction(node.conf.MixinRPC, out, time.Minute)
+	if err != nil {
+		return false, err
+	}
+	return ver.DepositData() != nil, nil
 }
 
 func (node *Node) safeUser() bot.SafeUser {
