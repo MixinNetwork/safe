@@ -9,11 +9,11 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) sendObserverResponseWithReferences(ctx context.Context, id string, sequence uint64, typ, crv byte, storageTraceId string) *mtg.Transaction {
-	return node.sendObserverResponseWithAssetAndReferences(ctx, id, sequence, typ, crv, node.conf.ObserverAssetId, "1", storageTraceId)
+func (node *Node) buildObserverResponseWithStorageTraceId(ctx context.Context, id string, sequence uint64, typ, crv byte, storageTraceId string) *mtg.Transaction {
+	return node.buildObserverResponseWithAssetAndStorageTraceId(ctx, id, sequence, typ, crv, node.conf.ObserverAssetId, "1", storageTraceId)
 }
 
-func (node *Node) sendObserverResponseWithAssetAndReferences(ctx context.Context, id string, sequence uint64, typ, crv byte, assetId, amount, storageTraceId string) *mtg.Transaction {
+func (node *Node) buildObserverResponseWithAssetAndStorageTraceId(ctx context.Context, id string, sequence uint64, typ, crv byte, assetId, amount, storageTraceId string) *mtg.Transaction {
 	op := &common.Operation{
 		Type:  typ,
 		Id:    id,

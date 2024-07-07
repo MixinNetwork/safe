@@ -248,7 +248,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	id := common.UniqueId(tx.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := common.SafeChainCurve(safe.Chain)
-	t := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
+	t := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
 		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
 	}
@@ -256,11 +256,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
 	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return txs, "", nil
+	return txs, "", err
 }
 
 func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -343,7 +339,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 
 	typ := byte(common.ActionBitcoinSafeProposeAccount)
 	crv := common.SafeChainCurve(chain)
-	t := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
+	t := node.buildObserverResponseWithStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
 		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
 	}
@@ -365,10 +361,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		UpdatedAt: req.CreatedAt,
 	}
 	err = node.store.WriteSafeProposalWithRequest(ctx, sp)
-	if err != nil {
-		return nil, "", err
-	}
-	return txs, "", nil
+	return txs, "", err
 }
 
 func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -425,7 +418,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 
 	typ := byte(common.ActionBitcoinSafeApproveAccount)
 	crv := common.SafeChainCurve(sp.Chain)
-	t := node.sendObserverResponseWithAssetAndReferences(ctx, req.Id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), stx.TraceId)
+	t := node.buildObserverResponseWithAssetAndStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, spr.AssetId, spr.Amount.String(), stx.TraceId)
 	if t == nil {
 		return node.failRequest(ctx, req, spr.AssetId)
 	}
@@ -449,11 +442,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		UpdatedAt:   req.CreatedAt,
 	}
 	err = node.store.WriteSafeWithRequest(ctx, safe)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return txs, "", nil
+	return txs, "", err
 }
 
 func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -611,7 +600,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 
 	typ := byte(common.ActionBitcoinSafeProposeTransaction)
 	crv := common.SafeChainCurve(safe.Chain)
-	t := node.sendObserverResponseWithReferences(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
+	t := node.buildObserverResponseWithStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
 		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
 	}
@@ -648,11 +637,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
 	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return txs, "", nil
+	return txs, "", err
 }
 
 func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
@@ -746,10 +731,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	}
 	err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
 	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, len(requests), req, err)
-	if err != nil {
-		return nil, "", fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err)
-	}
-	return ts, "", nil
+	return ts, "", err
 }
 
 func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) ([]*mtg.Transaction, string, error) {
@@ -821,7 +803,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	id := common.UniqueId(old.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionBitcoinSafeApproveTransaction)
 	crv := common.SafeChainCurve(safe.Chain)
-	t := node.sendObserverResponseWithReferences(ctx, id, req.Sequence, typ, crv, stx.TraceId)
+	t := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
 		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
 	}
@@ -830,11 +812,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	raw := hex.EncodeToString(spsbt.Marshal())
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return txs, "", nil
+	return txs, "", err
 }
 
 func (node *Node) buildBitcoinWitnessAccountWithDerivation(ctx context.Context, holder, signer, observer string, path []byte, timelock time.Duration, chain byte) (*bitcoin.WitnessScriptAccount, error) {
