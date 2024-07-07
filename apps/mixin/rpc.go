@@ -45,7 +45,6 @@ func RPCGetTransaction(ctx context.Context, rpc, hash string) (*RPCTransaction, 
 	var r *RPCTransaction
 	err = json.Unmarshal(res, &r)
 	return r, err
-
 }
 
 func RPCListSnapshots(ctx context.Context, rpc string, offset uint64, limit int) ([]RPCSnapshot, error) {

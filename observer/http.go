@@ -18,7 +18,6 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/dimfeld/httptreemux/v5"
@@ -125,17 +124,17 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 
-	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), keeper.SafeChainBitcoin, time.Now())
+	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), common.SafeChainBitcoin, time.Now())
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"version":  "0.12.2",
-		"observer": node.conf.App.ClientId,
+		"observer": node.conf.App.AppId,
 		"bond": map[string]any{
-			"chain":    73927,
-			"contract": node.conf.MVMFactoryAddress,
+			"chain":    137,
+			"contract": node.conf.PolygonFactoryAddress,
 		},
 		"keeper": map[string]any{
 			"members":   node.keeper.Genesis.Members,
@@ -161,7 +160,7 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var cs []map[string]any
-	for _, c := range []byte{keeper.SafeChainBitcoin, keeper.SafeChainLitecoin, keeper.SafeChainPolygon, keeper.SafeChainEthereum} {
+	for _, c := range []byte{common.SafeChainBitcoin, common.SafeChainLitecoin, common.SafeChainPolygon, common.SafeChainEthereum} {
 		info, err := node.keeperStore.ReadLatestNetworkInfo(r.Context(), c, time.Now())
 		if err != nil {
 			common.RenderError(w, r, err)
@@ -175,19 +174,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			common.RenderError(w, r, err)
 			return
 		}
-		var id string
-		switch c {
-		case keeper.SafeChainBitcoin:
-			id = keeper.SafeBitcoinChainId
-		case keeper.SafeChainLitecoin:
-			id = keeper.SafeLitecoinChainId
-		case keeper.SafeChainEthereum:
-			id = keeper.SafeEthereumChainId
-		case keeper.SafeChainMVM:
-			id = keeper.SafeMVMChainId
-		case keeper.SafeChainPolygon:
-			id = keeper.SafePolygonChainId
-		}
+		id := common.SafeChainAssetId(c)
 		head := make(map[string]any)
 		head["id"] = info.RequestId
 		head["height"] = info.Height
@@ -202,7 +189,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			"checkpoint": ckp,
 		}
 		switch c {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			c, s, err := node.readChainAccountantBalance(r.Context(), int(c))
 			if err != nil {
 				common.RenderError(w, r, err)
@@ -214,6 +201,13 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			accountant := make(map[string]any)
 			accountant["outputs"] = outputs
 			chain["accountant"] = accountant
+		case common.SafeChainEthereum, common.SafeChainPolygon:
+			addr, err := ethereum.PrivToAddress(node.conf.EVMKey)
+			if err != nil {
+				common.RenderError(w, r, err)
+				return
+			}
+			chain["sender"] = addr
 		}
 		cs = append(cs, chain)
 	}
@@ -670,7 +664,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			dm["sent_hash"] = d.TransactionHash
 		} else {
 			switch d.Chain {
-			case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+			case common.SafeChainBitcoin, common.SafeChainLitecoin:
 				dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
 			}
 		}
@@ -715,18 +709,20 @@ func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
 type AssetBalance struct {
 	AssetAddress string `json:"asset_address"`
 	Amount       string `json:"amount"`
+	SafeAssetId  string `json:"safe_asset_id"`
 }
 
-func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]*AssetBalance {
+func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) (map[string]*AssetBalance, map[string]*AssetBalance) {
 	pendingBalances := viewPendingBalances(txs)
 
 	assetBalance := make(map[string]*AssetBalance, 0)
 	for _, b := range bs {
-		amount := b.Balance
+		amount := b.BigBalance()
 		balance := pendingBalances[b.AssetId]
 		if balance != nil {
 			pending, _ := new(big.Int).SetString(balance.Amount, 10)
 			amount = new(big.Int).Sub(amount, pending)
+			pendingBalances[b.AssetId].SafeAssetId = b.SafeAssetId
 		}
 		if amount.Cmp(big.NewInt(0)) < 1 {
 			continue
@@ -734,9 +730,10 @@ func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) map[string]
 		assetBalance[b.AssetId] = &AssetBalance{
 			Amount:       amount.String(),
 			AssetAddress: b.AssetAddress,
+			SafeAssetId:  b.SafeAssetId,
 		}
 	}
-	return assetBalance
+	return assetBalance, pendingBalances
 }
 
 func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
@@ -778,8 +775,17 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		common.RenderError(w, r, err)
 		return
 	}
+	safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	safeAssetId := ""
+	if safe != nil {
+		safeAssetId = safe.SafeAssetId
+	}
 	switch sp.Chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		wsa, err := node.buildBitcoinWitnessAccountWithDerivation(r.Context(), sp)
 		if err != nil {
 			common.RenderError(w, r, err)
@@ -787,12 +793,6 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		}
 		if wsa.Address != sp.Address {
 			common.RenderError(w, r, fmt.Errorf("buildBitcoinWitnessAccountWithDerivation(%v) => %v", sp, wsa))
-			return
-		}
-		_, bitcoinAssetId := node.bitcoinParams(sp.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, bitcoinAssetId, "", sp.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
 			return
 		}
 		mainInputs, err := node.listAllBitcoinUTXOsForHolder(r.Context(), sp.Holder)
@@ -806,26 +806,18 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			return
 		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":    sp.Chain,
-			"id":       sp.RequestId,
-			"address":  sp.Address,
-			"outputs":  viewOutputs(mainInputs),
-			"pendings": viewOutputs(pendings),
-			"script":   hex.EncodeToString(wsa.Script),
-			"keys":     node.viewSafeXPubs(r.Context(), sp),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
+			"chain":         sp.Chain,
+			"id":            sp.RequestId,
+			"address":       sp.Address,
+			"outputs":       viewOutputs(mainInputs),
+			"pendings":      viewOutputs(pendings),
+			"script":        hex.EncodeToString(wsa.Script),
+			"keys":          node.viewSafeXPubs(r.Context(), sp),
+			"safe_asset_id": safeAssetId,
+			"state":         status,
 		})
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
-		_, assetId := node.ethereumParams(sp.Chain)
-		_, _, bondId, err := node.fetchBondAsset(r.Context(), sp.Chain, assetId, "", sp.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
-		balances, err := node.keeperStore.ReadEthereumAllBalance(r.Context(), sp.Address)
+	case common.SafeChainPolygon, common.SafeChainEthereum:
+		balances, err := node.keeperStore.ReadAllEthereumTokenBalances(r.Context(), sp.Address)
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
@@ -835,27 +827,21 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			common.RenderError(w, r, err)
 			return
 		}
-		safe, err := node.keeperStore.ReadSafe(r.Context(), sp.Holder)
-		if err != nil {
-			common.RenderError(w, r, err)
-			return
-		}
 		nonce := 0
 		if safe != nil {
 			nonce = int(safe.Nonce)
 		}
+		bs, ps := viewBalances(balances, pendings)
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":          sp.Chain,
 			"id":             sp.RequestId,
 			"address":        sp.Address,
-			"balances":       viewBalances(balances, pendings),
-			"pendingbalance": viewPendingBalances(pendings),
+			"balances":       bs,
+			"pendingbalance": ps,
 			"nonce":          nonce,
 			"keys":           node.viewSafeXPubs(r.Context(), sp),
-			"bond": map[string]any{
-				"id": bondId,
-			},
-			"state": status,
+			"safe_asset_id":  safeAssetId,
+			"state":          status,
 		})
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})

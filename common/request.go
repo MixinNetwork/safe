@@ -27,6 +27,8 @@ const (
 	RequestStateDone    = 3
 	RequestStateFailed  = 4
 
+	ActionMigrateSafeToken = 99
+
 	// Observer can terminate all signer and keeper nodes
 	ActionTerminate = 100
 
@@ -74,9 +76,10 @@ type Request struct {
 	Action     uint8
 	Curve      uint8
 	Holder     string
-	Extra      string
+	ExtraHEX   string
 	State      uint8
 	CreatedAt  time.Time
+	Sequence   uint64
 }
 
 type AccountProposal struct {
@@ -87,18 +90,25 @@ type AccountProposal struct {
 }
 
 func (req *Request) Operation() *Operation {
-	extra := DecodeHexOrPanic(req.Extra)
 	return &Operation{
 		Id:     req.Id,
 		Type:   req.Action,
 		Curve:  req.Curve,
 		Public: req.Holder,
-		Extra:  extra,
+		Extra:  req.ExtraBytes(),
 	}
 }
 
-func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
+func (req *Request) ExtraBytes() []byte {
+	return DecodeHexOrPanic(req.ExtraHEX)
+}
+
+func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 	op, err := DecodeOperation(b)
+	if err != nil {
+		return nil, err
+	}
+	h, err := crypto.HashFromString(out.TransactionHash)
 	if err != nil {
 		return nil, err
 	}
@@ -107,14 +117,15 @@ func DecodeRequest(out *mtg.Output, b []byte, role uint8) (*Request, error) {
 		Id:         op.Id,
 		Curve:      op.Curve,
 		Holder:     op.Public,
-		Extra:      hex.EncodeToString(op.Extra),
-		MixinHash:  out.TransactionHash,
+		ExtraHEX:   hex.EncodeToString(op.Extra),
+		MixinHash:  h,
 		MixinIndex: out.OutputIndex,
-		AssetId:    out.AssetID,
+		AssetId:    out.AssetId,
 		Amount:     out.Amount,
 		Role:       role,
 		State:      RequestStateInitial,
 		CreatedAt:  out.CreatedAt,
+		Sequence:   out.Sequence,
 	}
 	return r, r.VerifyFormat()
 }

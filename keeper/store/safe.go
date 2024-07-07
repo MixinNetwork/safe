@@ -27,29 +27,30 @@ type SafeProposal struct {
 }
 
 type Safe struct {
-	Holder    string
-	Chain     byte
-	Signer    string
-	Observer  string
-	Timelock  time.Duration
-	Path      string
-	Address   string
-	Extra     []byte
-	Receivers []string
-	Threshold byte
-	RequestId string
-	Nonce     int64
-	State     byte
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Holder      string
+	Chain       byte
+	Signer      string
+	Observer    string
+	Timelock    time.Duration
+	Path        string
+	Address     string
+	Extra       []byte
+	Receivers   []string
+	Threshold   byte
+	RequestId   string
+	Nonce       int64
+	State       byte
+	SafeAssetId string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "created_at", "updated_at"}
+var safeCols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "safe_asset_id", "created_at", "updated_at"}
 
 var safeProposalCols = []string{"request_id", "chain", "holder", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "created_at", "updated_at"}
 
 func (s *Safe) values() []any {
-	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.Nonce, s.State, s.CreatedAt, s.UpdatedAt}
+	return []any{s.Holder, s.Chain, s.Signer, s.Observer, s.Timelock, s.Path, s.Address, s.Extra, strings.Join(s.Receivers, ";"), s.Threshold, s.RequestId, s.Nonce, s.State, s.SafeAssetId, s.CreatedAt, s.UpdatedAt}
 }
 
 func (s *SafeProposal) values() []any {
@@ -59,7 +60,7 @@ func (s *SafeProposal) values() []any {
 func safeFromRow(row *sql.Row) (*Safe, error) {
 	var s Safe
 	var receivers string
-	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.CreatedAt, &s.UpdatedAt)
+	err := row.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -221,4 +222,26 @@ func (s *SQLite3Store) readSafe(ctx context.Context, tx *sql.Tx, holder string) 
 	query := fmt.Sprintf("SELECT %s FROM safes WHERE holder=?", strings.Join(safeCols, ","))
 	row := tx.QueryRowContext(ctx, query, holder)
 	return safeFromRow(row)
+}
+
+func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Safe, error) {
+	query := fmt.Sprintf("SELECT %s FROM safes WHERE state=? ORDER BY created_at ASC, request_id ASC", strings.Join(safeCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, state)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var safes []*Safe
+	for rows.Next() {
+		var s Safe
+		var receivers string
+		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		s.Receivers = strings.Split(receivers, ";")
+		safes = append(safes, &s)
+	}
+	return safes, nil
 }

@@ -15,10 +15,9 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/signer"
@@ -31,6 +30,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -38,9 +38,10 @@ import (
 )
 
 const (
+	testGroupDepositEntry            = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
 	testAccountPriceAssetId          = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 	testAccountPriceAmount           = 3.0123
-	testBondAssetId                  = "8e85c732-3bc6-3f50-939a-be89a67a6db6"
+	testBondAssetId                  = "e409efef-ef79-3fc4-8035-a2411eacda81"
 	testSafeBondReceiverId           = "e459de8b-4edd-44ff-a119-b1d707f8521a"
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
 	testBitcoinKeyObserverPrivate    = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
@@ -56,14 +57,24 @@ const (
 	testHolderObserver = 2
 )
 
+var sequence uint64 = 5000000
+
 func TestKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   bondId,
+			Amount:    decimal.NewFromInt(1000000),
+			CreatedAt: time.Now(),
+			Extra:     testGenerateDummyExtra(node),
+			Sequence:  sequence,
+		},
+	})
 	input := &bitcoin.Input{
 		TransactionHash: "40e228e5a3cba99fd3fc5350a00bfeef8bafb760e26919ec74bca67776c90427",
 		Index:           0, Satoshi: 86560,
@@ -136,9 +147,17 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   bondId,
+			Amount:    decimal.NewFromInt(1000000),
+			CreatedAt: time.Now(),
+			Extra:     testGenerateDummyExtra(node),
+			Sequence:  sequence,
+		},
+	})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -192,9 +211,17 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	ctx, node, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
-	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, SafeBitcoinChainId)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Output{AssetID: bondId, Amount: decimal.NewFromInt(1000000), CreatedAt: time.Now()})
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   bondId,
+			Amount:    decimal.NewFromInt(1000000),
+			CreatedAt: time.Now(),
+			Extra:     testGenerateDummyExtra(node),
+			Sequence:  sequence,
+		},
+	})
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -247,7 +274,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 	require.NotNil(node)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
-	require.Equal(time.Unix(0, node.conf.MTG.Genesis.Timestamp), timestamp)
+	require.Equal(node.conf.MTG.Genesis.Epoch, timestamp)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSABitcoin)
 
 	id := uuid.Must(uuid.NewV4()).String()
@@ -280,7 +307,8 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 	for i := byte(0); i < batch; i++ {
 		pid := common.UniqueId(id, fmt.Sprintf("%8d", i))
 		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
-		v, _ := node.store.ReadProperty(ctx, pid)
+		v, err := node.store.ReadProperty(ctx, pid)
+		require.Nil(err)
 		var om map[string]any
 		json.Unmarshal([]byte(v), &om)
 		b, _ := hex.DecodeString(om["memo"].(string))
@@ -308,7 +336,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
 	id := uuid.Must(uuid.NewV4()).String()
 
-	extra := []byte{SafeChainBitcoin}
+	extra := []byte{common.SafeChainBitcoin}
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
@@ -316,7 +344,7 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	plan, err := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
+	plan, err := node.store.ReadLatestOperationParams(ctx, common.SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.Equal(testAccountPriceAssetId, plan.OperationPriceAsset)
 	require.Equal(fmt.Sprint(testAccountPriceAmount), plan.OperationPriceAmount.String())
@@ -328,7 +356,7 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	fee, height := bitcoinMinimumFeeRate, uint64(blockHeight)
 	hash, _ := crypto.HashFromString(blockHash)
 
-	extra := []byte{SafeChainBitcoin}
+	extra := []byte{common.SafeChainBitcoin}
 	extra = binary.BigEndian.AppendUint64(extra, uint64(fee))
 	extra = binary.BigEndian.AppendUint64(extra, height)
 	extra = append(extra, hash[:]...)
@@ -336,10 +364,10 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	require.Nil(err)
 	require.NotNil(info)
-	require.Equal(byte(SafeChainBitcoin), info.Chain)
+	require.Equal(byte(common.SafeChainBitcoin), info.Chain)
 	require.Equal(uint64(fee), info.Fee)
 	require.Equal(height, info.Height)
 	require.Equal(hash.String(), info.Hash)
@@ -353,7 +381,7 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 
 	var sig []byte
 	ms := fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
-	msg := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
+	msg := bitcoin.HashMessageForSignature(ms, common.SafeChainBitcoin)
 	if signByObserver {
 		observer := testGetDerivedObserverPrivate(require)
 		sig = ecdsa.Sign(observer, msg).Serialize()
@@ -413,7 +441,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		}}
 	}
 	raw := psTx.Marshal()
-	ref := crypto.NewHash(raw)
+	ref := crypto.Sha256Hash(raw)
 	err := node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 	require.Nil(err)
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
@@ -459,8 +487,9 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 		signed[r.InputIndex] = b
 	}
 	mb := common.DecodeHexOrPanic(tx.RawTransaction)
-	exk := crypto.Blake3Hash([]byte(common.Base91Encode(mb)))
-	rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
+	sTraceId := crypto.Blake3Hash([]byte(common.Base91Encode(mb))).String()
+	sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+	rid := common.UniqueId(transactionHash, sTraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	require.Equal(mb, b)
 
@@ -473,7 +502,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -510,7 +539,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 
 func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.Assertions, node *Node, signer, bondId string, rid, rhash, rraw string) string {
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, SafeChainBitcoin, time.Now())
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -618,7 +647,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 			}}
 		}
 		raw := psTx.Marshal()
-		ref := crypto.NewHash(raw)
+		ref := crypto.Sha256Hash(raw)
 		err := node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 		require.Nil(err)
 		extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
@@ -652,8 +681,10 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 			signed[r.InputIndex] = b
 		}
 		mb := common.DecodeHexOrPanic(tx.RawTransaction)
-		exk := crypto.Blake3Hash([]byte(common.Base91Encode(mb)))
-		rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
+
+		sTraceId := crypto.Blake3Hash([]byte(common.Base91Encode(mb))).String()
+		sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+		rid := common.UniqueId(transactionHash, sTraceId)
 		b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 		require.Equal(mb, b)
 
@@ -685,7 +716,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	require.Nil(err)
 	logger.Println("2 ListPendingBitcoinUTXOsForHolder:", len(pendings))
 
-	ref := crypto.NewHash(raw)
+	ref := crypto.Sha256Hash(raw)
 	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 	require.Nil(err)
 	extra := uuid.Nil.Bytes()
@@ -694,8 +725,9 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	exk := node.writeStorageUntilSnapshot(ctx, []byte(common.Base91Encode(raw)))
-	rid := common.UniqueId(transactionHash, hex.EncodeToString(exk[:]))
+	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence}, []byte(common.Base91Encode(raw)))
+	require.NotNil(stx)
+	rid := common.UniqueId(transactionHash, stx.TraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
 	require.Equal(b, raw)
 
@@ -717,14 +749,14 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 func testObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, signer, observer string, input *bitcoin.Input, t int) {
 	id := uuid.Must(uuid.NewV4()).String()
 	hash, _ := crypto.HashFromString(input.TransactionHash)
-	extra := []byte{SafeChainBitcoin}
-	extra = append(extra, uuid.Must(uuid.FromString(SafeBitcoinChainId)).Bytes()...)
+	extra := []byte{common.SafeChainBitcoin}
+	extra = append(extra, uuid.Must(uuid.FromString(common.SafeBitcoinChainId)).Bytes()...)
 	extra = append(extra, hash[:]...)
 	extra = binary.BigEndian.AppendUint64(extra, uint64(input.Index))
 	extra = append(extra, big.NewInt(input.Satoshi).Bytes()...)
 
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
+	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
@@ -760,7 +792,7 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
+	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafeAddress, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -775,7 +807,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	id := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	ms := fmt.Sprintf("APPROVE:%s:%s", rid, publicKey)
-	hash := bitcoin.HashMessageForSignature(ms, SafeChainBitcoin)
+	hash := bitcoin.HashMessageForSignature(ms, common.SafeChainBitcoin)
 	hb, _ := hex.DecodeString(testBitcoinKeyHolderPrivate)
 	hp, _ := btcec.PrivKeyFromBytes(hb)
 	signature := ecdsa.Sign(hp, hash)
@@ -795,7 +827,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(holder, safe.Holder)
 	require.Equal(signer, safe.Signer)
 	require.Equal(observer, safe.Observer)
-	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, SafeChainBitcoin)
+	public, err := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 	require.Nil(err)
 	require.Equal(testSafeAddress, public.Address)
 	require.Equal(public.Address, safe.Address)
@@ -804,19 +836,13 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	require.Equal(testSafeBondReceiverId, safe.Receivers[0])
 }
 
-func testStep(ctx context.Context, require *require.Assertions, node *Node, out *mtg.Output) {
-	node.ProcessOutput(ctx, out)
+func testStep(ctx context.Context, require *require.Assertions, node *Node, out *mtg.Action) {
+	_, asset := node.ProcessOutput(ctx, out)
+	require.Equal("", asset)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
-	require.Equal(out.CreatedAt.UTC(), timestamp.UTC())
+	require.Equal(out.Sequence, timestamp)
 	req, err := node.store.ReadPendingRequest(ctx)
-	require.Nil(err)
-	require.NotNil(req)
-	err = req.VerifyFormat()
-	require.Nil(err)
-	err = node.processRequest(ctx, req)
-	require.Nil(err)
-	req, err = node.store.ReadPendingRequest(ctx)
 	require.Nil(err)
 	require.Nil(req)
 }
@@ -840,11 +866,11 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
 	switch typ {
 	case common.ActionBitcoinSafeApproveAccount:
-		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainBitcoin, time.Now())
+		params, _ := node.store.ReadLatestOperationParams(ctx, common.SafeChainBitcoin, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	case common.ActionEthereumSafeApproveAccount:
-		params, _ := node.store.ReadLatestOperationParams(ctx, SafeChainPolygon, time.Now())
+		params, _ := node.store.ReadLatestOperationParams(ctx, common.SafeChainPolygon, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	default:
@@ -857,14 +883,14 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	require.Nil(err)
 	require.Equal(typ, op.Type)
 	require.Equal(id, op.Id)
-	require.Len(op.Extra, 32)
-	v, _ = node.store.ReadProperty(ctx, hex.EncodeToString(op.Extra))
+	require.Len(op.Extra, 16)
+	v, _ = node.store.ReadProperty(ctx, uuid.FromBytesOrNil(op.Extra).String())
 	b, _ = hex.DecodeString(v)
 	b, _ = common.Base91Decode(string(b))
 	return b
 }
 
-func testBuildHolderRequest(node *Node, id, public string, action byte, assetId string, extra []byte, amount decimal.Decimal) *mtg.Output {
+func testBuildHolderRequest(node *Node, id, public string, action byte, assetId string, extra []byte, amount decimal.Decimal) *mtg.Action {
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	switch action {
 	case common.ActionBitcoinSafeProposeAccount, common.ActionBitcoinSafeProposeTransaction:
@@ -878,18 +904,23 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := base64.RawURLEncoding.EncodeToString(op.Encode())
-	return &mtg.Output{
-		AssetID:         assetId,
-		Memo:            memo,
-		TransactionHash: crypto.NewHash([]byte(op.Id)),
-		Amount:          amount,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, op.Encode())
+	memo = hex.EncodeToString([]byte(memo))
+	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   assetId,
+			Extra:     memo,
+			Amount:    amount,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
 	}
 }
 
-func testBuildObserverRequest(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Output {
+func testBuildObserverRequest(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+	sequence += 10
+
 	op := &common.Operation{
 		Id:     id,
 		Type:   action,
@@ -897,23 +928,29 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 		Public: public,
 		Extra:  extra,
 	}
-	memo := common.Base91Encode(node.encryptObserverOperation(op))
+	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptObserverOperation(op))
+	memo = hex.EncodeToString([]byte(memo))
 	timestamp := time.Now()
 	if action == common.ActionObserverAddKey {
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
-	return &mtg.Output{
-		Sender:          node.conf.ObserverUserId,
-		AssetID:         node.conf.ObserverAssetId,
-		Memo:            memo,
-		TransactionHash: crypto.NewHash([]byte(op.Id)),
-		Amount:          decimal.New(1, 1),
-		CreatedAt:       timestamp,
-		UpdatedAt:       timestamp,
+	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
+		UnifiedOutput: mtg.UnifiedOutput{
+			Senders:   []string{node.conf.ObserverUserId},
+			AssetId:   node.conf.ObserverAssetId,
+			Extra:     memo,
+			Amount:    decimal.New(1, 1),
+			CreatedAt: timestamp,
+			UpdatedAt: timestamp,
+			Sequence:  sequence,
+		},
 	}
 }
 
-func testBuildSignerOutput(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Output {
+func testBuildSignerOutput(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+	sequence += 10
+
 	path := bitcoinDefaultDerivationPath()
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
@@ -929,10 +966,13 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Extra: extra,
 	}
 	timestamp := time.Now()
+	appId := node.conf.AppId
 	switch action {
 	case common.OperationTypeKeygenInput:
+		appId = node.conf.SignerAppId
 		op.Public = hex.EncodeToString(common.Fingerprint(public))
 	case common.OperationTypeSignInput:
+		appId = node.conf.SignerAppId
 		fingerPath := append(common.Fingerprint(public), path...)
 		op.Public = hex.EncodeToString(fingerPath)
 	case common.OperationTypeKeygenOutput:
@@ -941,27 +981,31 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeSignOutput:
 		op.Public = public
 	}
-	memo := mtg.EncodeMixinExtra("", id, string(node.encryptSignerOperation(op)))
-	return &mtg.Output{
-		AssetID:         node.conf.AssetId,
-		Memo:            memo,
-		TransactionHash: crypto.NewHash([]byte(op.Id)),
-		Amount:          decimal.New(1, 1),
-		CreatedAt:       timestamp,
-		UpdatedAt:       timestamp,
+	memo := mtg.EncodeMixinExtraBase64(appId, node.encryptSignerOperation(op))
+	memo = hex.EncodeToString([]byte(memo))
+	return &mtg.Action{
+		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
+		UnifiedOutput: mtg.UnifiedOutput{
+			AssetId:   node.conf.AssetId,
+			Extra:     memo,
+			Amount:    decimal.New(1, 1),
+			CreatedAt: timestamp,
+			UpdatedAt: timestamp,
+			Sequence:  sequence,
+		},
 	}
 }
 
 func testDeployBondContract(ctx context.Context, require *require.Assertions, node *Node, addr, assetId string) string {
 	safe, _ := node.store.ReadSafeByAddress(ctx, addr)
 	asset, _ := node.fetchAssetMeta(ctx, assetId)
-	err := abi.GetOrDeployFactoryAsset("https://geth.mvm.dev", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, safe.Holder)
+	err := abi.GetOrDeployFactoryAsset(ctx, "https://polygon-bor.publicnode.com", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, testGroupDepositEntry, safe.Holder)
 	require.Nil(err)
-	bond := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, safe.Holder)
+	bond := abi.GetFactoryAssetAddress(testGroupDepositEntry, assetId, asset.Symbol, asset.Name, safe.Holder)
 	assetKey := strings.ToLower(bond.String())
-	err = mvm.VerifyAssetKey(assetKey)
+	err = ethereum.VerifyAssetKey(assetKey)
 	require.Nil(err)
-	asset, _ = node.fetchAssetMeta(ctx, mvm.GenerateAssetId(assetKey).String())
+	asset, _ = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
 	return asset.AssetId
 }
 
@@ -984,16 +1028,19 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
 		panic(root)
 	}
+	err = os.MkdirAll(conf.Keeper.StoreDir, os.ModePerm)
+	require.Nil(err)
 	kd, err := OpenSQLite3Store(conf.Keeper.StoreDir + "/safe.sqlite3")
 	require.Nil(err)
 
-	db, err := store.OpenBadger(ctx, conf.Keeper.StoreDir+"/mtg")
+	db, err := mtg.OpenSQLite3Store(conf.Keeper.StoreDir + "/mtg.sqlite3")
 	require.Nil(err)
 	group, err := mtg.BuildGroup(ctx, db, conf.Keeper.MTG)
-	require.NotNil(err)
-	require.Nil(group)
+	require.Nil(err)
+	require.NotNil(group)
 
-	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG)
+	var client *mixin.Client
+	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)
 	return node
 }
 
@@ -1036,4 +1083,9 @@ func testGetDerivedObserverPrivate(require *require.Assertions) *btcec.PrivateKe
 	priv, err := extPub.ECPrivKey()
 	require.Nil(err)
 	return priv
+}
+
+func testGenerateDummyExtra(node *Node) string {
+	e := mtg.EncodeMixinExtraBase64(node.conf.AppId, nil)
+	return hex.EncodeToString([]byte(e))
 }

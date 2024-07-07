@@ -8,6 +8,8 @@ import (
 )
 
 type Configuration struct {
+	AppId                   string             `toml:"app-id"`
+	KeeperAppId             string             `toml:"keeper-app-id"`
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
 	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
@@ -24,9 +26,9 @@ type Configuration struct {
 
 func (c *Configuration) Messenger() *messenger.MixinConfiguration {
 	return &messenger.MixinConfiguration{
-		UserId:         c.MTG.App.ClientId,
+		UserId:         c.MTG.App.AppId,
 		SessionId:      c.MTG.App.SessionId,
-		Key:            c.MTG.App.PrivateKey,
+		Key:            c.MTG.App.SessionPrivateKey,
 		ConversationId: c.MessengerConversationId,
 		ReceiveBuffer:  128,
 		SendBuffer:     64,

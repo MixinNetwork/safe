@@ -18,7 +18,7 @@ func ECDHEd25519(priv, pub string) [32]byte {
 		panic(err)
 	}
 	R := crypto.KeyMultPubPriv(&B, &a)
-	return crypto.NewHash(R.Bytes())
+	return crypto.Sha256Hash(R.Bytes())
 }
 
 func AESDecrypt(secret, b []byte) []byte {

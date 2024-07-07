@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -46,7 +46,7 @@ type Node struct {
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
 	node := &Node{
-		id:         party.ID(conf.MTG.App.ClientId),
+		id:         party.ID(conf.MTG.App.AppId),
 		threshold:  conf.Threshold,
 		conf:       conf,
 		group:      group,
@@ -94,9 +94,9 @@ func (node *Node) Boot(ctx context.Context) {
 func (node *Node) loopInitialSessions(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		synced, err := node.synced(ctx)
-		if err != nil || !synced {
-			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+		synced := node.synced(ctx)
+		if !synced {
+			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
 			continue
 		}
 		sessions, err := node.store.ListInitialSessions(ctx, 64)
@@ -123,9 +123,9 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 func (node *Node) loopPreparedSessions(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		synced, err := node.synced(ctx)
-		if err != nil || !synced {
-			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+		synced := node.synced(ctx)
+		if !synced {
+			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
 			continue
 		}
 		sessions := node.listPreparedSessions(ctx)
@@ -180,9 +180,9 @@ func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
 func (node *Node) loopPendingSessions(ctx context.Context) {
 	for {
 		time.Sleep(3 * time.Second)
-		synced, err := node.synced(ctx)
-		if err != nil || !synced {
-			logger.Printf("group.Synced(%s) => %t %v", node.group.GenesisId(), synced, err)
+		synced := node.synced(ctx)
+		if !synced {
+			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
 			continue
 		}
 		sessions, err := node.store.ListPendingSessions(ctx, 64)
@@ -240,13 +240,13 @@ func (node *Node) findMember(m string) int {
 	return -1
 }
 
-func (node *Node) synced(ctx context.Context) (bool, error) {
+func (node *Node) synced(ctx context.Context) bool {
 	if common.CheckTestEnvironment(ctx) {
-		return true, nil
+		return true
 	}
 	// TODO all nodes send group timestamp to others, and not synced
 	// if one of them has a big difference
-	return node.group.Synced()
+	return node.group.Synced(ctx)
 }
 
 func (node *Node) acceptIncomingMessages(ctx context.Context) {
@@ -492,13 +492,9 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerPrepareTransaction(%v) omitted %x", op, extra))
 	}
-	members := node.conf.MTG.Genesis.Members
-	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", op.Id, string(node.id))
-	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
-	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
-	logger.Printf("node.sendSignerPrepareTransaction(%v) => %s %x %v", op, op.Id, extra, err)
-	return err
+
+	return node.sendTransactionToSignerGroupUntilSufficient(ctx, extra, traceId)
 }
 
 func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Operation) error {
@@ -506,23 +502,32 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
 	}
-	members := node.conf.MTG.Genesis.Members
-	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
-	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", members, threshold))
-	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), extra, traceId)
-	logger.Printf("node.sendSignerResultTransaction(%v) => %s %x %v", op, op.Id, extra, err)
-	return err
+
+	return node.sendTransactionToSignerGroupUntilSufficient(ctx, extra, traceId)
 }
 
-func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo []byte, traceId string) error {
+func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Context, memo []byte, traceId string) error {
+	receivers := node.conf.MTG.Genesis.Members
+	threshold := node.conf.MTG.Genesis.Threshold
+	amount := decimal.NewFromInt(1)
+	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
+
 	if common.CheckTestEnvironment(ctx) {
-		out := &mtg.Output{Sender: string(node.id), AssetID: node.conf.AssetId, CreatedAt: time.Now()}
-		out.Memo = common.Base91Encode(memo)
+		out := &mtg.Action{
+			UnifiedOutput: mtg.UnifiedOutput{
+				Senders:   []string{string(node.id)},
+				AssetId:   node.conf.AssetId,
+				CreatedAt: time.Now(),
+			},
+		}
+		out.Extra = mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+		out.Extra = hex.EncodeToString([]byte(out.Extra))
 		data := common.MarshalJSONOrPanic(out)
 		network := node.network.(*testNetwork)
 		return network.QueueMTGOutput(ctx, data)
 	}
-
-	return common.SendTransactionUntilSufficient(ctx, node.mixin, assetId, receivers, threshold, amount, common.Base91Encode(memo), traceId, node.conf.MTG.App.PIN)
+	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, node.conf.MTG.App.SpendPrivateKey)
+	return err
 }

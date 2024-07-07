@@ -15,13 +15,8 @@ func DecodeOperation(c *cli.Context) error {
 		return err
 	}
 
-	b, err := hex.DecodeString(c.String("data"))
-	if err != nil {
-		return err
-	}
-
-	msp := mtg.DecodeMixinExtra(string(b))
-	b = common.AESDecrypt(k, []byte(msp.M))
+	_, m := mtg.DecodeMixinExtraHEX(c.String("data"))
+	b := common.AESDecrypt(k, []byte(m))
 	op, err := common.DecodeOperation(b)
 	if err != nil {
 		return err

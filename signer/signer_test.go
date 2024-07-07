@@ -22,7 +22,6 @@ import (
 func TestCMPSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes := TestPrepare(require)
-
 	public, chainCode := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 	sig := testCMPSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin)
 	t.Logf("testCMPSign(%s) => %x\n", public, sig)
@@ -81,6 +80,7 @@ func TestSSID(t *testing.T) {
 
 func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, []byte) {
 	sid := common.UniqueId("keygen", fmt.Sprint(400))
+	sequence := 4600000
 	for i := 0; i < 4; i++ {
 		node := nodes[i]
 		op := &common.Operation{
@@ -88,13 +88,17 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 			Id:    sid,
 			Curve: crv,
 		}
-		memo := mtg.EncodeMixinExtra("", sid, string(node.encryptOperation(op)))
-		out := &mtg.Output{
-			AssetID:         node.conf.KeeperAssetId,
-			Memo:            memo,
-			Amount:          decimal.NewFromInt(1),
-			TransactionHash: crypto.NewHash([]byte(op.Id)),
-			CreatedAt:       time.Now(),
+		memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptOperation(op))
+		memo = hex.EncodeToString([]byte(memo))
+		out := &mtg.Action{
+			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
+			UnifiedOutput: mtg.UnifiedOutput{
+				AssetId:   node.conf.KeeperAssetId,
+				Extra:     memo,
+				Amount:    decimal.NewFromInt(1),
+				CreatedAt: time.Now(),
+				Sequence:  uint64(sequence + i),
+			},
 		}
 
 		msg := common.MarshalJSONOrPanic(out)

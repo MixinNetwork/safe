@@ -5,30 +5,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	SafeChainBitcoin  = bitcoin.ChainBitcoin
-	SafeChainLitecoin = bitcoin.ChainLitecoin
-	SafeChainEthereum = ethereum.ChainEthereum
-	SafeChainMVM      = ethereum.ChainMVM
-	SafeChainPolygon  = ethereum.ChainPolygon
-
-	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
-	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
-	SafeMVMChainId      = "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
-	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
-	SafePolygonChainId  = "b7938396-3f94-4e0a-9179-d3440718156f"
-
 	SafeSignatureTimeout  = 10 * time.Minute
 	SafeKeyBackupMaturity = 24 * time.Hour
 
@@ -45,74 +32,57 @@ func ethereumDefaultDerivationPath() []byte {
 	return []byte{0, 0, 0, 0}
 }
 
-func SafeCurveChain(crv byte) byte {
-	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin:
-		return SafeChainBitcoin
-	case common.CurveSecp256k1ECDSALitecoin:
-		return SafeChainLitecoin
-	case common.CurveSecp256k1ECDSAEthereum:
-		return SafeChainEthereum
-	case common.CurveSecp256k1ECDSAMVM:
-		return SafeChainMVM
-	case common.CurveSecp256k1ECDSAPolygon:
-		return SafeChainPolygon
-	default:
-		panic(crv)
-	}
+func (node *Node) failRequest(ctx context.Context, req *common.Request, assetId string) ([]*mtg.Transaction, string, error) {
+	return nil, assetId, node.store.FailRequest(ctx, req.Id)
 }
 
-func SafeChainCurve(chain byte) byte {
-	switch chain {
-	case SafeChainBitcoin:
-		return common.CurveSecp256k1ECDSABitcoin
-	case SafeChainLitecoin:
-		return common.CurveSecp256k1ECDSALitecoin
-	case SafeChainEthereum:
-		return common.CurveSecp256k1ECDSAEthereum
-	case SafeChainMVM:
-		return common.CurveSecp256k1ECDSAMVM
-	case SafeChainPolygon:
-		return common.CurveSecp256k1ECDSAPolygon
-	default:
-		panic(chain)
-	}
-}
-
-func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) error {
+func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	err := node.buildTransaction(ctx, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
-	if err != nil {
-		return err
+	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
+	if t == nil {
+		return node.failRequest(ctx, req, req.AssetId)
 	}
-	return node.store.FailRequest(ctx, req.Id)
+	return []*mtg.Transaction{t}, "", node.store.FailRequest(ctx, req.Id)
 }
 
 func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
 	switch assetId {
-	case SafeBitcoinChainId, SafeLitecoinChainId, SafeEthereumChainId, SafeMVMChainId, SafePolygonChainId:
+	case common.SafeBitcoinChainId, common.SafeLitecoinChainId, common.SafeEthereumChainId, common.SafePolygonChainId:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	default:
 		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
 	}
 }
 
-func (node *Node) getBondAsset(ctx context.Context, assetId, holder string) (crypto.Hash, byte, error) {
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) string {
+	migrated, err := node.store.CheckMigrateAsset(ctx, address, assetId)
+	if err != nil {
+		panic(err)
+	}
+
+	if migrated {
+		return node.conf.PolygonObserverDepositEntry
+	}
+	return node.conf.PolygonKeeperDepositEntry
+}
+
+func (node *Node) getBondAssetId(ctx context.Context, entry, assetId, holder string) string {
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	if err != nil {
-		return crypto.Hash{}, 0, err
+		panic(err)
 	}
-	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
+	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
-	err = mvm.VerifyAssetKey(assetKey)
+	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
-		return crypto.Hash{}, 0, err
+		panic(assetKey)
 	}
-	return mvm.GenerateAssetId(assetKey), SafeChainMVM, nil
+	safeAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
+	return safeAssetId
 }
 
 func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {
-	switch common.NormalizeCurve(SafeChainCurve(safe.Chain)) {
+	switch common.NormalizeCurve(common.SafeChainCurve(safe.Chain)) {
 	case common.CurveSecp256k1ECDSABitcoin:
 		msg := bitcoin.HashMessageForSignature(ms, safe.Chain)
 		err := bitcoin.VerifySignatureDER(safe.Holder, msg, sig)

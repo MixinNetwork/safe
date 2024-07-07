@@ -29,10 +29,10 @@ const (
 
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
-	case keeper.SafeChainBitcoin:
-		return node.conf.BitcoinRPC, keeper.SafeBitcoinChainId
-	case keeper.SafeChainLitecoin:
-		return node.conf.LitecoinRPC, keeper.SafeLitecoinChainId
+	case common.SafeChainBitcoin:
+		return node.conf.BitcoinRPC, common.SafeBitcoinChainId
+	case common.SafeChainLitecoin:
+		return node.conf.LitecoinRPC, common.SafeLitecoinChainId
 	default:
 		panic(chain)
 	}
@@ -239,7 +239,11 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
 
-	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder)
+	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
+	if err != nil || safe == nil {
+		return err
+	}
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder, safe.Address)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
@@ -312,9 +316,9 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.bitcoinParams(chain)
 	duration := 3 * time.Minute
 	switch chain {
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainLitecoin:
 		duration = 1 * time.Minute
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 	}
 
 	for {
@@ -435,12 +439,7 @@ func (node *Node) sendToKeeperBitcoinApproveNormalTransaction(ctx context.Contex
 	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
 	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	ref, err := common.WriteStorageUntilSufficient(ctx, node.mixin, raw, traceId, node.safeUser())
 	if err != nil {
 		return err
 	}
@@ -515,13 +514,8 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
 	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	ref, err := common.WriteStorageUntilSufficient(ctx, node.mixin, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.WriteStorageUntilSufficient(%v) => %s %v", msg, ref, err)
 	if err != nil {
 		return err
 	}

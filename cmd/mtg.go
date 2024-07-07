@@ -5,7 +5,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/config"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,16 +20,16 @@ func MTGUnlockKeeperRequest(c *cli.Context) error {
 	conf := mc.Keeper
 
 	s := &mixin.Keystore{
-		ClientID:   conf.MTG.App.ClientId,
-		SessionID:  conf.MTG.App.SessionId,
-		PrivateKey: conf.MTG.App.PrivateKey,
-		PinToken:   conf.MTG.App.PinToken,
+		ClientID:          conf.MTG.App.AppId,
+		SessionID:         conf.MTG.App.SessionId,
+		SessionPrivateKey: conf.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   conf.MTG.App.ServerPublicKey,
 	}
 	client, err := mixin.NewFromKeystore(s)
 	if err != nil {
 		return err
 	}
-	err = client.VerifyPin(ctx, conf.MTG.App.PIN)
+	_, err = client.UserMe(ctx)
 	if err != nil {
 		return err
 	}
@@ -38,5 +38,6 @@ func MTGUnlockKeeperRequest(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	return client.UnlockMultisig(ctx, req.RequestID, conf.MTG.App.PIN)
+	_, err = client.SafeUnlockMultisigRequest(ctx, req.RequestID)
+	return err
 }

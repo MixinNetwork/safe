@@ -18,8 +18,8 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 	}
 
 	sid := uuid.Must(uuid.NewV4())
-	secret := crypto.NewHash([]byte(node.saverKey.String() + sid.String()))
-	secret = crypto.NewHash(secret[:])
+	secret := crypto.Sha256Hash([]byte(node.saverKey.String() + sid.String()))
+	secret = crypto.Sha256Hash(secret[:])
 
 	share = append(sid.Bytes(), share...)
 	share = common.AESEncrypt(secret[:], share, sid.String())
@@ -34,7 +34,8 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 
 	msg := data["id"] + data["node_id"] + data["session_id"]
 	msg = msg + data["public"] + data["share"]
-	data["signature"] = node.saverKey.Sign([]byte(msg)).String()
+	hash := crypto.Sha256Hash([]byte(msg))
+	data["signature"] = node.saverKey.Sign(hash).String()
 
 	msg = string(common.MarshalJSONOrPanic(data))
 	reader := strings.NewReader(msg)

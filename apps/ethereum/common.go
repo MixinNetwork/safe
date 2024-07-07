@@ -24,7 +24,7 @@ import (
 
 const (
 	ChainEthereum = 2
-	ChainMVM      = 4
+	chainMVM      = 4
 	ChainPolygon  = 6
 
 	ValuePrecision = 18
@@ -219,7 +219,7 @@ func CheckFinalization(num uint64, chain byte) bool {
 		return num >= 1
 	case ChainPolygon:
 		return num >= 256
-	case ChainMVM:
+	case chainMVM:
 		return num >= 1
 	default:
 		panic(chain)
@@ -239,8 +239,7 @@ func ParseAmount(amount string, decimals int32) *big.Int {
 }
 
 func UnitAmount(amount *big.Int, decimals int32) string {
-	amt := decimal.NewFromBigInt(amount, 0)
-	amt = amt.Div(decimal.New(1, decimals))
+	amt := decimal.NewFromBigInt(amount, -decimals)
 	return amt.String()
 }
 
@@ -250,7 +249,7 @@ func GetEvmChainID(chain int64) int64 {
 		return 1
 	case ChainPolygon:
 		return 137
-	case ChainMVM:
+	case chainMVM:
 		return 73927
 	default:
 		panic(chain)
@@ -263,7 +262,7 @@ func GetMixinChainID(chain int64) string {
 		return "43d61dcd-e413-450d-80b8-101d5e903357"
 	case ChainPolygon:
 		return "b7938396-3f94-4e0a-9179-d3440718156f"
-	case ChainMVM:
+	case chainMVM:
 		return "a0ffd769-5850-4b48-9651-d2ae44a3e64d"
 	default:
 		panic(chain)

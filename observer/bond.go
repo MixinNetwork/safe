@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper"
 )
 
 type MixinNetworkAsset struct {
@@ -38,39 +37,58 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder, safe.Address)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
+	if err != nil {
+		return fmt.Errorf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
+	}
+	err = node.store.MarkAccountApproved(ctx, safe.Address)
+	logger.Printf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
 	return err
 }
 
-func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder string) (bool, error) {
-	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder)
+func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) string {
+	migrated, err := node.keeperStore.CheckMigrateAsset(ctx, address, assetId)
+	if err != nil {
+		panic(err)
+	}
+
+	if migrated {
+		return node.conf.PolygonObserverDepositEntry
+	}
+	return node.conf.PolygonKeeperDepositEntry
+}
+
+func (node *Node) checkOrDeployKeeperBond(ctx context.Context, chain byte, assetId, assetAddress, holder, address string) (bool, error) {
+	asset, bond, _, err := node.fetchBondAsset(ctx, chain, assetId, assetAddress, holder, address)
 	if err != nil {
 		return false, fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, holder, err)
 	}
 	if bond != nil {
 		return true, nil
 	}
-	rpc, key := node.conf.MVMRPC, node.conf.MVMKey
-	return false, abi.GetOrDeployFactoryAsset(rpc, key, assetId, asset.Symbol, asset.Name, holder)
+	entry := node.fetchBondAssetReceiver(ctx, address, assetId)
+	rpc, key := node.conf.PolygonRPC, node.conf.EVMKey
+	return false, abi.GetOrDeployFactoryAsset(ctx, rpc, key, assetId, asset.Symbol, asset.Name, entry, holder)
 }
 
-func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder string) (*Asset, *Asset, string, error) {
+func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, assetAddress, holder, address string) (*Asset, *Asset, string, error) {
 	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, assetId, assetAddress, chain)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", assetId, err)
 	}
+	entry := node.fetchBondAssetReceiver(ctx, address, assetId)
 
-	addr := abi.GetFactoryAssetAddress(assetId, asset.Symbol, asset.Name, holder)
+	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
-	err = mvm.VerifyAssetKey(assetKey)
+	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
-	bondId := mvm.GenerateAssetId(assetKey)
-	bond, err := node.fetchAssetMeta(ctx, bondId.String())
-	return asset, bond, bondId.String(), err
+	bondId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
+	bond, err := node.fetchAssetMeta(ctx, bondId)
+	return asset, bond, bondId, err
 }
 
 func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id, assetContract string, chain byte) (*Asset, error) {
@@ -79,9 +97,8 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		return meta, err
 	}
 	switch chain {
-	case keeper.SafeChainEthereum:
-	case keeper.SafeChainMVM:
-	case keeper.SafeChainPolygon:
+	case common.SafeChainEthereum:
+	case common.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -92,7 +109,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	}
 	asset := &Asset{
 		AssetId:   token.Id,
-		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
 		AssetKey:  token.Address,
 		Symbol:    token.Symbol,
 		Name:      token.Name,
@@ -120,22 +137,7 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 		return nil, err
 	}
 	asset := body.Data
-
-	var chain byte
-	switch asset.ChainId {
-	case keeper.SafeBitcoinChainId:
-		chain = keeper.SafeChainBitcoin
-	case keeper.SafeLitecoinChainId:
-		chain = keeper.SafeChainLitecoin
-	case keeper.SafeEthereumChainId:
-		chain = keeper.SafeChainEthereum
-	case keeper.SafeMVMChainId:
-		chain = keeper.SafeChainMVM
-	case keeper.SafePolygonChainId:
-		chain = keeper.SafeChainPolygon
-	default:
-		panic(asset.ChainId)
-	}
+	chain := common.SafeAssetIdChain(asset.ChainId)
 
 	meta := &Asset{
 		AssetId:   asset.AssetId,

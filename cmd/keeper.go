@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/safe/config"
-	"github.com/MixinNetwork/safe/custodian"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
@@ -32,7 +31,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 	config.HandleDevConfig(mc.Dev)
 
-	db, err := store.OpenBadger(ctx, mc.Keeper.StoreDir+"/mtg")
+	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
 		return err
 	}
@@ -43,28 +42,43 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 
-	cd, err := custodian.OpenSQLite3Store(mc.Keeper.StoreDir + "/custodian.sqlite3")
+	s := &mixin.Keystore{
+		ClientID:          mc.Keeper.MTG.App.AppId,
+		SessionID:         mc.Keeper.MTG.App.SessionId,
+		SessionPrivateKey: mc.Keeper.MTG.App.SessionPrivateKey,
+		ServerPublicKey:   mc.Keeper.MTG.App.ServerPublicKey,
+	}
+	client, err := mixin.NewFromKeystore(s)
 	if err != nil {
 		return err
 	}
-	defer cd.Close()
-	custodian := custodian.NewWorker(cd)
-	custodian.Boot(ctx)
+	me, err := client.UserMe(ctx)
+	if err != nil {
+		return err
+	}
+	key, err := mixinnet.ParseKeyWithPub(mc.Keeper.MTG.App.SpendPrivateKey, me.SpendPublicKey)
+	if err != nil {
+		return err
+	}
+	mc.Keeper.MTG.App.SpendPrivateKey = key.String()
 
 	kd, err := keeper.OpenSQLite3Store(mc.Keeper.StoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err
 	}
 	defer kd.Close()
-	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG)
+	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 
 	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
 	}
 
-	group.AddWorker(custodian)
-	group.AddWorker(keeper)
+	group.AttachWorker(mc.Keeper.AppId, keeper)
+	group.RegisterDepositEntry(mc.Keeper.AppId, mtg.DepositEntry{
+		Destination: mc.Keeper.PolygonKeeperDepositEntry,
+		Tag:         "",
+	})
 	group.Run(ctx)
 	return nil
 }

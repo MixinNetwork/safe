@@ -9,17 +9,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	m "github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -52,16 +52,22 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 		mixin:       mixin,
 	}
 	node.aesKey = common.ECDHEd25519(conf.PrivateKey, conf.KeeperPublicKey)
-	abi.InitFactoryContractAddress(conf.MVMFactoryAddress)
+	abi.InitFactoryContractAddress(conf.PolygonFactoryAddress)
 	return node
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.MigrateDB(ctx)
+	if err != nil {
+		panic(err)
+	}
+	go node.MigrateSafeAssets(ctx)
+
 	for _, chain := range []byte{
-		keeper.SafeChainBitcoin,
-		keeper.SafeChainLitecoin,
-		keeper.SafeChainPolygon,
-		keeper.SafeChainEthereum,
+		common.SafeChainBitcoin,
+		common.SafeChainLitecoin,
+		common.SafeChainPolygon,
+		common.SafeChainEthereum,
 	} {
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
@@ -69,13 +75,13 @@ func (node *Node) Boot(ctx context.Context) {
 		}
 
 		switch chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			go node.bitcoinNetworkInfoLoop(ctx, chain)
 			go node.bitcoinRPCBlocksLoop(ctx, chain)
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+		case common.SafeChainPolygon, common.SafeChainEthereum:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
@@ -83,18 +89,19 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.ethereumTransactionSpendLoop(ctx, chain)
 		}
 	}
-	go node.safeKeyLoop(ctx, keeper.SafeChainBitcoin)
-	go node.safeKeyLoop(ctx, keeper.SafeChainEthereum)
+	go node.safeKeyLoop(ctx, common.SafeChainBitcoin)
+	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
 	go node.mixinWithdrawalsLoop(ctx)
+	go node.sendAccountApprovals(ctx)
 	node.snapshotsLoop(ctx)
 }
 
 func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	var assetId string
 	switch chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case keeper.SafeChainMVM, keeper.SafeChainPolygon, keeper.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)
@@ -130,20 +137,86 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	return node.sendKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
 }
 
+func (node *Node) saveAccountApprovalSignature(ctx context.Context, addr, sig string) error {
+	if !common.CheckTestEnvironment(ctx) { // FIXME remove this and do better test
+		safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
+		if err != nil || (safe != nil && safe.State == common.RequestStateDone) {
+			return err
+		}
+	}
+	return node.store.SaveAccountApprovalSignature(ctx, addr, sig)
+}
+
+func (node *Node) sendAccountApprovals(ctx context.Context) {
+	for {
+		as, err := node.store.ListProposedAccountsWithSig(ctx)
+		if err != nil {
+			panic(err)
+		}
+		for _, account := range as {
+			sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
+			if err != nil {
+				panic(err)
+			}
+			id := common.UniqueId(account.Address, account.Signature.String)
+			rid := uuid.Must(uuid.FromString(sp.RequestId))
+
+			var extra []byte
+			var action byte
+			var assetId string
+			switch sp.Chain {
+			case common.SafeChainBitcoin, common.SafeChainLitecoin:
+				_, assetId = node.bitcoinParams(sp.Chain)
+				sig, err := base64.RawURLEncoding.DecodeString(account.Signature.String)
+				if err != nil {
+					panic(err)
+				}
+				action = common.ActionBitcoinSafeApproveAccount
+				extra = append(rid.Bytes(), sig...)
+			case common.SafeChainPolygon, common.SafeChainEthereum:
+				_, assetId = node.ethereumParams(sp.Chain)
+				sig, err := hex.DecodeString(account.Signature.String)
+				if err != nil {
+					panic(err)
+				}
+				action = common.ActionEthereumSafeApproveAccount
+				extra = append(rid.Bytes(), sig...)
+			default:
+				panic(sp.Chain)
+			}
+			asset, err := node.store.ReadAssetMeta(ctx, assetId)
+			if err != nil || asset == nil {
+				panic(err)
+			}
+			bonded, err := node.checkOrDeployKeeperBond(ctx, sp.Chain, assetId, "", sp.Holder, sp.Address)
+			if err != nil {
+				panic(fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", sp.Holder, err))
+			} else if !bonded {
+				continue
+			}
+
+			logger.Printf("node.sendAccountApprovals(%d, %s, %s, %x)", sp.Chain, sp.Holder, id, extra)
+			err = node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
+			if err != nil {
+				panic(err)
+			}
+			err = node.store.MarkAccountApproved(ctx, sp.Address)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
 func (node *Node) snapshotsLoop(ctx context.Context) {
 	for {
 		offset, err := node.readSnapshotsCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
-		var snapshots []*mixin.Snapshot
-		err = node.mixin.Get(ctx, "/snapshots", map[string]string{
-			"limit":  "500",
-			"order":  "ASC",
-			"offset": offset.Format(time.RFC3339Nano),
-		}, &snapshots)
+		snapshots, err := node.mixin.ReadSafeSnapshots(ctx, "", offset, "ASC", 500)
 		if err != nil {
-			logger.Printf("mixin.GetSnapshots(%s) => %v", offset, err)
+			logger.Printf("mixin.ReadSafeSnapshots(%s) => %v", offset, err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -166,19 +239,21 @@ func (node *Node) snapshotsLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) handleSnapshot(ctx context.Context, s *mixin.Snapshot) error {
+func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) error {
 	logger.Verbosef("node.handleSnapshot(%v)", s)
 	if s.Amount.Sign() < 0 {
 		return nil
 	}
 
-	handled, err := node.handleBondAsset(ctx, s)
-	logger.Printf("node.handleBondAsset(%v) => %t %v", s, handled, err)
-	if err != nil || handled {
-		return err
-	}
+	// FIXME should read kernel rpc for the transaction details
 
-	handled, err = node.handleTransactionApprovalPayment(ctx, s)
+	memo, err := hex.DecodeString(s.Memo)
+	if err != nil {
+		return fmt.Errorf("hex.DecodeString(%s) => %v", s.Memo, err)
+	}
+	s.Memo = string(memo)
+
+	handled, err := node.handleTransactionApprovalPayment(ctx, s)
 	logger.Printf("node.handleTransactionApprovalPayment(%v) => %t %v", s, handled, err)
 	if err != nil || handled {
 		return err
@@ -201,7 +276,7 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinSafeRPC, checkpoint, 100)
+		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinRPC, checkpoint, 100)
 		if err != nil {
 			continue
 		}
@@ -231,11 +306,11 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 			continue
 		}
 		out := t.Output[0]
-		if out.Type != mixin.OutputTypeWithdrawalClaim {
+		if out.Type != mixinnet.OutputTypeWithdrawalClaim {
 			continue
 		}
 
-		tx, err := m.RPCGetTransaction(ctx, node.conf.MixinSafeRPC, t.References[0])
+		tx, err := m.RPCGetTransaction(ctx, node.conf.MixinRPC, t.References[0])
 		if err != nil {
 			return err
 		}
@@ -254,14 +329,14 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 		}
 		hash := string(extra[64:])
 		switch chain {
-		case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			rpc, _ := node.bitcoinParams(chain)
 			btx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
 			if err != nil {
 				return err
 			}
 			return node.bitcoinProcessTransaction(ctx, btx, chain)
-		case keeper.SafeChainEthereum, keeper.SafeChainMVM, keeper.SafeChainPolygon:
+		case common.SafeChainEthereum, common.SafeChainPolygon:
 			rpc, _ := node.ethereumParams(chain)
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 			if err != nil {
@@ -273,7 +348,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 	return nil
 }
 
-func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	if s.AssetID != node.conf.CustomKeyPriceAssetId {
 		return false, nil
 	}
@@ -308,7 +383,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 		return true, nil
 	}
 
-	chain := keeper.SafeCurveChain(extra[0])
+	chain := common.SafeCurveChain(extra[0])
 	id := common.UniqueId(observer, observer)
 	extra = append([]byte{common.RequestRoleObserver}, chainCode...)
 	extra = append(extra, common.RequestFlagCustomObserverKey)
@@ -319,7 +394,7 @@ func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mi
 	return true, nil
 }
 
-func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.Snapshot) (bool, error) {
+func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	approval, err := node.store.ReadTransactionApproval(ctx, s.Memo)
 	if err != nil || approval == nil {
 		return false, err
@@ -337,18 +412,18 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 	return true, node.holderPayTransactionApproval(ctx, approval.Chain, s.Memo)
 }
 
-func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	msp := mtg.DecodeMixinExtra(s.Memo)
-	if msp == nil {
+func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
+	_, m := mtg.DecodeMixinExtraBase64(s.Memo)
+	if m == nil {
 		return false, nil
 	}
-	b := common.AESDecrypt(node.aesKey[:], []byte(msp.M))
+	b := common.AESDecrypt(node.aesKey[:], []byte(m))
 	op, err := common.DecodeOperation(b)
 	logger.Printf("common.DecodeOperation(%x) => %v %v", b, op, err)
-	if err != nil || len(op.Extra) != 32 {
+	if err != nil || len(op.Extra) != 16 {
 		return false, err
 	}
-	chain := keeper.SafeCurveChain(op.Curve)
+	chain := common.SafeCurveChain(op.Curve)
 	params, err := node.keeperStore.ReadLatestOperationParams(ctx, chain, s.CreatedAt)
 	if err != nil || params == nil {
 		return false, err
@@ -376,19 +451,16 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 		return false, nil
 	}
 
-	var stx crypto.Hash
-	copy(stx[:], op.Extra)
-	tx, err := common.ReadKernelTransaction(node.conf.MixinRPC, stx)
+	rid := uuid.FromBytesOrNil(op.Extra).String()
+	tx, err := common.SafeReadTransactionRequestUntilSufficient(ctx, node.mixin, rid)
 	if err != nil {
-		panic(stx.String())
+		return false, err
 	}
-	smsp := mtg.DecodeMixinExtra(string(tx.Extra))
-	if smsp == nil {
-		panic(stx.String())
-	}
-	data, err := common.Base91Decode(smsp.M)
+	// FIXME should check transaction references and read kernel storage transaction
+	data, _ := hex.DecodeString(tx.Extra)
+	data, err = common.Base91Decode(string(data))
 	if err != nil || len(data) < 32 {
-		panic(s.TransactionHash)
+		panic(fmt.Errorf("common.Base91Decode(%s) => %d %v", m, len(data), err))
 	}
 
 	switch op.Type {
@@ -406,29 +478,6 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.Snapshot) (
 		return true, node.deployEthereumGnosisSafeAccount(ctx, data)
 	}
 	return true, nil
-}
-
-func (node *Node) handleBondAsset(ctx context.Context, s *mixin.Snapshot) (bool, error) {
-	meta, err := node.fetchAssetMeta(ctx, s.AssetID)
-	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", s.AssetID, err)
-	}
-	if meta.Chain != keeper.SafeChainMVM {
-		return false, nil
-	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
-	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil {
-		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
-	}
-	if deployed.Sign() <= 0 {
-		return false, nil
-	}
-
-	receivers := node.keeper.Genesis.Members
-	threshold := node.keeper.Genesis.Threshold
-	traceId := node.safeTraceId(s.SnapshotID, "BOND")
-	return true, common.SendTransactionUntilSufficient(ctx, node.mixin, s.AssetID, receivers, threshold, s.Amount, "", traceId, node.conf.App.PIN)
 }
 
 func (node *Node) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error) {
@@ -472,17 +521,25 @@ func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset ui
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
 }
 
+func (node *Node) safeUser() bot.SafeUser {
+	return bot.SafeUser{
+		UserId:            node.conf.App.AppId,
+		SessionId:         node.conf.App.SessionId,
+		ServerPublicKey:   node.conf.App.ServerPublicKey,
+		SessionPrivateKey: node.conf.App.SessionPrivateKey,
+		SpendPrivateKey:   node.conf.App.SpendPrivateKey,
+	}
+}
+
 func depositCheckpointDefault(chain byte) int64 {
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		return 802220
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainLitecoin:
 		return 2523300
-	case keeper.SafeChainMVM:
-		return 52680000
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		return 52950000
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		return 19175473
 	default:
 		panic(chain)
@@ -491,9 +548,9 @@ func depositCheckpointDefault(chain byte) int64 {
 
 func depositCheckpointKey(chain byte) string {
 	switch chain {
-	case keeper.SafeChainBitcoin, keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
-	case keeper.SafeChainEthereum, keeper.SafeChainPolygon, keeper.SafeChainMVM:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
 	default:
 		panic(chain)
@@ -510,13 +567,13 @@ func (node *Node) safeTraceId(params ...string) string {
 
 func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		return 3
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainLitecoin:
 		return 6
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		return 32
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		return 512
 	default:
 		panic(chain)
@@ -526,16 +583,14 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
 	var chain byte
 	switch chainId {
-	case keeper.SafeBitcoinChainId:
-		chain = keeper.SafeChainBitcoin
-	case keeper.SafeLitecoinChainId:
-		chain = keeper.SafeChainLitecoin
-	case keeper.SafeEthereumChainId:
-		chain = keeper.SafeChainEthereum
-	case keeper.SafeMVMChainId:
-		chain = keeper.SafeChainMVM
-	case keeper.SafePolygonChainId:
-		chain = keeper.SafeChainPolygon
+	case common.SafeBitcoinChainId:
+		chain = common.SafeChainBitcoin
+	case common.SafeLitecoinChainId:
+		chain = common.SafeChainLitecoin
+	case common.SafeEthereumChainId:
+		chain = common.SafeChainEthereum
+	case common.SafePolygonChainId:
+		chain = common.SafeChainPolygon
 	}
 	return chain
 }

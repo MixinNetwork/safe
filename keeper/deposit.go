@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
-	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -30,27 +31,27 @@ type Deposit struct {
 }
 
 func parseDepositExtra(req *common.Request) (*Deposit, error) {
-	extra, err := hex.DecodeString(req.Extra)
-	if err != nil || len(extra) < 1+16+32+8 {
-		return nil, fmt.Errorf("invalid deposit extra %s", req.Extra)
+	extra := req.ExtraBytes()
+	if len(extra) < 1+16+32+8 {
+		return nil, fmt.Errorf("invalid deposit extra %s", req.ExtraHEX)
 	}
 	deposit := &Deposit{
 		Chain: extra[0],
 		Asset: uuid.Must(uuid.FromBytes(extra[1:17])).String(),
 	}
-	if deposit.Chain != SafeCurveChain(req.Curve) {
+	if deposit.Chain != common.SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	extra = extra[17:]
 	switch deposit.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		deposit.Hash = hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
@@ -62,48 +63,44 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 	return deposit, nil
 }
 
-func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) error {
+func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	deposit, err := parseDepositExtra(req)
 	logger.Printf("req.parseDepositExtra(%v) => %v %v", req, deposit, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != deposit.Chain {
 		logger.Printf("Safe not exists or invalid chain %v", safe)
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	if safe.State != SafeStateApproved {
 		logger.Printf("Invalid safe state %d", safe.State)
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
-	bondId, bondChain, err := node.getBondAsset(ctx, deposit.Asset, req.Holder)
-	logger.Printf("node.getBondAsset(%s %s) => %s %d %v", deposit.Asset, req.Holder, bondId, bondChain, err)
-	if err != nil {
-		return fmt.Errorf("node.getBondAsset(%s, %s) => %v", deposit.Asset, req.Holder, err)
-	}
+	entry := node.fetchBondAssetReceiver(ctx, safe.Address, deposit.Asset)
+	safeAssetId := node.getBondAssetId(ctx, entry, deposit.Asset, req.Holder)
+	logger.Printf("node.getBondAssetId(%s %s) => %s", deposit.Asset, req.Holder, safeAssetId)
+	bondId := crypto.Sha256Hash([]byte(safeAssetId))
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
 	logger.Printf("node.fetchAssetMeta(%v, %s) => %v %v", req, bondId.String(), bond, err)
 	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
 	}
-	if bond.Chain != bondChain {
+	if bond.Decimals != 18 || bond.AssetId != safeAssetId {
 		panic(bond.AssetId)
-	}
-	if bond == nil || bond.Decimals != 18 {
-		return node.store.FailRequest(ctx, req.Id)
 	}
 	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, deposit.Asset, deposit.AssetAddress, deposit.Chain)
 	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err)
 	}
 	if asset.Chain != safe.Chain {
 		panic(asset.AssetId)
@@ -112,63 +109,63 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	plan, err := node.store.ReadLatestOperationParams(ctx, deposit.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", deposit.Chain, plan, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadLatestOperationParams(%d) => %v", deposit.Chain, err)
+		return nil, "", fmt.Errorf("store.ReadLatestOperationParams(%d) => %v", deposit.Chain, err)
 	} else if plan == nil || !plan.TransactionMinimum.IsPositive() {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	switch deposit.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 }
 
 // FIXME Keeper should deny new deposits when too many unspent outputs
-func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
-	if asset.Decimals != bitcoin.ValuePrecision {
+func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset, minimum decimal.Decimal) ([]*mtg.Transaction, string, error) {
+	if asset.Decimals != bitcoin.ValuePrecision || asset.AssetId != common.SafeBitcoinChainId {
 		panic(asset.Decimals)
 	}
 	old, _, err := node.store.ReadBitcoinUTXO(ctx, deposit.Hash, int(deposit.Index))
 	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", deposit.Hash, deposit.Index, old, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
+		return nil, "", fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", deposit.Hash, deposit.Index, err)
 	} else if old != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index))
 	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
+		return nil, "", fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
 	} else if deposited != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	c, err := node.store.ReadUnspentUtxoCountForSafe(ctx, safe.Address)
 	logger.Printf("store.ReadUnspentUtxoCountForSafe(%s) => %d %v", safe.Address, c, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadUnspentUtxoCountForSafe(%s) => %d %v", safe.Address, c, err)
+		return nil, "", fmt.Errorf("store.ReadUnspentUtxoCountForSafe(%s) => %d %v", safe.Address, c, err)
 	}
 	if c >= bitcoin.MaxUnspentUtxo {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	rpc, _ := node.bitcoinParams(deposit.Chain)
 	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)
 	if err != nil {
-		return fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err)
+		return nil, "", fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err)
 	}
 
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
 	change, err := node.checkBitcoinChange(ctx, deposit, btx)
 	logger.Printf("node.checkBitcoinChange(%v, %v) => %t %v", deposit, btx, change, err)
 	if err != nil {
-		return fmt.Errorf("node.checkBitcoinChange(%v) => %v", deposit, err)
+		return nil, "", fmt.Errorf("node.checkBitcoinChange(%v) => %v", deposit, err)
 	}
 	if amount.Cmp(minimum) < 0 && !change {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	if amount.Cmp(decimal.New(bitcoin.ValueDust(safe.Chain), -bitcoin.ValuePrecision)) < 0 {
 		panic(deposit.Hash)
@@ -177,27 +174,29 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	output, err := node.verifyBitcoinTransaction(ctx, req, deposit, safe, bitcoin.InputTypeP2WSHMultisigHolderSigner)
 	logger.Printf("node.verifyBitcoinTransaction(%v) => %v %v", req, output, err)
 	if err != nil {
-		return fmt.Errorf("node.verifyBitcoinTransaction(%s) => %v", deposit.Hash, err)
+		return nil, "", fmt.Errorf("node.verifyBitcoinTransaction(%s) => %v", deposit.Hash, err)
 	}
 	if output == nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
+	var txs []*mtg.Transaction
 	if !change {
-		err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
-		if err != nil {
-			return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+		tx := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
+		if tx == nil {
+			return node.failRequest(ctx, req, safeAssetId)
 		}
+		txs = append(txs, tx)
 	}
 
 	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, btx)
 	if err != nil {
-		return fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err)
+		return nil, "", fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err)
 	}
-	return node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
+	return txs, "", node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
 }
 
-func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, bondId string, asset *store.Asset, minimum decimal.Decimal) error {
+func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset, minimum decimal.Decimal) ([]*mtg.Transaction, string, error) {
 	_, chainId := node.ethereumParams(deposit.Chain)
 	if asset.AssetId == chainId && asset.Decimals != ethereum.ValuePrecision {
 		panic(asset.Decimals)
@@ -205,32 +204,37 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index))
 	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
+		return nil, "", fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err)
 	} else if deposited != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
-	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset.AssetId)
+	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset.AssetId, safeAssetId)
 	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset.AssetId, safeBalance, err)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
-	safeBalance.Balance = big.NewInt(0).Add(deposit.Amount, safeBalance.Balance)
+	safeBalance.UpdateBalance(deposit.Amount)
+	if safeBalance.AssetAddress == "" {
+		safeBalance.AssetAddress = deposit.AssetAddress
+	}
 
 	output, err := node.verifyEthereumTransaction(ctx, req, deposit, safe)
 	logger.Printf("node.verifyEthereumTransaction(%v) => %v %v", req, output, err)
 	if err != nil {
-		return fmt.Errorf("node.verifyEthereumTransaction(%s) => %v", deposit.Hash, err)
+		return nil, "", fmt.Errorf("node.verifyEthereumTransaction(%s) => %v", deposit.Hash, err)
 	}
 	if output == nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.buildTransaction(ctx, bondId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
-	if err != nil {
-		return fmt.Errorf("node.buildTransaction(%v) => %v", req, err)
+	t := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	if t == nil {
+		return node.failRequest(ctx, req, safeAssetId)
 	}
-	return node.store.UpdateEthereumBalanceFromRequest(ctx, safe, deposit.Hash, int64(deposit.Index), safeBalance.Balance, req, asset.AssetId, deposit.AssetAddress, output.Sender)
+	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), deposit.Amount, output.Sender, req)
+	logger.Printf("store.UpdateEthereumBalanceFromRequest(%v) => %v", req, err)
+	return []*mtg.Transaction{t}, "", err
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {
@@ -310,7 +314,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if err != nil {
 		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", sender, err)
 	}
-	if isSafe && (confirmations > 0 || node.checkDepositTrustedConfirmForkTimestamp(req.CreatedAt)) {
+	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
@@ -347,7 +351,7 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	if err != nil {
 		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", t.Sender, err)
 	}
-	if isSafe && (confirmations > 0 || node.checkDepositTrustedConfirmForkTimestamp(req.CreatedAt)) {
+	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
 	if !ethereum.CheckFinalization(confirmations, safe.Chain) {
@@ -370,13 +374,4 @@ func (node *Node) checkTrustedSender(ctx context.Context, address string) (bool,
 		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", address, err)
 	}
 	return safe != nil, nil
-}
-
-func (node *Node) checkDepositTrustedConfirmForkTimestamp(createdAt time.Time) bool {
-	genesis := time.Unix(0, node.conf.MTG.Genesis.Timestamp)
-	if createdAt.Before(genesis) {
-		panic(createdAt.String())
-	}
-	forkAt := time.Date(2024, 5, 4, 0, 0, 0, 0, time.UTC)
-	return createdAt.Before(forkAt)
 }

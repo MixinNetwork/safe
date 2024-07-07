@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client"
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -45,9 +46,9 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMes
 	}
 
 	s := &mixin.Keystore{
-		ClientID:   conf.UserId,
-		SessionID:  conf.SessionId,
-		PrivateKey: conf.Key,
+		ClientID:          conf.UserId,
+		SessionID:         conf.SessionId,
+		SessionPrivateKey: conf.Key,
 	}
 
 	client, err := mixin.NewFromKeystore(s)
@@ -179,7 +180,7 @@ func (mm *MixinMessenger) OnMessage(ctx context.Context, msg bot.MessageView, us
 	if msg.ConversationId != mm.conversationId {
 		return nil
 	}
-	data, err := base64.StdEncoding.DecodeString(msg.Data)
+	data, err := base64.RawURLEncoding.DecodeString(msg.DataBase64)
 	if err != nil {
 		return nil
 	}
@@ -212,7 +213,7 @@ func (mm *MixinMessenger) SyncAck() bool {
 func (mm *MixinMessenger) sendMessagesWithoutTimeout(ctx context.Context, batch []*mixin.MessageRequest) error {
 	for {
 		err := mm.client.SendMessages(ctx, batch)
-		if err != nil && common.CheckRetryableError(err) {
+		if err != nil && mtg.CheckRetryableError(err) {
 			logger.Printf("messenger.sendMessagesWithoutTimeout(retry, %d) => %v", len(batch), err)
 			time.Sleep(3 * time.Second)
 			continue

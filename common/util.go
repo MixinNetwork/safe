@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 )
 
 const (
@@ -80,16 +80,4 @@ func ExpandTilde(path string) string {
 	}
 	path = strings.Replace(path, "~", home, 1)
 	return path
-}
-
-func CheckRetryableError(err error) bool {
-	es := err.Error()
-	switch {
-	case strings.Contains(es, "Client.Timeout"):
-	case strings.Contains(es, "Bad Gateway"):
-	case strings.Contains(es, "Internal Server Error"):
-	default:
-		return false
-	}
-	return true
 }

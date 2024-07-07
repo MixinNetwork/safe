@@ -9,11 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/domains/mvm"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil/psbt"
@@ -25,7 +24,7 @@ import (
 func GenerateTestTransactionProposal(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}
@@ -42,9 +41,9 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 		return err
 	}
 
-	addr := abi.GetFactoryAssetAddress(keeper.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
+	addr := abi.GetFactoryAssetAddress("0x11EC02748116A983deeD59235302C3139D6e8cdD", common.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
-	bondId := fetchAssetId(mvm.GenerateAssetId(assetKey).String())
+	bondId := fetchAssetId(ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
 
 	extra := []byte(receiver)
 	sid := uuid.Must(uuid.NewV4()).String()
@@ -58,7 +57,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 func GenerateTestTransactionApproval(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}

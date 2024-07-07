@@ -7,13 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client"
-	"github.com/MixinNetwork/go-number"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
 
@@ -56,14 +54,12 @@ func (node *Node) sendKeeperResponse(ctx context.Context, holder string, typ, ch
 func (node *Node) sendKeeperResponseWithReferences(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte, references []crypto.Hash) error {
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainLitecoin:
+	case common.SafeChainBitcoin:
+	case common.SafeChainLitecoin:
 		crv = common.CurveSecp256k1ECDSALitecoin
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
-	case keeper.SafeChainMVM:
-		crv = common.CurveSecp256k1ECDSAMVM
-	case keeper.SafeChainPolygon:
+	case common.SafeChainPolygon:
 		crv = common.CurveSecp256k1ECDSAPolygon
 	default:
 		panic(chain)
@@ -88,9 +84,9 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 	}
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
-	traceId := fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.ClientId, members, threshold)
+	traceId := fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
 	traceId = node.safeTraceId(traceId, op.Id)
-	memo := common.Base91Encode(extra)
+	memo := mtg.EncodeMixinExtraBase64(node.conf.KeeperAppId, extra)
 	err := node.sendTransactionUntilSufficient(ctx, node.conf.AssetId, members, threshold, decimal.NewFromInt(1), memo, traceId, references)
 	logger.Printf("node.sendKeeperTransaction(%v) => %s %x %v", op, op.Id, extra, err)
 	return err
@@ -103,7 +99,7 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 			time.Sleep(7 * time.Second)
 			continue
 		}
-		if err != nil && common.CheckRetryableError(err) {
+		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
 		}
@@ -113,23 +109,6 @@ func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId st
 
 func (node *Node) sendTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, references []crypto.Hash) error {
 	logger.Printf("node.sendTransaction(%s, %v, %d, %s, %s, %s, %v)", assetId, receivers, threshold, amount, memo, traceId, references)
-	conf := node.conf.App
-	input := &bot.TransferInput{
-		AssetId: assetId,
-		Amount:  number.FromString(amount.String()),
-		TraceId: traceId,
-		Memo:    memo,
-	}
-	for i := range references {
-		input.References = append(input.References, references[i].String())
-	}
-	if len(receivers) == 1 {
-		input.RecipientId = receivers[0]
-		_, err := bot.CreateTransfer(ctx, input, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-		return err
-	}
-	input.OpponentMultisig.Receivers = receivers
-	input.OpponentMultisig.Threshold = int64(threshold)
-	_, err := bot.CreateMultisigTransaction(ctx, input, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.App.AppId}, 1, receivers, threshold, amount, traceId, assetId, memo, node.conf.App.SpendPrivateKey)
 	return err
 }

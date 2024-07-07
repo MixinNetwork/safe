@@ -1,15 +1,12 @@
 package signer
 
 import (
-	"context"
 	"encoding/hex"
-	"fmt"
 	"testing"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	sc "github.com/MixinNetwork/safe/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,31 +31,28 @@ func TestFROSTMixinSign(t *testing.T) {
 
 	in0, _ := crypto.HashFromString("5b08c51b8e678e9015edd1561be644a787df257ebd7854b427c36d57989c3a43")
 	in1, _ := crypto.HashFromString("b05c168ac64ee2c131245645d5ce36872a4229b77c4c998123550d3efd806b13")
-	ver := common.NewTransactionV4(common.XINAssetId).AsVersioned()
+	ver := common.NewTransactionV5(common.XINAssetId).AsVersioned()
 	ver.AddInput(in0, 0)
 	ver.AddInput(in1, 0)
 	script := common.NewThresholdScript(1)
 	amount := common.NewIntegerFromString("0.003")
-	seed := crypto.NewHash([]byte("mixin safe"))
+	seed := crypto.Sha256Hash([]byte("mixin safe"))
 	ver.AddScriptOutput([]*common.Address{&addr}, script, amount, append(seed[:], seed[:]...))
 
 	R0, _ := crypto.KeyFromString("d0f38355e2ee997de0344ebbfdf2110580dbd7e45bc6e136ab95b0ce163d603a")
 	R1, _ := crypto.KeyFromString("4a3a42628e0bd26ce1e69dcaed4f495bece833a1f49af458051b1c169223bcc7")
 
 	var sig0, sig1 crypto.Signature
-	msg := ver.PayloadMarshal()
-	ref := writeStorageTransaction(ctx, nodes, msg)
+	hash := ver.PayloadHash()
 
 	msk := crypto.HashScalar(crypto.KeyMultPubPriv(&R0, &addr.PrivateViewKey), 0).Bytes()
-	msk = append(msk, ref...)
-	writeTransactionReferences(ctx, nodes, CurveEdwards25519Mixin, msk, ref)
+	msk = append(msk, hash[:]...)
 	fsb := testFROSTSign(ctx, require, nodes, public, msk, CurveEdwards25519Mixin)
 	require.Len(fsb, 64)
 	copy(sig0[:], fsb)
 
 	msk = crypto.HashScalar(crypto.KeyMultPubPriv(&R1, &addr.PrivateViewKey), 0).Bytes()
-	msk = append(msk, ref...)
-	writeTransactionReferences(ctx, nodes, CurveEdwards25519Mixin, msk, ref)
+	msk = append(msk, hash[:]...)
 	fsb = testFROSTSign(ctx, require, nodes, public, msk, CurveEdwards25519Mixin)
 	require.Len(fsb, 64)
 	copy(sig1[:], fsb)
@@ -69,32 +63,6 @@ func TestFROSTMixinSign(t *testing.T) {
 		0: &sig1,
 	}}
 	logger.Printf("%x\n", ver.Marshal())
-}
-
-func writeTransactionReferences(ctx context.Context, nodes []*Node, crv byte, msg, ref []byte) {
-	sid := sc.UniqueId("sign", fmt.Sprintf("%d:%x", crv, msg))
-	hash := crypto.NewHash([]byte(sid))
-	k := hex.EncodeToString(hash[:])
-	v := hex.EncodeToString(ref)
-	for _, n := range nodes {
-		err := n.store.WriteProperty(ctx, k, v)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func writeStorageTransaction(ctx context.Context, nodes []*Node, extra []byte) []byte {
-	tx := crypto.Blake3Hash(extra)
-	k := hex.EncodeToString(tx[:])
-	v := hex.EncodeToString([]byte(sc.Base91Encode(extra)))
-	for _, n := range nodes {
-		err := n.store.WriteProperty(ctx, k, v)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return tx[:]
 }
 
 func mixinAddress(public string) common.Address {

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -14,8 +13,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (node *Node) parseRequest(out *mtg.Output) (*common.Request, error) {
-	switch out.AssetID {
+func (node *Node) parseRequest(out *mtg.Action) (*common.Request, error) {
+	switch out.AssetId {
 	case node.conf.AssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			panic(out.TransactionHash)
@@ -42,36 +41,45 @@ func (node *Node) requestRole(assetId string) uint8 {
 	}
 }
 
-func (node *Node) parseObserverRequest(out *mtg.Output) (*common.Request, error) {
-	if out.Sender != node.conf.ObserverUserId {
+func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error) {
+	if len(out.Senders) != 1 && out.Senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
-	b, err := common.Base91Decode(out.Memo)
-	if err != nil {
-		return nil, err
+	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
+	if a != node.conf.AppId {
+		panic(out.Extra)
 	}
-	b = common.AESDecrypt(node.observerAESKey[:], b)
-	role := node.requestRole(out.AssetID)
+	if m == nil {
+		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
+	}
+	b := common.AESDecrypt(node.observerAESKey[:], m)
+	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
 
-func (node *Node) parseSignerResponse(out *mtg.Output) (*common.Request, error) {
-	msp := mtg.DecodeMixinExtra(out.Memo)
-	if msp == nil {
+func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) {
+	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
+	if a != node.conf.AppId {
+		panic(out.Extra)
+	}
+	if m == nil {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
-	b := common.AESDecrypt(node.signerAESKey[:], []byte(msp.M))
-	role := node.requestRole(out.AssetID)
+	b := common.AESDecrypt(node.signerAESKey[:], m)
+	role := node.requestRole(out.AssetId)
 	return common.DecodeRequest(out, b, role)
 }
 
-func (node *Node) parseHolderRequest(out *mtg.Output) (*common.Request, error) {
-	b, err := base64.RawURLEncoding.DecodeString(out.Memo)
-	if err != nil {
-		return nil, err
+func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
+	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
+	if a != node.conf.AppId {
+		panic(out.Extra)
 	}
-	role := node.requestRole(out.AssetID)
-	return common.DecodeRequest(out, b, role)
+	if m == nil {
+		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
+	}
+	role := node.requestRole(out.AssetId)
+	return common.DecodeRequest(out, m, role)
 }
 
 func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
@@ -92,40 +100,41 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 		panic(ref.String())
 	}
 
-	raw := common.DecodeMixinObjectExtra(ver.Extra)
-	raw = common.AESDecrypt(node.observerAESKey[:], raw)
+	raw := common.AESDecrypt(node.observerAESKey[:], ver.Extra)
 	return raw[16:]
 }
 
-func (node *Node) writeStorageUntilSnapshot(ctx context.Context, extra []byte) crypto.Hash {
-	logger.Printf("node.writeStorageUntilSnapshot(%x)", extra)
+func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Request, extra []byte) *mtg.Transaction {
+	logger.Printf("node.writeStorageTransaction(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
-		tx := crypto.Blake3Hash(extra)
-		k := hex.EncodeToString(tx[:])
+		sTraceId := crypto.Blake3Hash(extra).String()
+		sTraceId = mtg.UniqueId(sTraceId, sTraceId)
+		hash := crypto.Blake3Hash(extra)
+		tx := &mtg.Transaction{
+			TraceId: sTraceId,
+			Hash:    hash,
+		}
+
 		v := hex.EncodeToString(extra)
-		o, err := node.store.ReadProperty(ctx, k)
+		o, err := node.store.ReadProperty(ctx, sTraceId)
 		if err != nil {
 			panic(err)
 		}
 		if o == v {
 			return tx
 		}
-		err = node.store.WriteProperty(ctx, k, v)
+		err = node.store.WriteProperty(ctx, sTraceId, v)
 		if err != nil {
 			panic(err)
 		}
 		return tx
 	}
 
-	for {
-		stx, err := node.group.BuildStorageTransaction(ctx, extra, "")
-		logger.Printf("group.BuildStorageTransaction(%x) => %v %v", extra, stx, err)
-		if err != nil {
-			panic(err)
-		}
-		if stx.Hash.HasValue() && stx.State >= mtg.TransactionStateSigned {
-			return stx.Hash
-		}
-		time.Sleep(time.Second)
+	enough := node.group.CheckAssetBalanceForStorageAt(ctx, node.conf.AppId, extra, req.Sequence)
+	if !enough {
+		return nil
 	}
+	stx := node.group.BuildStorageTransaction(ctx, extra)
+	logger.Printf("group.BuildStorageTransaction(%x) => %v", extra, stx)
+	return stx
 }

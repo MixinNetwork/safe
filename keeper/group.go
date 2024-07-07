@@ -2,10 +2,10 @@ package keeper
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"time"
+	"math"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -15,8 +15,16 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
-	_, err := node.handleBondAsset(ctx, out)
+func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	isDeposit, err := node.verifyKernelTransaction(ctx, out)
+	if err != nil {
+		panic(err)
+	}
+	if isDeposit {
+		return nil, ""
+	}
+
+	_, err = node.handleBondAsset(ctx, out)
 	if err != nil {
 		panic(err)
 	}
@@ -24,41 +32,22 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	req, err := node.parseRequest(out)
 	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
 	if err != nil {
-		return false
+		return nil, ""
 	}
 
-	switch req.Action {
-	case common.OperationTypeKeygenOutput:
-	case common.OperationTypeSignOutput:
-	case common.ActionTerminate:
-	case common.ActionObserverAddKey:
-	case common.ActionObserverRequestSignerKeys:
-	case common.ActionObserverUpdateNetworkStatus:
-	case common.ActionObserverHolderDeposit:
-	case common.ActionObserverSetOperationParams:
-	case common.ActionBitcoinSafeProposeAccount:
-	case common.ActionBitcoinSafeApproveAccount:
-	case common.ActionBitcoinSafeProposeTransaction:
-	case common.ActionBitcoinSafeApproveTransaction:
-	case common.ActionBitcoinSafeRevokeTransaction:
-	case common.ActionBitcoinSafeCloseAccount:
-	case common.ActionEthereumSafeProposeAccount:
-	case common.ActionEthereumSafeApproveAccount:
-	case common.ActionEthereumSafeProposeTransaction:
-	case common.ActionEthereumSafeApproveTransaction:
-	case common.ActionEthereumSafeRevokeTransaction:
-	case common.ActionEthereumSafeCloseAccount:
-	case common.ActionEthereumSafeRefundTransaction:
-	default:
-		return false
-	}
+	// TODO use this to make mtg ProcessOutput consistent with retry
+	// txs, assetId, done := node.store.ReadRequestTransactions(ctx, req)
+	// if done {
+	//   return txs, assetId
+	// }
+	// then processRequest should always write txs in store
+
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
-		return false
+		return nil, ""
 	}
 
-	// FIXME this blocks the main group loop
-	err = node.verifyKernelTransaction(ctx, out)
+	err = req.VerifyFormat()
 	if err != nil {
 		panic(err)
 	}
@@ -66,7 +55,13 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	if err != nil {
 		panic(err)
 	}
-	return false
+
+	ts, asset, err := node.processRequest(ctx, req)
+	logger.Printf("node.processRequest(%v) => %v %s %v", req, ts, asset, err)
+	if err != nil {
+		panic(err)
+	}
+	return ts, asset
 }
 
 func (node *Node) getActionRole(act byte) byte {
@@ -87,6 +82,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionObserverSetOperationParams:
 		return common.RequestRoleObserver
+	case common.ActionMigrateSafeToken:
+		return common.RequestRoleHolder
 	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:
 		return common.RequestRoleHolder
 	case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
@@ -106,26 +103,19 @@ func (node *Node) getActionRole(act byte) byte {
 	}
 }
 
-func (node *Node) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
-	return false
-}
-
-func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, error) {
+func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, error) {
 	if common.CheckTestEnvironment(ctx) {
 		return false, nil
 	}
-	if node.checkGroupChangeTransaction(out.Memo) {
-		return false, nil
-	}
 
-	meta, err := node.fetchAssetMeta(ctx, out.AssetID)
+	meta, err := node.fetchAssetMeta(ctx, out.AssetId)
 	if err != nil {
-		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetID, err)
+		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", out.AssetId, err)
 	}
-	if meta.Chain != SafeChainMVM {
+	if meta.Chain != common.SafeChainPolygon {
 		return false, nil
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.MVMRPC, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil {
 		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
@@ -135,76 +125,30 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Output) (bool, e
 	}
 
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
-	asset, err := node.fetchAssetMeta(ctx, id.String())
+	_, err = node.fetchAssetMeta(ctx, id.String())
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
-	spent, err := node.group.ListOutputsForAsset("", out.AssetID, "spent", 1)
-	if err != nil {
-		return false, fmt.Errorf("group.ListOutputsForAsset(%s) => %v", out.AssetID, err)
-	}
+	spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, out.AssetId, math.MaxInt64, "spent", 1)
 	if len(spent) > 0 {
 		return false, nil
 	}
 
-	max := node.bondMaxSupply(ctx, asset.Chain, asset.AssetId)
-	if !out.Amount.Equal(max) {
-		return false, fmt.Errorf("node.handleBondAsset(%s) => %s", id, out.Amount)
-	}
-	err = node.verifyKernelTransaction(ctx, out)
-	if err != nil {
-		panic(err)
-	}
 	return true, nil
 }
 
-func (node *Node) checkGroupChangeTransaction(memo string) bool {
-	msp := mtg.DecodeMixinExtra(memo)
-	if msp == nil {
-		return false
-	}
-	inputs, err := node.group.ListOutputsForTransaction(msp.T.String())
-	if err != nil {
-		panic(err)
-	}
-	return len(inputs) > 0
-}
-
-func (node *Node) loopProcessRequests(ctx context.Context) {
-	for {
-		req, err := node.store.ReadPendingRequest(ctx)
-		logger.Printf("node.ReadPendingRequest() => %v %v", req, err)
-		if err != nil {
-			panic(err)
-		}
-		if req == nil {
-			time.Sleep(time.Second)
-			continue
-		}
-		err = req.VerifyFormat()
-		if err != nil {
-			panic(err)
-		}
-		err = node.processRequest(ctx, req)
-		logger.Printf("node.processRequest(%v) => %v", req, err)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func (node *Node) timestamp(ctx context.Context) (time.Time, error) {
+func (node *Node) timestamp(ctx context.Context) (uint64, error) {
 	req, err := node.store.ReadLatestRequest(ctx)
 	if err != nil || req == nil {
-		return time.Unix(0, node.conf.MTG.Genesis.Timestamp), err
+		return node.conf.MTG.Genesis.Epoch, err
 	}
-	return req.CreatedAt, nil
+	return req.Sequence, nil
 }
 
 // never call this function with multiple threads, and all implementations
 // should be allowed to repeat executions
 // ALL failure should panic instead of continue
-func (node *Node) processRequest(ctx context.Context, req *common.Request) error {
+func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	switch req.Action {
 	case common.OperationTypeKeygenOutput:
 		return node.processKeyAdd(ctx, req)
@@ -215,13 +159,15 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 	case common.ActionObserverAddKey:
 		return node.processKeyAdd(ctx, req)
 	case common.ActionObserverRequestSignerKeys:
-		return node.sendSignerKeygenRequest(ctx, req)
+		return node.processSignerKeygenRequests(ctx, req)
 	case common.ActionObserverUpdateNetworkStatus:
 		return node.writeNetworkInfo(ctx, req)
 	case common.ActionObserverHolderDeposit:
 		return node.CreateHolderDeposit(ctx, req)
 	case common.ActionObserverSetOperationParams:
 		return node.writeOperationParams(ctx, req)
+	case common.ActionMigrateSafeToken:
+		return node.checkSafeTokenMigration(ctx, req)
 	case common.ActionBitcoinSafeProposeAccount:
 		return node.processBitcoinSafeProposeAccount(ctx, req)
 	case common.ActionBitcoinSafeApproveAccount:
@@ -253,146 +199,160 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) error
 	}
 }
 
-func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) error {
+func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	old, err := node.store.ReadKey(ctx, req.Holder)
 	logger.Printf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
+		return nil, "", fmt.Errorf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
 	}
 	if old != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 34 {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch extra[0] {
 	case common.RequestRoleSigner:
 		if req.Role != common.RequestRoleSigner {
-			return node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	case common.RequestRoleObserver:
 		if req.Role != common.RequestRoleObserver {
-			return node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	chainCode, flags := extra[1:33], extra[33]
 	switch flags {
 	case common.RequestFlagNone:
 	case common.RequestFlagCustomObserverKey:
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch req.Curve {
 	case common.CurveSecp256k1ECDSABitcoin:
 		err = bitcoin.CheckDerivation(req.Holder, chainCode, 1000)
 		logger.Printf("bitcoin.CheckDerivation(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAMVM, common.CurveSecp256k1ECDSAPolygon:
 		err = ethereum.VerifyHolderKey(req.Holder)
 		logger.Printf("ethereum.VerifyHolderKey(%s, %x) => %v", req.Holder, chainCode, err)
 		if err != nil {
-			return node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
 		panic(req.Curve)
 	}
-	return node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), chainCode, flags)
+	return nil, "", node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), chainCode, flags)
 }
 
-func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) error {
+func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
 	}
 	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
 	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
 	if err != nil {
-		return fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
+		return nil, "", fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
 	}
 	if old == nil || old.State == common.RequestStateDone {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
 	if err != nil {
-		return fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
+		return nil, "", fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
 	}
 	safe, err := node.store.ReadSafe(ctx, tx.Holder)
 	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
+		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
 	}
 	if safe.Signer != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	switch safe.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
 	default:
 		panic(safe.Chain)
 	}
 }
 
-func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.Request) error {
+func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	chain := SafeCurveChain(req.Curve)
+	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
-		return fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
 	}
 	if safe == nil || safe.Chain != chain {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 64 {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 	if err != nil {
-		return fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
+		return nil, "", fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
 	} else if tx == nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	} else if tx.Holder != req.Holder {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	} else if tx.State != common.RequestStateInitial {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 	txRequest, err := node.store.ReadRequest(ctx, rid.String())
 	logger.Printf("store.ReadRequest(%s) => %v %v", rid.String(), txRequest, err)
 	if err != nil || txRequest == nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
 	logger.Printf("holder: node.verifySafeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
 	if err != nil {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
 	logger.Printf("node.fetchAssetMeta(%s) => %v %v", txRequest.AssetId, meta, err)
 	if err != nil {
-		return fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
-	if meta.Chain != SafeChainMVM {
-		return node.store.FailRequest(ctx, req.Id)
-	}
-	err = node.buildTransaction(ctx, meta.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
-	if err != nil {
-		return err
+	if meta.Chain != common.SafeChainPolygon {
+		return node.failRequest(ctx, req, "")
 	}
 
-	return node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
+	entry := node.fetchBondAssetReceiver(ctx, safe.Address, tx.AssetId)
+	safeAssetId := node.getBondAssetId(ctx, entry, tx.AssetId, tx.Holder)
+	bondId := crypto.Sha256Hash([]byte(safeAssetId))
+	bond, err := node.fetchAssetMeta(ctx, bondId.String())
+	logger.Printf("node.fetchAssetMeta(%v, %s) => %v %v", req, bondId.String(), bond, err)
+	if err != nil {
+		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
+	}
+	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
+	if t == nil {
+		return node.failRequest(ctx, req, bond.AssetId)
+	}
+
+	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return []*mtg.Transaction{t}, "", nil
 }

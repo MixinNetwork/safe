@@ -41,7 +41,7 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v", gs.Address, err)
 	}
 	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, ethereumAssetId, "", sp.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, ethereumAssetId, "", sp.Holder, sp.Address)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", ethereumAssetId, sp.Holder, err)
 	if err != nil {
 		return err
@@ -72,17 +72,20 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	sa, err := ethereum.GetOrDeploySafeAccount(ctx, rpc, node.conf.EVMKey, chainId, owners, 2, timelock, index, t)
 	logger.Printf("ethereum.GetOrDeploySafeAccount(%s, %d, %v, %d, %d, %v) => %s %v", rpc, chainId, owners, 2, timelock, t, sa, err)
+	if err != nil {
+		return err
+	}
+	err = node.store.MarkAccountApproved(ctx, safe.Address)
+	logger.Printf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
 	return err
 }
 
 func (node *Node) ethereumParams(chain byte) (string, string) {
 	switch chain {
-	case keeper.SafeChainEthereum:
-		return node.conf.EthereumRPC, keeper.SafeEthereumChainId
-	case keeper.SafeChainMVM:
-		return node.conf.MVMRPC, keeper.SafeMVMChainId
-	case keeper.SafeChainPolygon:
-		return node.conf.PolygonRPC, keeper.SafePolygonChainId
+	case common.SafeChainEthereum:
+		return node.conf.EthereumRPC, common.SafeEthereumChainId
+	case common.SafeChainPolygon:
+		return node.conf.PolygonRPC, common.SafePolygonChainId
 	default:
 		panic(chain)
 	}
@@ -187,7 +190,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return err
 	}
 
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder)
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder, safe.Address)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
 	}
@@ -236,7 +239,11 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if err != nil || asset == nil {
 		return err
 	}
-	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, deposit.AssetId, asset.AssetKey, deposit.Holder)
+	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
+	if err != nil || safe == nil {
+		return err
+	}
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, deposit.AssetId, asset.AssetKey, deposit.Holder, safe.Address)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
@@ -315,8 +322,6 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
 	duration := 5 * time.Second
 	switch chain {
-	case ethereum.ChainMVM:
-		duration = 1 * time.Second
 	case ethereum.ChainPolygon:
 		duration = 2 * time.Second
 	case ethereum.ChainEthereum:
@@ -510,12 +515,8 @@ func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Conte
 	raw = common.AESEncrypt(node.aesKey[:], raw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(raw)
 	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	ref, err := common.WriteStorageUntilSufficient(ctx, node.mixin, raw, traceId, node.safeUser())
+	logger.Printf("WriteStorageUntilSufficient(%s) => %s %v", traceId, ref, err)
 	if err != nil {
 		return err
 	}
@@ -585,13 +586,8 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
 	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
 	traceId := common.UniqueId(msg, msg)
-	conf := node.conf.App
-	rs, err := common.CreateObjectUntilSufficient(ctx, msg, traceId, conf.ClientId, conf.SessionId, conf.PrivateKey, conf.PIN, conf.PinToken)
-	logger.Printf("common.CreateObjectUntilSufficient(%v) => %v %v", msg, rs, err)
-	if err != nil {
-		return err
-	}
-	ref, err := crypto.HashFromString(rs.TransactionHash)
+	ref, err := common.WriteStorageUntilSufficient(ctx, node.mixin, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.CreateObjectUntilSufficient(%v) => %s %v", msg, ref, err)
 	if err != nil {
 		return err
 	}
@@ -687,7 +683,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		}
 	}
 
-	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	rpc, _ := node.ethereumParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
@@ -710,30 +706,19 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	safeBalances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
-	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
+	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
-	} else if len(safeBalances) == 0 {
-		return fmt.Errorf("safe %s is has no balances", safe.Address)
 	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != len(safeBalances) {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(safeBalances))
+	if len(outputs) != len(sbm) {
+		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		b, err := node.keeperStore.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, safeBalances, err)
-		if err != nil {
-			return err
-		}
-		if b.Balance.Cmp(o.Amount) != 0 {
-			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
 		}
 	}
 
@@ -796,7 +781,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	}
 	signedRaw := st.Marshal()
 
-	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
+	rpc, _ := node.ethereumParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil {
@@ -819,30 +804,19 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	safeBalances, err := node.keeperStore.ReadEthereumAllBalance(ctx, safe.Address)
-	logger.Printf("store.ReadEthereumAllBalance(%s) => %v %v", safe.Address, safeBalances, err)
+	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
-	} else if len(safeBalances) == 0 {
-		return fmt.Errorf("safe %s is has no balances", safe.Address)
 	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != len(safeBalances) {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(safeBalances))
+	if len(outputs) != len(sbm) {
+		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
-		assetId := ethereumAssetId
-		if o.TokenAddress != ethereum.EthereumEmptyAddress {
-			assetId = ethereum.GenerateAssetId(safe.Chain, o.TokenAddress)
-		}
-
-		b, err := node.keeperStore.ReadEthereumBalance(ctx, safe.Address, assetId)
-		logger.Printf("store.ReadEthereumBalance(%s %s) => %v %v", safe.Address, assetId, safeBalances, err)
-		if err != nil {
-			return err
-		}
-		if b.Balance.Cmp(o.Amount) != 0 {
-			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", assetId, b.Balance, o.Amount)
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
 		}
 	}
 

@@ -26,11 +26,12 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	_ = abi.ConvertType
 )
 
 // FactoryContractMetaData contains all meta data concerning the FactoryContract contract.
 var FactoryContractMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"type\":\"address\",\"name\":\"_observer\",\"internalType\":\"address\"}]},{\"type\":\"function\",\"stateMutability\":\"view\",\"outputs\":[{\"type\":\"address\",\"name\":\"\",\"internalType\":\"address\"}],\"name\":\"OBSERVER\",\"inputs\":[]},{\"type\":\"function\",\"stateMutability\":\"view\",\"outputs\":[{\"type\":\"uint256\",\"name\":\"\",\"internalType\":\"uint256\"}],\"name\":\"assets\",\"inputs\":[{\"type\":\"address\",\"name\":\"\",\"internalType\":\"address\"}]},{\"type\":\"function\",\"stateMutability\":\"view\",\"outputs\":[{\"type\":\"address\",\"name\":\"\",\"internalType\":\"address\"}],\"name\":\"contracts\",\"inputs\":[{\"type\":\"uint256\",\"name\":\"\",\"internalType\":\"uint256\"}]},{\"type\":\"function\",\"stateMutability\":\"nonpayable\",\"outputs\":[{\"type\":\"address\",\"name\":\"\",\"internalType\":\"address\"}],\"name\":\"deploy\",\"inputs\":[{\"type\":\"uint256\",\"name\":\"_id\",\"internalType\":\"uint256\"},{\"type\":\"string\",\"name\":\"_holder\",\"internalType\":\"string\"},{\"type\":\"string\",\"name\":\"_symbol\",\"internalType\":\"string\"},{\"type\":\"string\",\"name\":\"_name\",\"internalType\":\"string\"}]},{\"type\":\"event\",\"name\":\"AssetCreated\",\"inputs\":[{\"type\":\"address\",\"name\":\"at\",\"indexed\":true},{\"type\":\"uint256\",\"name\":\"id\",\"indexed\":false},{\"type\":\"string\",\"name\":\"holder\",\"indexed\":false},{\"type\":\"uint256\",\"name\":\"key\",\"indexed\":false}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"FactoryConstructed\",\"inputs\":[{\"type\":\"address\",\"name\":\"observer\",\"indexed\":true},{\"type\":\"bytes\",\"name\":\"code\",\"indexed\":false}],\"anonymous\":false}]",
+	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"at\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"receiver\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"holder\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"key\",\"type\":\"uint256\"}],\"name\":\"AssetCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"code\",\"type\":\"bytes\"}],\"name\":\"FactoryConstructed\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"assets\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"contracts\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_receiver\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"_holder\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_symbol\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"}],\"name\":\"deploy\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // FactoryContractABI is the input ABI used to generate the binding from.
@@ -134,11 +135,11 @@ func NewFactoryContractFilterer(address common.Address, filterer bind.ContractFi
 
 // bindFactoryContract binds a generic wrapper to an already deployed contract.
 func bindFactoryContract(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(FactoryContractABI))
+	parsed, err := FactoryContractMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
@@ -177,37 +178,6 @@ func (_FactoryContract *FactoryContractTransactorRaw) Transfer(opts *bind.Transa
 // Transact invokes the (paid) contract method with params as input values.
 func (_FactoryContract *FactoryContractTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
 	return _FactoryContract.Contract.contract.Transact(opts, method, params...)
-}
-
-// OBSERVER is a free data retrieval call binding the contract method 0x528021b8.
-//
-// Solidity: function OBSERVER() view returns(address)
-func (_FactoryContract *FactoryContractCaller) OBSERVER(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _FactoryContract.contract.Call(opts, &out, "OBSERVER")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// OBSERVER is a free data retrieval call binding the contract method 0x528021b8.
-//
-// Solidity: function OBSERVER() view returns(address)
-func (_FactoryContract *FactoryContractSession) OBSERVER() (common.Address, error) {
-	return _FactoryContract.Contract.OBSERVER(&_FactoryContract.CallOpts)
-}
-
-// OBSERVER is a free data retrieval call binding the contract method 0x528021b8.
-//
-// Solidity: function OBSERVER() view returns(address)
-func (_FactoryContract *FactoryContractCallerSession) OBSERVER() (common.Address, error) {
-	return _FactoryContract.Contract.OBSERVER(&_FactoryContract.CallOpts)
 }
 
 // Assets is a free data retrieval call binding the contract method 0xf11b8188.
@@ -272,25 +242,25 @@ func (_FactoryContract *FactoryContractCallerSession) Contracts(arg0 *big.Int) (
 	return _FactoryContract.Contract.Contracts(&_FactoryContract.CallOpts, arg0)
 }
 
-// Deploy is a paid mutator transaction binding the contract method 0x71de55b4.
+// Deploy is a paid mutator transaction binding the contract method 0xbac72406.
 //
-// Solidity: function deploy(uint256 _id, string _holder, string _symbol, string _name) returns(address)
-func (_FactoryContract *FactoryContractTransactor) Deploy(opts *bind.TransactOpts, _id *big.Int, _holder string, _symbol string, _name string) (*types.Transaction, error) {
-	return _FactoryContract.contract.Transact(opts, "deploy", _id, _holder, _symbol, _name)
+// Solidity: function deploy(address _receiver, uint256 _id, string _holder, string _symbol, string _name) returns(address)
+func (_FactoryContract *FactoryContractTransactor) Deploy(opts *bind.TransactOpts, _receiver common.Address, _id *big.Int, _holder string, _symbol string, _name string) (*types.Transaction, error) {
+	return _FactoryContract.contract.Transact(opts, "deploy", _receiver, _id, _holder, _symbol, _name)
 }
 
-// Deploy is a paid mutator transaction binding the contract method 0x71de55b4.
+// Deploy is a paid mutator transaction binding the contract method 0xbac72406.
 //
-// Solidity: function deploy(uint256 _id, string _holder, string _symbol, string _name) returns(address)
-func (_FactoryContract *FactoryContractSession) Deploy(_id *big.Int, _holder string, _symbol string, _name string) (*types.Transaction, error) {
-	return _FactoryContract.Contract.Deploy(&_FactoryContract.TransactOpts, _id, _holder, _symbol, _name)
+// Solidity: function deploy(address _receiver, uint256 _id, string _holder, string _symbol, string _name) returns(address)
+func (_FactoryContract *FactoryContractSession) Deploy(_receiver common.Address, _id *big.Int, _holder string, _symbol string, _name string) (*types.Transaction, error) {
+	return _FactoryContract.Contract.Deploy(&_FactoryContract.TransactOpts, _receiver, _id, _holder, _symbol, _name)
 }
 
-// Deploy is a paid mutator transaction binding the contract method 0x71de55b4.
+// Deploy is a paid mutator transaction binding the contract method 0xbac72406.
 //
-// Solidity: function deploy(uint256 _id, string _holder, string _symbol, string _name) returns(address)
-func (_FactoryContract *FactoryContractTransactorSession) Deploy(_id *big.Int, _holder string, _symbol string, _name string) (*types.Transaction, error) {
-	return _FactoryContract.Contract.Deploy(&_FactoryContract.TransactOpts, _id, _holder, _symbol, _name)
+// Solidity: function deploy(address _receiver, uint256 _id, string _holder, string _symbol, string _name) returns(address)
+func (_FactoryContract *FactoryContractTransactorSession) Deploy(_receiver common.Address, _id *big.Int, _holder string, _symbol string, _name string) (*types.Transaction, error) {
+	return _FactoryContract.Contract.Deploy(&_FactoryContract.TransactOpts, _receiver, _id, _holder, _symbol, _name)
 }
 
 // FactoryContractAssetCreatedIterator is returned from FilterAssetCreated and is used to iterate over the raw logs and unpacked data for AssetCreated events raised by the FactoryContract contract.
@@ -362,16 +332,17 @@ func (it *FactoryContractAssetCreatedIterator) Close() error {
 
 // FactoryContractAssetCreated represents a AssetCreated event raised by the FactoryContract contract.
 type FactoryContractAssetCreated struct {
-	At     common.Address
-	Id     *big.Int
-	Holder string
-	Key    *big.Int
-	Raw    types.Log // Blockchain specific contextual infos
+	At       common.Address
+	Receiver common.Address
+	Id       *big.Int
+	Holder   string
+	Key      *big.Int
+	Raw      types.Log // Blockchain specific contextual infos
 }
 
-// FilterAssetCreated is a free log retrieval operation binding the contract event 0x14c45da4d71a4586050d799014115b8dd6a89d4a15564040611e1e4495217a45.
+// FilterAssetCreated is a free log retrieval operation binding the contract event 0x6712d4854fd77cd7702f970a478ae30ef46d8644066a010e9b14a63447a688ee.
 //
-// Solidity: event AssetCreated(address indexed at, uint256 id, string holder, uint256 key)
+// Solidity: event AssetCreated(address indexed at, address receiver, uint256 id, string holder, uint256 key)
 func (_FactoryContract *FactoryContractFilterer) FilterAssetCreated(opts *bind.FilterOpts, at []common.Address) (*FactoryContractAssetCreatedIterator, error) {
 
 	var atRule []interface{}
@@ -386,9 +357,9 @@ func (_FactoryContract *FactoryContractFilterer) FilterAssetCreated(opts *bind.F
 	return &FactoryContractAssetCreatedIterator{contract: _FactoryContract.contract, event: "AssetCreated", logs: logs, sub: sub}, nil
 }
 
-// WatchAssetCreated is a free log subscription operation binding the contract event 0x14c45da4d71a4586050d799014115b8dd6a89d4a15564040611e1e4495217a45.
+// WatchAssetCreated is a free log subscription operation binding the contract event 0x6712d4854fd77cd7702f970a478ae30ef46d8644066a010e9b14a63447a688ee.
 //
-// Solidity: event AssetCreated(address indexed at, uint256 id, string holder, uint256 key)
+// Solidity: event AssetCreated(address indexed at, address receiver, uint256 id, string holder, uint256 key)
 func (_FactoryContract *FactoryContractFilterer) WatchAssetCreated(opts *bind.WatchOpts, sink chan<- *FactoryContractAssetCreated, at []common.Address) (event.Subscription, error) {
 
 	var atRule []interface{}
@@ -428,9 +399,9 @@ func (_FactoryContract *FactoryContractFilterer) WatchAssetCreated(opts *bind.Wa
 	}), nil
 }
 
-// ParseAssetCreated is a log parse operation binding the contract event 0x14c45da4d71a4586050d799014115b8dd6a89d4a15564040611e1e4495217a45.
+// ParseAssetCreated is a log parse operation binding the contract event 0x6712d4854fd77cd7702f970a478ae30ef46d8644066a010e9b14a63447a688ee.
 //
-// Solidity: event AssetCreated(address indexed at, uint256 id, string holder, uint256 key)
+// Solidity: event AssetCreated(address indexed at, address receiver, uint256 id, string holder, uint256 key)
 func (_FactoryContract *FactoryContractFilterer) ParseAssetCreated(log types.Log) (*FactoryContractAssetCreated, error) {
 	event := new(FactoryContractAssetCreated)
 	if err := _FactoryContract.contract.UnpackLog(event, "AssetCreated", log); err != nil {
@@ -509,39 +480,28 @@ func (it *FactoryContractFactoryConstructedIterator) Close() error {
 
 // FactoryContractFactoryConstructed represents a FactoryConstructed event raised by the FactoryContract contract.
 type FactoryContractFactoryConstructed struct {
-	Observer common.Address
-	Code     []byte
-	Raw      types.Log // Blockchain specific contextual infos
+	Code []byte
+	Raw  types.Log // Blockchain specific contextual infos
 }
 
-// FilterFactoryConstructed is a free log retrieval operation binding the contract event 0x39fa29dd5d5c2df805d73ccc2ba442e59f0d863b61f23c67f11bd09f5f543fca.
+// FilterFactoryConstructed is a free log retrieval operation binding the contract event 0xfbf94cf8da649b55e37797e65b2ec0ee3ebbadde87490a2352fa257d3590d073.
 //
-// Solidity: event FactoryConstructed(address indexed observer, bytes code)
-func (_FactoryContract *FactoryContractFilterer) FilterFactoryConstructed(opts *bind.FilterOpts, observer []common.Address) (*FactoryContractFactoryConstructedIterator, error) {
+// Solidity: event FactoryConstructed(bytes code)
+func (_FactoryContract *FactoryContractFilterer) FilterFactoryConstructed(opts *bind.FilterOpts) (*FactoryContractFactoryConstructedIterator, error) {
 
-	var observerRule []interface{}
-	for _, observerItem := range observer {
-		observerRule = append(observerRule, observerItem)
-	}
-
-	logs, sub, err := _FactoryContract.contract.FilterLogs(opts, "FactoryConstructed", observerRule)
+	logs, sub, err := _FactoryContract.contract.FilterLogs(opts, "FactoryConstructed")
 	if err != nil {
 		return nil, err
 	}
 	return &FactoryContractFactoryConstructedIterator{contract: _FactoryContract.contract, event: "FactoryConstructed", logs: logs, sub: sub}, nil
 }
 
-// WatchFactoryConstructed is a free log subscription operation binding the contract event 0x39fa29dd5d5c2df805d73ccc2ba442e59f0d863b61f23c67f11bd09f5f543fca.
+// WatchFactoryConstructed is a free log subscription operation binding the contract event 0xfbf94cf8da649b55e37797e65b2ec0ee3ebbadde87490a2352fa257d3590d073.
 //
-// Solidity: event FactoryConstructed(address indexed observer, bytes code)
-func (_FactoryContract *FactoryContractFilterer) WatchFactoryConstructed(opts *bind.WatchOpts, sink chan<- *FactoryContractFactoryConstructed, observer []common.Address) (event.Subscription, error) {
+// Solidity: event FactoryConstructed(bytes code)
+func (_FactoryContract *FactoryContractFilterer) WatchFactoryConstructed(opts *bind.WatchOpts, sink chan<- *FactoryContractFactoryConstructed) (event.Subscription, error) {
 
-	var observerRule []interface{}
-	for _, observerItem := range observer {
-		observerRule = append(observerRule, observerItem)
-	}
-
-	logs, sub, err := _FactoryContract.contract.WatchLogs(opts, "FactoryConstructed", observerRule)
+	logs, sub, err := _FactoryContract.contract.WatchLogs(opts, "FactoryConstructed")
 	if err != nil {
 		return nil, err
 	}
@@ -573,9 +533,9 @@ func (_FactoryContract *FactoryContractFilterer) WatchFactoryConstructed(opts *b
 	}), nil
 }
 
-// ParseFactoryConstructed is a log parse operation binding the contract event 0x39fa29dd5d5c2df805d73ccc2ba442e59f0d863b61f23c67f11bd09f5f543fca.
+// ParseFactoryConstructed is a log parse operation binding the contract event 0xfbf94cf8da649b55e37797e65b2ec0ee3ebbadde87490a2352fa257d3590d073.
 //
-// Solidity: event FactoryConstructed(address indexed observer, bytes code)
+// Solidity: event FactoryConstructed(bytes code)
 func (_FactoryContract *FactoryContractFilterer) ParseFactoryConstructed(log types.Log) (*FactoryContractFactoryConstructed, error) {
 	event := new(FactoryContractFactoryConstructed)
 	if err := _FactoryContract.contract.UnpackLog(event, "FactoryConstructed", log); err != nil {

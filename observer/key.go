@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/keeper"
 )
 
 func (node *Node) safeKeyLoop(ctx context.Context, chain byte) {
@@ -28,9 +27,9 @@ func (node *Node) safeKeyLoop(ctx context.Context, chain byte) {
 func (node *Node) safeAddObserverKeys(ctx context.Context, chain byte) error {
 	var crv byte
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		crv = common.CurveSecp256k1ECDSABitcoin
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
 	}
 	count, err := node.keeperStore.CountSpareKeys(ctx, crv, common.RequestFlagNone, common.RequestRoleObserver)
@@ -73,9 +72,9 @@ func (node *Node) safeAddObserverKeys(ctx context.Context, chain byte) error {
 func (node *Node) safeRequestSignerKeys(ctx context.Context, chain byte) error {
 	var crv byte
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		crv = common.CurveSecp256k1ECDSABitcoin
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
 	}
 	count, err := node.keeperStore.CountSpareKeys(ctx, crv, common.RequestFlagNone, common.RequestRoleSigner)
@@ -118,9 +117,9 @@ func (node *Node) writeSignerKeygenRequestTime(ctx context.Context, chain byte) 
 
 func (node *Node) chainKeygenRequestTimeKey(chain byte) (string, error) {
 	switch chain {
-	case keeper.SafeChainBitcoin:
+	case common.SafeChainBitcoin:
 		return bitcoinKeygenRequestTimeKey, nil
-	case keeper.SafeChainEthereum:
+	case common.SafeChainEthereum:
 		return ethereumKeygenRequestTimeKey, nil
 	default:
 		return "", fmt.Errorf("invalid keygen request chain")

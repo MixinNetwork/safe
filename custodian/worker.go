@@ -36,20 +36,8 @@ func NewWorker(s *SQLite3Store) *Worker {
 	}
 }
 
-func (worker *Worker) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
-	switch out.AssetID {
-	case worker.signerAssetId:
-	case worker.keeperAssetId:
-	case worker.observerAssetId:
-	case XINAssetId:
-		return true
-	default:
-	}
-	return false
-}
-
-func (worker *Worker) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) bool {
-	return false
+func (worker *Worker) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	return nil, ""
 }
 
 func (worker *Worker) Boot(ctx context.Context) {

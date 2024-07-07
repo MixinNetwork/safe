@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
@@ -27,7 +28,8 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	gc "github.com/ethereum/go-ethereum/crypto"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/urfave/cli/v2"
 )
 
@@ -58,14 +60,23 @@ func ObserverBootCmd(c *cli.Context) error {
 	defer kd.Close()
 
 	mixin, err := mixin.NewFromKeystore(&mixin.Keystore{
-		ClientID:   mc.Observer.App.ClientId,
-		SessionID:  mc.Observer.App.SessionId,
-		PrivateKey: mc.Observer.App.PrivateKey,
-		PinToken:   mc.Observer.App.PinToken,
+		AppID:             mc.Observer.App.AppId,
+		SessionID:         mc.Observer.App.SessionId,
+		SessionPrivateKey: mc.Observer.App.SessionPrivateKey,
+		ServerPublicKey:   mc.Observer.App.ServerPublicKey,
 	})
 	if err != nil {
 		return err
 	}
+	me, err := mixin.UserMe(ctx)
+	if err != nil {
+		return err
+	}
+	key, err := mixinnet.ParseKeyWithPub(mc.Observer.App.SpendPrivateKey, me.SpendPublicKey)
+	if err != nil {
+		return err
+	}
+	mc.Observer.App.SpendPrivateKey = key.String()
 
 	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin)
 	go node.StartHTTP(c.App.Metadata["README"].(string))
@@ -162,7 +173,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = db.WriteAccountantKeys(ctx, keeper.SafeChainCurve(chain), keys)
+	err = db.WriteAccountantKeys(ctx, common.SafeChainCurve(chain), keys)
 	if err != nil {
 		return err
 	}
@@ -202,8 +213,8 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 	scanner.Split(bufio.ScanLines)
 
 	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainEthereum:
+	case common.SafeChainBitcoin:
+	case common.SafeChainEthereum:
 	default:
 		return nil, fmt.Errorf("invalid chain %d", chain)
 	}
@@ -246,8 +257,8 @@ func generateAccountantKey(chain byte) (*btcec.PrivateKey, string, error) {
 func GenerateObserverKeys(c *cli.Context) error {
 	chain := c.Int("chain")
 	switch chain {
-	case keeper.SafeChainBitcoin:
-	case keeper.SafeChainEthereum:
+	case common.SafeChainBitcoin:
+	case common.SafeChainEthereum:
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}
@@ -339,7 +350,7 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 		panic(len(ilr))
 	}
 
-	priv := crypto.NewHash(ilr[:len(ilr)/2])
+	priv := crypto.Sha256Hash(ilr[:len(ilr)/2])
 	chainCode := crypto.Blake3Hash(ilr[len(ilr)/2:])
 	finger := btcutil.Hash160([]byte(masterSeed))[:4]
 	finger = binary.BigEndian.AppendUint32(finger, account)

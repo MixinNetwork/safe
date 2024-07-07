@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -26,14 +27,14 @@ const (
 	bitcoinMaximumFeeRate = 1000
 )
 
-func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) error {
+func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.writeNetworkInfo(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) < 17 {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	info := &store.NetworkInfo{
@@ -46,62 +47,61 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) err
 
 	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain, req.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
+		return nil, "", fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
 	} else if old != nil && old.RequestId == req.Id {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	} else if old != nil && old.Height > info.Height {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
-	if info.Chain != SafeCurveChain(req.Curve) {
+	if info.Chain != common.SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	switch info.Chain {
-	case SafeChainBitcoin, SafeChainLitecoin:
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
-			return fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
+			return nil, "", fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
-	case SafeChainEthereum, SafeChainMVM, SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
-			return fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
+			return nil, "", fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
 		} else if !valid {
-			return node.store.FailRequest(ctx, req.Id)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
-	return node.store.WriteNetworkInfoFromRequest(ctx, info)
+	return nil, "", node.store.WriteNetworkInfoFromRequest(ctx, info)
 }
 
-func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) error {
+func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
 	logger.Printf("node.writeOperationParams(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	extra, _ := hex.DecodeString(req.Extra)
+	extra := req.ExtraBytes()
 	if len(extra) != 33 {
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	chain := extra[0]
-	if chain != SafeCurveChain(req.Curve) {
+	if chain != common.SafeCurveChain(req.Curve) {
 		panic(req.Id)
 	}
 	switch chain {
-	case SafeChainBitcoin:
-	case SafeChainLitecoin:
-	case SafeChainEthereum:
-	case SafeChainMVM:
-	case SafeChainPolygon:
+	case common.SafeChainBitcoin:
+	case common.SafeChainLitecoin:
+	case common.SafeChainEthereum:
+	case common.SafeChainPolygon:
 	default:
-		return node.store.FailRequest(ctx, req.Id)
+		return node.failRequest(ctx, req, "")
 	}
 
 	assetId := uuid.Must(uuid.FromBytes(extra[1:17]))
@@ -117,22 +117,10 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 		TransactionMinimum:   minimum,
 		CreatedAt:            req.CreatedAt,
 	}
-	return node.store.WriteOperationParamsFromRequest(ctx, params)
-}
-
-func (node *Node) checkNetworkInfoForkTimestamp(info *store.NetworkInfo) bool {
-	genesis := time.Unix(0, node.conf.MTG.Genesis.Timestamp)
-	if info.CreatedAt.Before(genesis) {
-		panic(info.RequestId)
-	}
-	forkAt := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
-	return info.CreatedAt.Before(forkAt)
+	return nil, "", node.store.WriteOperationParamsFromRequest(ctx, params)
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
-	if node.checkNetworkInfoForkTimestamp(info) {
-		return true, nil
-	}
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
@@ -170,10 +158,10 @@ func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info *store.Net
 
 func (node *Node) bitcoinParams(chain byte) (string, string) {
 	switch chain {
-	case SafeChainBitcoin:
-		return node.conf.BitcoinRPC, SafeBitcoinChainId
-	case SafeChainLitecoin:
-		return node.conf.LitecoinRPC, SafeLitecoinChainId
+	case common.SafeChainBitcoin:
+		return node.conf.BitcoinRPC, common.SafeBitcoinChainId
+	case common.SafeChainLitecoin:
+		return node.conf.LitecoinRPC, common.SafeLitecoinChainId
 	default:
 		panic(chain)
 	}
@@ -181,12 +169,10 @@ func (node *Node) bitcoinParams(chain byte) (string, string) {
 
 func (node *Node) ethereumParams(chain byte) (string, string) {
 	switch chain {
-	case SafeChainEthereum:
-		return node.conf.EthereumRPC, SafeEthereumChainId
-	case SafeChainMVM:
-		return node.conf.MVMRPC, SafeMVMChainId
-	case SafeChainPolygon:
-		return node.conf.PolygonRPC, SafePolygonChainId
+	case common.SafeChainEthereum:
+		return node.conf.EthereumRPC, common.SafeEthereumChainId
+	case common.SafeChainPolygon:
+		return node.conf.PolygonRPC, common.SafePolygonChainId
 	default:
 		panic(chain)
 	}
@@ -198,9 +184,8 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		return meta, err
 	}
 	switch chain {
-	case SafeChainEthereum:
-	case SafeChainMVM:
-	case SafeChainPolygon:
+	case common.SafeChainEthereum:
+	case common.SafeChainPolygon:
 	default:
 		panic(chain)
 	}
@@ -211,7 +196,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	}
 	asset := &store.Asset{
 		AssetId:   token.Id,
-		MixinId:   crypto.NewHash([]byte(token.Id)).String(),
+		MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
 		AssetKey:  token.Address,
 		Symbol:    token.Symbol,
 		Name:      token.Name,
@@ -247,22 +232,7 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*store.Asset,
 		return nil, err
 	}
 	asset := body.Data
-
-	var chain byte
-	switch asset.ChainId {
-	case SafeBitcoinChainId:
-		chain = SafeChainBitcoin
-	case SafeLitecoinChainId:
-		chain = SafeChainLitecoin
-	case SafeEthereumChainId:
-		chain = SafeChainEthereum
-	case SafeMVMChainId:
-		chain = SafeChainMVM
-	case SafePolygonChainId:
-		chain = SafeChainPolygon
-	default:
-		panic(asset.ChainId)
-	}
+	chain := common.SafeAssetIdChain(asset.ChainId)
 
 	meta := &store.Asset{
 		AssetId:   asset.AssetId,
