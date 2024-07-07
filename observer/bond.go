@@ -98,7 +98,6 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	}
 	switch chain {
 	case common.SafeChainEthereum:
-	case common.SafeChainMVM:
 	case common.SafeChainPolygon:
 	default:
 		panic(chain)

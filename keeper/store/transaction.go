@@ -339,7 +339,7 @@ func transactionHasOutputs(chain byte) bool {
 	switch chain {
 	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
 		return true
-	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
+	case ethereum.ChainEthereum, ethereum.ChainPolygon:
 		return false
 	default:
 		panic(chain)
@@ -350,7 +350,7 @@ func transactionHasBalance(chain byte) bool {
 	switch chain {
 	case bitcoin.ChainBitcoin, bitcoin.ChainLitecoin:
 		return false
-	case ethereum.ChainEthereum, ethereum.ChainMVM, ethereum.ChainPolygon:
+	case ethereum.ChainEthereum, ethereum.ChainPolygon:
 		return true
 	default:
 		panic(chain)

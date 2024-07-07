@@ -276,7 +276,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	switch safe.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
 	default:
 		panic(safe.Chain)
@@ -332,7 +332,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
 	}
-	if meta.Chain != common.SafeChainPolygon && meta.Chain != common.SafeChainMVM {
+	if meta.Chain != common.SafeChainPolygon {
 		return node.failRequest(ctx, req, "")
 	}
 

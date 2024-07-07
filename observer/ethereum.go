@@ -322,8 +322,6 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	rpc, _ := node.ethereumParams(chain)
 	duration := 5 * time.Second
 	switch chain {
-	case ethereum.ChainMVM:
-		duration = 1 * time.Second
 	case ethereum.ChainPolygon:
 		duration = 2 * time.Second
 	case ethereum.ChainEthereum:

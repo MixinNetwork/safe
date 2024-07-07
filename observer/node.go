@@ -79,7 +79,7 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
-		case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+		case common.SafeChainPolygon, common.SafeChainEthereum:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
@@ -99,7 +99,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(chain)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		_, assetId = node.ethereumParams(chain)
 	default:
 		panic(chain)
@@ -171,7 +171,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				}
 				action = common.ActionBitcoinSafeApproveAccount
 				extra = append(rid.Bytes(), sig...)
-			case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+			case common.SafeChainPolygon, common.SafeChainEthereum:
 				_, assetId = node.ethereumParams(sp.Chain)
 				sig, err := hex.DecodeString(account.Signature)
 				if err != nil {
@@ -334,7 +334,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 				return err
 			}
 			return node.bitcoinProcessTransaction(ctx, btx, chain)
-		case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+		case common.SafeChainEthereum, common.SafeChainPolygon:
 			rpc, _ := node.ethereumParams(chain)
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 			if err != nil {
@@ -535,8 +535,6 @@ func depositCheckpointDefault(chain byte) int64 {
 		return 802220
 	case common.SafeChainLitecoin:
 		return 2523300
-	case common.SafeChainMVM:
-		return 52680000
 	case common.SafeChainPolygon:
 		return 52950000
 	case common.SafeChainEthereum:
@@ -550,7 +548,7 @@ func depositCheckpointKey(chain byte) string {
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
-	case common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainMVM:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
 	default:
 		panic(chain)
@@ -589,8 +587,6 @@ func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
 		chain = common.SafeChainLitecoin
 	case common.SafeEthereumChainId:
 		chain = common.SafeChainEthereum
-	case common.SafeMVMChainId:
-		chain = common.SafeChainMVM
 	case common.SafePolygonChainId:
 		chain = common.SafeChainPolygon
 	}

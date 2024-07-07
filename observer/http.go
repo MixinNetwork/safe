@@ -174,19 +174,7 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			common.RenderError(w, r, err)
 			return
 		}
-		var id string
-		switch c {
-		case common.SafeChainBitcoin:
-			id = common.SafeBitcoinChainId
-		case common.SafeChainLitecoin:
-			id = common.SafeLitecoinChainId
-		case common.SafeChainEthereum:
-			id = common.SafeEthereumChainId
-		case common.SafeChainMVM:
-			id = common.SafeMVMChainId
-		case common.SafeChainPolygon:
-			id = common.SafePolygonChainId
-		}
+		id := common.SafeChainAssetId(c)
 		head := make(map[string]any)
 		head["id"] = info.RequestId
 		head["height"] = info.Height
@@ -834,7 +822,7 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			"state":         status,
 			"migrated":      account.Migrated,
 		})
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		balances, err := node.keeperStore.ReadAllEthereumTokenBalances(r.Context(), sp.Address)
 		if err != nil {
 			common.RenderError(w, r, err)

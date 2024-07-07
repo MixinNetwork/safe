@@ -51,7 +51,7 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
@@ -117,7 +117,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	switch deposit.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	default:
 		return node.failRequest(ctx, req, "")

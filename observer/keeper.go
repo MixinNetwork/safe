@@ -59,8 +59,6 @@ func (node *Node) sendKeeperResponseWithReferences(ctx context.Context, holder s
 		crv = common.CurveSecp256k1ECDSALitecoin
 	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
-	case common.SafeChainMVM:
-		crv = common.CurveSecp256k1ECDSAMVM
 	case common.SafeChainPolygon:
 		crv = common.CurveSecp256k1ECDSAPolygon
 	default:

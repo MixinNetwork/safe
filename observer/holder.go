@@ -45,7 +45,7 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 			return err
 		}
 		address = wsa.Address
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		gs, err := ethereum.UnmarshalGnosisSafe(extra)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 	switch sp.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		_, assetId = node.bitcoinParams(sp.Chain)
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		_, assetId = node.ethereumParams(sp.Chain)
 	}
 	_, err = node.checkOrDeployKeeperBond(ctx, chain, assetId, "", sp.Holder, sp.Address)
@@ -82,7 +82,7 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 		txHash = psbt.UnsignedTx.TxHash().String()
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		t, _ := ethereum.UnmarshalSafeTransaction(extra)
 		txHash = t.TxHash
 	}
@@ -132,7 +132,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if err != nil {
 			return err
 		}
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		sig, err = hex.DecodeString(signature)
 		if err != nil {
 			return err
@@ -191,7 +191,7 @@ func (node *Node) httpCreateSafeAccountRecoveryRequest(ctx context.Context, addr
 	switch safe.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.httpCreateBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		return node.httpCreateEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -230,7 +230,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 	switch safe.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.httpSignBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		return node.httpSignEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -241,7 +241,7 @@ func (node *Node) httpApproveSafeTransaction(ctx context.Context, chain byte, ra
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.httpApproveBitcoinTransaction(ctx, raw)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		return node.httpApproveEthereumTransaction(ctx, raw)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -252,7 +252,7 @@ func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, has
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.httpRevokeBitcoinTransaction(ctx, hash, sig)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		return node.httpRevokeEthereumTransaction(ctx, hash, sig)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -283,7 +283,7 @@ func (node *Node) holderPayTransactionApproval(ctx context.Context, chain byte, 
 			panic(err)
 		}
 		signedByObserver = bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, opk)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		signedByHolder = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
 		signedByObserver = ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Observer)
 	}
@@ -304,7 +304,7 @@ func (deposit *Deposit) encodeKeeperExtra(decimals int32) []byte {
 	extra = append(extra, uuid.Must(uuid.FromString(deposit.AssetId)).Bytes()...)
 	extra = append(extra, hash[:]...)
 	switch deposit.Chain {
-	case common.SafeChainEthereum, common.SafeChainMVM, common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
 		extra = append(extra, gc.HexToAddress(deposit.AssetAddress).Bytes()...)
 	}
 	extra = binary.BigEndian.AppendUint64(extra, uint64(deposit.OutputIndex))
@@ -320,7 +320,7 @@ func (d *Deposit) bigAmount(decimals int32) *big.Int {
 		}
 		satoshi := bitcoin.ParseSatoshi(d.Amount)
 		return new(big.Int).SetInt64(satoshi)
-	case common.SafeChainMVM, common.SafeChainPolygon, common.SafeChainEthereum:
+	case common.SafeChainPolygon, common.SafeChainEthereum:
 		return ethereum.ParseAmount(d.Amount, decimals)
 	}
 	panic(0)
