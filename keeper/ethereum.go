@@ -559,9 +559,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	entry := node.fetchBondAssetReceiver(ctx, safe.Address, id.String())
 	safeAssetId := node.getBondAssetId(ctx, entry, id.String(), req.Holder)
-	logger.Printf("node.getBondAssetId(%s, %s) => %s", id.String(), req.Holder, safeAssetId)
+	logger.Printf("node.getBondAssetId(%s, %s, %s) => %s", entry, id.String(), req.Holder, safeAssetId)
 	if req.AssetId != safeAssetId {
-		return node.failRequest(ctx, req, "")
+		panic(req.AssetId)
 	}
 
 	extra := req.ExtraBytes()
