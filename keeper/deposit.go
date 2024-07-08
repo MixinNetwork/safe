@@ -126,8 +126,13 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 
 // FIXME Keeper should deny new deposits when too many unspent outputs
 func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset, minimum decimal.Decimal) ([]*mtg.Transaction, string, error) {
-	if asset.Decimals != bitcoin.ValuePrecision || asset.AssetId != common.SafeBitcoinChainId {
+	if asset.Decimals != bitcoin.ValuePrecision {
 		panic(asset.Decimals)
+	}
+	switch asset.AssetId {
+	case common.SafeBitcoinChainId, common.SafeLitecoinChainId:
+	default:
+		panic(asset.AssetId)
 	}
 	old, _, err := node.store.ReadBitcoinUTXO(ctx, deposit.Hash, int(deposit.Index))
 	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", deposit.Hash, deposit.Index, old, err)
