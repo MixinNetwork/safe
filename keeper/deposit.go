@@ -189,6 +189,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if !change {
 		tx := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 		if tx == nil {
+			// no compaction needed, just retry from observer
 			return node.failRequest(ctx, req, safeAssetId)
 		}
 		txs = append(txs, tx)
@@ -235,7 +236,8 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 
 	t := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if t == nil {
-		return node.failRequest(ctx, req, safeAssetId)
+		// no compaction needed, just retry from observer
+		return node.failRequest(ctx, req, "")
 	}
 	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), deposit.Amount, output.Sender, req)
 	logger.Printf("store.UpdateEthereumBalanceFromRequest(%v) => %v", req, err)

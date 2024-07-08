@@ -834,7 +834,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	sr.RequestId = common.UniqueId(req.Id, sr.Message)
 	ts := node.buildSignerSignRequests(ctx, req, []*store.SignatureRequest{sr}, safe.Path)
 	if len(ts) == 0 {
-		// no compaction needed, just deposit and retry from observer
+		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")
 	}
 	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
