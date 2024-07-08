@@ -236,7 +236,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	return nil
 }
 
-func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
+func (node *Node) bitcoinProcessInitialDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
 
 	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
@@ -289,9 +289,42 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if err != nil {
 		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
 	}
-	err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
+	err = node.store.MarkDepositPending(ctx, deposit.TransactionHash, deposit.OutputIndex)
 	if err != nil {
-		return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
+		return fmt.Errorf("store.MarkDepositPending(%v) => %v", deposit, err)
+	}
+	return nil
+}
+
+func (node *Node) bitcoinProcessPendingDeposit(ctx context.Context, deposit *Deposit) error {
+	_, assetId := node.bitcoinParams(deposit.Chain)
+	id := common.UniqueId(assetId, deposit.Holder)
+	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
+
+	request, err := node.keeperStore.ReadRequest(ctx, id)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadRequest(%s) => %v", id, err)
+	} else if request == nil {
+		return nil
+	}
+	switch request.State {
+	case common.RequestStateInitial:
+		return nil
+	case common.RequestStateDone:
+		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
+		if err != nil {
+			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
+		}
+	case common.RequestStateFailed:
+		now := time.Now().UTC()
+		if now.After(deposit.UpdatedAt.Add(time.Minute * 20)) {
+			extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
+			id = common.UniqueId(id, "retry-deposit")
+			err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
+			if err != nil {
+				return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
+			}
+		}
 	}
 	return nil
 }
@@ -304,7 +337,18 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 			panic(err)
 		}
 		for _, d := range deposits {
-			err := node.bitcoinConfirmPendingDeposit(ctx, d)
+			err := node.bitcoinProcessInitialDeposit(ctx, d)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		deposits, err = node.store.ListDeposits(ctx, int(chain), "", common.RequestStatePending, 0)
+		if err != nil {
+			panic(err)
+		}
+		for _, d := range deposits {
+			err := node.bitcoinProcessPendingDeposit(ctx, d)
 			if err != nil {
 				panic(err)
 			}

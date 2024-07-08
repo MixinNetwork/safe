@@ -190,7 +190,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		tx := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 		if tx == nil {
 			// no compaction needed, just retry from observer
-			return node.failRequest(ctx, req, safeAssetId)
+			return node.failRequest(ctx, req, "")
 		}
 		txs = append(txs, tx)
 	}
