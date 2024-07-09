@@ -302,7 +302,6 @@ func (s *SQLite3Store) MigrateDB(ctx context.Context) error {
 	query = query + "ALTER TABLE accounts ADD COLUMN approved_at TIMESTAMP;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN migrated_at TIMESTAMP;\n"
 	query = query + "ALTER TABLE deposits ADD COLUMN request_id VARCHAR;\n"
-	query = query + "CREATE INDEX IF NOT EXISTS deposits_by_chain_state_holder_asset_created ON deposits(chain, state, holder, asset_id, created_at);"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err

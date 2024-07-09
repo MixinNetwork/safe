@@ -365,26 +365,17 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	return deposits, nil
 }
 
-func (s *SQLite3Store) ListUnconfirmedDepositsForAssetAndHolder(ctx context.Context, chain int, holder, assetId string, offset time.Time) ([]*Deposit, error) {
-	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? AND holder=? AND asset_id=? AND created_at<?", strings.Join(depositsCols, ","))
-	params := []any{chain, common.RequestStateInitial, holder, assetId, offset}
+func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Context, holder, assetId string, offset time.Time) (bool, error) {
+	query := "SELECT request_id FROM deposits WHERE holder=? AND asset_id=? AND state=? AND created_at<?"
+	params := []any{holder, assetId, offset, common.RequestStateInitial}
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	defer rows.Close()
 
-	var deposits []*Deposit
-	for rows.Next() {
-		var d Deposit
-		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
-		if err != nil {
-			return nil, err
-		}
-		deposits = append(deposits, &d)
-	}
-	return deposits, nil
+	return rows.Next(), nil
 }
 
 func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
@@ -442,8 +433,8 @@ func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHa
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=? AND request_id=?"
-	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial, oldRid)
+	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
+	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, oldRid, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}
@@ -451,7 +442,7 @@ func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHa
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64) error {
+func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64, rid string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -461,8 +452,8 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial)
+	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}

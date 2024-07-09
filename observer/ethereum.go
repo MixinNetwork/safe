@@ -300,11 +300,11 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		return err
 	}
 	if request == nil {
-		pendings, err := node.store.ListUnconfirmedDepositsForAssetAndHolder(ctx, int(deposit.Chain), deposit.Holder, deposit.AssetId, deposit.CreatedAt)
+		pending, err := node.store.CheckUnconfirmedDepositsForAssetAndHolder(ctx, deposit.Holder, deposit.AssetId, deposit.CreatedAt)
 		if err != nil {
-			return fmt.Errorf("store.ListUnconfirmedDepositsForAssetAndHolder(%s %s) => %v", deposit.Holder, deposit.AssetId, err)
+			return fmt.Errorf("store.CheckUnconfirmedDepositsForAssetAndHolder(%s %s) => %v", deposit.Holder, deposit.AssetId, err)
 		}
-		if len(pendings) > 0 {
+		if pending {
 			return nil
 		}
 		sufficient, err := node.checkKeeperHasSufficientBond(ctx, bond.AssetId, deposit)
@@ -325,12 +325,12 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	case common.RequestStateInitial:
 		return nil
 	case common.RequestStateDone:
-		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
+		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId)
 		if err != nil {
 			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 		}
 	case common.RequestStateFailed:
-		id := common.UniqueId(deposit.RequestId, "retry-deposit")
+		id := common.UniqueId(deposit.RequestId, "RETRY")
 		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, id)
 		if err != nil {
 			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
