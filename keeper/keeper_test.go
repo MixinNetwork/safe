@@ -845,6 +845,12 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	req, err := node.store.ReadPendingRequest(ctx)
 	require.Nil(err)
 	require.Nil(req)
+	req, err = node.store.ReadLatestRequest(ctx)
+	require.Nil(err)
+	_, compaction, done, err := node.store.ReadRequestTransactions(ctx, req.Id)
+	require.Nil(err)
+	require.True(done)
+	require.Equal("", compaction)
 }
 
 func testSpareKeys(ctx context.Context, require *require.Assertions, node *Node, hc, sc, oc int, crv byte) {
