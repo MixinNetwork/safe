@@ -122,9 +122,9 @@ func (node *Node) replayAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tra
 				panic(err)
 			}
 		} else {
-			ts, asset := node.processSignerResult(ctx, req, out)
-			logger.Printf("node.processSignerResult(%v, %v) => %v %s", req, out, ts, asset)
-			return ts, asset
+			txs, asset := node.processSignerResult(ctx, req, out)
+			logger.Printf("node.processSignerResult(%v, %v) => %v %s", req, out, txs, asset)
+			return txs, asset
 		}
 	}
 	return nil, ""
@@ -256,11 +256,8 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	tx, asset, err := node.buildKeeperTransaction(ctx, op, out.Sequence)
-	if err != nil {
-		panic(err)
-	}
-	if err != nil || asset != "" {
+	tx, asset := node.buildKeeperTransaction(ctx, op, out.Sequence)
+	if asset != "" {
 		return nil, asset
 	}
 	return []*mtg.Transaction{tx}, ""
@@ -592,7 +589,7 @@ func (node *Node) encryptOperation(op *common.Operation) []byte {
 	return common.AESEncrypt(node.aesKey[:], extra, op.Id)
 }
 
-func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation, sequence uint64) (*mtg.Transaction, string, error) {
+func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation, sequence uint64) (*mtg.Transaction, string) {
 	extra := node.encryptOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
@@ -602,7 +599,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	if !common.CheckTestEnvironment(ctx) {
 		balance := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, node.conf.KeeperAssetId, sequence)
 		if balance.Cmp(amount) < 0 {
-			return nil, node.conf.KeeperAssetId, nil
+			return nil, node.conf.KeeperAssetId
 		}
 	}
 
@@ -611,5 +608,5 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
-	return tx, "", nil
+	return tx, ""
 }

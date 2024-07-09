@@ -53,9 +53,9 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		panic(err)
 	}
 
-	ts, asset := node.processRequest(ctx, req)
-	logger.Printf("node.processRequest(%v) => %v %s", req, ts, asset)
-	return ts, asset
+	txs, asset := node.processRequest(ctx, req)
+	logger.Printf("node.processRequest(%v) => %v %s", req, txs, asset)
+	return txs, asset
 }
 
 func (node *Node) getActionRole(act byte) byte {

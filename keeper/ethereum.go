@@ -186,8 +186,8 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		}
 	}
 
-	ts := node.buildSignerSignRequests(ctx, req, []*store.SignatureRequest{sr}, safe.Path)
-	if len(ts) == 0 {
+	txs := node.buildSignerSignRequests(ctx, req, []*store.SignatureRequest{sr}, safe.Path)
+	if len(txs) == 0 {
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -196,7 +196,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if err != nil {
 		panic(err)
 	}
-	return ts, ""
+	return txs, ""
 }
 
 func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, receiver string) ([]*mtg.Transaction, string) {
