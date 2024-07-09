@@ -16,15 +16,12 @@ import (
 )
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	isDeposit, err := node.verifyKernelTransaction(ctx, out)
-	if err != nil {
-		panic(err)
-	}
+	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
 	}
 
-	_, err = node.handleBondAsset(ctx, out)
+	_, err := node.handleBondAsset(ctx, out)
 	if err != nil {
 		panic(err)
 	}
@@ -57,17 +54,14 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		panic(err)
 	}
 
-	ts, asset, err := node.processRequest(ctx, req)
-	logger.Printf("node.processRequest(%v) => %v %s %v", req, ts, asset, err)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteRequestTransactions(ctx, req.Id, asset, ts)
+	txs, asset := node.processRequest(ctx, req)
+	logger.Printf("node.processRequest(%v) => %v %s", req, txs, asset)
+	err = node.store.WriteRequestTransactions(ctx, req.Id, asset, txs)
 	if err != nil {
 		panic(err)
 	}
 
-	return ts, asset
+	return txs, asset
 }
 
 func (node *Node) getActionRole(act byte) byte {
@@ -154,7 +148,7 @@ func (node *Node) timestamp(ctx context.Context) (uint64, error) {
 // never call this function with multiple threads, and all implementations
 // should be allowed to repeat executions
 // ALL failure should panic instead of continue
-func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	switch req.Action {
 	case common.OperationTypeKeygenOutput:
 		return node.processKeyAdd(ctx, req)
@@ -205,11 +199,11 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 	}
 }
 
-func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	old, err := node.store.ReadKey(ctx, req.Holder)
 	logger.Printf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadKey(%s) => %v %v", req.Holder, old, err)
+		panic(fmt.Errorf("store.ReadKey(%s) => %v %v", req.Holder, old, err))
 	}
 	if old != nil {
 		return node.failRequest(ctx, req, "")
@@ -253,28 +247,32 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mt
 	default:
 		panic(req.Curve)
 	}
-	return nil, "", node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), chainCode, flags)
+	err = node.store.WriteKeyFromRequest(ctx, req, int(extra[0]), chainCode, flags)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
 }
 
-func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) processSignerSignatureResponse(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
 	}
 	old, err := node.store.ReadSignatureRequest(ctx, req.Id)
 	logger.Printf("store.ReadSignatureRequest(%s) => %v %v", req.Id, old, err)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err)
+		panic(fmt.Errorf("store.ReadSignatureRequest(%s) => %v", req.Id, err))
 	}
 	if old == nil || old.State == common.RequestStateDone {
 		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransaction(ctx, old.TransactionHash)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err)
+		panic(fmt.Errorf("store.ReadTransaction(%v) => %s %v", req, old.TransactionHash, err))
 	}
 	safe, err := node.store.ReadSafe(ctx, tx.Holder)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err)
+		panic(fmt.Errorf("store.ReadSafe(%s) => %v", tx.Holder, err))
 	}
 	if safe.Signer != req.Holder {
 		return node.failRequest(ctx, req, "")
@@ -289,14 +287,14 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 	}
 }
 
-func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err)
+		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
 	}
 	if safe == nil || safe.Chain != chain {
 		return node.failRequest(ctx, req, "")
@@ -312,7 +310,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err)
+		panic(fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err))
 	} else if tx == nil {
 		return node.failRequest(ctx, req, "")
 	} else if tx.Holder != req.Holder {
@@ -336,7 +334,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
 	logger.Printf("node.fetchAssetMeta(%s) => %v %v", txRequest.AssetId, meta, err)
 	if err != nil {
-		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err)
+		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err))
 	}
 	if meta.Chain != common.SafeChainPolygon {
 		return node.failRequest(ctx, req, "")
@@ -348,7 +346,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	bond, err := node.fetchAssetMeta(ctx, bondId.String())
 	logger.Printf("node.fetchAssetMeta(%v, %s) => %v %v", req, bondId.String(), bond, err)
 	if err != nil {
-		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err)
+		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err))
 	}
 	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if t == nil {
@@ -357,8 +355,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 
 	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
 	if err != nil {
-		return nil, "", err
+		panic(err)
 	}
-
-	return []*mtg.Transaction{t}, "", nil
+	return []*mtg.Transaction{t}, ""
 }

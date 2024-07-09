@@ -15,7 +15,7 @@ const (
 	SignerKeygenMaximum = 128
 )
 
-func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -34,7 +34,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 	if !ok || batch.Cmp(big.NewInt(1)) < 0 || batch.Cmp(big.NewInt(SignerKeygenMaximum)) > 0 {
 		return node.failRequest(ctx, req, "")
 	}
-	var ts []*mtg.Transaction
+	var txs []*mtg.Transaction
 	for i := 0; i < int(batch.Int64()); i++ {
 		op := &common.Operation{
 			Type:  common.OperationTypeKeygenInput,
@@ -46,14 +46,18 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 		if tx == nil {
 			return node.failRequest(ctx, req, "")
 		}
-		ts = append(ts, tx)
+		txs = append(txs, tx)
 	}
 
-	return ts, "", node.store.FailRequest(ctx, req.Id)
+	err := node.store.FailRequest(ctx, req.Id)
+	if err != nil {
+		panic(err)
+	}
+	return txs, ""
 }
 
 func (node *Node) buildSignerSignRequests(ctx context.Context, request *common.Request, srs []*store.SignatureRequest, path string) []*mtg.Transaction {
-	var ts []*mtg.Transaction
+	var txs []*mtg.Transaction
 	for _, sr := range srs {
 		crv := common.NormalizeCurve(sr.Curve)
 		switch crv {
@@ -79,9 +83,9 @@ func (node *Node) buildSignerSignRequests(ctx context.Context, request *common.R
 		if tx == nil {
 			return nil
 		}
-		ts = append(ts, tx)
+		txs = append(txs, tx)
 	}
-	return ts
+	return txs
 }
 
 func (node *Node) encryptSignerOperation(op *common.Operation) []byte {

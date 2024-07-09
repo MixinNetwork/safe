@@ -27,7 +27,7 @@ const (
 	bitcoinMaximumFeeRate = 1000
 )
 
-func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	logger.Printf("node.writeNetworkInfo(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
@@ -47,7 +47,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 
 	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain, req.CreatedAt)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err)
+		panic(fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err))
 	} else if old != nil && old.RequestId == req.Id {
 		return node.failRequest(ctx, req, "")
 	} else if old != nil && old.Height > info.Height {
@@ -62,7 +62,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
 		if err != nil {
-			return nil, "", fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err)
+			panic(fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err))
 		} else if !valid {
 			return node.failRequest(ctx, req, "")
 		}
@@ -70,18 +70,21 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
 		if err != nil {
-			return nil, "", fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err)
+			panic(fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err))
 		} else if !valid {
 			return node.failRequest(ctx, req, "")
 		}
 	default:
 		return node.failRequest(ctx, req, "")
 	}
-
-	return nil, "", node.store.WriteNetworkInfoFromRequest(ctx, info)
+	err = node.store.WriteNetworkInfoFromRequest(ctx, info)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
 }
 
-func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) writeOperationParams(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	logger.Printf("node.writeOperationParams(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
@@ -117,7 +120,11 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 		TransactionMinimum:   minimum,
 		CreatedAt:            req.CreatedAt,
 	}
-	return nil, "", node.store.WriteOperationParamsFromRequest(ctx, params)
+	err := node.store.WriteOperationParamsFromRequest(ctx, params)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {

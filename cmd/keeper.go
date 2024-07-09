@@ -41,6 +41,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	group.EnableDebug()
 
 	s := &mixin.Keystore{
 		ClientID:          mc.Keeper.MTG.App.AppId,
