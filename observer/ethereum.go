@@ -339,46 +339,6 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	return nil
 }
 
-func (node *Node) ethereumProcessPendingDeposit(ctx context.Context, deposit *Deposit) error {
-	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
-	if err != nil {
-		return fmt.Errorf("keeperStore.ReadRequest(%s) => %v", deposit.RequestId, err)
-	} else if request == nil {
-		return nil
-	}
-	switch request.State {
-	case common.RequestStateInitial:
-		return nil
-	case common.RequestStateDone:
-		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
-		if err != nil {
-			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
-		}
-	case common.RequestStateFailed:
-		now := time.Now().UTC()
-		if now.After(deposit.UpdatedAt.Add(time.Minute * 20)) {
-			_, ethereumAssetId := node.ethereumParams(deposit.Chain)
-			asset, err := node.store.ReadAssetMeta(ctx, deposit.AssetId)
-			if err != nil || asset == nil {
-				return err
-			}
-			decimals := int32(ethereum.ValuePrecision)
-			switch asset.AssetId {
-			case ethereumAssetId:
-			default:
-				decimals = int32(asset.Decimals)
-			}
-			extra := deposit.encodeKeeperExtra(decimals)
-			id := common.UniqueId(deposit.RequestId, "retry-deposit")
-			err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
-			if err != nil {
-				return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
-			}
-		}
-	}
-	return nil
-}
-
 func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
 	for {
 		time.Sleep(3 * time.Second)
@@ -388,17 +348,6 @@ func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
 		}
 		for _, d := range deposits {
 			err := node.ethereumConfirmPendingDeposit(ctx, d)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		deposits, err = node.store.ListDeposits(ctx, int(chain), "", common.RequestStatePending, 0)
-		if err != nil {
-			panic(err)
-		}
-		for _, d := range deposits {
-			err := node.ethereumProcessPendingDeposit(ctx, d)
 			if err != nil {
 				panic(err)
 			}
