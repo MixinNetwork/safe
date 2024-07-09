@@ -365,6 +365,28 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	return deposits, nil
 }
 
+func (s *SQLite3Store) ListUnconfirmedDepositsForAssetAndHolder(ctx context.Context, chain int, holder, assetId string, offset time.Time) ([]*Deposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? AND holder=? AND asset_id=? AND created_at<?", strings.Join(depositsCols, ","))
+	params := []any{chain, common.RequestStateInitial, holder, assetId, offset}
+
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deposits []*Deposit
+	for rows.Next() {
+		var d Deposit
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		deposits = append(deposits, &d)
+	}
+	return deposits, nil
+}
+
 func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
 	sent := make(map[string]string)
 	for _, d := range deposits {
@@ -410,7 +432,7 @@ func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *De
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkDepositPending(ctx context.Context, transactionHash string, outputIndex int64) error {
+func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHash string, outputIndex int64, rid string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -420,8 +442,8 @@ func (s *SQLite3Store) MarkDepositPending(ctx context.Context, transactionHash s
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStatePending, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial)
+	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=?"
+	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}
@@ -440,7 +462,7 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	defer tx.Rollback()
 
 	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, common.RequestStatePending)
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}

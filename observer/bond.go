@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -205,4 +206,13 @@ func (node *Node) fetchMixinNetworkAsset(ctx context.Context, id string) (*Mixin
 		}
 		return body.Data, err
 	}
+}
+
+func (node *Node) checkKeeperHasSufficientBond(ctx context.Context, bondId string, deposit *Deposit) (bool, error) {
+	balance, err := common.SafeAssetBalance(ctx, node.mixin, node.keeper.Genesis.Members, node.keeper.Genesis.Threshold, bondId)
+	if err != nil {
+		return false, fmt.Errorf("mixin.SafeAssetBalance(%s) => %v", bondId, err)
+	}
+	amt := mc.NewIntegerFromString(deposit.Amount)
+	return balance.Cmp(amt) >= 0, nil
 }

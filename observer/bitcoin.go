@@ -239,7 +239,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	return nil
 }
 
-func (node *Node) bitcoinProcessInitialDeposit(ctx context.Context, deposit *Deposit) error {
+func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
 
 	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
@@ -251,6 +251,10 @@ func (node *Node) bitcoinProcessInitialDeposit(ctx context.Context, deposit *Dep
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
 		return nil
+	}
+	_, bond, _, err := node.fetchBondAsset(ctx, deposit.Chain, assetId, "", deposit.Holder, safe.Address)
+	if err != nil {
+		return fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, deposit.Holder, err)
 	}
 
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, deposit.Chain, time.Now())
@@ -285,23 +289,30 @@ func (node *Node) bitcoinProcessInitialDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 
-	extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
-	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, deposit.RequestId, extra)
-	if err != nil {
-		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", deposit.RequestId, err)
-	}
-	err = node.store.MarkDepositPending(ctx, deposit.TransactionHash, deposit.OutputIndex)
-	if err != nil {
-		return fmt.Errorf("store.MarkDepositPending(%v) => %v", deposit, err)
-	}
-	return nil
-}
-
-func (node *Node) bitcoinProcessPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
 	if err != nil {
-		return fmt.Errorf("keeperStore.ReadRequest(%s) => %v", deposit.RequestId, err)
-	} else if request == nil {
+		return err
+	}
+	if request == nil {
+		pendings, err := node.store.ListUnconfirmedDepositsForAssetAndHolder(ctx, int(deposit.Chain), deposit.Holder, deposit.AssetId, deposit.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("store.ListUnconfirmedDepositsForAssetAndHolder(%s %s) => %v", deposit.Holder, deposit.AssetId, err)
+		}
+		if len(pendings) > 0 {
+			return nil
+		}
+		sufficient, err := node.checkKeeperHasSufficientBond(ctx, bond.AssetId, deposit)
+		if err != nil {
+			return fmt.Errorf("node.checkKeeperHasSufficientBond(%s %s) => %v", bond.AssetId, deposit.Amount, err)
+		}
+		if !sufficient {
+			return nil
+		}
+		extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
+		err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, deposit.RequestId, extra)
+		if err != nil {
+			return fmt.Errorf("node.sendKeeperResponse(%s) => %v", deposit.RequestId, err)
+		}
 		return nil
 	}
 	switch request.State {
@@ -313,14 +324,10 @@ func (node *Node) bitcoinProcessPendingDeposit(ctx context.Context, deposit *Dep
 			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 		}
 	case common.RequestStateFailed:
-		now := time.Now().UTC()
-		if now.After(deposit.UpdatedAt.Add(time.Minute * 20)) {
-			extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
-			id := common.UniqueId(deposit.RequestId, "retry-deposit")
-			err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
-			if err != nil {
-				return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
-			}
+		id := common.UniqueId(deposit.RequestId, "retry-deposit")
+		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, id)
+		if err != nil {
+			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 		}
 	}
 	return nil
@@ -334,18 +341,7 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 			panic(err)
 		}
 		for _, d := range deposits {
-			err := node.bitcoinProcessInitialDeposit(ctx, d)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		deposits, err = node.store.ListDeposits(ctx, int(chain), "", common.RequestStatePending, 0)
-		if err != nil {
-			panic(err)
-		}
-		for _, d := range deposits {
-			err := node.bitcoinProcessPendingDeposit(ctx, d)
+			err := node.bitcoinConfirmPendingDeposit(ctx, d)
 			if err != nil {
 				panic(err)
 			}
