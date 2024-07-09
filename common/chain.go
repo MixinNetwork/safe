@@ -63,6 +63,14 @@ func SafeChainAssetId(chain byte) string {
 }
 
 func SafeAssetIdChain(chainId string) byte {
+	id := SafeAssetIdChainNoPanic(chainId)
+	if id > 0 {
+		return id
+	}
+	panic(chainId)
+}
+
+func SafeAssetIdChainNoPanic(chainId string) byte {
 	switch chainId {
 	case SafeBitcoinChainId:
 		return SafeChainBitcoin
@@ -72,7 +80,6 @@ func SafeAssetIdChain(chainId string) byte {
 		return SafeChainEthereum
 	case SafePolygonChainId:
 		return SafeChainPolygon
-	default:
-		panic(chainId)
 	}
+	return 0
 }

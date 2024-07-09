@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
-	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -93,22 +91,7 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 }
 
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, references []crypto.Hash) error {
-	for {
-		err := node.sendTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, references)
-		if err != nil && strings.Contains(err.Error(), "Insufficient") {
-			time.Sleep(7 * time.Second)
-			continue
-		}
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(7 * time.Second)
-			continue
-		}
-		return err
-	}
-}
-
-func (node *Node) sendTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, references []crypto.Hash) error {
-	logger.Printf("node.sendTransaction(%s, %v, %d, %s, %s, %s, %v)", assetId, receivers, threshold, amount, memo, traceId, references)
+	logger.Printf("node.sendTransactionUntilSufficient(%s, %v, %d, %s, %s, %s, %v)", assetId, receivers, threshold, amount, memo, traceId, references)
 	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.App.AppId}, 1, receivers, threshold, amount, traceId, assetId, memo, node.conf.App.SpendPrivateKey)
 	return err
 }

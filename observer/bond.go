@@ -138,19 +138,17 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 		return nil, err
 	}
 	asset := body.Data
-	chain := common.SafeAssetIdChain(asset.ChainId)
 
-	meta := &Asset{
+	return &Asset{
 		AssetId:   asset.AssetId,
 		MixinId:   asset.MixinId.String(),
 		AssetKey:  asset.AssetKey,
 		Symbol:    asset.Symbol,
 		Name:      asset.Name,
 		Decimals:  asset.Precision,
-		Chain:     chain,
+		Chain:     common.SafeAssetIdChainNoPanic(asset.ChainId),
 		CreatedAt: time.Now().UTC(),
-	}
-	return meta, node.store.WriteAssetMeta(ctx, meta)
+	}, nil
 }
 
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error) {
@@ -161,50 +159,21 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
-		if err != nil {
-			reason := strings.ToLower(err.Error())
-			switch {
-			case strings.Contains(reason, "timeout"):
-			case strings.Contains(reason, "eof"):
-			case strings.Contains(reason, "handshake"):
-			default:
-				return meta, err
+		if err == nil {
+			if meta.Chain == 0 {
+				panic(id)
 			}
-			time.Sleep(2 * time.Second)
-			continue
+			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
-		return meta, err
-	}
-}
-
-func (node *Node) fetchMixinNetworkAsset(ctx context.Context, id string) (*MixinNetworkAsset, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
-
-	for {
-		resp, err := client.Get(path)
-		if err != nil {
-			reason := strings.ToLower(err.Error())
-			switch {
-			case strings.Contains(reason, "timeout"):
-			case strings.Contains(reason, "eof"):
-			case strings.Contains(reason, "handshake"):
-			default:
-				return nil, err
-			}
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		defer resp.Body.Close()
-
-		var body struct {
-			Data *MixinNetworkAsset `json:"data"`
-		}
-		err = json.NewDecoder(resp.Body).Decode(&body)
-		if err != nil || body.Data == nil {
+		reason := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(reason, "timeout"):
+		case strings.Contains(reason, "eof"):
+		case strings.Contains(reason, "handshake"):
+		default:
 			return nil, err
 		}
-		return body.Data, err
+		time.Sleep(2 * time.Second)
 	}
 }
 

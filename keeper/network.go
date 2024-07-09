@@ -232,19 +232,17 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*store.Asset,
 		return nil, err
 	}
 	asset := body.Data
-	chain := common.SafeAssetIdChain(asset.ChainId)
 
-	meta := &store.Asset{
+	return &store.Asset{
 		AssetId:   asset.AssetId,
 		MixinId:   asset.MixinId.String(),
 		AssetKey:  asset.AssetKey,
 		Symbol:    asset.Symbol,
 		Name:      asset.Name,
 		Decimals:  asset.Precision,
-		Chain:     chain,
+		Chain:     common.SafeAssetIdChain(asset.ChainId),
 		CreatedAt: time.Now().UTC(),
-	}
-	return meta, node.store.WriteAssetMeta(ctx, meta)
+	}, nil
 }
 
 func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, error) {
@@ -255,18 +253,17 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
-		if err != nil {
-			reason := strings.ToLower(err.Error())
-			switch {
-			case strings.Contains(reason, "timeout"):
-			case strings.Contains(reason, "eof"):
-			case strings.Contains(reason, "handshake"):
-			default:
-				return meta, err
-			}
-			time.Sleep(2 * time.Second)
-			continue
+		if err == nil {
+			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
-		return meta, err
+		reason := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(reason, "timeout"):
+		case strings.Contains(reason, "eof"):
+		case strings.Contains(reason, "handshake"):
+		default:
+			return nil, err
+		}
+		time.Sleep(2 * time.Second)
 	}
 }

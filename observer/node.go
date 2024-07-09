@@ -281,7 +281,8 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 			continue
 		}
 
-		for _, s := range snapshots {
+		for i := range snapshots {
+			s := &snapshots[i]
 			checkpoint = s.Topology
 			err := node.processMixinWithdrawalSnapshot(ctx, s)
 			logger.Printf("node.processMixinWithdrawalSnapshot(%v) => %v", s, err)
@@ -300,8 +301,9 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSnapshot) error {
-	for _, t := range s.Transaction {
+func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSnapshot) error {
+	for i := range s.Transaction {
+		t := &s.Transaction[i]
 		if len(t.Output) == 0 {
 			continue
 		}
@@ -314,13 +316,9 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 		if err != nil {
 			return err
 		}
-		asset, err := node.fetchMixinNetworkAsset(ctx, tx.Asset)
+		asset, err := node.fetchMixinAsset(ctx, tx.Asset)
 		if err != nil {
 			return err
-		}
-		chain := node.getSafeChainFromAssetChainId(asset.ChainId)
-		if chain == 0 {
-			continue
 		}
 
 		extra, err := hex.DecodeString(t.Extra)
@@ -328,21 +326,21 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s m.RPCSna
 			return err
 		}
 		hash := string(extra[64:])
-		switch chain {
+		switch asset.Chain {
 		case common.SafeChainBitcoin, common.SafeChainLitecoin:
-			rpc, _ := node.bitcoinParams(chain)
-			btx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
+			rpc, _ := node.bitcoinParams(asset.Chain)
+			btx, err := bitcoin.RPCGetTransaction(asset.Chain, rpc, hash)
 			if err != nil {
 				return err
 			}
-			return node.bitcoinProcessTransaction(ctx, btx, chain)
+			return node.bitcoinProcessTransaction(ctx, btx, asset.Chain)
 		case common.SafeChainEthereum, common.SafeChainPolygon:
-			rpc, _ := node.ethereumParams(chain)
+			rpc, _ := node.ethereumParams(asset.Chain)
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 			if err != nil {
 				return err
 			}
-			return node.ethereumProcessTransaction(ctx, etx, chain)
+			return node.ethereumProcessTransaction(ctx, etx, asset.Chain)
 		}
 	}
 	return nil
@@ -581,16 +579,15 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 }
 
 func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
-	var chain byte
 	switch chainId {
 	case common.SafeBitcoinChainId:
-		chain = common.SafeChainBitcoin
+		return common.SafeChainBitcoin
 	case common.SafeLitecoinChainId:
-		chain = common.SafeChainLitecoin
+		return common.SafeChainLitecoin
 	case common.SafeEthereumChainId:
-		chain = common.SafeChainEthereum
+		return common.SafeChainEthereum
 	case common.SafePolygonChainId:
-		chain = common.SafeChainPolygon
+		return common.SafeChainPolygon
 	}
-	return chain
+	return 0
 }
