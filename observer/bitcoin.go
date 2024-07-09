@@ -252,10 +252,6 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	} else if !bonded {
 		return nil
 	}
-	_, bond, _, err := node.fetchBondAsset(ctx, deposit.Chain, assetId, "", deposit.Holder, safe.Address)
-	if err != nil {
-		return fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", assetId, deposit.Holder, err)
-	}
 
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, deposit.Chain, time.Now())
 	if err != nil {
@@ -289,48 +285,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 
-	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
-	if err != nil {
-		return err
-	}
-	if request == nil {
-		pending, err := node.store.CheckUnconfirmedDepositsForAssetAndHolder(ctx, deposit.Holder, deposit.AssetId, deposit.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("store.CheckUnconfirmedDepositsForAssetAndHolder(%s %s) => %v", deposit.Holder, deposit.AssetId, err)
-		}
-		if pending {
-			return nil
-		}
-		sufficient, err := node.checkKeeperHasSufficientBond(ctx, bond.AssetId, deposit)
-		if err != nil {
-			return fmt.Errorf("node.checkKeeperHasSufficientBond(%s %s) => %v", bond.AssetId, deposit.Amount, err)
-		}
-		if !sufficient {
-			return nil
-		}
-		extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
-		err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, deposit.RequestId, extra)
-		if err != nil {
-			return fmt.Errorf("node.sendKeeperResponse(%s) => %v", deposit.RequestId, err)
-		}
-		return nil
-	}
-	switch request.State {
-	case common.RequestStateInitial:
-		return nil
-	case common.RequestStateDone:
-		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId)
-		if err != nil {
-			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
-		}
-	case common.RequestStateFailed:
-		id := common.UniqueId(deposit.RequestId, "RETRY")
-		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, id)
-		if err != nil {
-			return fmt.Errorf("store.UpdateDepositRequestId(%v) => %v", deposit, err)
-		}
-	}
-	return nil
+	return node.sendKeeperDepositTransaction(ctx, deposit, bitcoin.ValuePrecision)
 }
 
 func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {

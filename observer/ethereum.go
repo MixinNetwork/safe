@@ -252,10 +252,6 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	} else if !bonded {
 		return nil
 	}
-	_, bond, _, err := node.fetchBondAsset(ctx, deposit.Chain, deposit.AssetId, "", deposit.Holder, safe.Address)
-	if err != nil {
-		return fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", deposit.AssetId, deposit.Holder, err)
-	}
 	decimals := int32(ethereum.ValuePrecision)
 	switch asset.AssetId {
 	case ethereumAssetId:
@@ -295,6 +291,10 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		return nil
 	}
 
+	return node.sendKeeperDepositTransaction(ctx, deposit, decimals)
+}
+
+func (node *Node) sendKeeperDepositTransaction(ctx context.Context, deposit *Deposit, decimals int32) error {
 	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
 	if err != nil {
 		return err
@@ -306,6 +306,10 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		}
 		if pending {
 			return nil
+		}
+		_, bond, _, err := node.fetchBondAsset(ctx, deposit.Chain, deposit.AssetId, "", deposit.Holder, deposit.Receiver)
+		if err != nil {
+			return fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", deposit.AssetId, deposit.Holder, err)
 		}
 		sufficient, err := node.checkKeeperHasSufficientBond(ctx, bond.AssetId, deposit)
 		if err != nil {
@@ -333,7 +337,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		id := common.UniqueId(deposit.RequestId, "RETRY")
 		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, id)
 		if err != nil {
-			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
+			return fmt.Errorf("store.UpdateDepositRequestId(%v) => %v", deposit, err)
 		}
 	}
 	return nil
