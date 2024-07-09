@@ -208,6 +208,8 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
 	}
 
+	id := common.UniqueId(transfer.AssetId, safe.Holder)
+	id = common.UniqueId(id, fmt.Sprintf("%s:%d", transfer.Hash, transfer.Index))
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: transfer.Hash,
@@ -221,6 +223,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		Category:        common.ActionObserverHolderDeposit,
 		State:           common.RequestStateInitial,
 		Chain:           chain,
+		RequestId:       id,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
 	}
@@ -289,11 +292,9 @@ func (node *Node) ethereumProcessInitialDeposit(ctx context.Context, deposit *De
 	}
 
 	extra := deposit.encodeKeeperExtra(decimals)
-	id := common.UniqueId(deposit.AssetId, deposit.Holder)
-	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
-	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
+	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, deposit.RequestId, extra)
 	if err != nil {
-		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
+		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", deposit.RequestId, err)
 	}
 	err = node.store.MarkDepositPending(ctx, deposit.TransactionHash, deposit.OutputIndex)
 	if err != nil {
@@ -303,12 +304,9 @@ func (node *Node) ethereumProcessInitialDeposit(ctx context.Context, deposit *De
 }
 
 func (node *Node) ethereumProcessPendingDeposit(ctx context.Context, deposit *Deposit) error {
-	id := common.UniqueId(deposit.AssetId, deposit.Holder)
-	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
-
-	request, err := node.keeperStore.ReadRequest(ctx, id)
+	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
 	if err != nil {
-		return fmt.Errorf("keeperStore.ReadRequest(%s) => %v", id, err)
+		return fmt.Errorf("keeperStore.ReadRequest(%s) => %v", deposit.RequestId, err)
 	} else if request == nil {
 		return nil
 	}
@@ -335,7 +333,7 @@ func (node *Node) ethereumProcessPendingDeposit(ctx context.Context, deposit *De
 				decimals = int32(asset.Decimals)
 			}
 			extra := deposit.encodeKeeperExtra(decimals)
-			id = common.UniqueId(id, "retry-deposit")
+			id := common.UniqueId(deposit.RequestId, "retry-deposit")
 			err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
 			if err != nil {
 				return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)

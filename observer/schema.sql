@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   chain              INTEGER NOT NULL,
   holder             VARCHAR NOT NULL,
   category           INTEGER NOT NULL,
+  request_id         VARCHAR NOT NULL,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash', 'output_index')
