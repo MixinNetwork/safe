@@ -432,7 +432,7 @@ func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *De
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHash string, outputIndex int64, rid string) error {
+func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHash string, outputIndex int64, oldRid, rid string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -442,8 +442,8 @@ func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHa
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=?"
-	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial)
+	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=? AND request_id=?"
+	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial, oldRid)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}

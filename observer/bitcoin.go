@@ -325,7 +325,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		}
 	case common.RequestStateFailed:
 		id := common.UniqueId(deposit.RequestId, "retry-deposit")
-		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, id)
+		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, id)
 		if err != nil {
 			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 		}

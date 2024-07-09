@@ -331,7 +331,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		}
 	case common.RequestStateFailed:
 		id := common.UniqueId(deposit.RequestId, "retry-deposit")
-		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, id)
+		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, id)
 		if err != nil {
 			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 		}
