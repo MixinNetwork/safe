@@ -40,6 +40,7 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 		out := &mtg.Action{
 			TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 			UnifiedOutput: mtg.UnifiedOutput{
+				AppId:     node.conf.AppId,
 				AssetId:   node.conf.KeeperAssetId,
 				Extra:     memo,
 				Amount:    decimal.NewFromInt(1),
@@ -84,6 +85,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	out := &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   node.conf.KeeperAssetId,
 			Extra:     memo,
 			Amount:    decimal.NewFromInt(1),

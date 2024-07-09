@@ -16,6 +16,14 @@ import (
 )
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	// FIXME we can remove these extra checks when we use group.Run
+	txs1, asset1 := node.processAction(ctx, out)
+	txs2, asset2 := node.processAction(ctx, out)
+	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
+	return txs1, asset1
+}
+
+func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""

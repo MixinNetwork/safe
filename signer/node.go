@@ -511,6 +511,7 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 	if common.CheckTestEnvironment(ctx) {
 		out := &mtg.Action{
 			UnifiedOutput: mtg.UnifiedOutput{
+				AppId:     node.conf.AppId,
 				Senders:   []string{string(node.id)},
 				AssetId:   node.conf.AssetId,
 				CreatedAt: time.Now(),

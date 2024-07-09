@@ -68,6 +68,7 @@ func TestKeeper(t *testing.T) {
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
@@ -151,6 +152,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
@@ -215,6 +217,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
@@ -915,6 +918,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   assetId,
 			Extra:     memo,
 			Amount:    amount,
@@ -943,6 +947,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			Senders:   []string{node.conf.ObserverUserId},
 			AssetId:   node.conf.ObserverAssetId,
 			Extra:     memo,
@@ -992,6 +997,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     appId,
 			AssetId:   node.conf.AssetId,
 			Extra:     memo,
 			Amount:    decimal.New(1, 1),
@@ -1049,6 +1055,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 
 	var client *mixin.Client
 	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)
+	group.AttachWorker(node.conf.AppId, node)
 	return node
 }
 
