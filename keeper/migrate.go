@@ -62,10 +62,10 @@ func (node *Node) Migrate(ctx context.Context) error {
 	return node.store.Migrate(ctx, ms)
 }
 
-func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
 	if err != nil {
-		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err)
+		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err))
 	}
 	if meta.Chain != common.SafeChainPolygon {
 		logger.Printf("invalid meta asset chain: %d", meta.Chain)
@@ -74,7 +74,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil {
-		return nil, "", fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)
+		panic(fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err))
 	}
 	if deployed.Sign() <= 0 {
 		return node.failRequest(ctx, req, "")
@@ -83,7 +83,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	_, err = node.fetchAssetMeta(ctx, id.String())
 	if err != nil {
-		return nil, "", fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
+		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err))
 	}
 
 	extra := req.ExtraBytes()
@@ -98,7 +98,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", req.Holder, safe, err)
 	if err != nil {
-		return nil, "", err
+		panic(err)
 	}
 	if safe == nil || safe.State != common.RequestStateDone {
 		return node.failRequest(ctx, req, "")
@@ -111,7 +111,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		bs, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
 		if err != nil {
-			return nil, "", err
+			panic(err)
 		}
 		found := slices.IndexFunc(bs, func(sb *store.SafeBalance) bool {
 			return sb.SafeAssetId == req.AssetId

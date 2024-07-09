@@ -53,7 +53,7 @@ func (node *Node) Boot(ctx context.Context) {
 	}
 }
 
-func (node *Node) Terminate(ctx context.Context) ([]*mtg.Transaction, string, error) {
+func (node *Node) Terminate(ctx context.Context) ([]*mtg.Transaction, string) {
 	err := node.store.WriteTerminate(ctx)
 	panic(err)
 }
@@ -121,15 +121,15 @@ func (node *Node) checkTransaction(ctx context.Context, sequence uint64, assetId
 	return common.UniqueId(node.group.GenesisId(), traceId)
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) (bool, error) {
+func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) bool {
 	if common.CheckTestEnvironment(ctx) {
-		return false, nil
+		return false
 	}
 	ver, err := common.VerifyKernelTransaction(node.conf.MixinRPC, out, time.Minute)
 	if err != nil {
-		return false, err
+		panic(err)
 	}
-	return ver.DepositData() != nil, nil
+	return ver.DepositData() != nil
 }
 
 func (node *Node) safeUser() bot.SafeUser {

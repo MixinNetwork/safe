@@ -15,7 +15,7 @@ const (
 	SignerKeygenMaximum = 128
 )
 
-func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string, error) {
+func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -49,7 +49,11 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 		ts = append(ts, tx)
 	}
 
-	return ts, "", node.store.FailRequest(ctx, req.Id)
+	err := node.store.FailRequest(ctx, req.Id)
+	if err != nil {
+		panic(err)
+	}
+	return ts, ""
 }
 
 func (node *Node) buildSignerSignRequests(ctx context.Context, request *common.Request, srs []*store.SignatureRequest, path string) []*mtg.Transaction {

@@ -82,10 +82,7 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 }
 
 func (node *Node) replayAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	isDeposit, err := node.verifyKernelTransaction(ctx, out)
-	if err != nil {
-		panic(err)
-	}
+	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
 	}
@@ -125,11 +122,8 @@ func (node *Node) replayAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tra
 				panic(err)
 			}
 		} else {
-			ts, asset, err := node.processSignerResult(ctx, req, out)
-			logger.Printf("node.processSignerResult(%v, %v) => %v %s %v", req, out, ts, asset, err)
-			if err != nil {
-				panic(err)
-			}
+			ts, asset := node.processSignerResult(ctx, req, out)
+			logger.Printf("node.processSignerResult(%v, %v) => %v %s", req, out, ts, asset)
 			return ts, asset
 		}
 	}
@@ -165,10 +159,10 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	return err
 }
 
-func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) ([]*mtg.Transaction, string, error) {
+func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) ([]*mtg.Transaction, string) {
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err)
+		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
 	}
 	if op.Curve != session.Curve || op.Type != session.Operation {
 		panic(session.Id)
@@ -179,23 +173,23 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	case common.OperationTypeKeygenInput:
 		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.CreatedAt, self)
 		if err != nil {
-			return nil, "", fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err)
+			panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err))
 		}
 	case common.OperationTypeSignInput:
 		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders[0], op.Extra, out.CreatedAt, self)
 		if err != nil {
-			return nil, "", fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err)
+			panic(fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err))
 		}
 	}
 
 	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
 	if err != nil {
-		return nil, "", fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
+		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err))
 	}
 	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
 	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)
 	if !finished {
-		return nil, "", nil
+		return nil, ""
 	}
 	if l := len(signers); l <= node.threshold {
 		panic(session.Id)
@@ -210,7 +204,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		valid := node.verifySessionHolder(ctx, session.Curve, session.Public)
 		logger.Printf("node.verifySessionHolder(%v) => %t", session, valid)
 		if !valid {
-			return nil, "", nil
+			return nil, ""
 		}
 		holder, crv, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
 		if err != nil {
@@ -245,15 +239,15 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
-			return nil, "", err
+			panic(err)
 		}
 		if crv != op.Curve {
-			return nil, "", nil
+			return nil, ""
 		}
 		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
 		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
 		if !valid {
-			return nil, "", nil
+			return nil, ""
 		}
 		op.Type = common.OperationTypeSignOutput
 		op.Public = holder
@@ -263,10 +257,13 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	}
 
 	tx, asset, err := node.buildKeeperTransaction(ctx, op, out.Sequence)
-	if err != nil || asset != "" {
-		return nil, asset, err
+	if err != nil {
+		panic(err)
 	}
-	return []*mtg.Transaction{tx}, "", nil
+	if err != nil || asset != "" {
+		return nil, asset
+	}
+	return []*mtg.Transaction{tx}, ""
 }
 
 func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, byte, []byte, []byte, error) {
@@ -544,16 +541,16 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	return err
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) (bool, error) {
+func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) bool {
 	if common.CheckTestEnvironment(ctx) {
-		return false, nil
+		return false
 	}
 
 	ver, err := common.VerifyKernelTransaction(node.conf.MixinRPC, out, KernelTimeout)
 	if err != nil {
-		return false, err
+		panic(err)
 	}
-	return ver.DepositData() != nil, nil
+	return ver.DepositData() != nil
 }
 
 func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
