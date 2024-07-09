@@ -61,7 +61,7 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	}
 
 	cols := strings.Join(requestTransactionsCols, ",")
-	row = tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM requests where request_id=?", cols), rid)
+	row = tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM request_transactions where request_id=?", cols), rid)
 	var rt RequestTransactions
 	var data string
 	err = row.Scan(&rt.RequestId, &rt.Compactin, &data, &rt.CreatedAt)
