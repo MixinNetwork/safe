@@ -1038,6 +1038,8 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	group, err := mtg.BuildGroup(ctx, db, conf.Keeper.MTG)
 	require.Nil(err)
 	require.NotNil(group)
+	// FIXME this actually has no effect because we are not using group.Run()
+	group.EnableDebug()
 
 	var client *mixin.Client
 	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)

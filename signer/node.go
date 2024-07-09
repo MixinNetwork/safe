@@ -232,12 +232,7 @@ func (node *Node) Index() int {
 }
 
 func (node *Node) findMember(m string) int {
-	for i, id := range node.members {
-		if m == string(id) {
-			return i
-		}
-	}
-	return -1
+	return slices.Index(node.members, party.ID(m))
 }
 
 func (node *Node) synced(ctx context.Context) bool {

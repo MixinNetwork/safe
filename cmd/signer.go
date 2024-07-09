@@ -47,6 +47,7 @@ func SignerBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	group.EnableDebug()
 
 	messenger, err := messenger.NewMixinMessenger(ctx, mc.Signer.Messenger())
 	if err != nil {

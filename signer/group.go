@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/binary"
@@ -67,6 +68,20 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	txs1, asset1 := node.replayAction(ctx, out)
+	txs2, asset2 := node.replayAction(ctx, out)
+	if asset1 != asset2 {
+		panic(out.OutputId)
+	}
+	b1 := mtg.SerializeTransactions(txs1)
+	b2 := mtg.SerializeTransactions(txs2)
+	if !bytes.Equal(b1, b2) {
+		panic(out.OutputId)
+	}
+	return txs2, asset2
+}
+
+func (node *Node) replayAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	isDeposit, err := node.verifyKernelTransaction(ctx, out)
 	if err != nil {
 		panic(err)
