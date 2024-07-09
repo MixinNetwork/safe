@@ -35,12 +35,13 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		return nil, ""
 	}
 
-	// TODO use this to make mtg ProcessOutput consistent with retry
-	// txs, assetId, done := node.store.ReadRequestTransactions(ctx, req)
-	// if done {
-	//   return txs, assetId
-	// }
-	// then processRequest should always write txs in store
+	txs, assetId, done, err := node.store.ReadRequestTransactions(ctx, req.Id)
+	if err != nil {
+		panic(err)
+	}
+	if done {
+		return txs, assetId
+	}
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
@@ -61,6 +62,11 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if err != nil {
 		panic(err)
 	}
+	err = node.store.WriteRequestTransactions(ctx, req.Id, asset, ts)
+	if err != nil {
+		panic(err)
+	}
+
 	return ts, asset
 }
 
