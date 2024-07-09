@@ -46,6 +46,7 @@ type Deposit struct {
 	Chain           byte
 	Holder          string
 	Category        byte
+	RequestId       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -92,10 +93,10 @@ var accountCols = []string{"address", "created_at", "signature", "approved_at", 
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
-var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "created_at", "updated_at"}
+var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "request_id", "created_at", "updated_at"}
 
 func (d *Deposit) values() []any {
-	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.CreatedAt, d.UpdatedAt}
+	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.RequestId, d.CreatedAt, d.UpdatedAt}
 }
 
 var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "state", "spent_hash", "spent_raw", "created_at", "updated_at"}
@@ -355,13 +356,26 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	var deposits []*Deposit
 	for rows.Next() {
 		var d Deposit
-		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.CreatedAt, &d.UpdatedAt)
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
 		deposits = append(deposits, &d)
 	}
 	return deposits, nil
+}
+
+func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Context, holder, assetId string, offset time.Time) (bool, error) {
+	query := "SELECT request_id FROM deposits WHERE holder=? AND asset_id=? AND state=? AND created_at<?"
+	params := []any{holder, assetId, offset, common.RequestStateInitial}
+
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	return rows.Next(), nil
 }
 
 func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
@@ -409,7 +423,7 @@ func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *De
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64) error {
+func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHash string, outputIndex int64, oldRid, rid string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -419,8 +433,27 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, common.RequestStateInitial)
+	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
+	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, oldRid, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE deposits %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64, rid string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}

@@ -301,6 +301,7 @@ func (s *SQLite3Store) MigrateDB(ctx context.Context) error {
 	query := "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN approved_at TIMESTAMP;\n"
 	query = query + "ALTER TABLE accounts ADD COLUMN migrated_at TIMESTAMP;\n"
+	query = query + "ALTER TABLE deposits ADD COLUMN request_id VARCHAR;\n"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err

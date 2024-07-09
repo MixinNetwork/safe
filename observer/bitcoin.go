@@ -207,6 +207,8 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		return err
 	}
 
+	id := common.UniqueId(assetId, safe.Holder)
+	id = common.UniqueId(id, fmt.Sprintf("%s:%d", tx.TxId, index))
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: tx.TxId,
@@ -218,6 +220,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		Category:        common.ActionObserverHolderDeposit,
 		State:           common.RequestStateInitial,
 		Chain:           chain,
+		RequestId:       id,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
 	}
@@ -282,18 +285,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 		return nil
 	}
 
-	extra := deposit.encodeKeeperExtra(bitcoin.ValuePrecision)
-	id := common.UniqueId(assetId, deposit.Holder)
-	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
-	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
-	if err != nil {
-		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
-	}
-	err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
-	if err != nil {
-		return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
-	}
-	return nil
+	return node.sendKeeperDepositTransaction(ctx, deposit, bitcoin.ValuePrecision)
 }
 
 func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {

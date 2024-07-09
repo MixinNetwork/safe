@@ -208,6 +208,8 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
 	}
 
+	id := common.UniqueId(transfer.AssetId, safe.Holder)
+	id = common.UniqueId(id, fmt.Sprintf("%s:%d", transfer.Hash, transfer.Index))
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: transfer.Hash,
@@ -221,6 +223,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		Category:        common.ActionObserverHolderDeposit,
 		State:           common.RequestStateInitial,
 		Chain:           chain,
+		RequestId:       id,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
 	}
@@ -288,16 +291,54 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		return nil
 	}
 
-	extra := deposit.encodeKeeperExtra(decimals)
-	id := common.UniqueId(deposit.AssetId, deposit.Holder)
-	id = common.UniqueId(id, fmt.Sprintf("%s:%d", deposit.TransactionHash, deposit.OutputIndex))
-	err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, id, extra)
+	return node.sendKeeperDepositTransaction(ctx, deposit, decimals)
+}
+
+func (node *Node) sendKeeperDepositTransaction(ctx context.Context, deposit *Deposit, decimals int32) error {
+	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
 	if err != nil {
-		return fmt.Errorf("node.sendKeeperResponse(%s) => %v", id, err)
+		return err
 	}
-	err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex)
-	if err != nil {
-		return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
+	if request == nil {
+		pending, err := node.store.CheckUnconfirmedDepositsForAssetAndHolder(ctx, deposit.Holder, deposit.AssetId, deposit.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("store.CheckUnconfirmedDepositsForAssetAndHolder(%s %s) => %v", deposit.Holder, deposit.AssetId, err)
+		}
+		if pending {
+			return nil
+		}
+		_, bond, _, err := node.fetchBondAsset(ctx, deposit.Chain, deposit.AssetId, "", deposit.Holder, deposit.Receiver)
+		if err != nil {
+			return fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", deposit.AssetId, deposit.Holder, err)
+		}
+		sufficient, err := node.checkKeeperHasSufficientBond(ctx, bond.AssetId, deposit)
+		if err != nil {
+			return fmt.Errorf("node.checkKeeperHasSufficientBond(%s %s) => %v", bond.AssetId, deposit.Amount, err)
+		}
+		if !sufficient {
+			return nil
+		}
+		extra := deposit.encodeKeeperExtra(decimals)
+		err = node.sendKeeperResponse(ctx, deposit.Holder, deposit.Category, deposit.Chain, deposit.RequestId, extra)
+		if err != nil {
+			return fmt.Errorf("node.sendKeeperResponse(%s) => %v", deposit.RequestId, err)
+		}
+		return nil
+	}
+	switch request.State {
+	case common.RequestStateInitial:
+		return nil
+	case common.RequestStateDone:
+		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId)
+		if err != nil {
+			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
+		}
+	case common.RequestStateFailed:
+		id := common.UniqueId(deposit.RequestId, "RETRY")
+		err = node.store.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, id)
+		if err != nil {
+			return fmt.Errorf("store.UpdateDepositRequestId(%v) => %v", deposit, err)
+		}
 	}
 	return nil
 }

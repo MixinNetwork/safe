@@ -334,6 +334,19 @@ func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.C
 	}
 }
 
+func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, error) {
+	utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
+	if err != nil {
+		return nil, err
+	}
+	var total common.Integer
+	for _, o := range utxos {
+		amt := common.NewIntegerFromString(o.Amount.String())
+		total = total.Add(amt)
+	}
+	return &total, nil
+}
+
 func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
 	raw, err := callMixinRPCUntilSufficient(rpc, "gettransaction", []any{tx.String()})
 	if err != nil || raw == nil {
