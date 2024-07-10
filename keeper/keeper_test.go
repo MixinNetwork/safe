@@ -865,6 +865,10 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 		tx1.Sequence = out.Sequence
 		tx2.Sequence = out.Sequence
 		tx3.Sequence = out.Sequence
+		id := common.UniqueId(tx1.OpponentAppId, "test")
+		tx1.OpponentAppId = id
+		tx2.OpponentAppId = id
+		tx3.OpponentAppId = id
 		require.True(tx1.Equal(tx2))
 		require.True(tx2.Equal(tx3))
 	}
