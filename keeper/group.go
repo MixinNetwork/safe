@@ -64,11 +64,6 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 	txs, asset := node.processRequest(ctx, req)
 	logger.Printf("node.processRequest(%v) => %v %s", req, txs, asset)
-	err = node.store.WriteRequestTransactions(ctx, req.Id, asset, txs)
-	if err != nil {
-		panic(err)
-	}
-
 	return txs, asset
 }
 
@@ -361,7 +356,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.failRequest(ctx, req, bond.AssetId)
 	}
 
-	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
+	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req, []*mtg.Transaction{t})
 	if err != nil {
 		panic(err)
 	}

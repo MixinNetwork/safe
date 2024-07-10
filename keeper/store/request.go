@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
 var requestCols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at", "sequence"}
@@ -59,7 +60,7 @@ func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*common.Requ
 	return requestFromRow(row)
 }
 
-func (s *SQLite3Store) FailRequest(ctx context.Context, id string) error {
+func (s *SQLite3Store) FailRequest(ctx context.Context, id, compaction string, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -74,6 +75,12 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
+
+	err = s.writeRequestTransactions(ctx, tx, id, compaction, txs)
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 

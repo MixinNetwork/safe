@@ -199,7 +199,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		panic(fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err))
 	}
-	err = node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender)
+	err = node.store.WriteBitcoinOutputFromRequest(ctx, safe, output, req, asset.AssetId, sender, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -243,7 +243,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), deposit.Amount, output.Sender, req)
+	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), deposit.Amount, output.Sender, req, []*mtg.Transaction{t})
 	logger.Printf("store.UpdateEthereumBalanceFromRequest(%v) => %v", req, err)
 	if err != nil {
 		panic(err)

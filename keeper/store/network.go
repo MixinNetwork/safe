@@ -88,6 +88,12 @@ func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *Ne
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
+
+	err = s.writeRequestTransactions(ctx, tx, info.RequestId, "", nil)
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
@@ -134,6 +140,11 @@ func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, para
 		common.RequestStateDone, time.Now().UTC(), params.RequestId)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, params.RequestId, "", nil)
+	if err != nil {
+		return err
 	}
 	return tx.Commit()
 }

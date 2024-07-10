@@ -197,13 +197,13 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.failRequest(ctx, req, "")
 	}
 	if safe.State == SafeStateApproved {
-		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, requests, txHash, req)
+		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, requests, txHash, "", req, txs)
 		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", txHash, len(requests), req, err)
 		if err != nil {
 			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", txHash, err))
 		}
 	} else {
-		err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, txHash, req)
+		err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, txHash, "", req, txs)
 		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", txHash, len(requests), req, err)
 		if err != nil {
 			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", txHash, err))
@@ -255,7 +255,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	txs = append(txs, t)
 
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone)
+	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -363,7 +363,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		CreatedAt: req.CreatedAt,
 		UpdatedAt: req.CreatedAt,
 	}
-	err = node.store.WriteSafeProposalWithRequest(ctx, sp)
+	err = node.store.WriteSafeProposalWithRequest(ctx, sp, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -447,7 +447,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		CreatedAt:   req.CreatedAt,
 		UpdatedAt:   req.CreatedAt,
 	}
-	err = node.store.WriteSafeWithRequest(ctx, safe)
+	err = node.store.WriteSafeWithRequest(ctx, safe, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -645,7 +645,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		UpdatedAt:       req.CreatedAt,
 	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -741,7 +741,7 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 	if len(txs) == 0 {
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, req)
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, requests, tx.TransactionHash, "", req, txs)
 	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, len(requests), req, err)
 	if err != nil {
 		panic(err)
@@ -825,7 +825,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	txs = append(txs, t)
 
 	raw := hex.EncodeToString(spsbt.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	if err != nil {
 		panic(err)

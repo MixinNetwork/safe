@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
 type SignatureRequest struct {
@@ -25,7 +26,7 @@ type SignatureRequest struct {
 
 var signatureCols = []string{"request_id", "transaction_hash", "input_index", "signer", "curve", "message", "signature", "state", "created_at", "updated_at"}
 
-func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash string, req *common.Request) error {
+func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash, raw string, req *common.Request, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -45,10 +46,23 @@ func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Co
 	if err != nil {
 		return err
 	}
+
+	if raw != "" {
+		err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, updated_at=? WHERE transaction_hash=?",
+			raw, time.Now().UTC(), transactionHash)
+		if err != nil {
+			return fmt.Errorf("UPDATE transactions %v", err)
+		}
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	if err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash string, req *common.Request) error {
+func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash, raw string, req *common.Request, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -59,6 +73,19 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	defer tx.Rollback()
 
 	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
+	if err != nil {
+		return err
+	}
+
+	if raw != "" {
+		err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, updated_at=? WHERE transaction_hash=?",
+			raw, time.Now().UTC(), transactionHash)
+		if err != nil {
+			return fmt.Errorf("UPDATE transactions %v", err)
+		}
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
 	if err != nil {
 		return err
 	}
@@ -121,7 +148,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance) error {
+func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -169,6 +196,11 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit()

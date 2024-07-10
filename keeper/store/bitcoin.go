@@ -10,9 +10,10 @@ import (
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
-func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *Safe, utxo *bitcoin.Input, req *common.Request, assetId, sender string) error {
+func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *Safe, utxo *bitcoin.Input, req *common.Request, assetId, sender string, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -39,6 +40,11 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	if err != nil {
+		return err
 	}
 	return tx.Commit()
 }
