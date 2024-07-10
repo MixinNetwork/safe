@@ -840,7 +840,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 }
 
 func testStep(ctx context.Context, require *require.Assertions, node *Node, out *mtg.Action) {
-	_, asset := node.ProcessOutput(ctx, out)
+	txs1, asset := node.ProcessOutput(ctx, out)
 	require.Equal("", asset)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
@@ -850,10 +850,24 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	require.Nil(req)
 	req, err = node.store.ReadLatestRequest(ctx)
 	require.Nil(err)
-	_, compaction, done, err := node.store.ReadRequestTransactions(ctx, req.Id)
+	txs2, compaction, done, err := node.store.ReadRequestTransactions(ctx, req.Id)
 	require.Nil(err)
 	require.True(done)
 	require.Equal("", compaction)
+	txs3, asset := node.ProcessOutput(ctx, out)
+	require.Equal("", asset)
+	for i, tx1 := range txs1 {
+		tx2 := txs2[i]
+		tx3 := txs3[i]
+		tx1.AppId = out.AppId
+		tx2.AppId = out.AppId
+		tx3.AppId = out.AppId
+		tx1.Sequence = out.Sequence
+		tx2.Sequence = out.Sequence
+		tx3.Sequence = out.Sequence
+		require.True(tx1.Equal(tx2))
+		require.True(tx2.Equal(tx3))
+	}
 }
 
 func testSpareKeys(ctx context.Context, require *require.Assertions, node *Node, hc, sc, oc int, crv byte) {
