@@ -45,7 +45,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		panic(err)
 	}
 	if rtxs != nil {
-		return rtxs.Transactions, rtxs.Compactin
+		return rtxs.Transactions, rtxs.Compaction
 	}
 
 	role := node.getActionRole(req.Action)

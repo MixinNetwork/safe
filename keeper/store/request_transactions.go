@@ -13,7 +13,7 @@ import (
 
 type RequestTransactions struct {
 	RequestId    string
-	Compactin    string
+	Compaction   string
 	Transactions []*mtg.Transaction
 	CreatedAt    time.Time
 }
@@ -55,7 +55,7 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	row = tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM request_transactions where request_id=?", cols), rid)
 	var rt RequestTransactions
 	var data string
-	err = row.Scan(&rt.RequestId, &rt.Compactin, &data, &rt.CreatedAt)
+	err = row.Scan(&rt.RequestId, &rt.Compaction, &data, &rt.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
