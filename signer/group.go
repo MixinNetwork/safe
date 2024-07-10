@@ -1,7 +1,6 @@
 package signer
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/binary"
@@ -68,20 +67,13 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	txs1, asset1 := node.replayAction(ctx, out)
-	txs2, asset2 := node.replayAction(ctx, out)
-	if asset1 != asset2 {
-		panic(out.OutputId)
-	}
-	b1 := mtg.SerializeTransactions(txs1)
-	b2 := mtg.SerializeTransactions(txs2)
-	if !bytes.Equal(b1, b2) {
-		panic(out.OutputId)
-	}
-	return txs2, asset2
+	txs1, asset1 := node.processAction(ctx, out)
+	txs2, asset2 := node.processAction(ctx, out)
+	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
+	return txs1, asset1
 }
 
-func (node *Node) replayAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
@@ -607,6 +599,6 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
-	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
+	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
 	return tx, ""
 }

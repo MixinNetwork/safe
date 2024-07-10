@@ -172,29 +172,24 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		UpdatedAt:       req.CreatedAt,
 	}
 	sr.RequestId = common.UniqueId(req.Id, sr.Message)
-	if safe.State == SafeStateApproved {
-		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
-		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
-		if err != nil {
-			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err))
-		}
-	} else {
-		err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
-		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
-		if err != nil {
-			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err))
-		}
-	}
 
 	txs := node.buildSignerSignRequests(ctx, req, []*store.SignatureRequest{sr}, safe.Path)
 	if len(txs) == 0 {
 		return node.failRequest(ctx, req, "")
 	}
-
-	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
-	logger.Printf("store.UpdateInitialTransaction(%v) => %v", tx, err)
-	if err != nil {
-		panic(err)
+	signedRaw := hex.EncodeToString(t.Marshal())
+	if safe.State == SafeStateApproved {
+		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, signedRaw, req, txs)
+		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
+		if err != nil {
+			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err))
+		}
+	} else {
+		err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, signedRaw, req, txs)
+		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
+		if err != nil {
+			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err))
+		}
 	}
 	return txs, ""
 }
@@ -264,7 +259,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	}
 	txs = append(txs, tt)
 
-	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone)
+	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -359,10 +354,6 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	err = node.store.WriteInitialTransaction(ctx, tx)
-	if err != nil {
-		panic(fmt.Errorf("store.WriteInitialTransaction(%v) => %v", tx, err))
-	}
 
 	extra := gs.Marshal()
 	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(extra)))
@@ -395,7 +386,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		CreatedAt: req.CreatedAt,
 		UpdatedAt: req.CreatedAt,
 	}
-	err = node.store.WriteSafeProposalWithRequest(ctx, sp)
+	err = node.store.WriteEthereumSafeProposalWithRequest(ctx, sp, tx, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -471,10 +462,6 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 			t.Signatures[i] = extra[16:]
 		}
 	}
-	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
-	if err != nil {
-		panic(fmt.Errorf("store.UpdateInitialTransaction(%v) => %v", tx, err))
-	}
 
 	safe := &store.Safe{
 		Holder:      sp.Holder,
@@ -516,7 +503,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, hex.EncodeToString(t.Marshal()), req, txs)
 	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
 	if err != nil {
 		panic(err)
@@ -775,7 +762,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	err = node.store.WriteTransactionWithRequest(ctx, tx, nil)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, nil, txs)
 	if err != nil {
 		panic(err)
 	}
@@ -831,12 +818,6 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
-	logger.Printf("store.UpdateInitialTransaction(%v) => %v", tx, err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-
 	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
@@ -854,7 +835,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, req)
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, hex.EncodeToString(t.Marshal()), req, txs)
 	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
 	if err != nil {
 		panic(err)
@@ -934,7 +915,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 		return node.failRequest(ctx, req, txRequest.AssetId)
 	}
 
-	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, sbm)
+	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, sbm, []*mtg.Transaction{tt})
 	logger.Printf("store.FailTransactionWithRequest(%v %v %v) => %v", tx, safe, req, err)
 	if err != nil {
 		panic(err)
@@ -1030,7 +1011,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			panic(fmt.Errorf("invalid safe guard transaction %x %x", gt.Data, t.Data))
 		}
 
-		err = node.store.FinishSafeWithRequest(ctx, old.TransactionHash, raw, req, safe)
+		err = node.store.FinishSafeWithRequest(ctx, old.TransactionHash, raw, req, safe, txs)
 		if err != nil {
 			panic(err)
 		}
@@ -1067,7 +1048,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 	txs = append(txs, tt)
 
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, sbm)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, sbm, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	if err != nil {
 		panic(err)

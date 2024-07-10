@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
 type SafeProposal struct {
@@ -95,7 +96,7 @@ func (s *SQLite3Store) ReadSafeProposalByAddress(ctx context.Context, addr strin
 	return safeProposalFromRow(row)
 }
 
-func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *SafeProposal) error {
+func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *SafeProposal, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -113,6 +114,45 @@ func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *Saf
 		common.RequestStateDone, time.Now().UTC(), sp.RequestId)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, sp.RequestId, "", txs)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) WriteEthereumSafeProposalWithRequest(ctx context.Context, sp *SafeProposal, trx *Transaction, txs []*mtg.Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, buildInsertionSQL("safe_proposals", safeProposalCols), sp.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT safe_proposals %v", err)
+	}
+
+	vals := []any{trx.TransactionHash, trx.RawTransaction, trx.Holder, trx.Chain, trx.AssetId, trx.State, trx.Data, trx.RequestId, trx.CreatedAt, trx.UpdatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT transactions %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+		common.RequestStateDone, time.Now().UTC(), sp.RequestId)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, sp.RequestId, "", txs)
+	if err != nil {
+		return err
 	}
 	return tx.Commit()
 }
@@ -137,7 +177,7 @@ func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) erro
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) error {
+func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -159,10 +199,15 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe) err
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
+
+	err = s.writeRequestTransactions(ctx, tx, safe.RequestId, "", txs)
+	if err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHash, raw string, req *common.Request, safe *Safe) error {
+func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHash, raw string, req *common.Request, safe *Safe, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -197,6 +242,11 @@ func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHas
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit()

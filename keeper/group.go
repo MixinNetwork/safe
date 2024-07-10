@@ -16,6 +16,14 @@ import (
 )
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	// FIXME we can remove these extra checks when we use group.Run
+	txs1, asset1 := node.processAction(ctx, out)
+	txs2, asset2 := node.processAction(ctx, out)
+	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
+	return txs1, asset1
+}
+
+func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
@@ -32,12 +40,13 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		return nil, ""
 	}
 
-	// TODO use this to make mtg ProcessOutput consistent with retry
-	// txs, assetId, done := node.store.ReadRequestTransactions(ctx, req)
-	// if done {
-	//   return txs, assetId
-	// }
-	// then processRequest should always write txs in store
+	rtxs, err := node.store.ReadRequestTransactions(ctx, req.Id)
+	if err != nil {
+		panic(err)
+	}
+	if rtxs != nil {
+		return rtxs.Transactions, rtxs.Compaction
+	}
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
@@ -347,7 +356,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.failRequest(ctx, req, bond.AssetId)
 	}
 
-	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req)
+	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req, []*mtg.Transaction{t})
 	if err != nil {
 		panic(err)
 	}

@@ -33,7 +33,7 @@ func ethereumDefaultDerivationPath() []byte {
 }
 
 func (node *Node) failRequest(ctx context.Context, req *common.Request, assetId string) ([]*mtg.Transaction, string) {
-	err := node.store.FailRequest(ctx, req.Id)
+	err := node.store.FailRequest(ctx, req.Id, assetId, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +46,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 	if t == nil {
 		return node.failRequest(ctx, req, req.AssetId)
 	}
-	err := node.store.FailRequest(ctx, req.Id)
+	err := node.store.FailRequest(ctx, req.Id, "", []*mtg.Transaction{t})
 	if err != nil {
 		panic(err)
 	}

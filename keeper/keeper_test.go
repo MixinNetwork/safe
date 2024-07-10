@@ -68,6 +68,7 @@ func TestKeeper(t *testing.T) {
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
@@ -151,6 +152,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
@@ -215,6 +217,7 @@ func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(testBondAssetId, bondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   bondId,
 			Amount:    decimal.NewFromInt(1000000),
 			CreatedAt: time.Now(),
@@ -837,7 +840,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 }
 
 func testStep(ctx context.Context, require *require.Assertions, node *Node, out *mtg.Action) {
-	_, asset := node.ProcessOutput(ctx, out)
+	txs1, asset := node.ProcessOutput(ctx, out)
 	require.Equal("", asset)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
@@ -845,6 +848,30 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	req, err := node.store.ReadPendingRequest(ctx)
 	require.Nil(err)
 	require.Nil(req)
+	req, err = node.store.ReadLatestRequest(ctx)
+	require.Nil(err)
+	rtxs, err := node.store.ReadRequestTransactions(ctx, req.Id)
+	require.Nil(err)
+	require.NotNil(rtxs)
+	require.Equal("", rtxs.Compaction)
+	txs3, asset := node.ProcessOutput(ctx, out)
+	require.Equal("", asset)
+	for i, tx1 := range txs1 {
+		tx2 := rtxs.Transactions[i]
+		tx3 := txs3[i]
+		tx1.AppId = out.AppId
+		tx2.AppId = out.AppId
+		tx3.AppId = out.AppId
+		tx1.Sequence = out.Sequence
+		tx2.Sequence = out.Sequence
+		tx3.Sequence = out.Sequence
+		id := common.UniqueId(tx1.OpponentAppId, "test")
+		tx1.OpponentAppId = id
+		tx2.OpponentAppId = id
+		tx3.OpponentAppId = id
+		require.True(tx1.Equal(tx2))
+		require.True(tx2.Equal(tx3))
+	}
 }
 
 func testSpareKeys(ctx context.Context, require *require.Assertions, node *Node, hc, sc, oc int, crv byte) {
@@ -909,6 +936,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   assetId,
 			Extra:     memo,
 			Amount:    amount,
@@ -937,6 +965,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			Senders:   []string{node.conf.ObserverUserId},
 			AssetId:   node.conf.ObserverAssetId,
 			Extra:     memo,
@@ -986,6 +1015,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     appId,
 			AssetId:   node.conf.AssetId,
 			Extra:     memo,
 			Amount:    decimal.New(1, 1),
@@ -1043,6 +1073,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 
 	var client *mixin.Client
 	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)
+	group.AttachWorker(node.conf.AppId, node)
 	return node
 }
 

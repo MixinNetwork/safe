@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
 type SafeBalance struct {
@@ -36,7 +37,7 @@ func (sb *SafeBalance) BigBalance() *big.Int {
 	return b
 }
 
-func (s *SQLite3Store) CreateEthereumBalanceDepositFromRequest(ctx context.Context, safe *Safe, sb *SafeBalance, txHash string, index int64, amount *big.Int, sender string, req *common.Request) error {
+func (s *SQLite3Store) CreateEthereumBalanceDepositFromRequest(ctx context.Context, safe *Safe, sb *SafeBalance, txHash string, index int64, amount *big.Int, sender string, req *common.Request, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -60,6 +61,11 @@ func (s *SQLite3Store) CreateEthereumBalanceDepositFromRequest(ctx context.Conte
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	if err != nil {
+		return err
 	}
 	return tx.Commit()
 }

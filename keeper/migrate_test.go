@@ -28,6 +28,7 @@ func testKeeperMigration(t *testing.T) {
 
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
 			Extra:     testGenerateDummyExtra(node),
@@ -68,6 +69,7 @@ func testBuildObserverMigrateRequest(node *Node, id, public string, action byte,
 	return &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			Senders:   []string{node.conf.ObserverUserId},
 			AssetId:   asset,
 			Extra:     memo,

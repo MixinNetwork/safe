@@ -22,6 +22,17 @@ CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_
 
 
 
+CREATE TABLE IF NOT EXISTS request_transactions (
+  request_id      VARCHAR NOT NULL,
+  compaction      VARCHAR NOT NULL,
+  transactions    TEXT NOT NULL,
+  created_at      TIMESTAMP NOT NULL,
+  PRIMARY KEY ('request_id')
+);
+
+
+
+
 CREATE TABLE IF NOT EXISTS network_infos (
   request_id      VARCHAR NOT NULL,
   chain           INTEGER NOT NULL,

@@ -107,23 +107,16 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Request, extra []byte) *mtg.Transaction {
 	logger.Printf("node.writeStorageTransaction(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
-		sTraceId := crypto.Blake3Hash(extra).String()
-		sTraceId = mtg.UniqueId(sTraceId, sTraceId)
-		hash := crypto.Blake3Hash(extra)
-		tx := &mtg.Transaction{
-			TraceId: sTraceId,
-			Hash:    hash,
-		}
-
+		tx := node.group.BuildStorageTransaction(ctx, extra)
 		v := hex.EncodeToString(extra)
-		o, err := node.store.ReadProperty(ctx, sTraceId)
+		o, err := node.store.ReadProperty(ctx, tx.TraceId)
 		if err != nil {
 			panic(err)
 		}
 		if o == v {
 			return tx
 		}
-		err = node.store.WriteProperty(ctx, sTraceId, v)
+		err = node.store.WriteProperty(ctx, tx.TraceId, v)
 		if err != nil {
 			panic(err)
 		}

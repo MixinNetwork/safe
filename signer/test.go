@@ -140,6 +140,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	out := &mtg.Action{
 		TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
 			AssetId:   node.conf.KeeperAssetId,
 			Extra:     memo,
 			Amount:    decimal.NewFromInt(1),
@@ -204,6 +205,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	group.EnableDebug()
 
 	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil)
+	group.AttachWorker(node.conf.AppId, node)
 	return node
 }
 
