@@ -166,24 +166,6 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) UpdateInitialTransaction(ctx context.Context, hash, raw string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, updated_at=? WHERE transaction_hash=?",
-		raw, time.Now().UTC(), hash)
-	if err != nil {
-		return fmt.Errorf("UPDATE transactions %v", err)
-	}
-	return tx.Commit()
-}
-
 func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

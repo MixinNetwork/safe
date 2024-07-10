@@ -462,10 +462,6 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 			t.Signatures[i] = extra[16:]
 		}
 	}
-	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
-	if err != nil {
-		panic(fmt.Errorf("store.UpdateInitialTransaction(%v) => %v", tx, err))
-	}
 
 	safe := &store.Safe{
 		Holder:      sp.Holder,
@@ -507,7 +503,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, "", req, txs)
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, hex.EncodeToString(t.Marshal()), req, txs)
 	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
 	if err != nil {
 		panic(err)
@@ -822,12 +818,6 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.UpdateInitialTransaction(ctx, tx.TransactionHash, hex.EncodeToString(t.Marshal()))
-	logger.Printf("store.UpdateInitialTransaction(%v) => %v", tx, err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-
 	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
@@ -845,7 +835,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, "", req, txs)
+	err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, hex.EncodeToString(t.Marshal()), req, txs)
 	logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
 	if err != nil {
 		panic(err)
