@@ -29,13 +29,13 @@ func (s *SQLite3Store) writeRequestTransactions(ctx context.Context, tx *sql.Tx,
 	return nil
 }
 
-func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) ([]*mtg.Transaction, string, bool, error) {
+func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) (*RequestTransactions, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, "", false, err
+		return nil, err
 	}
 	defer tx.Rollback()
 
@@ -43,12 +43,12 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	var state int
 	err = row.Scan(&state)
 	if err == sql.ErrNoRows {
-		return nil, "", false, nil
+		return nil, nil
 	} else if err != nil {
-		return nil, "", false, err
+		return nil, err
 	}
 	if state == common.RequestStateInitial {
-		return nil, "", false, nil
+		return nil, nil
 	}
 
 	cols := strings.Join(requestTransactionsCols, ",")
@@ -57,16 +57,16 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	var data string
 	err = row.Scan(&rt.RequestId, &rt.Compactin, &data, &rt.CreatedAt)
 	if err != nil {
-		return nil, "", false, err
+		return nil, err
 	}
 	tb, err := common.Base91Decode(data)
 	if err != nil {
-		return nil, "", false, err
+		return nil, err
 	}
 	txs, err := mtg.DeserializeTransactions(tb)
 	if err != nil {
-		return nil, "", false, err
+		return nil, err
 	}
 	rt.Transactions = txs
-	return rt.Transactions, rt.Compactin, true, nil
+	return &rt, nil
 }
