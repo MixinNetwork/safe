@@ -599,6 +599,6 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
-	logger.Printf("node.buildKeeperTransaction(%v) => %s %x", op, traceId, extra)
+	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
 	return tx, ""
 }
