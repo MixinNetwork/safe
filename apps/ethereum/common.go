@@ -548,13 +548,13 @@ func factoryInit(rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
 	return conn, abi, nil
 }
 
-func guardInit(rpc string) (*ethclient.Client, *abi.MixinSafeGuard, error) {
+func guardInit(rpc string, guard string) (*ethclient.Client, *abi.MixinSafeGuard, error) {
 	conn, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	abi, err := abi.NewMixinSafeGuard(common.HexToAddress(EthereumSafeGuardAddress), conn)
+	abi, err := abi.NewMixinSafeGuard(common.HexToAddress(guard), conn)
 	if err != nil {
 		return nil, nil, err
 	}
