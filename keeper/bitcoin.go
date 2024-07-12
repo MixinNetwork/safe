@@ -272,7 +272,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
 		rce = stx.Extra
 	}
-	arp, err := req.ParseMixinRecipient(rce)
+	arp, err := req.ParseMixinRecipient(ctx, node.mixin, rce)
 	logger.Printf("req.ParseMixinRecipient(%v) => %v %v", req, arp, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
