@@ -591,6 +591,19 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		}}
 	}
 
+	total := decimal.Zero
+	recipients := make([]map[string]string, len(outputs))
+	for i, out := range outputs {
+		amt := decimal.New(out.Satoshi, -bitcoin.ValuePrecision)
+		recipients[i] = map[string]string{
+			"receiver": out.Address, "amount": amt.String(),
+		}
+		total = total.Add(amt)
+	}
+	if len(outputs) > 256 || !total.Equal(req.Amount) {
+		return node.failRequest(ctx, req, "")
+	}
+
 	psbt, err := bitcoin.BuildPartiallySignedTransaction(mainInputs, outputs, req.Operation().IdBytes(), safe.Chain)
 	logger.Printf("bitcoin.BuildPartiallySignedTransaction(%v) => %v %v", req, psbt, err)
 	if bitcoin.IsInsufficientInputError(err) {
@@ -615,22 +628,6 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 	txs = append(txs, t)
 
-	total := decimal.Zero
-	recipients := make([]map[string]string, len(outputs))
-	for i, out := range outputs {
-		amt := decimal.New(out.Satoshi, -bitcoin.ValuePrecision)
-		recipients[i] = map[string]string{
-			"receiver": out.Address, "amount": amt.String(),
-		}
-		total = total.Add(amt)
-	}
-	if len(outputs) > 256 {
-		logger.Printf("invalid count of outputs: %d", len(outputs))
-		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
-	}
-	if !total.Equal(req.Amount) {
-		return node.failRequest(ctx, req, "")
-	}
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
 		TransactionHash: psbt.Hash(),

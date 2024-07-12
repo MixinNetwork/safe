@@ -655,12 +655,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		recipients[i] = r
 		total = total.Add(amt)
 	}
-	if len(outputs) > 256 {
-		logger.Printf("invalid count of outputs: %d", len(outputs))
-		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
-	}
-	if !total.Equal(req.Amount) {
-		logger.Printf("inconsistent amount between total outputs %d and %d", total, req.Amount)
+	if len(outputs) > 256 || !total.Equal(req.Amount) {
 		return node.failRequest(ctx, req, "")
 	}
 
