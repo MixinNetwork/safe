@@ -286,7 +286,6 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-
 	chain := common.SafeCurveChain(req.Curve)
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, chain, req.CreatedAt)
