@@ -1,8 +1,10 @@
 package common
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -10,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -130,7 +133,7 @@ func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 	return r, r.VerifyFormat()
 }
 
-func (req *Request) ParseMixinRecipient(extra []byte) (*AccountProposal, error) {
+func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Client, extra []byte) (*AccountProposal, error) {
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
@@ -189,6 +192,19 @@ func (req *Request) ParseMixinRecipient(extra []byte) (*AccountProposal, error) 
 	}
 	if err != nil {
 		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
+	}
+
+	us, err := ReadUsers(ctx, client, arp.Receivers)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadUsers(%s) => %v", strings.Join(arp.Receivers, ","), err)
+	}
+	if len(us) != len(arp.Receivers) {
+		return nil, fmt.Errorf("invalid receivers: %s", strings.Join(arp.Receivers, ","))
+	}
+	for _, user := range us {
+		if !user.HasSafe {
+			return nil, fmt.Errorf("receiver %s of holder %s does not has safe", user.UserID, req.Holder)
+		}
 	}
 	return arp, nil
 }
