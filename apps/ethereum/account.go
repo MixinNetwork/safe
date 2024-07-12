@@ -132,29 +132,41 @@ func GetOrDeploySafeAccount(ctx context.Context, rpc, key string, chainId int64,
 	return &addr, nil
 }
 
-func CheckSafeAccountDeployed(rpc, address string) (bool, bool, error) {
+func GetSafeAccountGuard(rpc, address string) (string, error) {
 	conn, abi, err := safeInit(rpc, address)
 	if err != nil {
-		return false, false, err
+		return "", err
 	}
 	defer conn.Close()
 
 	bGuardOffet, err := hex.DecodeString(guardStorageSlot[2:])
 	if err != nil {
-		return false, false, err
+		return "", err
 	}
 	bGuard, err := abi.GetStorageAt(nil, new(big.Int).SetBytes(bGuardOffet), new(big.Int).SetInt64(1))
 	if err != nil {
 		if strings.Contains(err.Error(), "no contract code at given address") {
-			return false, false, nil
+			return "", nil
 		}
-		return false, false, err
+		return "", err
 	}
 	guardAddress := common.BytesToAddress(bGuard)
-	if guardAddress.Hex() == EthereumEmptyAddress {
-		return false, true, nil
+	return guardAddress.Hex(), nil
+}
+
+func CheckSafeAccountDeployed(rpc, address string) (bool, bool, error) {
+	guardAddress, err := GetSafeAccountGuard(rpc, address)
+	if err != nil {
+		return false, false, err
 	}
-	return true, true, nil
+	switch guardAddress {
+	case "":
+		return false, false, nil
+	case EthereumEmptyAddress:
+		return false, true, nil
+	default:
+		return true, true, nil
+	}
 }
 
 func GetSafeAccountAddress(owners []string, threshold int64) common.Address {
@@ -288,7 +300,16 @@ func GetTokenBalanceAtBlock(rpc, tokenAddress, address string, blockNumber *big.
 }
 
 func GetSafeLastTxTime(rpc, address string) (time.Time, error) {
-	conn, abi, err := guardInit(rpc)
+	guardAddress, err := GetSafeAccountGuard(rpc, address)
+	if err != nil {
+		return time.Time{}, err
+	}
+	switch guardAddress {
+	case "", EthereumEmptyAddress:
+		panic(fmt.Errorf("safe %s is not deployed or guard is not enabled", address))
+	}
+
+	conn, abi, err := guardInit(rpc, guardAddress)
 	if err != nil {
 		return time.Time{}, err
 	}
