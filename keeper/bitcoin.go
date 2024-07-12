@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -277,8 +278,21 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	chain := common.SafeCurveChain(req.Curve)
+	us, err := common.ReadUsers(ctx, node.mixin, arp.Receivers)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadUsers(%v) => %v", strings.Join(arp.Receivers, ","), err))
+	}
+	if len(us) != len(arp.Receivers) {
+		return node.failRequest(ctx, req, "")
+	}
+	for _, user := range us {
+		if !user.HasSafe {
+			logger.Printf("receiver %s of holder %s does not has safe", user.UserID, req.Holder)
+			return node.failRequest(ctx, req, "")
+		}
+	}
 
+	chain := common.SafeCurveChain(req.Curve)
 	plan, err := node.store.ReadLatestOperationParams(ctx, chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", chain, plan, err)
 	if err != nil {
