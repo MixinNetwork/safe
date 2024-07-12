@@ -347,6 +347,21 @@ func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []strin
 	return &total, nil
 }
 
+func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin.User, error) {
+	for {
+		us, err := client.ReadUsers(ctx, id...)
+		logger.Verbosef("mixin.ReadUsers(%s) => %v %v\n", strings.Join(id, ","), us, err)
+		if err != nil {
+			if mtg.CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			return nil, err
+		}
+		return us, nil
+	}
+}
+
 func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
 	raw, err := callMixinRPCUntilSufficient(rpc, "gettransaction", []any{tx.String()})
 	if err != nil || raw == nil {
