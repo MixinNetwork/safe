@@ -302,17 +302,17 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 	for {
 		req, err := client.SafeReadTransactionRequest(ctx, id)
 		logger.Verbosef("mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
-		if err != nil {
-			if mtg.CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			if mixin.IsErrorCodes(err, 404) {
-				return nil, nil
-			}
-			return nil, err
+		if err == nil {
+			return req, nil
 		}
-		return req, nil
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if mixin.IsErrorCodes(err, 404) {
+			return nil, nil
+		}
+		return nil, err
 	}
 }
 
@@ -320,17 +320,17 @@ func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.C
 	for {
 		req, err := client.SafeReadMultisigRequests(ctx, id)
 		logger.Verbosef("mixin.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
-		if err != nil {
-			if mtg.CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			if mixin.IsErrorCodes(err, 404) {
-				return nil, nil
-			}
-			return nil, err
+		if err == nil {
+			return req, nil
 		}
-		return req, nil
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if mixin.IsErrorCodes(err, 404) {
+			return nil, nil
+		}
+		return nil, err
 	}
 }
 
@@ -351,14 +351,14 @@ func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin
 	for {
 		us, err := client.ReadUsers(ctx, id...)
 		logger.Verbosef("mixin.ReadUsers(%s) => %v %v\n", strings.Join(id, ","), us, err)
-		if err != nil {
-			if mtg.CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return nil, err
+		if err == nil {
+			return us, nil
 		}
-		return us, nil
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return nil, err
 	}
 }
 
