@@ -348,6 +348,16 @@ func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []strin
 }
 
 func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin.User, error) {
+	if CheckTestEnvironment(ctx) {
+		var us []*mixin.User
+		for _, u := range id {
+			us = append(us, &mixin.User{
+				UserID:  u,
+				HasSafe: true,
+			})
+		}
+		return us, nil
+	}
 	for {
 		us, err := client.ReadUsers(ctx, id...)
 		logger.Verbosef("mixin.ReadUsers(%s) => %v %v\n", strings.Join(id, ","), us, err)
