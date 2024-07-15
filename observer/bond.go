@@ -82,12 +82,14 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
+	logger.Printf("GetFactoryAssetAddress(%s %s %s %s %s) => %s", entry, assetId, asset.Symbol, asset.Name, holder, assetKey)
 	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
 	bondId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
+	logger.Printf("GenerateAssetId() => %s", bondId)
 	bond, err := node.fetchAssetMeta(ctx, bondId)
 	return asset, bond, bondId, err
 }
@@ -160,6 +162,9 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
 		if err == nil {
+			if meta == nil {
+				return nil, nil
+			}
 			if meta.Chain == 0 {
 				panic(id)
 			}
