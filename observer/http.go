@@ -724,9 +724,6 @@ func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) (map[string
 			amount = new(big.Int).Sub(amount, pending)
 			pendingBalances[b.AssetId].SafeAssetId = b.SafeAssetId
 		}
-		if amount.Cmp(big.NewInt(0)) < 1 {
-			continue
-		}
 		assetBalance[b.AssetId] = &AssetBalance{
 			Amount:       amount.String(),
 			AssetAddress: b.AssetAddress,
