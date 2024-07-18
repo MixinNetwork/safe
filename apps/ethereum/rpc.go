@@ -3,6 +3,7 @@ package ethereum
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -219,7 +220,15 @@ func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace,
 	return txs, err
 }
 
-func RPCGetAddressBalanceAtBlock(rpc, blockHeight, address string) (*big.Int, error) {
+func RPCGetAssetBalanceAtBlock(rpc, address, asset string, blockNumber uint64) (*big.Int, error) {
+	if asset == EthereumEmptyAddress {
+		return rpcGetEtherBalanceAtBlock(rpc, address, blockNumber)
+	}
+	return rpcGetTokenBalanceAtBlock(rpc, address, asset, blockNumber)
+}
+
+func rpcGetEtherBalanceAtBlock(rpc, address string, blockNumber uint64) (*big.Int, error) {
+	blockHeight := fmt.Sprintf("0x%x", blockNumber)
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, blockHeight})
 	if err != nil {
 		return nil, err
@@ -234,6 +243,34 @@ func RPCGetAddressBalanceAtBlock(rpc, blockHeight, address string) (*big.Int, er
 		return nil, fmt.Errorf("Failed to parse address balance")
 	}
 	return balance, err
+}
+
+func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber uint64) (*big.Int, error) {
+	tokenAddr := common.HexToAddress(tokenAddress)
+	addr := common.HexToAddress(address)
+
+	data, err := hex.DecodeString("70a08231")
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, common.LeftPadBytes(addr.Bytes(), 32)...)
+	callMsg := ethereum.CallMsg{
+		To:   &tokenAddr,
+		Data: data,
+	}
+	conn, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	height := new(big.Int).SetUint64(blockNumber)
+	response, err := conn.CallContract(context.Background(), callMsg, height)
+	if err != nil {
+		return nil, err
+	}
+	n := new(big.Int).SetBytes(response)
+	return n, nil
 }
 
 func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {

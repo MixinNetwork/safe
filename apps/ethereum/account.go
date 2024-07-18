@@ -273,32 +273,6 @@ func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error
 	return new(big.Int).Sub(n, big.NewInt(1)), nil
 }
 
-func GetTokenBalanceAtBlock(rpc, tokenAddress, address string, blockNumber *big.Int) (*big.Int, error) {
-	tokenAddr := common.HexToAddress(tokenAddress)
-	addr := common.HexToAddress(address)
-
-	data, err := hex.DecodeString("70a08231")
-	if err != nil {
-		return nil, err
-	}
-	data = append(data, common.LeftPadBytes(addr.Bytes(), 32)...)
-	callMsg := ethereum.CallMsg{
-		To:   &tokenAddr,
-		Data: data,
-	}
-	conn, err := ethclient.Dial(rpc)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
-	if err != nil {
-		return nil, err
-	}
-	n := new(big.Int).SetBytes(response)
-	return n, nil
-}
-
 func GetSafeLastTxTime(rpc, address string) (time.Time, error) {
 	guardAddress, err := GetSafeAccountGuard(rpc, address)
 	if err != nil {

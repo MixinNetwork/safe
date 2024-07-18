@@ -401,49 +401,40 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 
 func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *ethereum.RPCBlockWithTransactions, transfers []*ethereum.Transfer) error {
 	rpc, _ := node.ethereumParams(chain)
-	deposits, err := node.parseEthereumBlockDeposits(ctx, chain, transfers)
-	if err != nil || len(deposits) == 0 {
+	changes, err := node.parseEthereumBlockBalanceChanges(ctx, chain, transfers)
+	logger.Printf("node.parseEthereumBlockBalanceChanges(%d, %d, %d) => %d %v", chain, block.Height, len(transfers), len(changes), err)
+	if err != nil || len(changes) == 0 {
 		return err
 	}
 
-	skips := []string{}
-	for k := range deposits {
+	validChanges := []string{}
+	for k, v := range changes {
 		items := strings.Split(k, ":")
 		if len(items) != 2 {
 			panic(k)
 		}
 		address, tokenAddress := items[0], items[1]
 
-		var err error
-		var balancePrev, balanceNow *big.Int
-		switch tokenAddress {
-		case ethereum.EthereumEmptyAddress:
-			prev := fmt.Sprintf("0x%x", block.Height-1)
-			balancePrev, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, prev, address)
-			if err != nil {
-				return err
-			}
-			balanceNow, err = ethereum.RPCGetAddressBalanceAtBlock(rpc, block.Number, address)
-		default:
-			balancePrev, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height-1)))
-			if err != nil {
-				return err
-			}
-			balanceNow, err = ethereum.GetTokenBalanceAtBlock(rpc, tokenAddress, address, big.NewInt(int64(block.Height)))
-		}
+		balancePrev, err := ethereum.RPCGetAssetBalanceAtBlock(rpc, address, tokenAddress, block.Height-1)
 		if err != nil {
 			return err
 		}
-		balanceAfterDeposit := new(big.Int).Add(balancePrev, deposits[k])
-		if balanceNow.Cmp(balanceAfterDeposit) != 0 {
-			logger.Printf("inconsistent %s balance of %s after process block %s: %v %v %v", tokenAddress, address, block.Hash, balanceNow, balancePrev, deposits[k])
-			skips = append(skips, k)
+		balanceNow, err := ethereum.RPCGetAssetBalanceAtBlock(rpc, address, tokenAddress, block.Height)
+		if err != nil {
+			return err
 		}
+		balanceAfterDeposit := new(big.Int).Add(balancePrev, v)
+		if balanceNow.Cmp(balanceAfterDeposit) != 0 {
+			logger.Printf("ethereum.RPCGetAssetBalanceAtBlock(%d, %d, %s, %s) => %s %s inconsistent",
+				chain, block.Height, address, tokenAddress, balancePrev, balanceNow)
+			continue
+		}
+		validChanges = append(validChanges, k)
 	}
 
 	for _, transfer := range transfers {
 		key := fmt.Sprintf("%s:%s", transfer.Receiver, transfer.TokenAddress)
-		if slices.Contains(skips, key) {
+		if !slices.Contains(validChanges, key) {
 			continue
 		}
 		err := node.ethereumWritePendingDeposit(ctx, transfer, chain)
@@ -475,8 +466,8 @@ func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.R
 	return nil
 }
 
-func (node *Node) parseEthereumBlockDeposits(ctx context.Context, chain byte, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
-	deposits := make(map[string]*big.Int)
+func (node *Node) parseEthereumBlockBalanceChanges(ctx context.Context, chain byte, ts []*ethereum.Transfer) (map[string]*big.Int, error) {
+	changes := make(map[string]*big.Int)
 	for _, t := range ts {
 		if t.Receiver == ethereum.EthereumEmptyAddress {
 			continue
@@ -497,14 +488,14 @@ func (node *Node) parseEthereumBlockDeposits(ctx context.Context, chain byte, ts
 		}
 
 		key := fmt.Sprintf("%s:%s", t.Receiver, t.TokenAddress)
-		total := deposits[key]
+		total := changes[key]
 		if total != nil {
-			deposits[key] = new(big.Int).Add(total, t.Value)
+			changes[key] = new(big.Int).Add(total, t.Value)
 		} else {
-			deposits[key] = t.Value
+			changes[key] = t.Value
 		}
 	}
-	return deposits, nil
+	return changes, nil
 }
 
 func (node *Node) ethereumWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
