@@ -58,14 +58,8 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	query := "ALTER TABLE keys ADD COLUMN backuped BOOLEAN;\n"
-	query += "ALTER TABLE keys ADD COLUMN backuped_at TIMESTAMP;\n"
+	query := "ALTER TABLE keys ADD COLUMN backuped_at TIMESTAMP;\n"
 	_, err = tx.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE keys SET backuped=?", false)
 	if err != nil {
 		return err
 	}
@@ -97,8 +91,8 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	timestamp := time.Now().UTC()
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
-	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "backuped", "created_at"}
-	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), public, fingerprint, curve, share, sessionId, false, timestamp)
+	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at"}
+	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), public, fingerprint, curve, share, sessionId, timestamp)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT keys %v", err)
 	}
@@ -116,9 +110,9 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "backuped", "created_at", "backuped_at"}
-	query := fmt.Sprintf("SELECT %s FROM keys WHERE backuped=? ORDER BY created_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
-	rows, err := s.db.QueryContext(ctx, query, false)
+	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at", "backuped_at"}
+	query := fmt.Sprintf("SELECT %s FROM keys WHERE backuped_at IS NULL ORDER BY created_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +122,7 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	for rows.Next() {
 		var key Key
 		var backupedAt sql.NullTime
-		err := rows.Scan(&key.Public, &key.Fingerprint, &key.Curve, &key.Share, &key.SessionId, &key.Backuped, &key.CreatedAt, &backupedAt)
+		err := rows.Scan(&key.Public, &key.Fingerprint, &key.Curve, &key.Share, &key.SessionId, &key.CreatedAt, &backupedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -148,8 +142,8 @@ func (s *SQLite3Store) MarkKeyBackuped(ctx context.Context, public string) error
 	}
 	defer tx.Rollback()
 
-	query := "UPDATE keys SET backuped=?, backuped_at=? WHERE public=? AND backuped_at IS NULL"
-	err = s.execOne(ctx, tx, query, true, time.Now().UTC(), public)
+	query := "UPDATE keys SET backuped_at=? WHERE public=? AND backuped_at IS NULL"
+	err = s.execOne(ctx, tx, query, time.Now().UTC(), public)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}

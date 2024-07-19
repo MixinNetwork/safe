@@ -62,7 +62,6 @@ type Key struct {
 	Curve       byte
 	Share       string
 	SessionId   string
-	Backuped    bool
 	CreatedAt   time.Time
 	BackupedAt  time.Time
 }
