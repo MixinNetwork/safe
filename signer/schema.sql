@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS keys (
 	curve       INTEGER NOT NULL,
 	share       VARHCAR NOT NULL,
 	session_id  VARCHAR NOT NULL,
+	backuped    BOOLEAN NOT NULL,
 	created_at  TIMESTAMP NOT NULL,
+	backuped_at TIMESTAMP,
 	PRIMARY KEY ('public')
 );
 
