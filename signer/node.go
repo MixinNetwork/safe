@@ -97,23 +97,19 @@ func (node *Node) Boot(ctx context.Context) {
 }
 
 func (node *Node) loopBackup(ctx context.Context) {
-	for {
-		if node.conf.SaverAPI == "" {
-			break
-		}
-
-		time.Sleep(time.Second)
+	for node.conf.SaverAPI != "" {
+		time.Sleep(5 * time.Second)
 		keys, err := node.store.ListUnbackupedKeys(ctx, 1000)
 		if err != nil {
 			panic(err)
 		}
 
 		for _, key := range keys {
-			op := key.asOperation()
 			share, err := common.Base91Decode(key.Share)
 			if err != nil {
 				panic(err)
 			}
+			op := key.asOperation()
 			err = node.sendKeygenBackup(ctx, op, share)
 			logger.Printf("node.sendKeygenBackup(%v, %d) => %v", op, len(share), err)
 			if err != nil {

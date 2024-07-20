@@ -63,7 +63,7 @@ type Key struct {
 	Share       string
 	SessionId   string
 	CreatedAt   time.Time
-	BackupedAt  time.Time
+	BackedUpAt  sql.NullTime
 }
 
 func (k *Key) asOperation() *common.Operation {
