@@ -6,12 +6,13 @@ CREATE TABLE IF NOT EXISTS properties (
 );
 
 CREATE TABLE IF NOT EXISTS keys (
-	public      VARCHAR NOT NULL,
-	fingerprint VARCHAR NOT NULL,
-	curve       INTEGER NOT NULL,
-	share       VARHCAR NOT NULL,
-	session_id  VARCHAR NOT NULL,
-	created_at  TIMESTAMP NOT NULL,
+	public       VARCHAR NOT NULL,
+	fingerprint  VARCHAR NOT NULL,
+	curve        INTEGER NOT NULL,
+	share        VARCHAR NOT NULL,
+	session_id   VARCHAR NOT NULL,
+	created_at   TIMESTAMP NOT NULL,
+	backed_up_at TIMESTAMP,
 	PRIMARY KEY ('public')
 );
 

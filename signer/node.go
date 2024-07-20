@@ -84,11 +84,43 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.Migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
+	go node.loopBackup(ctx)
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)
 	go node.loopPendingSessions(ctx)
 	go node.acceptIncomingMessages(ctx)
 	logger.Printf("node.Boot(%s, %d)", node.id, node.Index())
+}
+
+func (node *Node) loopBackup(ctx context.Context) {
+	for node.conf.SaverAPI != "" {
+		time.Sleep(5 * time.Second)
+		keys, err := node.store.ListUnbackupedKeys(ctx, 1000)
+		if err != nil {
+			panic(err)
+		}
+
+		for _, key := range keys {
+			share, err := common.Base91Decode(key.Share)
+			if err != nil {
+				panic(err)
+			}
+			op := key.asOperation()
+			err = node.sendKeygenBackup(ctx, op, share)
+			logger.Printf("node.sendKeygenBackup(%v, %d) => %v", op, len(share), err)
+			if err != nil {
+				panic(err)
+			}
+			err = node.store.MarkKeyBackuped(ctx, op.Public)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
 }
 
 func (node *Node) loopInitialSessions(ctx context.Context) {

@@ -39,6 +39,40 @@ func (s *SQLite3Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *SQLite3Store) Migrate(ctx context.Context) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	key, val := "SCHEMA:VERSION:migration", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil {
+		return nil
+	} else if err != sql.ErrNoRows {
+		return err
+	}
+
+	query := "ALTER TABLE keys ADD COLUMN backed_up_at TIMESTAMP;\n"
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)", key, query, now, now)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string, curve uint8, public string, conf []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -67,6 +101,49 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 		public, common.RequestStatePending, timestamp, sessionId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([]*Key, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at", "backed_up_at"}
+	query := fmt.Sprintf("SELECT %s FROM keys WHERE backed_up_at IS NULL ORDER BY created_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []*Key
+	for rows.Next() {
+		var k Key
+		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Curve, &k.Share, &k.SessionId, &k.CreatedAt, &k.BackedUpAt)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, &k)
+	}
+	return keys, nil
+}
+
+func (s *SQLite3Store) MarkKeyBackuped(ctx context.Context, public string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "UPDATE keys SET backed_up_at=? WHERE public=? AND backed_up_at IS NULL"
+	err = s.execOne(ctx, tx, query, time.Now().UTC(), public)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}
 
 	return tx.Commit()

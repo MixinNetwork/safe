@@ -56,6 +56,25 @@ type SignResult struct {
 	SSID      []byte
 }
 
+type Key struct {
+	Public      string
+	Fingerprint string
+	Curve       byte
+	Share       string
+	SessionId   string
+	CreatedAt   time.Time
+	BackedUpAt  sql.NullTime
+}
+
+func (k *Key) asOperation() *common.Operation {
+	return &common.Operation{
+		Id:     k.SessionId,
+		Type:   common.OperationTypeKeygenInput,
+		Curve:  k.Curve,
+		Public: k.Public,
+	}
+}
+
 func (r *Session) asOperation() *common.Operation {
 	return &common.Operation{
 		Id:     r.Id,
@@ -469,13 +488,6 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		return node.store.FailSession(ctx, op.Id)
 	}
 	op.Public = hex.EncodeToString(res.Public)
-	err = node.sendKeygenBackup(ctx, op, res.Share)
-	logger.Printf("node.sendKeygenBackup(%v, %d) => %v", op, len(res.Share), err)
-	if err != nil {
-		err = node.store.FailSession(ctx, op.Id)
-		logger.Printf("store.FailSession(%s, startKeygen) => %v", op.Id, err)
-		return err
-	}
 	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share)
 }
 
