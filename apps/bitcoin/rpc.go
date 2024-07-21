@@ -331,8 +331,8 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 	if !CheckFeeRange(fvb, chain) {
 		return 0, fmt.Errorf("CheckFeeRange(%d) => %d", chain, fvb)
 	}
-	if fvb < 10 {
-		fvb = 10
+	if fvb < 5 {
+		fvb = 5
 	}
 	return fvb, nil
 }

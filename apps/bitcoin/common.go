@@ -98,7 +98,7 @@ func ParseSequence(lock time.Duration, chain byte) int64 {
 func CheckFeeRange(fvb int64, chain byte) bool {
 	switch chain {
 	case ChainBitcoin:
-		return fvb >= 5 && fvb <= 1000
+		return fvb >= 2 && fvb <= 1000
 	case ChainLitecoin:
 		return fvb >= 1 && fvb <= 20
 	default:
