@@ -14,6 +14,8 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+const FinalRequestHash = "373a88f0ac8f2330cc8b92be3b54c2f2fe388fa13aa5591bd11f298547dc89ac"
+
 func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId string) (*store.MigrateAsset, error) {
 	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonObserverDepositEntry, assetId, safe.Holder)
 	return &store.MigrateAsset{
@@ -25,7 +27,14 @@ func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId
 }
 
 func (node *Node) Migrate(ctx context.Context) error {
-	// FIXME ensure the latest request id is correct before migration
+	req, err := node.store.ReadLatestRequest(ctx)
+	if err != nil || req == nil {
+		return fmt.Errorf("store.ReadLatestRequest () => %v %v", req, err)
+	}
+	if req.MixinHash.String() != FinalRequestHash {
+		return fmt.Errorf("invalid final request hash: %s", req.MixinHash.String())
+	}
+
 	safes, err := node.store.ListUnmigratedSafesWithState(ctx)
 	if err != nil {
 		return err
