@@ -36,7 +36,8 @@ import (
 func ObserverBootCmd(c *cli.Context) error {
 	ctx := context.Background()
 
-	ua := fmt.Sprintf("Mixin Safe Observer (%s)", config.AppVersion)
+	version := c.App.Metadata["VERSION"].(string)
+	ua := fmt.Sprintf("Mixin Safe Observer (%s)", version)
 	resty := mixin.GetRestyClient()
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
@@ -79,7 +80,8 @@ func ObserverBootCmd(c *cli.Context) error {
 	mc.Observer.App.SpendPrivateKey = key.String()
 
 	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin)
-	go node.StartHTTP(c.App.Metadata["README"].(string))
+	readme := c.App.Metadata["README"].(string)
+	go node.StartHTTP(version, readme)
 	node.Boot(ctx)
 	return nil
 }

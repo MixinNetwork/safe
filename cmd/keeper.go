@@ -18,7 +18,8 @@ import (
 func KeeperBootCmd(c *cli.Context) error {
 	ctx := context.Background()
 
-	ua := fmt.Sprintf("Mixin Safe Keeper (%s)", config.AppVersion)
+	version := c.App.Metadata["VERSION"].(string)
+	ua := fmt.Sprintf("Mixin Safe Keeper (%s)", version)
 	resty := mixin.GetRestyClient()
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
@@ -72,7 +73,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	keeper.Boot(ctx)
 
 	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
-		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc)
+		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc, version)
 	}
 
 	group.AttachWorker(mc.Keeper.AppId, keeper)

@@ -25,7 +25,7 @@ import (
 
 //go:embed assets/favicon.ico
 var FAVICON []byte
-
+var VERSION string
 var GUIDE = `
 <!DOCTYPE html>
 <html class="layout">
@@ -90,7 +90,8 @@ var GUIDE = `
 </html>
 `
 
-func (node *Node) StartHTTP(readme string) {
+func (node *Node) StartHTTP(version, readme string) {
+	VERSION = version
 	GUIDE = strings.TrimSpace(strings.Replace(GUIDE, "README", readme, -1))
 
 	router := httptreemux.New()
@@ -130,7 +131,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"version":  "0.12.2",
+		"version":  VERSION,
 		"observer": node.conf.App.AppId,
 		"bond": map[string]any{
 			"chain":    137,

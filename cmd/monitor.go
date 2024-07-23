@@ -13,7 +13,6 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	kstore "github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/signer"
@@ -28,7 +27,7 @@ type UserStore interface {
 	WriteProperty(ctx context.Context, k, v string) error
 }
 
-func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, group *mtg.Group, conversationId string) {
+func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, group *mtg.Group, conversationId, version string) {
 	logger.Printf("MonitorSigner(%s, %s)", group.GenesisId(), conversationId)
 	startedAt := time.Now()
 
@@ -44,7 +43,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 
 	for {
 		time.Sleep(1 * time.Minute)
-		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt)
+		msg, err := bundleSignerState(ctx, mdb, store, conf, group, startedAt, version)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleSignerState() => %v", err)
 			continue
@@ -54,7 +53,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 	}
 }
 
-func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, grp *mtg.Group, startedAt time.Time) (string, error) {
+func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
 	state := "👩‍⚖️ 🧑‍⚖️ 👨‍⚖️ Signer 👩‍⚖️ 🧑‍⚖️ 👨‍⚖️\n"
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
@@ -93,11 +92,11 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	state = state + fmt.Sprintf("🔑 Final sessions: %d\n", ss.Done)
 	state = state + fmt.Sprintf("🔑 Generated keys: %d\n", ss.Keys)
 
-	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
+	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
 	return state, nil
 }
 
-func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, group *mtg.Group, conversationId string) {
+func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, group *mtg.Group, conversationId, version string) {
 	logger.Printf("MonitorKeeper(%s, %s)", group.GenesisId(), conversationId)
 	startedAt := time.Now()
 
@@ -113,7 +112,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 
 	for {
 		time.Sleep(1 * time.Minute)
-		msg, err := bundleKeeperState(ctx, mdb, store, conf, group, startedAt)
+		msg, err := bundleKeeperState(ctx, mdb, store, conf, group, startedAt, version)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
 			continue
@@ -123,7 +122,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 	}
 }
 
-func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, grp *mtg.Group, startedAt time.Time) (string, error) {
+func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
 	state := "👮‍♀️ 👮 👮‍♂️ Keeper 👮‍♀️ 👮 👮‍♂️\n"
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
@@ -185,7 +184,7 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	}
 	state = state + fmt.Sprintf("🔑 Observer Ethereum keys: %d\n", oec)
 
-	state = state + fmt.Sprintf("🦷 Binary version: %s", config.AppVersion)
+	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
 	return state, nil
 }
 

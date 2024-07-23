@@ -6,20 +6,25 @@ import (
 	"os"
 
 	"github.com/MixinNetwork/safe/cmd"
-	"github.com/MixinNetwork/safe/config"
 	"github.com/urfave/cli/v2"
 )
 
 //go:embed README.md
 var README string
 
+//go:embed VERSION
+var VERSION string
+
 func main() {
 	app := &cli.App{
 		Name:                 "safe",
 		Usage:                "Mixin Safe",
-		Version:              config.AppVersion,
+		Version:              VERSION,
 		EnableBashCompletion: true,
-		Metadata:             map[string]any{"README": README},
+		Metadata: map[string]any{
+			"README":  README,
+			"VERSION": VERSION,
+		},
 		Commands: []*cli.Command{
 			{
 				Name:   "signer",

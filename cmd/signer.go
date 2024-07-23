@@ -25,7 +25,8 @@ import (
 func SignerBootCmd(c *cli.Context) error {
 	ctx := context.Background()
 
-	ua := fmt.Sprintf("Mixin Safe Signer (%s)", config.AppVersion)
+	version := c.App.Metadata["VERSION"].(string)
+	ua := fmt.Sprintf("Mixin Safe Signer (%s)", version)
 	resty := mixin.GetRestyClient()
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
@@ -84,7 +85,7 @@ func SignerBootCmd(c *cli.Context) error {
 	node.Boot(ctx)
 
 	if mmc := mc.Signer.MonitorConversaionId; mmc != "" {
-		go MonitorSigner(ctx, db, kd, mc.Signer, group, mmc)
+		go MonitorSigner(ctx, db, kd, mc.Signer, group, mmc, version)
 	}
 
 	group.AttachWorker(mc.Signer.AppId, node)
