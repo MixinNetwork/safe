@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -60,8 +63,29 @@ func (s *SQLite3Store) ReadUnmigratedEthereumAllBalance(ctx context.Context, add
 	return sbs, nil
 }
 
+func (s *SQLite3Store) ReadUnmigratedLatestRequest(ctx context.Context) (*common.Request, error) {
+	var requestCols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at"}
+	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(requestCols, ","))
+	row := s.db.QueryRowContext(ctx, query)
+
+	return unmigratedRequestFromRow(row)
+}
+
+func unmigratedRequestFromRow(row *sql.Row) (*common.Request, error) {
+	var mh string
+	var r common.Request
+	err := row.Scan(&r.Id, &mh, &r.MixinIndex, &r.AssetId, &r.Amount, &r.Role, &r.Action, &r.Curve, &r.Holder, &r.ExtraHEX, &r.State, &r.CreatedAt, &time.Time{})
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	r.MixinHash, err = crypto.HashFromString(mh)
+	return &r, err
+}
+
 // FIXME remove this
-func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
+func (s *SQLite3Store) Migrate(ctx context.Context, ss, es []*MigrateAsset) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -83,6 +107,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 		query = "ALTER TABLE requests ADD COLUMN sequence INTEGER;\n"
 		query = query + "ALTER TABLE safes ADD COLUMN safe_asset_id VARCHAR;\n"
 		query = query + "ALTER TABLE ethereum_balances ADD COLUMN safe_asset_id VARCHAR;\n"
+		query = query + "CREATE UNIQUE INDEX IF NOT EXISTS safes_by_safe_asset_id ON safes(safe_asset_id) WHERE safe_asset_id IS NOT NULL;\n"
 		_, err = tx.ExecContext(ctx, query)
 		if err != nil {
 			return err
@@ -93,14 +118,17 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 		return err
 	}
 
-	for _, asset := range ms {
-		if asset.AssetId == common.SafeChainAssetId(asset.Chain) {
-			err = s.execOne(ctx, tx, "UPDATE safes SET safe_asset_id=? where address=? and safe_asset_id IS NULL",
-				asset.SafeAssetId, asset.Address)
-			if err != nil {
-				return err
-			}
+	for _, asset := range ss {
+		logger.Printf("store.Migrate() => %#v", asset)
+		sql := "UPDATE safes SET safe_asset_id=? where address=? and safe_asset_id IS NULL"
+		err = s.execOne(ctx, tx, sql, asset.SafeAssetId, asset.Address)
+		if err != nil {
+			return err
 		}
+	}
+
+	for _, asset := range es {
+		logger.Printf("store.Migrate() => %#v", asset)
 		switch asset.Chain {
 		case common.SafeChainBitcoin:
 		case common.SafeChainLitecoin:
@@ -112,7 +140,15 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 			}
 		}
 	}
-	err = s.createMigrateAssets(ctx, tx, ms)
+
+	for _, a := range es {
+		if !slices.ContainsFunc(ss, func(e *MigrateAsset) bool {
+			return e.Address == a.Address && e.AssetId == a.AssetId && e.Chain == a.Chain
+		}) {
+			ss = append(ss, a)
+		}
+	}
+	err = s.createMigrateAssets(ctx, tx, ss)
 	if err != nil {
 		return err
 	}

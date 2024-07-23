@@ -27,28 +27,30 @@ func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId
 }
 
 func (node *Node) Migrate(ctx context.Context) error {
-	req, err := node.store.ReadLatestRequest(ctx)
+	logger.Printf("keeper.Migrate() ...")
+	req, err := node.store.ReadUnmigratedLatestRequest(ctx)
 	if err != nil || req == nil {
-		return fmt.Errorf("store.ReadLatestRequest () => %v %v", req, err)
+		return fmt.Errorf("store.ReadUnmigratedLatestRequest() => %v %v", req, err)
 	}
 	if req.MixinHash.String() != FinalRequestHash {
 		return fmt.Errorf("invalid final request hash: %s", req.MixinHash.String())
 	}
+	logger.Printf("keeper.Migrate() => %v", req)
 
 	safes, err := node.store.ListUnmigratedSafesWithState(ctx)
 	if err != nil {
 		return err
 	}
+	logger.Printf("keeper.Migrate() => unmigrated safes %d", len(safes))
 
-	var ms []*store.MigrateAsset
+	var ss, es []*store.MigrateAsset
 	for _, safe := range safes {
 		chainAssetId := common.SafeChainAssetId(safe.Chain)
 		ma, err := node.getMigrateAsset(ctx, safe, chainAssetId)
 		if err != nil {
 			return err
 		}
-		ms = append(ms, ma)
-
+		ss = append(ss, ma)
 		switch safe.Chain {
 		case common.SafeChainEthereum, common.SafeChainPolygon:
 			bs, err := node.store.ReadUnmigratedEthereumAllBalance(ctx, safe.Address)
@@ -56,19 +58,19 @@ func (node *Node) Migrate(ctx context.Context) error {
 				return err
 			}
 			for _, balance := range bs {
-				if balance.AssetId == chainAssetId {
-					continue
-				}
 				ma, err := node.getMigrateAsset(ctx, safe, balance.AssetId)
 				if err != nil {
 					return err
 				}
-				ms = append(ms, ma)
+				es = append(es, ma)
 			}
 		}
 	}
+	logger.Printf("keeper.Migrate() => unmigrated assets %d %d", len(ss), len(es))
 
-	return node.store.Migrate(ctx, ms)
+	err = node.store.Migrate(ctx, ss, es)
+	logger.Printf("keeper.Migrate() => %v", err)
+	return err
 }
 
 func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
