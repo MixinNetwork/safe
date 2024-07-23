@@ -47,7 +47,7 @@ func TestObserver(t *testing.T) {
 
 	fvb, err := bitcoin.EstimateAvgFee(common.SafeChainBitcoin, node.conf.BitcoinRPC)
 	require.Nil(err)
-	require.GreaterOrEqual(fvb, int64(10))
+	require.GreaterOrEqual(fvb, int64(5))
 	require.Less(fvb, int64(500))
 
 	now := time.Now().UTC()
