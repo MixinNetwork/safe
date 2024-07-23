@@ -83,13 +83,12 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 		query = "ALTER TABLE requests ADD COLUMN sequence INTEGER;\n"
 		query = query + "ALTER TABLE safes ADD COLUMN safe_asset_id VARCHAR;\n"
 		query = query + "ALTER TABLE ethereum_balances ADD COLUMN safe_asset_id VARCHAR;\n"
-		query = query + "CREATE UNIQUE INDEX IF NOT EXISTS safes_by_safe_asset_id ON safes(safe_asset_id) WHERE safe_asset_id IS NOT NULL;\n"
 		_, err = tx.ExecContext(ctx, query)
 		if err != nil {
 			return err
 		}
 	}
-	_, err = tx.ExecContext(ctx, "UPDATE requests SET sequence=0")
+	_, err = tx.ExecContext(ctx, "UPDATE requests SET sequence=0 WHERE sequence IS NULL")
 	if err != nil {
 		return err
 	}
@@ -101,9 +100,13 @@ func (s *SQLite3Store) Migrate(ctx context.Context, ms []*MigrateAsset) error {
 			if err != nil {
 				return err
 			}
-		} else {
-			err = s.execOne(ctx, tx, "UPDATE ethereum_balances SET safe_asset_id=? where address=? AND asset_id=? AND safe_asset_id IS NULL",
-				asset.SafeAssetId, asset.Address, asset.AssetId)
+		}
+		switch asset.Chain {
+		case common.SafeChainBitcoin:
+		case common.SafeChainLitecoin:
+		default:
+			sql := "UPDATE ethereum_balances SET safe_asset_id=? where address=? AND asset_id=? AND safe_asset_id IS NULL"
+			err = s.execOne(ctx, tx, sql, asset.SafeAssetId, asset.Address, asset.AssetId)
 			if err != nil {
 				return err
 			}
