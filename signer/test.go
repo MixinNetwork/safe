@@ -66,7 +66,7 @@ func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 		op := &common.Operation{Id: sid, Curve: curve, Type: common.OperationTypeKeygenInput}
 		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.Sha256Hash([]byte(sid)), 0, time.Now(), false)
 		require.Nil(err)
-		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf)
+		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf, false)
 		require.Nil(err)
 	}
 	return public
@@ -85,7 +85,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		op := &common.Operation{Id: sid, Curve: crv, Type: common.OperationTypeKeygenInput}
 		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.Sha256Hash([]byte(sid)), 0, time.Now().UTC(), false)
 		require.Nil(err)
-		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb)
+		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb, false)
 		require.Nil(err)
 
 		conf := cmp.EmptyConfig(curve.Secp256k1{})

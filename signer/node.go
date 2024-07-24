@@ -110,10 +110,13 @@ func (node *Node) loopBackup(ctx context.Context) {
 				panic(err)
 			}
 			op := key.asOperation()
-			err = node.sendKeygenBackup(ctx, op, share)
-			logger.Printf("node.sendKeygenBackup(%v, %d) => %v", op, len(share), err)
+			saved, err := node.sendKeygenBackup(ctx, op, share)
+			logger.Printf("node.sendKeygenBackup(%v, %d) => %t %v", op, len(share), saved, err)
 			if err != nil {
 				panic(err)
+			}
+			if !saved {
+				continue
 			}
 			err = node.store.MarkKeyBackuped(ctx, op.Public)
 			if err != nil {

@@ -488,14 +488,14 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		return node.store.FailSession(ctx, op.Id)
 	}
 	op.Public = hex.EncodeToString(res.Public)
-	err = node.sendKeygenBackup(ctx, op, res.Share)
-	logger.Printf("node.sendKeygenBackup(%v, %d) => %v", op, len(res.Share), err)
+	saved, err := node.sendKeygenBackup(ctx, op, res.Share)
+	logger.Printf("node.sendKeygenBackup(%v, %d) => %t %v", op, len(res.Share), saved, err)
 	if err != nil {
 		err = node.store.FailSession(ctx, op.Id)
 		logger.Printf("store.FailSession(%s, startKeygen) => %v", op.Id, err)
 		return err
 	}
-	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share)
+	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share, saved)
 }
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {

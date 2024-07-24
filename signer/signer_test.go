@@ -124,11 +124,6 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 
 		keys, err := node.store.ListUnbackupedKeys(ctx, 1)
 		require.Nil(err)
-		require.Len(keys, 1)
-		err = node.store.MarkKeyBackuped(ctx, keys[0].Public)
-		require.Nil(err)
-		keys, err = node.store.ListUnbackupedKeys(ctx, 1)
-		require.Nil(err)
 		require.Len(keys, 0)
 	}
 	return public, chainCode
