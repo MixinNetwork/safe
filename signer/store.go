@@ -73,7 +73,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string, curve uint8, public string, conf []byte) error {
+func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string, curve uint8, public string, conf []byte, saved bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -92,7 +92,13 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
 	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at"}
-	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), public, fingerprint, curve, share, sessionId, timestamp)
+	values := []any{public, fingerprint, curve, share, sessionId, timestamp}
+	if saved {
+		cols = append(cols, "backed_up_at")
+		values = append(values, timestamp)
+	}
+
+	err = s.execOne(ctx, tx, buildInsertionSQL("keys", cols), values...)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store INSERT keys %v", err)
 	}

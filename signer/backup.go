@@ -12,9 +12,9 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, share []byte) error {
+func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, share []byte) (bool, error) {
 	if node.conf.SaverAPI == "" {
-		return nil
+		return false, nil
 	}
 
 	sid := uuid.Must(uuid.NewV4())
@@ -41,7 +41,7 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 	reader := strings.NewReader(msg)
 	resp, err := node.backupClient.Post(node.conf.SaverAPI, "application/json", reader)
 	if err != nil || resp.StatusCode != 200 {
-		return fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.SaverAPI, op, resp, err)
+		return false, fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.SaverAPI, op, resp, err)
 	}
 	defer resp.Body.Close()
 
@@ -51,7 +51,7 @@ func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, sh
 	}
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	if err != nil || body.Id != sid.String() || body.Size != len(msg) {
-		return fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.SaverAPI, op, body, err)
+		return false, fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.SaverAPI, op, body, err)
 	}
-	return nil
+	return true, nil
 }
