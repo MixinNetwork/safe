@@ -42,11 +42,10 @@ func ObserverBootCmd(c *cli.Context) error {
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
 
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "observer")
 	if err != nil {
 		return err
 	}
-	config.HandleDevConfig(mc.Dev)
 
 	db, err := observer.OpenSQLite3Store(mc.Observer.StoreDir + "/safe.sqlite3")
 	if err != nil {
@@ -113,7 +112,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	}
 	priv, pub := btcec.PrivKeyFromBytes(kb)
 
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "observer")
 	if err != nil {
 		return err
 	}
@@ -186,7 +185,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 func ObserverImportKeys(c *cli.Context) error {
 	ctx := context.Background()
 
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "observer")
 	if err != nil {
 		return err
 	}

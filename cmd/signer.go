@@ -31,13 +31,12 @@ func SignerBootCmd(c *cli.Context) error {
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
 
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "signer")
 	if err != nil {
 		return err
 	}
 	mc.Signer.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
-	config.HandleDevConfig(mc.Dev)
 
 	db, err := mtg.OpenSQLite3Store(mc.Signer.StoreDir + "/mtg.sqlite3")
 	if err != nil {
@@ -94,7 +93,7 @@ func SignerBootCmd(c *cli.Context) error {
 }
 
 func SignerFundRequest(c *cli.Context) error {
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "signer")
 	if err != nil {
 		return err
 	}
@@ -107,7 +106,7 @@ func SignerFundRequest(c *cli.Context) error {
 }
 
 func SignerKeygenRequest(c *cli.Context) error {
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "signer")
 	if err != nil {
 		return err
 	}
@@ -120,7 +119,7 @@ func SignerKeygenRequest(c *cli.Context) error {
 }
 
 func SignerSignRequest(c *cli.Context) error {
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "signer")
 	if err != nil {
 		return err
 	}

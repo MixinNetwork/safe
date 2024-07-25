@@ -8,12 +8,15 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 )
 
+const MainNetworkName = "main"
+
 type DevConfig struct {
-	ProfilePort int `toml:"profile-port"`
-	LogLevel    int `toml:"log-level"`
+	ProfilePort int    `toml:"profile-port"`
+	LogLevel    int    `toml:"log-level"`
+	Network     string `toml:"network"`
 }
 
-func HandleDevConfig(c *DevConfig) {
+func handleDevConfig(c *DevConfig) {
 	logger.SetLevel(logger.INFO)
 	if c == nil {
 		return
@@ -22,5 +25,8 @@ func HandleDevConfig(c *DevConfig) {
 	if c.ProfilePort > 1000 {
 		l := fmt.Sprintf("127.0.0.1:%d", c.ProfilePort)
 		go http.ListenAndServe(l, http.DefaultServeMux)
+	}
+	if c.Network == "" {
+		c.Network = MainNetworkName
 	}
 }
