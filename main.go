@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/MixinNetwork/safe/cmd"
 	"github.com/urfave/cli/v2"
@@ -16,6 +17,7 @@ var README string
 var VERSION string
 
 func main() {
+	VERSION = strings.TrimSpace(VERSION)
 	app := &cli.App{
 		Name:                 "safe",
 		Usage:                "Mixin Safe",
