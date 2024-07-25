@@ -1,8 +1,8 @@
 [signer]
 # the id represents actions and outptus for signer group
-app-id = "01fff6be-5ace-30d1-89b1-00af0a20fe6b"
+app-id = "bdee2414-045b-31b7-b8a7-7998b36f5c93"
 # the id represents actions and outptus for keeper group
-keeper-app-id = "7a1a7f4b-4ff3-3e2a-ae10-e6b81c066ba1"
+keeper-app-id = "ac495e24-72a5-3c53-aa33-8f90cf007b9d"
 store-dir = "/tmp/safe/signer"
 # the mixin messenger group conversation id for signer communication
 messenger-conversation-id = ""
@@ -13,10 +13,10 @@ threshold = 2
 # a shared ed25519 private key to do ecdh with the keeper
 shared-key = "9057a91fb0492a10dc2041610c9eeb110859d86ffb97345e9f675f30df5e9a03"
 # the asset id that each signer node send result to signer mtg
-asset-id = "44d7de8f-5533-36f8-8b04-d3674baf5851"
+asset-id = "a946936b-1b52-3e02-aec6-4fbccf284d5f"
 # the asset id that the keeper send operations to the signer mtg
 # this asset must be fully controlled by the keeper mtg
-keeper-asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
+keeper-asset-id = "8205ed7b-d108-30c6-9121-e4b83eecef09"
 # the keeper ed25519 public key to do ecdh with the shared key
 # and this key is used to verify the signature of all operations
 keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
@@ -36,7 +36,7 @@ members = [
 ]
 # the mtg threshold must not be smaller than the mpc threshold
 threshold = 3
-timestamp = 4600000
+timestamp = 15903300
 
 [signer.mtg.app]
 app-id = "member-id-0"
@@ -49,9 +49,9 @@ spend-private-key = ""
 
 [keeper]
 # the id represents actions and outptus for keeper group
-app-id = "7a1a7f4b-4ff3-3e2a-ae10-e6b81c066ba1"
+app-id = "ac495e24-72a5-3c53-aa33-8f90cf007b9d"
 # the id represents actions and outptus for signer group
-signer-app-id = "01fff6be-5ace-30d1-89b1-00af0a20fe6b"
+signer-app-id = "bdee2414-045b-31b7-b8a7-7998b36f5c93"
 store-dir = "/tmp/safe/keeper"
 # the mixin messenger group for monitor messages
 monitor-conversation-id = ""
@@ -62,10 +62,10 @@ shared-key = "6a9529b56918123e973b4e8b19724908fe68123753660274b03ddb01d1854a09"
 signer-public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b63756"
 # the asset id that the keeper send operations to the signer mtg
 # this asset must be fully controlled by the keeper mtg
-asset-id = "db6a8603-00c1-38fd-8ebb-b741f358cac7"
+asset-id = "8205ed7b-d108-30c6-9121-e4b83eecef09"
 # the asset id that the observer send requests to the keeper mtg
 # this asset must be fully controlled by the observer
-observer-asset-id = "5ee8ddb6-de43-33b8-a758-e32f908a3096"
+observer-asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
 # the observer ed25519 public key to do ecdh with the shared key
 # and this key is used to verify the signature of all requests
 observer-public-key = "b5f8cfaca5004b88bdb5173bde966b4b7ee19a5471d7d4f8027b3516fcef7e46"
@@ -78,8 +78,8 @@ litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
 ethereum-rpc = "https://cloudflare-eth.com"
 polygon-rpc = "https://polygon-bor.publicnode.com"
 polygon-factory-address = "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E"
-polygon-observer-deposit-entry = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
-polygon-keeper-deposit-entry = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
+polygon-observer-deposit-entry = "0x4A2eea63775F0407E1f0d147571a46959479dE12"
+polygon-keeper-deposit-entry = "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9"
 
 [keeper.mtg.genesis]
 # it is not necessary to include all signer mtg members here,
@@ -94,7 +94,7 @@ members = [
 ]
 # the mtg threshold is recommended to be 2/3 of the members count
 threshold = 3
-timestamp = 4600000
+timestamp = 15903300
 
 [keeper.mtg.app]
 app-id = "signer-id-0"
@@ -108,15 +108,14 @@ spend-private-key = ""
 
 [observer]
 # the id represents actions and outptus for keeper group
-keeper-app-id = "7a1a7f4b-4ff3-3e2a-ae10-e6b81c066ba1"
+keeper-app-id = "ac495e24-72a5-3c53-aa33-8f90cf007b9d"
 store-dir = "/tmp/safe/observer"
 # a ed25519 private key to do ecdh with the keeper mtg
 private-key = "c56d95ec2d09ff5e0975ec0a667cc6cc5f03046935b329fc9f6fb2c3c8500109"
-# the keeper mtg database, should only be opened in read only mode
-timestamp = 4600000
+timestamp = 15903300
 keeper-store-dir = "/tmp/safe/keeper"
 keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
-asset-id = "bb7da686-2a6b-3dc7-a559-762b1255804e"
+asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
 custom-key-price-asset-id = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 custom-key-price-amount = "10"
 operation-price-asset-id = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
@@ -129,8 +128,8 @@ litecoin-rpc = "https://mixin:safe@litecoin.mixin.dev"
 ethereum-rpc = "https://cloudflare-eth.com"
 polygon-rpc = "https://polygon-bor.publicnode.com"
 polygon-factory-address = "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E"
-polygon-observer-deposit-entry = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
-polygon-keeper-deposit-entry = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
+polygon-observer-deposit-entry = "0x4A2eea63775F0407E1f0d147571a46959479dE12"
+polygon-keeper-deposit-entry = "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9"
 # evm private key to deploy contract on evm chains
 evm-key = ""
 
