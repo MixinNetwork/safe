@@ -38,15 +38,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.failRequest(ctx, req, "")
 	}
 
-	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
-	if err != nil {
-		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err))
-	}
-	if meta.Chain != common.SafeChainPolygon {
-		return node.failRequest(ctx, req, "")
-	}
-
 	rpc, _ := node.ethereumParams(safe.Chain)
 	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s) => %v %v", safe.Address, latestTxTime, err)

@@ -95,7 +95,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if err != nil {
 		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err))
 	}
-	if bond.Decimals != 18 || bond.AssetId != safeAssetId {
+	if bond.Decimals != 18 || bond.AssetId != safeAssetId || bond.Chain != common.SafeChainPolygon {
 		panic(bond.AssetId)
 	}
 	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, deposit.Asset, deposit.AssetAddress, deposit.Chain)
