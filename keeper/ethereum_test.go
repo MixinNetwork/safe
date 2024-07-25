@@ -34,9 +34,9 @@ const (
 	testEthereumKeyObserver    = "ff29332c230fdd78cfee84e10bc5edc9371a6a593ccafaf08e115074e7de2b89"
 	testEthereumKeyDummyHolder = "169b5ed2deaa8ea7171e60598332560b1d01e8a28243510335196acd62fd3a71"
 
-	testEthereumBondAssetId         = "759e2997-e696-3f63-b29a-8685bc2a90bf"
+	testEthereumBondAssetId         = "08823f4a-6fd4-311e-8ddd-9478e163cf91"
 	testEthereumUSDTAssetId         = "218bc6f4-7927-3f8e-8568-3a3725b74361"
-	testEthereumUSDTBondAssetId     = "d8600586-4614-3e42-86a6-d75d6c25f1f2"
+	testEthereumUSDTBondAssetId     = "edc249f5-d792-3091-a359-23c67ce0d595"
 	testEthereumUSDTAddress         = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )
@@ -686,11 +686,14 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 	extra = binary.BigEndian.AppendUint64(extra, uint64(index))
 	extra = append(extra, amt.BigInt().Bytes()...)
 
+	bondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, assetId)
+
 	holder := testPublicKey(testEthereumKeyHolder)
 	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
 	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonKeeperDepositEntry, assetId, holder)
+	require.Equal(bondId, safeAssetId)
 	safeBalance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, assetId, safeAssetId)
 	require.Nil(err)
 	require.Equal(balance, safeBalance.BigBalance().String())
