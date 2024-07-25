@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -53,14 +54,14 @@ func (c *Configuration) checkMainnet(role string) {
 
 	s := c.Signer
 	if role == "signer" {
-		assert(s.AppId, SignerAppId)
-		assert(s.KeeperAppId, KeeperAppId)
-		assert(s.AssetId, SignerToken)
-		assert(s.KeeperAssetId, KeeperToken)
+		assert(s.AppId, SignerAppId, "signer.app-id")
+		assert(s.KeeperAppId, KeeperAppId, "signer.keeper-app-id")
+		assert(s.AssetId, SignerToken, "signer.asset-id")
+		assert(s.KeeperAssetId, KeeperToken, "signer.keeper-asset-id")
 	}
 	if role == "signer" || role == "keeper" {
-		assert(s.MTG.Genesis.Epoch, uint64(15903300))
-		assert(s.MTG.Genesis.Threshold, int(19))
+		assert(s.MTG.Genesis.Epoch, uint64(15903300), "signer.genesis.epoch")
+		assert(s.MTG.Genesis.Threshold, int(19), "signer.genesis.threshold")
 		if !slices.Equal(s.MTG.Genesis.Members, signers) {
 			panic("signers")
 		}
@@ -68,17 +69,17 @@ func (c *Configuration) checkMainnet(role string) {
 
 	k := c.Keeper
 	if role == "keeper" {
-		assert(k.AppId, KeeperAppId)
-		assert(k.SignerAppId, SignerAppId)
-		assert(k.AssetId, KeeperToken)
-		assert(k.ObserverAssetId, ObserverToken)
-		assert(k.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E")
-		assert(k.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12")
-		assert(k.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9")
+		assert(k.AppId, KeeperAppId, "keeper.app-id")
+		assert(k.SignerAppId, SignerAppId, "keeper.signer-app-id")
+		assert(k.AssetId, KeeperToken, "keeper.asset-id")
+		assert(k.ObserverAssetId, ObserverToken, "keeper.observer-asset-id")
+		assert(k.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "keeper.polygon-factory-address")
+		assert(k.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12", "keeper.polygon-observer-deposit-entry")
+		assert(k.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "keeper.polygon-keeper-deposity-entry")
 	}
 	if role == "keeper" || role == "observer" {
-		assert(k.MTG.Genesis.Epoch, uint64(15903300))
-		assert(k.MTG.Genesis.Threshold, int(19))
+		assert(k.MTG.Genesis.Epoch, uint64(15903300), "keeper.genesis.epoch")
+		assert(k.MTG.Genesis.Threshold, int(19), "keeper.genesis.threshold")
 		if !slices.Equal(k.MTG.Genesis.Members, keepers) {
 			panic("keepers")
 		}
@@ -86,12 +87,12 @@ func (c *Configuration) checkMainnet(role string) {
 
 	if role == "observer" {
 		o := c.Observer
-		assert(o.KeeperAppId, KeeperAppId)
-		assert(o.Timestamp, uint64(15903300))
-		assert(o.AssetId, ObserverToken)
-		assert(o.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E")
-		assert(o.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12")
-		assert(o.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9")
+		assert(o.KeeperAppId, KeeperAppId, "observer.keeper-app-id")
+		assert(o.Timestamp, uint64(15903300), "observer.timestamp")
+		assert(o.AssetId, ObserverToken, "observer.asset-id")
+		assert(o.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "observer.polygon-factory-address")
+		assert(o.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12", "observer.polygon-observer-deposit-entry")
+		assert(o.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "observer.polygon-keeper-deposity-entry")
 	}
 }
 
@@ -136,8 +137,8 @@ var (
 	keepers = append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
 )
 
-func assert(a, b any) {
+func assert(a, b any, name string) {
 	if a != b {
-		panic(a)
+		panic(fmt.Sprintf("%s %v != %v", name, a, b))
 	}
 }
