@@ -28,6 +28,10 @@ func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId
 
 func (node *Node) Migrate(ctx context.Context) error {
 	logger.Printf("keeper.Migrate() ...")
+	if node.store.CheckFullyMigrated(ctx) {
+		logger.Printf("keeper.CheckFullyMigrated() DONE")
+		return nil
+	}
 	req, err := node.store.ReadUnmigratedLatestRequest(ctx)
 	if err != nil || req == nil {
 		return fmt.Errorf("store.ReadUnmigratedLatestRequest() => %v %v", req, err)

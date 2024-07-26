@@ -84,6 +84,25 @@ func unmigratedRequestFromRow(row *sql.Row) (*common.Request, error) {
 	return &r, err
 }
 
+func (s *SQLite3Store) CheckFullyMigrated(ctx context.Context) bool {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer tx.Rollback()
+
+	key, val := "SCHEMA:VERSION:c12674b047a4eca95af046eff41c1e71c6655c7c", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == sql.ErrNoRows {
+		return false
+	}
+	if err != nil {
+		panic(err)
+	}
+	return true
+}
+
 // FIXME remove this
 func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 	s.mutex.Lock()
