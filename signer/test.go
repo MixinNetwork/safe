@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -30,14 +31,14 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 	ctx := context.Background()
 	ctx = common.EnableTestEnvironment(ctx)
 
-	saverStore := testStartSaver(require)
+	saverStore, port := testStartSaver(require)
 
 	nodes := make([]*Node, 4)
 	for i := 0; i < 4; i++ {
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
-		nodes[i] = testBuildNode(ctx, require, root, i, saverStore)
+		nodes[i] = testBuildNode(ctx, require, root, i, saverStore, port)
 	}
 
 	network := newTestNetwork(nodes[0].members)
@@ -171,7 +172,7 @@ func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes [
 	return op
 }
 
-func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store) *Node {
+func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store, port int) *Node {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Signer *Configuration `toml:"signer"`
@@ -184,7 +185,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 
 	conf.Signer.StoreDir = root
 	conf.Signer.MTG.App.AppId = conf.Signer.MTG.Genesis.Members[i]
-	conf.Signer.SaverAPI = "http://localhost:9999"
+	conf.Signer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
 
 	seed := crypto.Sha256Hash([]byte(conf.Signer.MTG.App.AppId))
 	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
@@ -229,13 +230,27 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 	return nil
 }
 
-func testStartSaver(require *require.Assertions) *saver.SQLite3Store {
+func getFreePort() int {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		panic(err)
+	}
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+func testStartSaver(require *require.Assertions) (*saver.SQLite3Store, int) {
 	dir, err := os.MkdirTemp("", "safe-saver-test-")
 	require.Nil(err)
 	store, err := saver.OpenSQLite3Store(dir + "/data.sqlite3")
 	require.Nil(err)
-	go saver.StartHTTP(store, 9999)
-	return store
+	port := getFreePort()
+	go saver.StartHTTP(store, port)
+	return store, port
 }
 
 type testNetwork struct {
