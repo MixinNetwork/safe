@@ -70,6 +70,8 @@ func (node *Node) Migrate(ctx context.Context) error {
 
 	err = node.store.Migrate(ctx, ss, es)
 	logger.Printf("keeper.Migrate() => %v", err)
+	err = node.store.Migrate2(ctx)
+	logger.Printf("keeper.Migrate2() => %v", err)
 	return err
 }
 

@@ -85,6 +85,46 @@ func unmigratedRequestFromRow(row *sql.Row) (*common.Request, error) {
 }
 
 // FIXME remove this
+func (s *SQLite3Store) Migrate2(ctx context.Context) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	key, val := "SCHEMA:VERSION:c12674b047a4eca95af046eff41c1e71c6655c7c", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil || err != sql.ErrNoRows {
+		return err
+	}
+
+	operationParams := []string{
+		"2977fcf7-c3aa-3b62-9039-a0e5b4009f90",
+		"6c04287d-8c89-342f-b676-da5f8464617c",
+		"d436b16f-30c7-34ea-93ed-0f346253a06d",
+		"b73e43c4-2149-36d6-9bc0-7a940cc13d8b",
+		"c8dd5781-0736-3cee-810b-efa3b4b94a46",
+		"211030c9-bed0-3e01-8f07-1630dc08452f",
+	}
+	for _, id := range operationParams {
+		err = s.writeRequestTransactions(ctx, tx, id, "", nil)
+	}
+
+	now := time.Now().UTC()
+	query := strings.Join(operationParams, ",")
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", key, query, now)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// FIXME remove this
 func (s *SQLite3Store) Migrate(ctx context.Context, ss, es []*MigrateAsset) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
