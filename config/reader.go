@@ -88,7 +88,7 @@ func (c *Configuration) checkMainnet(role string) {
 	if role == "observer" {
 		o := c.Observer
 		assert(o.KeeperAppId, KeeperAppId, "observer.keeper-app-id")
-		assert(o.Timestamp, uint64(15903300), "observer.timestamp")
+		assert(o.Timestamp, uint64(1721930640000000000), "observer.timestamp")
 		assert(o.AssetId, ObserverToken, "observer.asset-id")
 		assert(o.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "observer.polygon-factory-address")
 		assert(o.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12", "observer.polygon-observer-deposit-entry")
