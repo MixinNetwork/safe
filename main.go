@@ -18,6 +18,9 @@ var VERSION string
 
 func main() {
 	VERSION = strings.TrimSpace(VERSION)
+	if strings.Contains(VERSION, "COMMIT") {
+		panic("please build the application using make command.")
+	}
 	app := &cli.App{
 		Name:                 "safe",
 		Usage:                "Mixin Safe",
