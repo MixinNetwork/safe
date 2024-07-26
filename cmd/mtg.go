@@ -13,7 +13,7 @@ func MTGUnlockKeeperRequest(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
 
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "keeper")
 	if err != nil {
 		return err
 	}

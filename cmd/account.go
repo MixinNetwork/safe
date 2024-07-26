@@ -90,7 +90,7 @@ func testBuildHolderRequest(id, public string, action byte, extra []byte) string
 
 func makeKeeperPaymentRequest(path, assetId string, amount decimal.Decimal, sid, memo string) error {
 	ctx := context.Background()
-	mc, err := config.ReadConfiguration(path)
+	mc, err := config.ReadConfiguration(path, "keeper")
 	if err != nil {
 		return err
 	}

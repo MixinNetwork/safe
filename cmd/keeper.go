@@ -24,13 +24,12 @@ func KeeperBootCmd(c *cli.Context) error {
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
 
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "keeper")
 	if err != nil {
 		return err
 	}
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
-	config.HandleDevConfig(mc.Dev)
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
@@ -86,7 +85,7 @@ func KeeperBootCmd(c *cli.Context) error {
 }
 
 func KeeperFundRequest(c *cli.Context) error {
-	mc, err := config.ReadConfiguration(c.String("config"))
+	mc, err := config.ReadConfiguration(c.String("config"), "keeper")
 	if err != nil {
 		return err
 	}

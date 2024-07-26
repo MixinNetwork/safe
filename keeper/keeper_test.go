@@ -38,10 +38,9 @@ import (
 )
 
 const (
-	testGroupDepositEntry            = "0x11EC02748116A983deeD59235302C3139D6e8cdD"
 	testAccountPriceAssetId          = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 	testAccountPriceAmount           = 3.0123
-	testBondAssetId                  = "e409efef-ef79-3fc4-8035-a2411eacda81"
+	testBondAssetId                  = "d25a6ea6-f4d7-3100-8425-29f8bb82ac2f"
 	testSafeBondReceiverId           = "e459de8b-4edd-44ff-a119-b1d707f8521a"
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
 	testBitcoinKeyObserverPrivate    = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
@@ -59,7 +58,7 @@ const (
 
 var sequence uint64 = 5000000
 
-func TestKeeper(t *testing.T) {
+func TestBitcoinKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
 
@@ -143,7 +142,7 @@ func TestKeeper(t *testing.T) {
 	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderSigner)
 }
 
-func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
+func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
 
@@ -208,7 +207,7 @@ func TestKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Len(pendings, 0)
 }
 
-func TestKeeperCloseAccountWithHolderObserver(t *testing.T) {
+func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, mpc, signers := testPrepare(require)
 
@@ -1029,9 +1028,9 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 func testDeployBondContract(ctx context.Context, require *require.Assertions, node *Node, addr, assetId string) string {
 	safe, _ := node.store.ReadSafeByAddress(ctx, addr)
 	asset, _ := node.fetchAssetMeta(ctx, assetId)
-	err := abi.GetOrDeployFactoryAsset(ctx, "https://polygon-bor.publicnode.com", os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, testGroupDepositEntry, safe.Holder)
+	err := abi.GetOrDeployFactoryAsset(ctx, os.Getenv("POLYGONRPC"), os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, node.conf.PolygonKeeperDepositEntry, safe.Holder)
 	require.Nil(err)
-	bond := abi.GetFactoryAssetAddress(testGroupDepositEntry, assetId, asset.Symbol, asset.Name, safe.Holder)
+	bond := abi.GetFactoryAssetAddress(node.conf.PolygonKeeperDepositEntry, assetId, asset.Symbol, asset.Name, safe.Holder)
 	assetKey := strings.ToLower(bond.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	require.Nil(err)
