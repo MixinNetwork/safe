@@ -114,7 +114,7 @@ func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, nodeId, data
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListItemWithNodeId(ctx context.Context, nodeId string) ([]*Item, error) {
+func (s *SQLite3Store) ListItemsForNode(ctx context.Context, nodeId string) ([]*Item, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT id,data FROM items WHERE node_id=? ORDER BY node_id,created_at ASC", nodeId)
 	if err != nil {
 		return nil, err

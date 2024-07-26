@@ -21,11 +21,11 @@ func TestFROSTSigner(t *testing.T) {
 
 	public := testFROSTKeyGen(ctx, require, nodes, common.CurveEdwards25519Default)
 	testFROSTSign(ctx, require, nodes, public, []byte("mixin"), common.CurveEdwards25519Default)
-	testSaverItemsCheck(ctx, require, nodes, saverStore)
+	testSaverItemsCheck(ctx, require, nodes, saverStore, 1)
 
 	public = testFROSTKeyGen(ctx, require, nodes, common.CurveSecp256k1SchnorrBitcoin)
 	testFROSTSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1SchnorrBitcoin)
-	testSaverItemsCheck(ctx, require, nodes, saverStore)
+	testSaverItemsCheck(ctx, require, nodes, saverStore, 2)
 }
 
 func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {

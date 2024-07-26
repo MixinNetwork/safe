@@ -28,7 +28,7 @@ func TestCMPSigner(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes, saverStore := TestPrepare(require)
 	public, chainCode := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
-	testSaverItemsCheck(ctx, require, nodes, saverStore)
+	testSaverItemsCheck(ctx, require, nodes, saverStore, 1)
 
 	sig := testCMPSign(ctx, require, nodes, public, []byte("mixin"), common.CurveSecp256k1ECDSABitcoin)
 	t.Logf("testCMPSign(%s) => %x\n", public, sig)
@@ -136,10 +136,11 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 	return public, chainCode
 }
 
-func testSaverItemsCheck(ctx context.Context, require *require.Assertions, nodes []*Node, saverStore *saver.SQLite3Store) {
+func testSaverItemsCheck(ctx context.Context, require *require.Assertions, nodes []*Node, saverStore *saver.SQLite3Store, count int) {
 	for _, node := range nodes {
-		items, err := saverStore.ListItemWithNodeId(ctx, string(node.id))
+		items, err := saverStore.ListItemsForNode(ctx, string(node.id))
 		require.Nil(err)
+		require.Len(items, count)
 
 		for _, item := range items {
 			var body struct {
