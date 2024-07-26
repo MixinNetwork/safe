@@ -49,7 +49,7 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 	if a != node.conf.AppId {
 		panic(out.Extra)
 	}
-	if m == nil {
+	if m == nil || len(m) < 12 {
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
 	b := common.AESDecrypt(node.observerAESKey[:], m)
@@ -62,7 +62,7 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) 
 	if a != node.conf.AppId {
 		panic(out.Extra)
 	}
-	if m == nil {
+	if m == nil || len(m) < 12 {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
 	b := common.AESDecrypt(node.signerAESKey[:], m)
