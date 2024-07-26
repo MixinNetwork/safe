@@ -19,7 +19,7 @@ const (
 
 func TestFROSTMixinSign(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes := TestPrepare(require)
+	ctx, nodes, _ := TestPrepare(require)
 
 	public := TestFROSTPrepareKeys(ctx, require, nodes, CurveEdwards25519Mixin)
 

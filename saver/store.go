@@ -15,6 +15,11 @@ import (
 //go:embed schema.sql
 var SCHEMA string
 
+type Item struct {
+	Id   string
+	Data string
+}
+
 type SQLite3Store struct {
 	db    *sql.DB
 	mutex *sync.Mutex
@@ -107,6 +112,25 @@ func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, nodeId, data
 		}
 	}
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListItemsForNode(ctx context.Context, nodeId string) ([]*Item, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id,data FROM items WHERE node_id=? ORDER BY node_id,created_at ASC", nodeId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*Item
+	for rows.Next() {
+		var item Item
+		err := rows.Scan(&item.Id, &item.Data)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, &item)
+	}
+	return items, nil
 }
 
 func (s *SQLite3Store) execOne(ctx context.Context, tx *sql.Tx, sql string, params ...any) error {
