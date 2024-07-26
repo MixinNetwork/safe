@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
+func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.SQLite3Store) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
 	ctx = common.EnableTestEnvironment(ctx)
@@ -51,7 +51,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node) {
 		go nodes[i].acceptIncomingMessages(ctx)
 	}
 
-	return ctx, nodes
+	return ctx, nodes, saverStore
 }
 
 func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {

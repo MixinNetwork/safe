@@ -267,7 +267,7 @@ func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
 
 func TestCMPEthereumSign(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes := TestPrepare(require)
+	ctx, nodes, _ := TestPrepare(require)
 
 	public, _ := TestCMPPrepareKeys(ctx, require, nodes, 2)
 

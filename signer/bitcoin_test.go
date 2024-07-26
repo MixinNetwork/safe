@@ -27,7 +27,7 @@ const (
 
 func TestCMPBitcoinSignObserverSigner(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes := TestPrepare(require)
+	ctx, nodes, _ := TestPrepare(require)
 
 	public, _ := TestCMPPrepareKeys(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 
@@ -144,7 +144,7 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 
 func TestCMPBitcoinSignHolderSigner(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes := TestPrepare(require)
+	ctx, nodes, _ := TestPrepare(require)
 
 	public, _ := TestCMPPrepareKeys(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 
