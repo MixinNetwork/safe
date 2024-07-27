@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -289,7 +290,7 @@ func (s *SQLite3Store) MigrateDB(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	key, val := "SCHEMA:VERSION:4fca1938ab13afa2f58bc3fabb4c653331b13476", ""
+	key, val := "SCHEMA:VERSION:cb8eb5d5b6d530dfa79bd35c2c74deaf96c3485b", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
 	if err == nil {
@@ -298,17 +299,29 @@ func (s *SQLite3Store) MigrateDB(ctx context.Context) error {
 		return err
 	}
 
-	query := "ALTER TABLE accounts ADD COLUMN signature VARCHAR;\n"
-	query = query + "ALTER TABLE accounts ADD COLUMN approved_at TIMESTAMP;\n"
-	query = query + "ALTER TABLE accounts ADD COLUMN migrated_at TIMESTAMP;\n"
-	query = query + "ALTER TABLE deposits ADD COLUMN request_id VARCHAR;\n"
-	_, err = tx.ExecContext(ctx, query)
+	rows, err := tx.QueryContext(ctx, "SELECT transaction_hash,output_index FROM deposits WHERE request_id IS NULL AND state=3")
 	if err != nil {
 		return err
 	}
+	var count int
+	for rows.Next() {
+		var hash string
+		var index int64
+		err := rows.Scan(&hash, &index)
+		if err != nil {
+			return err
+		}
+		id := uuid.Must(uuid.NewV4()).String()
+		sql := "UPDATE deposits SET request_id=? WHERE transaction_hash=? AND output_index=? AND request_id IS NULL AND state=3"
+		err = s.execOne(ctx, tx, sql, id, hash, index)
+		if err != nil {
+			return err
+		}
+		count = count + 1
+	}
 
 	now := time.Now().UTC()
-	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)", key, query, now, now)
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)", key, fmt.Sprint(count), now, now)
 	if err != nil {
 		return err
 	}
