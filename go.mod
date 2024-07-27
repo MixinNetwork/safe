@@ -3,7 +3,7 @@ module github.com/MixinNetwork/safe
 go 1.22.5
 
 require (
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.7.0
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.7.1
 	github.com/MixinNetwork/mixin v0.18.12
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/trusted-group v0.7.6
