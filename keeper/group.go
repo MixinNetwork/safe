@@ -334,15 +334,6 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.failRequest(ctx, req, "")
 	}
 
-	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", txRequest.AssetId, meta, err)
-	if err != nil {
-		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", txRequest.AssetId, err))
-	}
-	if meta.Chain != common.SafeChainPolygon {
-		return node.failRequest(ctx, req, "")
-	}
-
 	entry := node.fetchBondAssetReceiver(ctx, safe.Address, tx.AssetId)
 	safeAssetId := node.getBondAssetId(ctx, entry, tx.AssetId, tx.Holder)
 	bondId := crypto.Sha256Hash([]byte(safeAssetId))
