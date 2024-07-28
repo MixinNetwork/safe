@@ -104,6 +104,39 @@ func (s *SQLite3Store) CheckFullyMigrated(ctx context.Context) bool {
 }
 
 // FIXME remove this
+func (s *SQLite3Store) MigrateDepositCreated(ctx context.Context) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	key, val := "SCHEMA:VERSION:eb16681a8dd60e586d43a361384f0035fcac068b", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil || err != sql.ErrNoRows {
+		return err
+	}
+
+	query := "UPDATE deposits SET created_at=updated_at"
+	err = s.execMultiple(ctx, tx, 230, query)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", key, query, now)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// FIXME remove this
 func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

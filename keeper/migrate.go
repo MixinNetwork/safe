@@ -28,6 +28,10 @@ func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId
 
 func (node *Node) Migrate(ctx context.Context) error {
 	logger.Printf("keeper.Migrate() ...")
+	err := node.store.MigrateDepositCreated(ctx)
+	if err != nil {
+		return fmt.Errorf("store.MigrateDepositCreated() => %v", err)
+	}
 	if node.store.CheckFullyMigrated(ctx) {
 		logger.Printf("keeper.CheckFullyMigrated() DONE")
 		return nil

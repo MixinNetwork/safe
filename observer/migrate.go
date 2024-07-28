@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
@@ -202,6 +203,7 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 			total += o.Satoshi
 		}
 		err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, decimal.NewFromInt(total).Div(decimal.New(1, 8)))
+		logger.Printf("MigrateSafeAssets() => distributePolygonBondAsset(%v, %s) => %v", safe, receiver, err)
 		if err != nil {
 			if userNotRegistered(err) {
 				return false, true, nil
@@ -236,6 +238,7 @@ func (node *Node) distributePolygonBondAssetsForSafe(ctx context.Context, safe *
 			cur, _ := new(big.Int).SetString(balance.Amount, 10)
 			amt := decimal.NewFromBigInt(cur, -int32(asset.Decimals))
 			err = node.distributePolygonBondAsset(ctx, receiver, safe, bond, amt)
+			logger.Printf("MigrateSafeAssets() => distributePolygonBondAsset(%v, %s) => %v", safe, receiver, err)
 			if err != nil {
 				if userNotRegistered(err) {
 					return false, true, nil
@@ -255,6 +258,7 @@ func (node *Node) distributePolygonBondAssets(ctx context.Context, safes []*stor
 
 		for _, safe := range safes {
 			handled, skip, err := node.distributePolygonBondAssetsForSafe(ctx, safe, receiver)
+			logger.Printf("MigrateSafeAssets() => distributePolygonBondAssetsForSafe(%v, %s) => %t %t %v", safe, receiver, handled, skip, err)
 			if err != nil {
 				return err
 			}
@@ -350,6 +354,7 @@ func (node *Node) MigrateSafeAssets(ctx context.Context) error {
 		}
 	}
 
+	logger.Printf("MigrateSafeAssets(%d) => %d", len(safes), len(unmigrated))
 	err = node.deployPolygonBondAssets(ctx, unmigrated, entry)
 	if err != nil {
 		return fmt.Errorf("node.deployPolygonBondAssets(%s) => %v", entry, err)
