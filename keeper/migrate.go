@@ -80,6 +80,10 @@ func (node *Node) Migrate(ctx context.Context) error {
 }
 
 func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
+	afterMigrationDeposits := map[string]string{
+		"1a528bf8-198c-35f3-a2d7-910252395f06": "b5a91ff6-a78b-3838-9fa5-225636c093d0",
+		"c0a82655-b1c1-3029-8fbe-ad8e78404d0e": "ea7a8468-8d0a-361c-8580-fab2c4a75a7e",
+	}
 	meta, err := node.fetchAssetMeta(ctx, req.AssetId)
 	if err != nil {
 		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err))
@@ -110,6 +114,14 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 	receiver := gc.BytesToAddress(extra).String()
 	if receiver != node.conf.PolygonObserverDepositEntry {
 		panic(receiver)
+	}
+
+	if neo := afterMigrationDeposits[req.AssetId]; neo != "" {
+		sb, err := node.store.ReadEthereumBalance(ctx, receiver, id.String(), neo)
+		if err != nil || sb == nil {
+			panic(err)
+		}
+		return node.failRequest(ctx, req, "")
 	}
 
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
