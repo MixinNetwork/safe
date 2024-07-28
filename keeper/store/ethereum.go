@@ -52,7 +52,7 @@ func (s *SQLite3Store) CreateEthereumBalanceDepositFromRequest(ctx context.Conte
 		return err
 	}
 
-	vals := []any{txHash, index, sb.AssetId, amount.String(), sb.Address, sender, common.RequestStateDone, safe.Chain, safe.Holder, common.ActionObserverHolderDeposit, req.Id, req.CreatedAt, req.CreatedAt}
+	vals := []any{txHash, index, sb.AssetId, amount.String(), sb.Address, sender, common.RequestStateDone, safe.Chain, safe.Holder, common.ActionObserverHolderDeposit, req.CreatedAt, req.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("deposits", depositsCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT deposits %v", err)

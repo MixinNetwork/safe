@@ -31,7 +31,7 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *
 		return fmt.Errorf("INSERT bitcoin_outputs %v", err)
 	}
 
-	vals = []any{utxo.TransactionHash, utxo.Index, assetId, fmt.Sprint(utxo.Satoshi), safe.Address, sender, common.RequestStateDone, safe.Chain, safe.Holder, common.ActionObserverHolderDeposit, req.Id, req.CreatedAt, req.CreatedAt}
+	vals = []any{utxo.TransactionHash, utxo.Index, assetId, fmt.Sprint(utxo.Satoshi), safe.Address, sender, common.RequestStateDone, safe.Chain, safe.Holder, common.ActionObserverHolderDeposit, req.CreatedAt, req.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("deposits", depositsCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT deposits %v", err)

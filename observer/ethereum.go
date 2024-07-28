@@ -296,15 +296,16 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 
 func (node *Node) sendKeeperDepositTransaction(ctx context.Context, deposit *Deposit, decimals int32) error {
 	request, err := node.keeperStore.ReadRequest(ctx, deposit.RequestId)
+	logger.Printf("node.sendKeeperDepositTransaction(%v) => %v %v", deposit, request, err)
 	if err != nil {
 		return err
 	}
 	if request == nil {
 		pending, err := node.store.CheckUnconfirmedDepositsForAssetAndHolder(ctx, deposit.Holder, deposit.AssetId, deposit.CreatedAt)
+		logger.Printf("store.CheckUnconfirmedDepositsForAssetAndHolder(%v) => %t %v", deposit, pending, err)
 		if err != nil {
 			return fmt.Errorf("store.CheckUnconfirmedDepositsForAssetAndHolder(%s %s) => %v", deposit.Holder, deposit.AssetId, err)
-		}
-		if pending {
+		} else if pending {
 			return nil
 		}
 		_, bond, _, err := node.fetchBondAsset(ctx, deposit.Chain, deposit.AssetId, "", deposit.Holder, deposit.Receiver)
@@ -312,10 +313,10 @@ func (node *Node) sendKeeperDepositTransaction(ctx context.Context, deposit *Dep
 			return fmt.Errorf("node.fetchBondAsset(%s, %s) => %v", deposit.AssetId, deposit.Holder, err)
 		}
 		sufficient, err := node.checkKeeperHasSufficientBond(ctx, bond.AssetId, deposit)
+		logger.Printf("node.checkKeeperHasSufficientBond(%v) => %s %v %v", deposit, bond.AssetId, sufficient, err)
 		if err != nil {
 			return fmt.Errorf("node.checkKeeperHasSufficientBond(%s %s) => %v", bond.AssetId, deposit.Amount, err)
-		}
-		if !sufficient {
+		} else if !sufficient {
 			return nil
 		}
 		extra := deposit.encodeKeeperExtra(decimals)

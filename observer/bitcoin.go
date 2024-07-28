@@ -241,12 +241,13 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
 	rpc, assetId := node.bitcoinParams(deposit.Chain)
-
 	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
+	logger.Printf("node.bitcoinConfirmPendingDeposit(%v) => %v %v", deposit, safe, err)
 	if err != nil || safe == nil {
 		return err
 	}
 	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder, safe.Address)
+	logger.Printf("node.checkOrDeployKeeperBond(%v) => %t %v", deposit, bonded, err)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
 	} else if !bonded {
@@ -254,6 +255,7 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	}
 
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, deposit.Chain, time.Now())
+	logger.Printf("keeperStore.ReadLatestNetworkInfo(%v) => %v %v", deposit, info, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadLatestNetworkInfo(%d) => %v", deposit.Chain, err)
 	} else if info == nil {
@@ -624,11 +626,8 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 	rpc, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
-	if err != nil {
+	if err != nil || info == nil {
 		return err
-	}
-	if info == nil {
-		return nil
 	}
 	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
