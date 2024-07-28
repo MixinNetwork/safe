@@ -617,6 +617,10 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	amount := decimal.NewFromInt(1)
 	if !common.CheckTestEnvironment(ctx) {
 		balance := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, node.conf.KeeperAssetId, sequence)
+		if balance.Cmp(amount) < 0 && op.Id == "dca08263-1630-35b7-9fb8-24fbff79d2cc" {
+			// FIXME this could be removed later because we have the replay protection now
+			return nil, ""
+		}
 		if balance.Cmp(amount) < 0 {
 			return nil, node.conf.KeeperAssetId
 		}
