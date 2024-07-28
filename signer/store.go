@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
 //go:embed schema.sql
@@ -491,6 +492,58 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 	}
 
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) WriteActionTransactions(ctx context.Context, outputId string, txs []*mtg.Transaction, compaction string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	ts := common.Base91Encode(mtg.SerializeTransactions(txs))
+	cols := []string{"output_id", "compaction", "transactions", "created_at"}
+	vals := []any{outputId, compaction, ts, time.Now().UTC()}
+	err = s.execOne(ctx, tx, buildInsertionSQL("action_transactions", cols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT action_transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ReadActionTransactions(ctx context.Context, outputId string) ([]*mtg.Transaction, string, bool) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer tx.Rollback()
+
+	query := "SELECT transactions,compaction FROM action_transactions where output_id=?"
+	row := tx.QueryRowContext(ctx, query, outputId)
+	var ts, compaction string
+	err = row.Scan(&ts, &compaction)
+	if err == sql.ErrNoRows {
+		return nil, "", false
+	} else if err != nil {
+		panic(err)
+	}
+
+	tb, err := common.Base91Decode(ts)
+	if err != nil {
+		panic(ts)
+	}
+	txs, err := mtg.DeserializeTransactions(tb)
+	if err != nil {
+		panic(ts)
+	}
+	return txs, compaction, true
 }
 
 func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*Session, error) {

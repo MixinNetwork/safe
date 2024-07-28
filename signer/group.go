@@ -86,9 +86,17 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	txs, compaction, found := node.store.ReadActionTransactions(ctx, out.OutputId)
+	if found {
+		return txs, compaction
+	}
 	txs1, asset1 := node.processAction(ctx, out)
 	txs2, asset2 := node.processAction(ctx, out)
 	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
+	err := node.store.WriteActionTransactions(ctx, out.OutputId, txs1, asset1)
+	if err != nil {
+		panic(err)
+	}
 	return txs1, asset1
 }
 

@@ -57,3 +57,12 @@ CREATE TABLE IF NOT EXISTS session_works (
 	created_at  TIMESTAMP NOT NULL,
 	PRIMARY KEY ('session_id', 'signer_id', 'round')
 );
+
+
+CREATE TABLE IF NOT EXISTS action_transactions (
+  output_id       VARCHAR NOT NULL,
+  compaction      VARCHAR NOT NULL,
+  transactions    TEXT NOT NULL,
+  created_at      TIMESTAMP NOT NULL,
+  PRIMARY KEY ('output_id')
+);
