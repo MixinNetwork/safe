@@ -279,6 +279,10 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if asset != "" {
 		return nil, asset
 	}
+	if op.Id == "dca08263-1630-35b7-9fb8-24fbff79d2cc" && tx == nil {
+		// FIXME remove this
+		return nil, asset
+	}
 	return []*mtg.Transaction{tx}, ""
 }
 
