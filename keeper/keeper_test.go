@@ -1012,6 +1012,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	memo := mtg.EncodeMixinExtraBase64(appId, node.encryptSignerOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
 	return &mtg.Action{
+		OutputId:        id,
 		TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
 		UnifiedOutput: mtg.UnifiedOutput{
 			AppId:     appId,

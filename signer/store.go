@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/gofrs/uuid/v5"
 )
 
 //go:embed schema.sql
@@ -495,6 +496,10 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 }
 
 func (s *SQLite3Store) WriteActionTransactions(ctx context.Context, outputId string, txs []*mtg.Transaction, compaction string) error {
+	if uuid.Must(uuid.FromString(outputId)).String() != outputId {
+		panic(outputId)
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
