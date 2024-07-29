@@ -307,6 +307,23 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 	}
 }
 
+func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
+	out := &mtg.Action{
+		OutputId: uuid.Must(uuid.NewV4()).String(),
+		UnifiedOutput: mtg.UnifiedOutput{
+			AppId:     node.conf.AppId,
+			Senders:   []string{string(node.id)},
+			AssetId:   node.conf.AssetId,
+			CreatedAt: time.Now(),
+		},
+	}
+	out.Extra = mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+	out.Extra = hex.EncodeToString([]byte(out.Extra))
+	data := common.MarshalJSONOrPanic(out)
+	network := node.network.(*testNetwork)
+	return network.QueueMTGOutput(ctx, data)
+}
+
 func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessage, error) {
 	id := ctx.Value("party").(string)
 	msb := <-n.msgChannel(party.ID(id))

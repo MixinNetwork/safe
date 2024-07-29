@@ -88,6 +88,10 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	err = node.store.Migrate2(ctx)
+	if err != nil {
+		panic(err)
+	}
 	go node.loopBackup(ctx)
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)
@@ -544,20 +548,7 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
 
 	if common.CheckTestEnvironment(ctx) {
-		out := &mtg.Action{
-			OutputId: uuid.Must(uuid.NewV4()).String(),
-			UnifiedOutput: mtg.UnifiedOutput{
-				AppId:     node.conf.AppId,
-				Senders:   []string{string(node.id)},
-				AssetId:   node.conf.AssetId,
-				CreatedAt: time.Now(),
-			},
-		}
-		out.Extra = mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-		out.Extra = hex.EncodeToString([]byte(out.Extra))
-		data := common.MarshalJSONOrPanic(out)
-		network := node.network.(*testNetwork)
-		return network.QueueMTGOutput(ctx, data)
+		return node.mtgQueueTestOutput(ctx, memo)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, node.conf.MTG.App.SpendPrivateKey)

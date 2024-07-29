@@ -86,18 +86,23 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	txs1, asset1 := node.processActionWithPersistence(ctx, out)
+	txs2, asset2 := node.processActionWithPersistence(ctx, out)
+	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
+	return txs1, asset1
+}
+
+func (node *Node) processActionWithPersistence(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	txs, compaction, found := node.store.ReadActionTransactions(ctx, out.OutputId)
 	if found {
 		return txs, compaction
 	}
-	txs1, asset1 := node.processAction(ctx, out)
-	txs2, asset2 := node.processAction(ctx, out)
-	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
-	err := node.store.WriteActionTransactions(ctx, out.OutputId, txs1, asset1)
+	txs, compaction = node.processAction(ctx, out)
+	err := node.store.WriteActionTransactions(ctx, out.OutputId, txs, compaction)
 	if err != nil {
 		panic(err)
 	}
-	return txs1, asset1
+	return txs, compaction
 }
 
 func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
@@ -241,6 +246,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Extra = append(op.Extra, common.RequestFlagNone)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
+		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
+		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
+		if err != nil {
+			panic(err)
+		}
+		if crv != op.Curve {
+			return nil, ""
+		}
+		prev := common.DecodeHexOrPanic(session.Extra)
+
 		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
 			op := session.asOperation()
 			extra := node.concatMessageAndSignature(op.Extra, sig)
@@ -255,16 +270,15 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			}
 		}
 
-		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
-		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
-		if err != nil {
-			panic(err)
-		}
-		if crv != op.Curve {
+		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, prev, share, path)
+		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
+		if valid && !common.CheckTestEnvironment(ctx) {
 			return nil, ""
 		}
-		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
-		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
+
+		now := common.DecodeHexOrPanic(session.Extra)
+		valid, sig = node.verifySessionSignature(ctx, session.Curve, holder, now, share, path)
+		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t %x", session, holder, path, valid, sig)
 		if !valid {
 			return nil, ""
 		}
