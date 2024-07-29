@@ -86,6 +86,7 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	logger.Verbosef("node.ProcessOutput(%v)", out)
 	txs1, asset1 := node.processActionWithPersistence(ctx, out)
 	txs2, asset2 := node.processActionWithPersistence(ctx, out)
 	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
