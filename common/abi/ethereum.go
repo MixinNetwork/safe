@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -40,6 +41,7 @@ func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symb
 
 	addr := GetFactoryAssetAddress(receiver, assetId, symbol, name, holder)
 	deployed, err := CheckFactoryAssetDeployed(rpc, addr.String())
+	logger.Printf("abi.CheckFactoryAssetDeployed(%s, %s) => %v %v", rpc, addr, deployed, err)
 	if err != nil || deployed.Sign() > 0 {
 		return err
 	}
@@ -54,7 +56,14 @@ func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symb
 	if err != nil {
 		return err
 	}
+	rb, err := t.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	logger.Printf("abi.Deploy(%s, %s, %s, %s, %s) => %s %x %d %d %s %s", receiver,
+		id, holder, symbol, name, t.Hash().Hex(), rb, t.Nonce(), t.Gas(), t.GasFeeCap(), t.GasTipCap())
 	_, err = bind.WaitMined(ctx, conn, t)
+	logger.Printf("abi.WaitMined(%v) => %v", t, err)
 	return err
 }
 

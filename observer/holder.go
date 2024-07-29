@@ -51,6 +51,8 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 			return err
 		}
 		address = gs.Address
+	default:
+		panic(chain)
 	}
 	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, address)
 	if err != nil {
