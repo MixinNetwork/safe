@@ -46,10 +46,7 @@ func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symb
 		return err
 	}
 
-	signer, err := ethereum.SignerInit(ctx, conn, key, ethereumChainId)
-	if err != nil {
-		return err
-	}
+	signer := ethereum.SignerInit(ctx, conn, key, ethereumChainId)
 	id := new(big.Int).SetBytes(uuid.Must(uuid.FromString(assetId)).Bytes())
 	symbol, name = "safe"+symbol, name+" @ Mixin Safe"
 	t, err := abi.Deploy(signer, common.HexToAddress(receiver), id, holder, symbol, name)
@@ -117,42 +114,6 @@ func factoryInit(rpc string) (*ethclient.Client, *FactoryContract, error) {
 	}
 
 	return conn, abi, nil
-}
-
-func SignerInit(ctx context.Context, conn *ethclient.Client, key string) *bind.TransactOpts {
-	chainId := new(big.Int).SetInt64(ethereumChainId)
-	priv, err := crypto.HexToECDSA(key)
-	if err != nil {
-		panic(err)
-	}
-	signer, err := bind.NewKeyedTransactorWithChainID(priv, chainId)
-	if err != nil {
-		panic(err)
-	}
-
-	signer.GasFeeCap = suggestMaxFeePerGas(ctx, conn)
-	signer.GasTipCap = suggestMaxPriorityFeePerGas(ctx, conn)
-	return signer
-}
-
-func suggestMaxFeePerGas(ctx context.Context, conn *ethclient.Client) *big.Int {
-	gasPrice, err := conn.SuggestGasPrice(ctx)
-	if err != nil {
-		panic(err)
-	}
-	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(15))
-	gasPrice = new(big.Int).Div(gasPrice, big.NewInt(10))
-	return gasPrice
-}
-
-func suggestMaxPriorityFeePerGas(ctx context.Context, conn *ethclient.Client) *big.Int {
-	gasPrice, err := conn.SuggestGasTipCap(ctx)
-	if err != nil {
-		panic(err)
-	}
-	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(15))
-	gasPrice = new(big.Int).Div(gasPrice, big.NewInt(10))
-	return gasPrice
 }
 
 func PackAssetArguments(symbol, name string) []byte {

@@ -290,10 +290,7 @@ func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string)
 		return "", err
 	}
 	defer conn.Close()
-	signer, err := SignerInit(ctx, conn, key, tx.ChainID)
-	if err != nil {
-		return "", err
-	}
+	signer := SignerInit(ctx, conn, key, tx.ChainID)
 
 	var signature []byte
 	count := 0

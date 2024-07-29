@@ -511,29 +511,40 @@ func packDomainSeparatorArguments(chainID int64, safeAddress string) []byte {
 	return args
 }
 
-func SignerInit(ctx context.Context, client *ethclient.Client, key string, evmChainId int64) (*bind.TransactOpts, error) {
+func SignerInit(ctx context.Context, conn *ethclient.Client, key string, evmChainId int64) *bind.TransactOpts {
 	chainId := new(big.Int).SetInt64(evmChainId)
 	priv, err := crypto.HexToECDSA(key)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	signer, err := bind.NewKeyedTransactorWithChainID(priv, chainId)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	price, err := client.SuggestGasPrice(ctx)
+
+	signer.GasFeeCap = suggestMaxFeePerGas(ctx, conn)
+	signer.GasTipCap = suggestMaxPriorityFeePerGas(ctx, conn)
+	return signer
+}
+
+func suggestMaxFeePerGas(ctx context.Context, conn *ethclient.Client) *big.Int {
+	gasPrice, err := conn.SuggestGasPrice(ctx)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	tip, err := client.SuggestGasTipCap(ctx)
+	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(15))
+	gasPrice = new(big.Int).Div(gasPrice, big.NewInt(10))
+	return gasPrice
+}
+
+func suggestMaxPriorityFeePerGas(ctx context.Context, conn *ethclient.Client) *big.Int {
+	gasPrice, err := conn.SuggestGasTipCap(ctx)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	extra := big.NewInt(0).Div(price, big.NewInt(5))
-	signer.GasPrice = big.NewInt(0).Add(price, extra)
-	extra = big.NewInt(0).Div(tip, big.NewInt(5))
-	signer.GasTipCap = big.NewInt(0).Add(tip, extra)
-	return signer, nil
+	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(15))
+	gasPrice = new(big.Int).Div(gasPrice, big.NewInt(10))
+	return gasPrice
 }
 
 func safeInit(rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {
