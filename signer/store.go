@@ -41,6 +41,40 @@ func (s *SQLite3Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *SQLite3Store) Migrate2(ctx context.Context) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	key, val := "SCHEMA:VERSION:b190accdba349e97a6b1bf7c3b253490147a8552", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil {
+		return nil
+	} else if err != sql.ErrNoRows {
+		return err
+	}
+
+	query := "DELETE FROM action_transactions WHERE output_id='fd56800e-bb2e-3cce-acbe-0a137aa79224'"
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", key, query, now)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
