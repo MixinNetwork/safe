@@ -40,18 +40,6 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 	case MainNetworkName:
 		conf.checkMainnet(role)
 	case TestNetworkName:
-		SignerAppId = "01fff6be-5ace-30d1-89b1-00af0a20fe6b"
-		KeeperAppId = "7a1a7f4b-4ff3-3e2a-ae10-e6b81c066ba1"
-		SignerToken = "153a900b-ed21-376a-8419-7582840a308c"
-		KeeperToken = "edcf2f60-c256-3693-a1cc-9e75e87e23c5"
-		ObserverToken = "5ee8ddb6-de43-33b8-a758-e32f908a3096"
-		signers = []string{
-			"71b72e67-3636-473a-9ee4-db7ba3094057",
-			"148e696f-f1db-4472-a907-ceea50c5cfde",
-			"c9a9a719-4679-4057-bcf0-98945ed95a81",
-			"b45dcee0-23d7-4ad1-b51e-c681a257c13e",
-		}
-		keepers = append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
 		conf.checkTestnet(role)
 	default:
 		panic(conf.Dev.Network)
@@ -116,6 +104,19 @@ func (c *Configuration) checkMainnet(role string) {
 }
 
 func (c *Configuration) checkTestnet(role string) {
+	SignerAppId := "01fff6be-5ace-30d1-89b1-00af0a20fe6b"
+	KeeperAppId := "7a1a7f4b-4ff3-3e2a-ae10-e6b81c066ba1"
+	SignerToken := "153a900b-ed21-376a-8419-7582840a308c"
+	KeeperToken := "edcf2f60-c256-3693-a1cc-9e75e87e23c5"
+	ObserverToken := "5ee8ddb6-de43-33b8-a758-e32f908a3096"
+	signers = []string{
+		"71b72e67-3636-473a-9ee4-db7ba3094057",
+		"148e696f-f1db-4472-a907-ceea50c5cfde",
+		"c9a9a719-4679-4057-bcf0-98945ed95a81",
+		"b45dcee0-23d7-4ad1-b51e-c681a257c13e",
+	}
+	keepers = append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
+
 	switch role {
 	case "signer":
 	case "keeper":
@@ -171,7 +172,7 @@ func (c *Configuration) checkTestnet(role string) {
 	}
 }
 
-var (
+const (
 	SignerAppId   = "bdee2414-045b-31b7-b8a7-7998b36f5c93"
 	KeeperAppId   = "ac495e24-72a5-3c53-aa33-8f90cf007b9d"
 	SignerToken   = "a946936b-1b52-3e02-aec6-4fbccf284d5f"
