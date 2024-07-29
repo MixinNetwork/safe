@@ -9,6 +9,7 @@ import (
 )
 
 const MainNetworkName = "main"
+const TestNetworkName = "test"
 
 type DevConfig struct {
 	ProfilePort int    `toml:"profile-port"`
