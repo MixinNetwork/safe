@@ -53,6 +53,8 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 		}
 		keepers = append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
 		conf.checkTestnet(role)
+	default:
+		panic(conf.Dev.Network)
 	}
 	return &conf, nil
 }
