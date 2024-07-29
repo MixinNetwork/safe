@@ -36,14 +36,8 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 		return nil, err
 	}
 	handleDevConfig(conf.Dev)
-	switch conf.Dev.Network {
-	case MainNetworkName:
-		conf.checkMainnet(role)
-	case TestNetworkName:
-		conf.checkTestnet(role)
-	default:
-		panic(conf.Dev.Network)
-	}
+	conf.checkMainnet(role)
+	conf.checkTestnet(role)
 	return &conf, nil
 }
 
@@ -143,6 +137,17 @@ func (c *Configuration) checkMainnet(role string) {
 }
 
 func (c *Configuration) checkTestnet(role string) {
+	switch role {
+	case "signer":
+	case "keeper":
+	case "observer":
+	default:
+		panic(role)
+	}
+	if c.Dev == nil || c.Dev.Network != TestNetworkName {
+		return
+	}
+
 	SignerAppId := "01fff6be-5ace-30d1-89b1-00af0a20fe6b"
 	KeeperAppId := "7a1a7f4b-4ff3-3e2a-ae10-e6b81c066ba1"
 	SignerToken := "153a900b-ed21-376a-8419-7582840a308c"
@@ -155,17 +160,6 @@ func (c *Configuration) checkTestnet(role string) {
 		"b45dcee0-23d7-4ad1-b51e-c681a257c13e",
 	}
 	keepers := append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
-
-	switch role {
-	case "signer":
-	case "keeper":
-	case "observer":
-	default:
-		panic(role)
-	}
-	if c.Dev != nil && c.Dev.Network != TestNetworkName {
-		return
-	}
 
 	s := c.Signer
 	if role == "signer" {
