@@ -46,7 +46,7 @@ func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symb
 		return err
 	}
 
-	signer, err := signerInit(key)
+	signer, err := ethereum.SignerInit(ctx, conn, key, ethereumChainId)
 	if err != nil {
 		return err
 	}
@@ -117,15 +117,6 @@ func factoryInit(rpc string) (*ethclient.Client, *FactoryContract, error) {
 	}
 
 	return conn, abi, nil
-}
-
-func signerInit(key string) (*bind.TransactOpts, error) {
-	chainId := new(big.Int).SetInt64(ethereumChainId)
-	priv, err := crypto.HexToECDSA(key)
-	if err != nil {
-		return nil, err
-	}
-	return bind.NewKeyedTransactorWithChainID(priv, chainId)
 }
 
 func PackAssetArguments(symbol, name string) []byte {

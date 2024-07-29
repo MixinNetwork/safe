@@ -285,15 +285,15 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 }
 
 func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
-	signer, err := signerInit(key, tx.ChainID)
-	if err != nil {
-		return "", err
-	}
 	conn, safeAbi, err := safeInit(rpc, tx.SafeAddress)
 	if err != nil {
 		return "", err
 	}
 	defer conn.Close()
+	signer, err := SignerInit(ctx, conn, key, tx.ChainID)
+	if err != nil {
+		return "", err
+	}
 
 	var signature []byte
 	count := 0

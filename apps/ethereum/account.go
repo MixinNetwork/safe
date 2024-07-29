@@ -209,7 +209,7 @@ func DeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owne
 	}
 	defer conn.Close()
 
-	signer, err := signerInit(key, chainId)
+	signer, err := SignerInit(ctx, conn, key, chainId)
 	if err != nil {
 		return err
 	}

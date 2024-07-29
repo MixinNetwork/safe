@@ -511,13 +511,29 @@ func packDomainSeparatorArguments(chainID int64, safeAddress string) []byte {
 	return args
 }
 
-func signerInit(key string, evmChainId int64) (*bind.TransactOpts, error) {
+func SignerInit(ctx context.Context, client *ethclient.Client, key string, evmChainId int64) (*bind.TransactOpts, error) {
 	chainId := new(big.Int).SetInt64(evmChainId)
 	priv, err := crypto.HexToECDSA(key)
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewKeyedTransactorWithChainID(priv, chainId)
+	signer, err := bind.NewKeyedTransactorWithChainID(priv, chainId)
+	if err != nil {
+		return nil, err
+	}
+	price, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tip, err := client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, err
+	}
+	extra := big.NewInt(0).Div(price, big.NewInt(5))
+	signer.GasPrice = big.NewInt(0).Add(price, extra)
+	extra = big.NewInt(0).Div(tip, big.NewInt(5))
+	signer.GasTipCap = big.NewInt(0).Add(tip, extra)
+	return signer, nil
 }
 
 func safeInit(rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {
