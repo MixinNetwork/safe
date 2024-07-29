@@ -246,7 +246,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	crv := common.SafeChainCurve(safe.Chain)
 	tt := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if tt == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.failRequest(ctx, req, "")
 	}
 	txs = append(txs, tt)
 
@@ -357,7 +357,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	crv := common.SafeChainCurve(chain)
 	tt := node.buildObserverResponseWithStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if tt == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
 	}
 	txs = append(txs, tt)
 
@@ -731,7 +731,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	crv := common.SafeChainCurve(safe.Chain)
 	tt := node.buildObserverResponseWithStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if tt == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	txs = append(txs, tt)
 
@@ -1030,7 +1030,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	crv := common.SafeChainCurve(safe.Chain)
 	tt := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if tt == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.failRequest(ctx, req, "")
 	}
 	txs = append(txs, tt)
 

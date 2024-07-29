@@ -412,6 +412,7 @@ func (node *Node) handleTransactionApprovalPayment(ctx context.Context, s *mixin
 
 func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	_, m := mtg.DecodeMixinExtraBase64(s.Memo)
+	logger.Printf("node.handleKeeperResponse(%v) => %v", s, m)
 	if m == nil {
 		return false, nil
 	}

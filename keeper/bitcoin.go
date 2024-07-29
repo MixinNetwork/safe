@@ -250,7 +250,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	crv := common.SafeChainCurve(safe.Chain)
 	t := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.failRequest(ctx, req, "")
 	}
 	txs = append(txs, t)
 
@@ -344,7 +344,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 	crv := common.SafeChainCurve(chain)
 	t := node.buildObserverResponseWithStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.refundAndFailRequest(ctx, req, arp.Receivers, int(arp.Threshold))
 	}
 	txs = append(txs, t)
 
@@ -624,7 +624,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	crv := common.SafeChainCurve(safe.Chain)
 	t := node.buildObserverResponseWithStorageTraceId(ctx, req.Id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 	txs = append(txs, t)
 
@@ -817,7 +817,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	crv := common.SafeChainCurve(safe.Chain)
 	t := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Sequence, typ, crv, stx.TraceId)
 	if t == nil {
-		return node.failRequest(ctx, req, node.conf.ObserverAssetId)
+		return node.failRequest(ctx, req, "")
 	}
 	txs = append(txs, t)
 
