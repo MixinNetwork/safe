@@ -159,7 +159,7 @@ func (c *Configuration) checkTestnet(role string) {
 		"c9a9a719-4679-4057-bcf0-98945ed95a81",
 		"b45dcee0-23d7-4ad1-b51e-c681a257c13e",
 	}
-	keepers := append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
+	keepers := append(signers, "fcb87491-4fa0-4c2f-b387-262b63cbc112")
 
 	s := c.Signer
 	if role == "signer" {
