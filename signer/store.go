@@ -60,7 +60,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 		return err
 	}
 
-	query := "DELETE FROM action_transactions WHERE action_id='fd56800e-bb2e-3cce-acbe-0a137aa79224'"
+	query := "DELETE FROM action_transactions WHERE output_id='fd56800e-bb2e-3cce-acbe-0a137aa79224'"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
