@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/binary"
@@ -252,14 +253,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
 		extra := common.DecodeHexOrPanic(session.Extra)
-		if session.State == common.RequestStateInitial { // this could happen after resync or crash
+		if !node.checkSignatureAppended(extra) {
+			// this could happen after resync, crash or not commited
 			extra = node.concatMessageAndSignature(extra, sig)
-			if session.PreparedAt.Valid { // this could happend only after crash
-				err = node.store.MarkSessionPending(ctx, session.Id, session.Curve, session.Public, extra)
-				logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", session, extra, err)
-				if err != nil {
-					panic(err)
-				}
+		}
+		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
+			// this could happend only after crash or not commited
+			err = node.store.MarkSessionPending(ctx, session.Id, session.Curve, session.Public, extra)
+			logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", session, extra, err)
+			if err != nil {
+				panic(err)
 			}
 		}
 
@@ -269,16 +272,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			panic(err)
 		}
 		if crv != op.Curve {
-			return nil, ""
+			panic(session.Id)
 		}
-		valid, sig := node.verifySessionSignature(ctx, op.Curve, holder, extra, share, path)
-		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
-		if !valid {
-			return nil, ""
+		valid, vsig := node.verifySessionSignature(ctx, op.Curve, holder, extra, share, path)
+		logger.Printf("node.verifySessionSignature(%v, %s, %x, %v) => %t", session, holder, extra, path, valid)
+		if !valid || !bytes.Equal(sig, vsig) {
+			panic(hex.EncodeToString(vsig))
 		}
 		op.Type = common.OperationTypeSignOutput
 		op.Public = holder
-		op.Extra = sig
+		op.Extra = vsig
 	default:
 		panic(session.Id)
 	}
@@ -368,17 +371,32 @@ func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder stri
 }
 
 func (node *Node) concatMessageAndSignature(msg, sig []byte) []byte {
-	extra := binary.BigEndian.AppendUint32(nil, uint32(len(msg)))
+	size := uint32(len(msg))
+	if size > OperationExtraLimit {
+		panic(size)
+	}
+	extra := binary.BigEndian.AppendUint32(nil, size)
 	extra = append(extra, msg...)
 	extra = append(extra, sig...)
 	return extra
 }
 
-func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
+func (node *Node) checkSignatureAppended(extra []byte) bool {
+	if len(extra) < 4 {
+		return false
+	}
 	el := binary.BigEndian.Uint32(extra[:4])
-	if len(extra) < int(el)+32 {
+	if el > 160 {
+		return false
+	}
+	return len(extra) > int(el)+32
+}
+
+func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
+	if !node.checkSignatureAppended(extra) {
 		return false, nil
 	}
+	el := binary.BigEndian.Uint32(extra[:4])
 	msg := extra[4 : 4+el]
 	sig := extra[4+el:]
 	public, _ := node.deriveByPath(ctx, crv, share, path)
