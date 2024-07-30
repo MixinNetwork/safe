@@ -98,6 +98,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		},
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
+	require.True(node.store.CheckActionResultsBySessionId(ctx, sid))
 
 	require.Equal(common.OperationTypeSignOutput, int(op.Type))
 	require.Equal(sid, op.Id)

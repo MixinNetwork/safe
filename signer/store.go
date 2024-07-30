@@ -51,7 +51,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	key, val := "SCHEMA:VERSION:51422ca64dc2b9e3040e46c6e6a2dde280f0fb6f", ""
+	key, val := "SCHEMA:VERSION:4d2865072e7d5eceee7d0aa1527e463b2b08b6cb", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
 	if err == nil {
@@ -564,25 +564,33 @@ func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessio
 	}
 	defer tx.Rollback()
 
-	query := "SELECT transactions,compaction FROM action_results where output_id=?"
-	row := tx.QueryRowContext(ctx, query, sessionId)
-	var ts, compaction string
-	err = row.Scan(&ts, &compaction)
-	if err == sql.ErrNoRows {
-		return false
-	} else if err != nil {
+	query := "SELECT transactions,compaction FROM action_results where session_id=?"
+	rows, err := tx.QueryContext(ctx, query, sessionId)
+	if err != nil {
 		panic(err)
 	}
+	var ts, compaction string
+	for rows.Next() {
+		err = rows.Scan(&ts, &compaction)
+		if err == sql.ErrNoRows {
+			continue
+		} else if err != nil {
+			panic(err)
+		}
 
-	tb, err := common.Base91Decode(ts)
-	if err != nil {
-		panic(ts)
+		tb, err := common.Base91Decode(ts)
+		if err != nil {
+			panic(ts)
+		}
+		txs, err := mtg.DeserializeTransactions(tb)
+		if err != nil {
+			panic(ts)
+		}
+		if len(txs) > 0 || len(compaction) > 0 {
+			return true
+		}
 	}
-	txs, err := mtg.DeserializeTransactions(tb)
-	if err != nil {
-		panic(ts)
-	}
-	return len(txs) > 0 || len(compaction) > 0
+	return false
 }
 
 func (s *SQLite3Store) ReadActionResults(ctx context.Context, outputId string) ([]*mtg.Transaction, string, bool) {

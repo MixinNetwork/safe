@@ -136,12 +136,12 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 	case node.conf.AssetId:
 		if len(out.Senders) != 1 || node.findMember(out.Senders[0]) < 0 {
 			logger.Printf("invalid senders: %s", out.Senders)
-			return uuid.Nil.String(), nil, ""
+			return sessionId, nil, ""
 		}
 		req, err := node.parseSignerMessage(out)
 		logger.Printf("node.parseSignerMessage(%v) => %v %v", out, req, err)
 		if err != nil {
-			return uuid.Nil.String(), nil, ""
+			return sessionId, nil, ""
 		}
 		sessionId = req.Id
 		if string(req.Extra) == PrepareExtra {

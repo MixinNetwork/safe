@@ -151,6 +151,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 		},
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
+	require.True(node.store.CheckActionResultsBySessionId(ctx, sid))
 
 	require.Equal(common.OperationTypeSignOutput, int(op.Type))
 	require.Equal(sid, op.Id)
