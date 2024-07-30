@@ -564,11 +564,10 @@ func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessio
 	}
 	defer tx.Rollback()
 
-	query := "SELECT transactions FROM action_results where session_id=?"
+	query := "SELECT transactions,compaction FROM action_results where output_id=?"
 	row := tx.QueryRowContext(ctx, query, sessionId)
 	var ts, compaction string
 	err = row.Scan(&ts, &compaction)
-	err = row.Scan(&ts)
 	if err == sql.ErrNoRows {
 		return false
 	} else if err != nil {
