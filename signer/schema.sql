@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS properties (
-  key           VARCHAR NOT NULL,
-  value         VARCHAR NOT NULL,
-  created_at    TIMESTAMP NOT NULL,
-  PRIMARY KEY ('key')
+	key           VARCHAR NOT NULL,
+	value         VARCHAR NOT NULL,
+	created_at    TIMESTAMP NOT NULL,
+	PRIMARY KEY ('key')
 );
 
 CREATE TABLE IF NOT EXISTS keys (
@@ -59,10 +59,13 @@ CREATE TABLE IF NOT EXISTS session_works (
 );
 
 
-CREATE TABLE IF NOT EXISTS action_transactions (
-  output_id       VARCHAR NOT NULL,
-  compaction      VARCHAR NOT NULL,
-  transactions    TEXT NOT NULL,
-  created_at      TIMESTAMP NOT NULL,
-  PRIMARY KEY ('output_id')
+CREATE TABLE IF NOT EXISTS action_results (
+	output_id       VARCHAR NOT NULL,
+	compaction      VARCHAR NOT NULL,
+	transactions    TEXT NOT NULL,
+	session_id      VARCHAR NOT NULL,
+	created_at      TIMESTAMP NOT NULL,
+	PRIMARY KEY ('output_id')
 );
+
+CREATE INDEX IF NOT EXISTS action_results_by_session ON action_results(session_id);

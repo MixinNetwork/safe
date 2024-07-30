@@ -36,11 +36,7 @@ type Operation struct {
 }
 
 func (o *Operation) IdBytes() []byte {
-	uid, err := uuid.FromString(o.Id)
-	if err != nil {
-		panic(err)
-	}
-	return uid.Bytes()
+	return uuid.Must(uuid.FromString(o.Id)).Bytes()
 }
 
 // TODO compact format for different type

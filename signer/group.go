@@ -21,6 +21,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -94,22 +95,23 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 }
 
 func (node *Node) processActionWithPersistence(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	txs, compaction, found := node.store.ReadActionTransactions(ctx, out.OutputId)
+	txs, compaction, found := node.store.ReadActionResults(ctx, out.OutputId)
 	if found {
 		return txs, compaction
 	}
-	txs, compaction = node.processAction(ctx, out)
-	err := node.store.WriteActionTransactions(ctx, out.OutputId, txs, compaction)
+	sessionId, txs, compaction := node.processAction(ctx, out)
+	err := node.store.WriteActionResults(ctx, out.OutputId, txs, compaction, sessionId)
 	if err != nil {
 		panic(err)
 	}
 	return txs, compaction
 }
 
-func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, []*mtg.Transaction, string) {
+	sessionId := uuid.Nil.String()
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
-		return nil, ""
+		return sessionId, nil, ""
 	}
 	switch out.AssetId {
 	case node.conf.KeeperAssetId:
@@ -119,8 +121,9 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		op, err := node.parseOperation(ctx, out.Extra)
 		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
 		if err != nil {
-			return nil, ""
+			return sessionId, nil, ""
 		}
+		sessionId = op.Id
 		needsCommittment := op.Type == common.OperationTypeSignInput
 		hash, err := crypto.HashFromString(out.TransactionHash)
 		if err != nil {
@@ -133,13 +136,14 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	case node.conf.AssetId:
 		if len(out.Senders) != 1 || node.findMember(out.Senders[0]) < 0 {
 			logger.Printf("invalid senders: %s", out.Senders)
-			return nil, ""
+			return uuid.Nil.String(), nil, ""
 		}
 		req, err := node.parseSignerMessage(out)
 		logger.Printf("node.parseSignerMessage(%v) => %v %v", out, req, err)
 		if err != nil {
-			return nil, ""
+			return uuid.Nil.String(), nil, ""
 		}
+		sessionId = req.Id
 		if string(req.Extra) == PrepareExtra {
 			err = node.processSignerPrepare(ctx, req, out)
 			logger.Printf("node.processSignerPrepare(%v, %v) => %v", req, out, err)
@@ -149,10 +153,10 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		} else {
 			txs, asset := node.processSignerResult(ctx, req, out)
 			logger.Printf("node.processSignerResult(%v, %v) => %v %s", req, out, txs, asset)
-			return txs, asset
+			return sessionId, txs, asset
 		}
 	}
-	return nil, ""
+	return sessionId, nil, ""
 }
 
 func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {
@@ -211,9 +215,9 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if err != nil {
 		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err))
 	}
-	_, exact, sig := node.verifySessionSignerResults(ctx, session, signers)
-	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), exact, sig)
-	if !exact {
+	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
+	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)
+	if !finished {
 		return nil, ""
 	}
 	if l := len(signers); l <= node.threshold {
@@ -281,6 +285,10 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
+	repliedToKeeper := node.store.CheckActionResultsBySessionId(ctx, op.Id)
+	if repliedToKeeper {
+		return nil, ""
+	}
 	tx, asset := node.buildKeeperTransaction(ctx, op, out.Sequence)
 	if asset != "" {
 		return nil, asset
@@ -421,7 +429,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	}
 }
 
-func (node *Node) verifySessionSignerResults(ctx context.Context, session *Session, sessionSigners map[string]string) (bool, bool, []byte) {
+func (node *Node) verifySessionSignerResults(ctx context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		var signed int
@@ -432,7 +440,7 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 			}
 		}
 		exact := len(node.conf.MTG.Genesis.Members)
-		return signed >= exact, signed == exact, nil
+		return signed >= exact, nil
 	case common.OperationTypeSignInput:
 		var signed int
 		var sig []byte
@@ -446,7 +454,7 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 			}
 		}
 		exact := node.threshold + 1
-		return signed >= exact, signed == exact, sig
+		return signed >= exact, sig
 	default:
 		panic(session.Id)
 	}

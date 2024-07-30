@@ -529,7 +529,7 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteActionTransactions(ctx context.Context, outputId string, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) WriteActionResults(ctx context.Context, outputId string, txs []*mtg.Transaction, compaction, sessionId string) error {
 	if uuid.Must(uuid.FromString(outputId)).String() != outputId {
 		panic(outputId)
 	}
@@ -544,17 +544,17 @@ func (s *SQLite3Store) WriteActionTransactions(ctx context.Context, outputId str
 	defer tx.Rollback()
 
 	ts := common.Base91Encode(mtg.SerializeTransactions(txs))
-	cols := []string{"output_id", "compaction", "transactions", "created_at"}
-	vals := []any{outputId, compaction, ts, time.Now().UTC()}
-	err = s.execOne(ctx, tx, buildInsertionSQL("action_transactions", cols), vals...)
+	cols := []string{"output_id", "compaction", "transactions", "session_id", "created_at"}
+	vals := []any{outputId, compaction, ts, sessionId, time.Now().UTC()}
+	err = s.execOne(ctx, tx, buildInsertionSQL("action_results", cols), vals...)
 	if err != nil {
-		return fmt.Errorf("INSERT action_transactions %v", err)
+		return fmt.Errorf("INSERT action_results %v", err)
 	}
 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadActionTransactions(ctx context.Context, outputId string) ([]*mtg.Transaction, string, bool) {
+func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessionId string) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -564,7 +564,39 @@ func (s *SQLite3Store) ReadActionTransactions(ctx context.Context, outputId stri
 	}
 	defer tx.Rollback()
 
-	query := "SELECT transactions,compaction FROM action_transactions where output_id=?"
+	query := "SELECT transactions FROM action_results where session_id=?"
+	row := tx.QueryRowContext(ctx, query, sessionId)
+	var ts, compaction string
+	err = row.Scan(&ts, &compaction)
+	err = row.Scan(&ts)
+	if err == sql.ErrNoRows {
+		return false
+	} else if err != nil {
+		panic(err)
+	}
+
+	tb, err := common.Base91Decode(ts)
+	if err != nil {
+		panic(ts)
+	}
+	txs, err := mtg.DeserializeTransactions(tb)
+	if err != nil {
+		panic(ts)
+	}
+	return len(txs) > 0 || len(compaction) > 0
+}
+
+func (s *SQLite3Store) ReadActionResults(ctx context.Context, outputId string) ([]*mtg.Transaction, string, bool) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer tx.Rollback()
+
+	query := "SELECT transactions,compaction FROM action_results where output_id=?"
 	row := tx.QueryRowContext(ctx, query, outputId)
 	var ts, compaction string
 	err = row.Scan(&ts, &compaction)
