@@ -51,7 +51,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	key, val := "SCHEMA:VERSION:b190accdba349e97a6b1bf7c3b253490147a8552", ""
+	key, val := "SCHEMA:VERSION:51422ca64dc2b9e3040e46c6e6a2dde280f0fb6f", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
 	if err == nil {
@@ -60,7 +60,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 		return err
 	}
 
-	query := "DELETE FROM action_transactions WHERE output_id='fd56800e-bb2e-3cce-acbe-0a137aa79224'"
+	query := "DELETE FROM action_results WHERE output_id='fbde88d2-96aa-3a9e-ad0e-de37b5382dde'"
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
