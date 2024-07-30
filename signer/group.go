@@ -211,9 +211,9 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if err != nil {
 		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err))
 	}
-	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
-	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)
-	if !finished {
+	_, exact, sig := node.verifySessionSignerResults(ctx, session, signers)
+	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), exact, sig)
+	if !exact {
 		return nil, ""
 	}
 	if l := len(signers); l <= node.threshold {
@@ -247,16 +247,6 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Extra = append(op.Extra, common.RequestFlagNone)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
-		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
-		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
-		if err != nil {
-			panic(err)
-		}
-		if crv != op.Curve {
-			return nil, ""
-		}
-		prev := common.DecodeHexOrPanic(session.Extra)
-
 		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
 			op := session.asOperation()
 			extra := node.concatMessageAndSignature(op.Extra, sig)
@@ -271,15 +261,16 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			}
 		}
 
-		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, prev, share, path)
-		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
-		if valid && !common.CheckTestEnvironment(ctx) {
+		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
+		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
+		if err != nil {
+			panic(err)
+		}
+		if crv != op.Curve {
 			return nil, ""
 		}
-
-		now := common.DecodeHexOrPanic(session.Extra)
-		valid, sig = node.verifySessionSignature(ctx, session.Curve, holder, now, share, path)
-		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t %x", session, holder, path, valid, sig)
+		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
+		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
 		if !valid {
 			return nil, ""
 		}
@@ -430,7 +421,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	}
 }
 
-func (node *Node) verifySessionSignerResults(ctx context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
+func (node *Node) verifySessionSignerResults(ctx context.Context, session *Session, sessionSigners map[string]string) (bool, bool, []byte) {
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		var signed int
@@ -440,7 +431,8 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 				signed = signed + 1
 			}
 		}
-		return signed >= len(node.conf.MTG.Genesis.Members), nil
+		exact := len(node.conf.MTG.Genesis.Members)
+		return signed >= exact, signed == exact, nil
 	case common.OperationTypeSignInput:
 		var signed int
 		var sig []byte
@@ -453,7 +445,8 @@ func (node *Node) verifySessionSignerResults(ctx context.Context, session *Sessi
 				signed = signed + 1
 			}
 		}
-		return signed > node.threshold, sig
+		exact := node.threshold + 1
+		return signed >= exact, signed == exact, sig
 	default:
 		panic(session.Id)
 	}
