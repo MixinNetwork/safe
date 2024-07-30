@@ -251,17 +251,15 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		op.Extra = append(op.Extra, common.RequestFlagNone)
 		op.Public = session.Public
 	case common.OperationTypeSignInput:
-		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
-			op := session.asOperation()
-			extra := node.concatMessageAndSignature(op.Extra, sig)
-			err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
-			logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", op, extra, err)
-			if err != nil {
-				panic(err)
-			}
-			session, err = node.store.ReadSession(ctx, op.Id)
-			if err != nil {
-				panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
+		extra := common.DecodeHexOrPanic(session.Extra)
+		if session.State == common.RequestStateInitial { // this could happen after resync or crash
+			extra = node.concatMessageAndSignature(extra, sig)
+			if session.PreparedAt.Valid { // this could happend only after crash
+				err = node.store.MarkSessionPending(ctx, session.Id, session.Curve, session.Public, extra)
+				logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", session, extra, err)
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
 
@@ -273,7 +271,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if crv != op.Curve {
 			return nil, ""
 		}
-		valid, sig := node.verifySessionSignature(ctx, session.Curve, holder, common.DecodeHexOrPanic(session.Extra), share, path)
+		valid, sig := node.verifySessionSignature(ctx, op.Curve, holder, extra, share, path)
 		logger.Printf("node.verifySessionSignature(%v, %s, %v) => %t", session, holder, path, valid)
 		if !valid {
 			return nil, ""
