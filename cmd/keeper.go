@@ -18,9 +18,7 @@ import (
 )
 
 // FIXME remove this
-func mtgFix(ctx context.Context, path string) {
-	// store update actions state to initial
-	// store.FinishAction()
+func mtgFixKeeper(ctx context.Context, path string) {
 	db, err := common.OpenSQLite3Store(path, "")
 	if err != nil {
 		panic(err)
@@ -43,6 +41,10 @@ func mtgFix(ctx context.Context, path string) {
 	}
 	defer txn.Rollback()
 
+	_, err = txn.ExecContext(ctx, "ALTER TABLE transactions ADD COLUMN request_id VARCHAR")
+	if err != nil {
+		panic(err)
+	}
 	_, err = txn.ExecContext(ctx, "UPDATE transactions SET state=10 WHERE trace_id='6f071888-714e-3e76-ab83-2d6e66d553a2'")
 	if err != nil {
 		panic(err)
@@ -83,7 +85,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 
-	mtgFix(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
+	mtgFixKeeper(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
