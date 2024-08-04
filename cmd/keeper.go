@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -14,6 +16,56 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
+
+// FIXME remove this
+func mtgFix(ctx context.Context, path string) {
+	// store update actions state to initial
+	// store.FinishAction()
+	db, err := common.OpenSQLite3Store(path, "")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	key := "FIX:999a1592bbaf51aa0f6a96356468e8f7e692153f"
+	row := db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&key)
+	if err == sql.ErrNoRows {
+	} else if err != nil {
+		panic(err)
+	} else {
+		return
+	}
+
+	txn, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer txn.Rollback()
+
+	_, err = txn.ExecContext(ctx, "UPDATE transactions SET state=10 WHERE trace_id='6f071888-714e-3e76-ab83-2d6e66d553a2'")
+	if err != nil {
+		panic(err)
+	}
+	_, err = txn.ExecContext(ctx, "UPDATE outputs SET state='unspent',signed_by='',trace_id='' WHERE transaction_hash='030e577211e62aab592c445a01bac8810c79b4bb613d3f9f465053434cc72063'")
+	if err != nil {
+		panic(err)
+	}
+	_, err = txn.ExecContext(ctx, "UPDATE outputs SET app_id='ac495e24-72a5-3c53-aa33-8f90cf007b9d' WHERE transaction_hash='2e1720243f2e4eba1042f931f3a8f11be115144db0378df74e82373578c93062'")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = txn.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)",
+		key, "actions", time.Now().UTC(), time.Now().UTC())
+	if err != nil {
+		panic(err)
+	}
+	err = txn.Commit()
+	if err != nil {
+		panic(err)
+	}
+}
 
 func KeeperBootCmd(c *cli.Context) error {
 	ctx := context.Background()
@@ -30,6 +82,8 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
+
+	mtgFix(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
