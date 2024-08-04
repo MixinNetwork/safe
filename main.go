@@ -222,9 +222,9 @@ func main() {
 				},
 			},
 			{
-				Name:   "mtgunlockkeeper",
-				Usage:  "Unlock a keeper MTG transaction request",
-				Action: cmd.MTGUnlockKeeperRequest,
+				Name:   "mtgrevokekeeper",
+				Usage:  "Revoke a keeper MTG transaction request",
+				Action: cmd.MTGRevokeKeeperRequest,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "config",
@@ -233,8 +233,8 @@ func main() {
 						Usage:   "The configuration file path",
 					},
 					&cli.StringFlag{
-						Name:  "raw",
-						Usage: "The raw transaction to unlock",
+						Name:  "id",
+						Usage: "The multisig transaction request id to revoke",
 					},
 				},
 			},

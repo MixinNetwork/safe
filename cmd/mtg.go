@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func MTGUnlockKeeperRequest(c *cli.Context) error {
+func MTGRevokeKeeperRequest(c *cli.Context) error {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
 
@@ -34,10 +34,6 @@ func MTGUnlockKeeperRequest(c *cli.Context) error {
 		return err
 	}
 
-	req, err := client.CreateMultisig(ctx, mixin.MultisigActionUnlock, c.String("raw"))
-	if err != nil {
-		return err
-	}
-	_, err = client.SafeUnlockMultisigRequest(ctx, req.RequestID)
+	_, err = client.SafeUnlockMultisigRequest(ctx, c.String("id"))
 	return err
 }
