@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -16,46 +14,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
-
-// FIXME remove this
-func mtgFixKeeper(ctx context.Context, path string) {
-	db, err := common.OpenSQLite3Store(path, "")
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	key := "FIX:999a1592bbaf51aa0f6a96356468e8f7e692153f"
-	row := db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
-	err = row.Scan(&key)
-	if err == sql.ErrNoRows {
-	} else if err != nil {
-		panic(err)
-	} else {
-		return
-	}
-
-	txn, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer txn.Rollback()
-
-	_, err = txn.ExecContext(ctx, "ALTER TABLE transactions ADD COLUMN request_id VARCHAR")
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = txn.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)",
-		key, "actions", time.Now().UTC(), time.Now().UTC())
-	if err != nil {
-		panic(err)
-	}
-	err = txn.Commit()
-	if err != nil {
-		panic(err)
-	}
-}
 
 func KeeperBootCmd(c *cli.Context) error {
 	ctx := context.Background()
@@ -72,8 +30,6 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
-
-	mtgFixKeeper(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
