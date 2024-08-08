@@ -449,14 +449,25 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
+	proposal, err := node.keeperStore.ReadSafeProposalByAddress(r.Context(), safe.Address)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if proposal == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "proposal"})
+		return
+	}
 
 	data := map[string]any{
-		"chain":   tx.Chain,
-		"id":      tx.RequestId,
-		"hash":    tx.TransactionHash,
-		"raw":     approval.RawTransaction,
-		"signers": approval.Signers(r.Context(), node, safe),
-		"state":   common.StateName(tx.State),
+		"account_id":      proposal.RequestId,
+		"account_address": safe.Address,
+		"chain":           tx.Chain,
+		"id":              tx.RequestId,
+		"hash":            tx.TransactionHash,
+		"raw":             approval.RawTransaction,
+		"signers":         approval.Signers(r.Context(), node, safe),
+		"state":           common.StateName(tx.State),
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String
