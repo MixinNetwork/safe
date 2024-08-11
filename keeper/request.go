@@ -123,7 +123,7 @@ func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Reque
 		return tx
 	}
 
-	enough := req.Output.CheckAssetBalanceForStorageAt(ctx, node.conf.AppId, extra, req.Sequence)
+	enough := req.Output.CheckAssetBalanceForStorageAt(ctx, extra)
 	if !enough {
 		return nil
 	}

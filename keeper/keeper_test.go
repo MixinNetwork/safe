@@ -149,7 +149,7 @@ func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			AppId:     node.conf.AppId,
 			AssetId:   bondId,
@@ -158,7 +158,8 @@ func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 			Extra:     testGenerateDummyExtra(node),
 			Sequence:  sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -184,7 +185,7 @@ func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Nil(err)
 	require.Len(pendings, 1)
 
-	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, "", signers)
+	signedRaw := testSafeCloseAccount(ctx, require, node, public, transactionHash, "", signers, action)
 	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	require.Len(utxos, 0)
@@ -214,7 +215,7 @@ func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
-	node.ProcessOutput(ctx, &mtg.Action{
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			AppId:     node.conf.AppId,
 			AssetId:   bondId,
@@ -223,7 +224,8 @@ func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 			Extra:     testGenerateDummyExtra(node),
 			Sequence:  sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	input := &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
 		Index:           0,
@@ -242,7 +244,7 @@ func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Len(pendings, 0)
 
 	holderSignedRaw := testHolderApproveTransaction("70736274ff01007902000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c8500000000000600000002a086010000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b9814900000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b29268935287000000")
-	signedRaw := testSafeCloseAccount(ctx, require, node, public, "", holderSignedRaw, signers)
+	signedRaw := testSafeCloseAccount(ctx, require, node, public, "", holderSignedRaw, signers, action)
 	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, safe.Holder)
 	require.Nil(err)
 	require.Len(utxos, 0)
@@ -626,7 +628,7 @@ func (node *Node) testSignerHolderApproveTransaction(ctx context.Context, requir
 	return msgTx
 }
 
-func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHash, holderSignedRaw string, signers []*signer.Node) string {
+func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHash, holderSignedRaw string, signers []*signer.Node, action *mtg.Action) string {
 	for i := 0; i < 10; i++ {
 		testUpdateNetworkStatus(ctx, require, node, 797082, "00000000000000000004f8a108a06a9f61389c7340d8a3fa431a534ff339402a")
 	}
@@ -727,7 +729,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
-	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence}, []byte(common.Base91Encode(raw)))
+	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: action.Sequence, Output: action}, []byte(common.Base91Encode(raw)))
 	require.NotNil(stx)
 	rid := common.UniqueId(transactionHash, stx.TraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeApproveTransaction)
