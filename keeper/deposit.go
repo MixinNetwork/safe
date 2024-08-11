@@ -67,6 +67,13 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
+	// some deposits failed due to old change outputs app id bug
+	failedDepositsHack := map[string]bool{
+		"e7e6ca81-3179-3df8-8fde-82dc5efef256": true,
+	}
+	if failedDepositsHack[req.Id] {
+		return node.failRequest(ctx, req, "")
+	}
 	deposit, err := parseDepositExtra(req)
 	logger.Printf("req.parseDepositExtra(%v) => %v %v", req, deposit, err)
 	if err != nil {
