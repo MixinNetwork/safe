@@ -21,6 +21,24 @@ type ActionResult struct {
 
 var requestTransactionsCols = []string{"output_id", "compaction", "transactions", "request_id", "created_at"}
 
+func (s *SQLite3Store) FailAction(ctx context.Context, req *common.Request) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, outputId, compaction string, txs []*mtg.Transaction, requestId string) error {
 	vals := []any{outputId, compaction, common.Base91Encode(mtg.SerializeTransactions(txs)), requestId, time.Now().UTC()}
 	err := s.execOne(ctx, tx, buildInsertionSQL("action_results", requestTransactionsCols), vals...)
@@ -30,13 +48,13 @@ func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, output
 	return nil
 }
 
-func (s *SQLite3Store) ReadActionResult(ctx context.Context, outputId, requestId string) (*ActionResult, error) {
+func (s *SQLite3Store) ReadActionResult(ctx context.Context, outputId, requestId string) (*ActionResult, bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer tx.Rollback()
 
@@ -44,12 +62,12 @@ func (s *SQLite3Store) ReadActionResult(ctx context.Context, outputId, requestId
 	var state int
 	err = row.Scan(&state)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, false, nil
 	} else if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if state == common.RequestStateInitial {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	cols := strings.Join(requestTransactionsCols, ",")
@@ -57,17 +75,20 @@ func (s *SQLite3Store) ReadActionResult(ctx context.Context, outputId, requestId
 	var ar ActionResult
 	var data string
 	err = row.Scan(&ar.ActionId, &ar.Compaction, &data, &ar.RequestId, &ar.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, true, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	tb, err := common.Base91Decode(data)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	txs, err := mtg.DeserializeTransactions(tb)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	ar.Transactions = txs
-	return &ar, nil
+	return &ar, true, nil
 }

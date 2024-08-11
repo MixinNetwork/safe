@@ -163,6 +163,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 		"211030c9-bed0-3e01-8f07-1630dc08452f",
 	}
 	for _, id := range operationParams {
+		// FIXME the action output id is incorrect
 		err = s.writeActionResult(ctx, tx, id, "", nil, id)
 	}
 

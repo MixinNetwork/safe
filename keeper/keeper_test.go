@@ -854,14 +854,15 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	require.Nil(req)
 	req, err = node.store.ReadLatestRequest(ctx)
 	require.Nil(err)
-	rtxs, err := node.store.ReadActionResult(ctx, out.OutputId, req.Id)
+	ar, handled, err := node.store.ReadActionResult(ctx, out.OutputId, req.Id)
 	require.Nil(err)
-	require.NotNil(rtxs)
-	require.Equal("", rtxs.Compaction)
+	require.NotNil(ar)
+	require.True(handled)
+	require.Equal("", ar.Compaction)
 	txs3, asset := node.ProcessOutput(ctx, out)
 	require.Equal("", asset)
 	for i, tx1 := range txs1 {
-		tx2 := rtxs.Transactions[i]
+		tx2 := ar.Transactions[i]
 		tx3 := txs3[i]
 		tx1.AppId = out.AppId
 		tx2.AppId = out.AppId

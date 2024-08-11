@@ -53,7 +53,7 @@ func (s *SQLite3Store) execOne(ctx context.Context, tx *sql.Tx, sql string, para
 
 func (s *SQLite3Store) execMultiple(ctx context.Context, tx *sql.Tx, num int64, sql string, params ...any) error {
 	res, err := tx.ExecContext(ctx, sql, params...)
-	logger.Printf("SQLite3Store.ExecContext(%s, %v) => %v %v", sql, params, res, err)
+	logger.Verbosef("SQLite3Store.ExecContext(%s, %v) => %v %v", sql, params, res, err)
 	if err != nil {
 		return err
 	}
