@@ -83,6 +83,8 @@ type Request struct {
 	State      uint8
 	CreatedAt  time.Time
 	Sequence   uint64
+
+	Output *mtg.Action
 }
 
 type AccountProposal struct {
@@ -129,6 +131,8 @@ func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 		State:      RequestStateInitial,
 		CreatedAt:  out.CreatedAt,
 		Sequence:   out.Sequence,
+
+		Output: out,
 	}
 	return r, r.VerifyFormat()
 }

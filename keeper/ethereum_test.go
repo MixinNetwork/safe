@@ -223,7 +223,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
 	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
-	node.ProcessOutput(ctx, &mtg.Action{
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			AppId:     node.conf.AppId,
 			AssetId:   cnbBondId,
@@ -231,7 +231,8 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 			Extra:     testGenerateDummyExtra(node),
 			CreatedAt: time.Now(),
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
@@ -274,7 +275,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	out := testBuildObserverRequest(node, id, holder, common.ActionEthereumSafeCloseAccount, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
-	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence}, []byte(common.Base91Encode(raw)))
+	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence, Output: action}, []byte(common.Base91Encode(raw)))
 	require.NotNil(stx)
 	rid := common.UniqueId(st.TxHash, stx.TraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeApproveTransaction)
