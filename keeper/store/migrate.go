@@ -122,7 +122,7 @@ func (s *SQLite3Store) MigrateDepositCreated(ctx context.Context) error {
 	}
 
 	query := "UPDATE deposits SET created_at=updated_at"
-	err = s.execMultiple(ctx, tx, 230, query)
+	err = s.execMultiple(ctx, tx, 227, query)
 	if err != nil {
 		return err
 	}

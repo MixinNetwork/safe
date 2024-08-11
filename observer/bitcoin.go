@@ -44,8 +44,8 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 	for {
 		time.Sleep(depositNetworkInfoDelay)
 		height, err := bitcoin.RPCGetBlockHeight(rpc)
+		logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %d %v", chain, height, err)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
 		delay := node.getChainFinalizationDelay(chain)
@@ -62,13 +62,13 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		fvb, err := bitcoin.EstimateAvgFee(chain, rpc)
+		logger.Printf("bitcoin.EstimateAvgFee(%d) => %d %v", chain, fvb, err)
 		if err != nil {
-			logger.Printf("bitcoin.EstimateAvgFee(%d) => %v", chain, err)
 			continue
 		}
 		blockHash, err := bitcoin.RPCGetBlockHash(rpc, height)
+		logger.Printf("bitcoin.RPCGetBlockHash(%d, %d) => %s %v", chain, height, blockHash, err)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHash(%d, %d) => %v", chain, height, err)
 			continue
 		}
 		hash, err := crypto.HashFromString(blockHash)
