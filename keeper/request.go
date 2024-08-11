@@ -107,7 +107,7 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Request, extra []byte) *mtg.Transaction {
 	logger.Printf("node.writeStorageTransaction(%x)", extra)
 	if common.CheckTestEnvironment(ctx) {
-		tx := node.group.BuildStorageTransaction(ctx, extra)
+		tx := req.Output.BuildStorageTransaction(ctx, extra)
 		v := hex.EncodeToString(extra)
 		o, err := node.store.ReadProperty(ctx, tx.TraceId)
 		if err != nil {
@@ -123,11 +123,11 @@ func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Reque
 		return tx
 	}
 
-	enough := node.group.CheckAssetBalanceForStorageAt(ctx, node.conf.AppId, extra, req.Sequence)
+	enough := req.Output.CheckAssetBalanceForStorageAt(ctx, extra)
 	if !enough {
 		return nil
 	}
-	stx := node.group.BuildStorageTransaction(ctx, extra)
+	stx := req.Output.BuildStorageTransaction(ctx, extra)
 	logger.Printf("group.BuildStorageTransaction(%x) => %v", extra, stx)
 	return stx
 }

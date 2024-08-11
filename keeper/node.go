@@ -66,35 +66,35 @@ func (node *Node) Index() int {
 	panic(node.conf.MTG.App.AppId)
 }
 
-func (node *Node) buildTransaction(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) *mtg.Transaction {
+func (node *Node) buildTransaction(ctx context.Context, act *mtg.Action, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) *mtg.Transaction {
 	logger.Printf("node.buildTransaction(%s, %s, %v, %d, %s, %x, %s)", opponentAppId, assetId, receivers, threshold, amount, memo, traceId)
-	return node.buildTransactionWithReferences(ctx, sequence, opponentAppId, assetId, receivers, threshold, amount, memo, traceId, crypto.Hash{})
+	return node.buildTransactionWithReferences(ctx, act, opponentAppId, assetId, receivers, threshold, amount, memo, traceId, crypto.Hash{})
 }
 
-func (node *Node) buildTransactionWithReferences(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) *mtg.Transaction {
+func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.Action, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string, tx crypto.Hash) *mtg.Transaction {
 	logger.Printf("node.buildTransactionWithReferences(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, tx)
-	traceId = node.checkTransaction(ctx, sequence, assetId, receivers, threshold, amount, memo, traceId)
+	traceId = node.checkTransaction(ctx, act, assetId, receivers, threshold, amount, memo, traceId)
 	if traceId == "" {
 		return nil
 	}
 
 	if tx.HasValue() {
-		return node.group.BuildTransactionWithReference(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, tx)
+		return act.BuildTransactionWithReference(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, tx)
 	}
-	return node.group.BuildTransaction(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold)
+	return act.BuildTransaction(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold)
 }
 
-func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, sequence uint64, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId, storageTraceId string) *mtg.Transaction {
+func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, act *mtg.Action, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId, storageTraceId string) *mtg.Transaction {
 	logger.Printf("node.buildTransactionWithStorageTraceId(%s, %v, %d, %s, %x, %s, %s)", assetId, receivers, threshold, amount, memo, traceId, storageTraceId)
-	traceId = node.checkTransaction(ctx, sequence, assetId, receivers, threshold, amount, memo, traceId)
+	traceId = node.checkTransaction(ctx, act, assetId, receivers, threshold, amount, memo, traceId)
 	if traceId == "" {
 		return nil
 	}
 
-	return node.group.BuildTransactionWithStorageTraceId(traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, storageTraceId)
+	return act.BuildTransactionWithStorageTraceId(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, storageTraceId)
 }
 
-func (node *Node) checkTransaction(ctx context.Context, sequence uint64, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) string {
+func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) string {
 	if common.CheckTestEnvironment(ctx) {
 		v := common.MarshalJSONOrPanic(map[string]any{
 			"asset_id":  assetId,
@@ -108,7 +108,8 @@ func (node *Node) checkTransaction(ctx context.Context, sequence uint64, assetId
 			panic(err)
 		}
 	} else {
-		balance := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, assetId, sequence)
+		balance := act.CheckAssetBalanceAt(ctx, assetId)
+		logger.Printf("group.CheckAssetBalanceAt(%s, %d) => %s %s %s", assetId, act.Sequence, traceId, amount, balance)
 		amt, err := decimal.NewFromString(amount)
 		if err != nil {
 			panic(amount)
@@ -118,7 +119,9 @@ func (node *Node) checkTransaction(ctx context.Context, sequence uint64, assetId
 		}
 	}
 
-	return common.UniqueId(node.group.GenesisId(), traceId)
+	nextId := common.UniqueId(node.group.GenesisId(), traceId)
+	logger.Printf("node.checkTransaction(%s) => %s", traceId, nextId)
+	return nextId
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) bool {

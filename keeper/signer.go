@@ -42,7 +42,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 		}
 		op.Id = common.UniqueId(req.Id, fmt.Sprintf("%8d", i))
 		op.Id = common.UniqueId(op.Id, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
-		tx := node.buildSignerTransaction(ctx, req.Sequence, op)
+		tx := node.buildSignerTransaction(ctx, req.Output, op)
 		if tx == nil {
 			return node.failRequest(ctx, req, "")
 		}
@@ -79,7 +79,7 @@ func (node *Node) buildSignerSignRequests(ctx context.Context, request *common.R
 			Public: hex.EncodeToString(fingerPath),
 			Extra:  common.DecodeHexOrPanic(sr.Message),
 		}
-		tx := node.buildSignerTransaction(ctx, request.Sequence, op)
+		tx := node.buildSignerTransaction(ctx, request.Output, op)
 		if tx == nil {
 			return nil
 		}
@@ -93,12 +93,12 @@ func (node *Node) encryptSignerOperation(op *common.Operation) []byte {
 	return common.AESEncrypt(node.signerAESKey[:], extra, op.Id)
 }
 
-func (node *Node) buildSignerTransaction(ctx context.Context, sequence uint64, op *common.Operation) *mtg.Transaction {
+func (node *Node) buildSignerTransaction(ctx context.Context, act *mtg.Action, op *common.Operation) *mtg.Transaction {
 	extra := node.encryptSignerOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildSignerTransaction(%v) omitted %x", op, extra))
 	}
 	members := node.signer.Genesis.Members
 	threshold := node.signer.Genesis.Threshold
-	return node.buildTransaction(ctx, sequence, node.conf.SignerAppId, node.conf.AssetId, members, threshold, "1", extra, op.Id)
+	return node.buildTransaction(ctx, act, node.conf.SignerAppId, node.conf.AssetId, members, threshold, "1", extra, op.Id)
 }

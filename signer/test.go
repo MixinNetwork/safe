@@ -161,6 +161,7 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 }
 
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
+	out.TestAttachActionToGroup(nodes[0].group)
 	network := nodes[0].network.(*testNetwork)
 	for i := 0; i < 4; i++ {
 		data := common.MarshalJSONOrPanic(out)
@@ -288,6 +289,7 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 		}
 		var out mtg.Action
 		json.Unmarshal(mob, &out)
+		out.TestAttachActionToGroup(node.group)
 		ts, asset := node.ProcessOutput(ctx, &out)
 		if asset != "" {
 			panic(asset)

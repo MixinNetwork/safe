@@ -24,6 +24,9 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 }
 
 func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	if common.CheckTestEnvironment(ctx) {
+		out.TestAttachActionToGroup(node.group)
+	}
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
@@ -132,7 +135,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
 	}
-	spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, out.AssetId, math.MaxInt64, "spent", 1)
+	spent := node.group.ListOutputsForAsset(ctx, node.conf.AppId, out.AssetId, 0, math.MaxInt64, "spent", 1)
 	if len(spent) > 0 {
 		return false, nil
 	}
@@ -342,7 +345,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil {
 		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", bondId.String(), err))
 	}
-	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
+	t := node.buildTransaction(ctx, req.Output, node.conf.AppId, bond.AssetId, safe.Receivers, int(safe.Threshold), txRequest.Amount.String(), []byte("refund"), req.Id)
 	if t == nil {
 		return node.failRequest(ctx, req, bond.AssetId)
 	}

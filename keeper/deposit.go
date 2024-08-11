@@ -67,13 +67,6 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
-	// some deposits failed due to old change outputs app id bug
-	failedDepositsHack := map[string]bool{
-		"e7e6ca81-3179-3df8-8fde-82dc5efef256": true,
-	}
-	if failedDepositsHack[req.Id] {
-		return node.failRequest(ctx, req, "")
-	}
 	deposit, err := parseDepositExtra(req)
 	logger.Printf("req.parseDepositExtra(%v) => %v %v", req, deposit, err)
 	if err != nil {
@@ -194,7 +187,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 
 	var txs []*mtg.Transaction
 	if !change {
-		tx := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
+		tx := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amount.String(), nil, req.Id)
 		if tx == nil {
 			// no compaction needed, just retry from observer
 			return node.failRequest(ctx, req, "")
@@ -245,7 +238,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return node.failRequest(ctx, req, "")
 	}
 
-	t := node.buildTransaction(ctx, req.Sequence, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
 	if t == nil {
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")

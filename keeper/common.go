@@ -43,7 +43,7 @@ func (node *Node) failRequest(ctx context.Context, req *common.Request, assetId 
 
 func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request, receivers []string, threshold int) ([]*mtg.Transaction, string) {
 	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	t := node.buildTransaction(ctx, req.Sequence, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
+	t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
 	if t == nil {
 		return node.failRequest(ctx, req, req.AssetId)
 	}

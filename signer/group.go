@@ -290,7 +290,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if repliedToKeeper {
 		return nil, ""
 	}
-	tx, asset := node.buildKeeperTransaction(ctx, op, out.Sequence)
+	tx, asset := node.buildKeeperTransaction(ctx, op, out)
 	if asset != "" {
 		return nil, asset
 	}
@@ -644,7 +644,7 @@ func (node *Node) encryptOperation(op *common.Operation) []byte {
 	return common.AESEncrypt(node.aesKey[:], extra, op.Id)
 }
 
-func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation, sequence uint64) (*mtg.Transaction, string) {
+func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation, act *mtg.Action) (*mtg.Transaction, string) {
 	extra := node.encryptOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
@@ -652,11 +652,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 
 	amount := decimal.NewFromInt(1)
 	if !common.CheckTestEnvironment(ctx) {
-		balance := node.group.CheckAssetBalanceAt(ctx, node.conf.AppId, node.conf.KeeperAssetId, sequence)
-		if balance.Cmp(amount) < 0 && op.Id == "dca08263-1630-35b7-9fb8-24fbff79d2cc" {
-			// FIXME this could be removed later because we have the replay protection now
-			return nil, ""
-		}
+		balance := act.CheckAssetBalanceAt(ctx, node.conf.KeeperAssetId)
 		if balance.Cmp(amount) < 0 {
 			return nil, node.conf.KeeperAssetId
 		}
@@ -665,7 +661,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	members := node.keeper.Genesis.Members
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := node.group.BuildTransaction(traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
+	tx := act.BuildTransaction(ctx, traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
 	return tx, ""
 }
