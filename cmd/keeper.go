@@ -42,6 +42,7 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	group.EnableDebug()
+	group.SetKernelRPC(mc.Keeper.MixinRPC)
 
 	s := &mixin.Keystore{
 		ClientID:          mc.Keeper.MTG.App.AppId,

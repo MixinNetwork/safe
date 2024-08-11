@@ -48,6 +48,7 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	group.EnableDebug()
+	group.SetKernelRPC(mc.Signer.MixinRPC)
 
 	messenger, err := messenger.NewMixinMessenger(ctx, mc.Signer.Messenger())
 	if err != nil {
