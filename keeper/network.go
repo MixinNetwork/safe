@@ -60,7 +60,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	switch info.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
-		valid, err := node.verifyBitcoinNetworkInfo(ctx, info)
+		valid, err := node.verifyBitcoinNetworkInfo(ctx, info, old)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err))
 		} else if !valid {
@@ -68,7 +68,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		}
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
-		valid, err := node.verifyEthereumNetworkInfo(ctx, info)
+		valid, err := node.verifyEthereumNetworkInfo(ctx, info, old)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err))
 		} else if !valid {
@@ -127,20 +127,26 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return nil, ""
 }
 
-func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info, old *store.NetworkInfo) (bool, error) {
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
-	rpc, _ := node.bitcoinParams(info.Chain)
-	block, err := bitcoin.RPCGetBlock(rpc, info.Hash)
-	if err != nil || block == nil {
-		return false, fmt.Errorf("malicious bitcoin block or node not in sync? %s %v", info.Hash, err)
-	}
-	if block.Height != info.Height {
-		return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
-	}
-	if block.Confirmations == -1 {
-		return false, fmt.Errorf("malicious bitcoin fork %s", info.Hash)
+	if old != nil && old.Hash == info.Hash {
+		if old.Height != info.Height {
+			return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+		}
+	} else {
+		rpc, _ := node.bitcoinParams(info.Chain)
+		block, err := bitcoin.RPCGetBlock(rpc, info.Hash)
+		if err != nil || block == nil {
+			return false, fmt.Errorf("malicious bitcoin block or node not in sync? %s %v", info.Hash, err)
+		}
+		if block.Height != info.Height {
+			return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+		}
+		if block.Confirmations == -1 {
+			return false, fmt.Errorf("malicious bitcoin fork %s", info.Hash)
+		}
 	}
 	if info.Fee < bitcoinMinimumFeeRate || info.Fee > bitcoinMaximumFeeRate {
 		return false, nil
@@ -148,17 +154,23 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info *store.Netw
 	return true, nil
 }
 
-func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info, old *store.NetworkInfo) (bool, error) {
 	if len(info.Hash) != 66 {
 		return false, nil
 	}
-	rpc, _ := node.ethereumParams(info.Chain)
-	block, err := ethereum.RPCGetBlock(rpc, info.Hash)
-	if err != nil || block == nil {
-		return false, fmt.Errorf("malicious ethereum block or node not in sync? %s %v", info.Hash, err)
-	}
-	if block.Height != info.Height {
-		return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
+	if old != nil && old.Hash == info.Hash {
+		if old.Height != info.Height {
+			return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+		}
+	} else {
+		rpc, _ := node.ethereumParams(info.Chain)
+		block, err := ethereum.RPCGetBlock(rpc, info.Hash)
+		if err != nil || block == nil {
+			return false, fmt.Errorf("malicious ethereum block or node not in sync? %s %v", info.Hash, err)
+		}
+		if block.Height != info.Height {
+			return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
+		}
 	}
 	return true, nil
 }
