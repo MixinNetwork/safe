@@ -250,7 +250,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	}
 	txs = append(txs, tt)
 
-	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone, txs)
+	err = node.store.CloseAccountByTransactionWithRequest(ctx, tx, nil, common.RequestStateDone, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -377,7 +377,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		CreatedAt: req.CreatedAt,
 		UpdatedAt: req.CreatedAt,
 	}
-	err = node.store.WriteEthereumSafeProposalWithRequest(ctx, sp, tx, txs)
+	err = node.store.WriteEthereumSafeProposalWithRequest(ctx, sp, tx, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -748,7 +748,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	err = node.store.WriteTransactionWithRequest(ctx, tx, nil, txs)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, nil, txs, req)
 	if err != nil {
 		panic(err)
 	}

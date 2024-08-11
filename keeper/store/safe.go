@@ -96,7 +96,7 @@ func (s *SQLite3Store) ReadSafeProposalByAddress(ctx context.Context, addr strin
 	return safeProposalFromRow(row)
 }
 
-func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *SafeProposal, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *SafeProposal, txs []*mtg.Transaction, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -116,14 +116,14 @@ func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *Saf
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, sp.RequestId, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, sp.RequestId)
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteEthereumSafeProposalWithRequest(ctx context.Context, sp *SafeProposal, trx *Transaction, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) WriteEthereumSafeProposalWithRequest(ctx context.Context, sp *SafeProposal, trx *Transaction, txs []*mtg.Transaction, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -150,7 +150,7 @@ func (s *SQLite3Store) WriteEthereumSafeProposalWithRequest(ctx context.Context,
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, sp.RequestId, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, sp.RequestId)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) erro
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe, txs []*mtg.Transaction, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -200,7 +200,7 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe, txs
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, safe.RequestId, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, safe.RequestId)
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHas
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}

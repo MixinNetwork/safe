@@ -63,7 +63,7 @@ func (s *SQLite3Store) CreateEthereumBalanceDepositFromRequest(ctx context.Conte
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}

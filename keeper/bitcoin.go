@@ -255,7 +255,7 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	txs = append(txs, t)
 
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone, txs)
+	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -363,7 +363,7 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		CreatedAt: req.CreatedAt,
 		UpdatedAt: req.CreatedAt,
 	}
-	err = node.store.WriteSafeProposalWithRequest(ctx, sp, txs)
+	err = node.store.WriteSafeProposalWithRequest(ctx, sp, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -447,7 +447,7 @@ func (node *Node) processBitcoinSafeApproveAccount(ctx context.Context, req *com
 		CreatedAt:   req.CreatedAt,
 		UpdatedAt:   req.CreatedAt,
 	}
-	err = node.store.WriteSafeWithRequest(ctx, safe, txs)
+	err = node.store.WriteSafeWithRequest(ctx, safe, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -642,7 +642,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		UpdatedAt:       req.CreatedAt,
 	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, txs)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, txs, req)
 	if err != nil {
 		panic(err)
 	}

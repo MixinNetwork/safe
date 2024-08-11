@@ -125,7 +125,7 @@ func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, h
 	return txs, nil
 }
 
-func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, utxoState int, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, utxoState int, txs []*mtg.Transaction, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -158,7 +158,7 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 		}
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, trx.RequestId, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, trx.RequestId)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, txs []*mtg.Transaction, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -181,7 +181,7 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 		return err
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, trx.RequestId, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, trx.RequestId)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Tran
 		}
 	}
 
-	s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}

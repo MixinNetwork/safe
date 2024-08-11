@@ -68,7 +68,7 @@ func (s *SQLite3Store) ReadLatestNetworkInfo(ctx context.Context, chain byte, of
 	return &n, err
 }
 
-func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *NetworkInfo) error {
+func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *NetworkInfo, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -89,7 +89,7 @@ func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *Ne
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, info.RequestId, "", nil)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, info.RequestId)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (s *SQLite3Store) ReadLatestOperationParams(ctx context.Context, chain byte
 	return &p, nil
 }
 
-func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, params *OperationParams) error {
+func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, params *OperationParams, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -142,7 +142,7 @@ func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, para
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, params.RequestId, "", nil)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, params.RequestId)
 	if err != nil {
 		return err
 	}

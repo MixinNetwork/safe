@@ -77,7 +77,7 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", nil)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
 	if err != nil {
 		return err
 	}

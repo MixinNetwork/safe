@@ -49,7 +49,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 		txs = append(txs, tx)
 	}
 
-	err := node.store.FailRequest(ctx, req.Id, "", txs)
+	err := node.store.FailRequest(ctx, req, "", txs)
 	if err != nil {
 		panic(err)
 	}

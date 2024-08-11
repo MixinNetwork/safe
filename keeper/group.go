@@ -43,12 +43,12 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 		return nil, ""
 	}
 
-	rtxs, err := node.store.ReadRequestTransactions(ctx, req.Id)
+	ar, err := node.store.ReadActionResult(ctx, out.OutputId, req.Id)
 	if err != nil {
 		panic(err)
 	}
-	if rtxs != nil {
-		return rtxs.Transactions, rtxs.Compaction
+	if ar != nil {
+		return ar.Transactions, ar.Compaction
 	}
 
 	role := node.getActionRole(req.Action)

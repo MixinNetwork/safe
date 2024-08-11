@@ -55,7 +55,7 @@ func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Co
 		}
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 		}
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}

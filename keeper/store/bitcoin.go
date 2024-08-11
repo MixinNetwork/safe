@@ -42,7 +42,7 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeRequestTransactions(ctx, tx, req.Id, "", txs)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err
 	}

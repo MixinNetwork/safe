@@ -77,7 +77,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	default:
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.WriteNetworkInfoFromRequest(ctx, info)
+	err = node.store.WriteNetworkInfoFromRequest(ctx, info, req)
 	if err != nil {
 		panic(err)
 	}
@@ -120,7 +120,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 		TransactionMinimum:   minimum,
 		CreatedAt:            req.CreatedAt,
 	}
-	err := node.store.WriteOperationParamsFromRequest(ctx, params)
+	err := node.store.WriteOperationParamsFromRequest(ctx, params, req)
 	if err != nil {
 		panic(err)
 	}

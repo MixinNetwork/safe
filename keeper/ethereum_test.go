@@ -48,6 +48,7 @@ func TestEthereumKeeper(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
@@ -72,6 +73,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
@@ -87,6 +89,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   cnbBondId,
 			Amount:    decimal.NewFromInt(100),
@@ -110,6 +113,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
@@ -125,6 +129,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   cnbBondId,
 			Amount:    decimal.NewFromInt(100),
@@ -210,6 +215,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   testEthereumBondAssetId,
 			Amount:    decimal.NewFromInt(100000000000000),
@@ -225,6 +231,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
 	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:  uuid.Must(uuid.NewV4()).String(),
 			AppId:     node.conf.AppId,
 			AssetId:   cnbBondId,
 			Amount:    decimal.NewFromInt(100),

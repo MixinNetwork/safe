@@ -11,25 +11,26 @@ import (
 	"github.com/MixinNetwork/trusted-group/mtg"
 )
 
-type RequestTransactions struct {
-	RequestId    string
+type ActionResult struct {
+	ActionId     string
 	Compaction   string
 	Transactions []*mtg.Transaction
+	RequestId    string
 	CreatedAt    time.Time
 }
 
-var requestTransactionsCols = []string{"request_id", "compaction", "transactions", "created_at"}
+var requestTransactionsCols = []string{"output_id", "compaction", "transactions", "request_id", "created_at"}
 
-func (s *SQLite3Store) writeRequestTransactions(ctx context.Context, tx *sql.Tx, rid, compaction string, txs []*mtg.Transaction) error {
-	vals := []any{rid, compaction, common.Base91Encode(mtg.SerializeTransactions(txs)), time.Now().UTC()}
-	err := s.execOne(ctx, tx, buildInsertionSQL("request_transactions", requestTransactionsCols), vals...)
+func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, outputId, compaction string, txs []*mtg.Transaction, requestId string) error {
+	vals := []any{outputId, compaction, common.Base91Encode(mtg.SerializeTransactions(txs)), requestId, time.Now().UTC()}
+	err := s.execOne(ctx, tx, buildInsertionSQL("action_results", requestTransactionsCols), vals...)
 	if err != nil {
-		return fmt.Errorf("INSERT request_transactions %v", err)
+		return fmt.Errorf("INSERT action_results %v", err)
 	}
 	return nil
 }
 
-func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) (*RequestTransactions, error) {
+func (s *SQLite3Store) ReadActionResult(ctx context.Context, outputId, requestId string) (*ActionResult, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -39,7 +40,7 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	}
 	defer tx.Rollback()
 
-	row := tx.QueryRowContext(ctx, "SELECT state FROM requests where request_id=?", rid)
+	row := tx.QueryRowContext(ctx, "SELECT state FROM requests where request_id=?", requestId)
 	var state int
 	err = row.Scan(&state)
 	if err == sql.ErrNoRows {
@@ -52,10 +53,10 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	}
 
 	cols := strings.Join(requestTransactionsCols, ",")
-	row = tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM request_transactions where request_id=?", cols), rid)
-	var rt RequestTransactions
+	row = tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM action_results where output_id=?", cols), outputId)
+	var ar ActionResult
 	var data string
-	err = row.Scan(&rt.RequestId, &rt.Compaction, &data, &rt.CreatedAt)
+	err = row.Scan(&ar.ActionId, &ar.Compaction, &data, &ar.RequestId, &ar.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +68,6 @@ func (s *SQLite3Store) ReadRequestTransactions(ctx context.Context, rid string) 
 	if err != nil {
 		return nil, err
 	}
-	rt.Transactions = txs
-	return &rt, nil
+	ar.Transactions = txs
+	return &ar, nil
 }
