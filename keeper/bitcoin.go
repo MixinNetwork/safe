@@ -267,9 +267,9 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		panic(req.Role)
 	}
 	rce := req.ExtraBytes()
-	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
+	ver, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
 	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.ExtraHEX {
-		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
+		stx, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, ver.References[0].String())
 		rce = stx.Extra
 	}
 	arp, err := req.ParseMixinRecipient(ctx, node.mixin, rce)
@@ -552,9 +552,9 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	}
 
 	var outputs []*bitcoin.Output
-	ver, _ := common.ReadKernelTransaction(node.conf.MixinRPC, req.MixinHash)
+	ver, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
 	if len(extra[16:]) == 32 && len(ver.References) == 1 && ver.References[0].String() == hex.EncodeToString(extra[16:]) {
-		stx, _ := common.ReadKernelTransaction(node.conf.MixinRPC, ver.References[0])
+		stx, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, ver.References[0].String())
 		extra := stx.Extra
 		var recipients [][2]string // TODO better encoding
 		err = json.Unmarshal(extra, &recipients)

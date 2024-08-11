@@ -95,7 +95,7 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 		return raw
 	}
 
-	ver, err := common.ReadKernelTransaction(node.conf.MixinRPC, ref)
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
 	if err != nil {
 		panic(ref.String())
 	}

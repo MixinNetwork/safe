@@ -128,7 +128,7 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 	if common.CheckTestEnvironment(ctx) {
 		return false
 	}
-	ver, err := common.VerifyKernelTransaction(node.conf.MixinRPC, out, time.Minute)
+	ver, err := common.VerifyKernelTransaction(ctx, node.group, out, time.Minute)
 	if err != nil {
 		panic(err)
 	}

@@ -1,12 +1,9 @@
 package common
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -21,14 +18,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type KernelTransactionReader interface {
+	ReadKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error)
+}
+
 // TODO the output should include the snapshot signature, then it can just be
 // verified against the active kernel nodes public key
-func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration) (*common.VersionedTransaction, error) {
-	hash, err := crypto.HashFromString(out.TransactionHash)
-	if err != nil {
-		return nil, err
-	}
-	signed, err := ReadKernelTransaction(rpc, hash)
+func VerifyKernelTransaction(ctx context.Context, reader KernelTransactionReader, out *mtg.Action, timeout time.Duration) (*common.VersionedTransaction, error) {
+	signed, err := reader.ReadKernelTransactionUntilSufficient(ctx, out.TransactionHash)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +33,7 @@ func VerifyKernelTransaction(rpc string, out *mtg.Action, timeout time.Duration)
 
 	if (err != nil || signed == nil) && out.CreatedAt.Add(timeout).After(time.Now()) {
 		time.Sleep(5 * time.Second)
-		return VerifyKernelTransaction(rpc, out, timeout)
+		return VerifyKernelTransaction(ctx, reader, out, timeout)
 	} else if err != nil || signed == nil {
 		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
 	}
@@ -369,76 +366,5 @@ func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin
 			continue
 		}
 		return nil, err
-	}
-}
-
-func ReadKernelTransaction(rpc string, tx crypto.Hash) (*common.VersionedTransaction, error) {
-	raw, err := callMixinRPCUntilSufficient(rpc, "gettransaction", []any{tx.String()})
-	if err != nil || raw == nil {
-		return nil, err
-	}
-	var signed map[string]any
-	err = json.Unmarshal(raw, &signed)
-	if err != nil {
-		return nil, err
-	}
-	if signed["hex"] == nil {
-		return nil, fmt.Errorf("transaction %s not found in kernel", tx)
-	}
-	hex, err := hex.DecodeString(signed["hex"].(string))
-	if err != nil {
-		return nil, err
-	}
-	return common.UnmarshalVersionedTransaction(hex)
-}
-
-func callMixinRPC(node, method string, params []any) ([]byte, error) {
-	client := &http.Client{Timeout: 20 * time.Second}
-
-	body := MarshalJSONOrPanic(map[string]any{
-		"method": method,
-		"params": params,
-	})
-	req, err := http.NewRequest("POST", node, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Close = true
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Data  any `json:"data"`
-		Error any `json:"error"`
-	}
-	dec := json.NewDecoder(resp.Body)
-	dec.UseNumber()
-	err = dec.Decode(&result)
-	if err != nil {
-		return nil, err
-	}
-	if result.Error != nil {
-		return nil, fmt.Errorf("ERROR %s", result.Error)
-	}
-	if result.Data == nil {
-		return nil, nil
-	}
-
-	return json.Marshal(result.Data)
-}
-
-func callMixinRPCUntilSufficient(node, method string, params []any) ([]byte, error) {
-	for {
-		data, err := callMixinRPC(node, method, params)
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		return data, err
 	}
 }
