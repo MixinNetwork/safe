@@ -31,7 +31,7 @@ func mtgFixCache(ctx context.Context, path string) {
 	}
 	defer txn.Rollback()
 
-	key := "FIX:0d996abd53c1d8103c024939a2ce2fd67170508b"
+	key := "FIX:0d996abd53c1d8103c024939a2ce2fd67170508b:1"
 	row := txn.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&key)
 	if err == sql.ErrNoRows {
@@ -41,12 +41,21 @@ func mtgFixCache(ctx context.Context, path string) {
 		return
 	}
 
-	query := "DELETE FROM caches"
-	_, err = txn.ExecContext(ctx, query)
+	invalidate := "DELETE FROM caches;\n"
+	_, err = txn.ExecContext(ctx, invalidate)
 	if err != nil {
 		panic(err)
 	}
 
+	alter := "ALTER TABLE outputs DROP COLUMN mask;\n"
+	alter = alter + "ALTER TABLE outputs DROP COLUMN keys;\n"
+	alter = alter + "ALTER TABLE outputs DROP COLUMN receivers;\n"
+	_, err = txn.ExecContext(ctx, invalidate)
+	if err != nil {
+		panic(err)
+	}
+
+	query := invalidate + alter
 	_, err = txn.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)",
 		key, query, time.Now().UTC(), time.Now().UTC())
 	if err != nil {
