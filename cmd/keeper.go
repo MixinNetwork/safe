@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -14,6 +16,56 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
+
+// FIXME remove this
+func mtgFixKeeper(ctx context.Context, path string) {
+	db, err := common.OpenSQLite3Store(path, "")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	txn, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer txn.Rollback()
+
+	key := "FIX:bd9f968e2bfae8a376a6eab9d18df047e82bdb85"
+	row := txn.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&key)
+	if err == sql.ErrNoRows {
+	} else if err != nil {
+		panic(err)
+	} else {
+		return
+	}
+
+	row = txn.QueryRowContext(ctx, "SELECT trace_id FROM transactions WHERE sequence=16303978")
+	err = row.Scan(&key)
+	if err == sql.ErrNoRows {
+	} else if err != nil {
+		panic(err)
+	} else {
+		return
+	}
+
+	query := "UPDATE actions SET state=10 WHERE output_id='e46058e2-7156-3fff-94c9-b3afa2e0600f' AND state=11"
+	_, err = txn.ExecContext(ctx, query)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = txn.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)",
+		key, query, time.Now().UTC(), time.Now().UTC())
+	if err != nil {
+		panic(err)
+	}
+	err = txn.Commit()
+	if err != nil {
+		panic(err)
+	}
+}
 
 func KeeperBootCmd(c *cli.Context) error {
 	ctx := context.Background()
@@ -30,6 +82,8 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
+
+	mtgFixKeeper(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
