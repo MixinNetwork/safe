@@ -31,7 +31,7 @@ func mtgFixKeeper(ctx context.Context, path string) {
 	}
 	defer txn.Rollback()
 
-	key := "FIX:bd9f968e2bfae8a376a6eab9d18df047e82bdb85"
+	key := "FIX:bd9f968e2bfae8a376a6eab9d18df047e82bdb85:1"
 	row := txn.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&key)
 	if err == sql.ErrNoRows {
@@ -50,7 +50,7 @@ func mtgFixKeeper(ctx context.Context, path string) {
 		return
 	}
 
-	query := "UPDATE actions SET state=10 WHERE output_id='e46058e2-7156-3fff-94c9-b3afa2e0600f' AND state=11"
+	query := "UPDATE actions SET action_state=10 WHERE output_id='e46058e2-7156-3fff-94c9-b3afa2e0600f' AND action_state=11 AND sequence=16303978"
 	_, err = txn.ExecContext(ctx, query)
 	if err != nil {
 		panic(err)
