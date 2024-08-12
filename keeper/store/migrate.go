@@ -91,7 +91,7 @@ func (s *SQLite3Store) CheckFullyMigrated(ctx context.Context) bool {
 	}
 	defer tx.Rollback()
 
-	key, val := "SCHEMA:VERSION:c12674b047a4eca95af046eff41c1e71c6655c7c", ""
+	key, val := "SCHEMA:VERSION:4fca1938ab13afa2f58bc3fabb4c653331b13476", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
 	if err == sql.ErrNoRows {
@@ -137,7 +137,7 @@ func (s *SQLite3Store) MigrateDepositCreated(ctx context.Context) error {
 }
 
 // FIXME remove this
-func (s *SQLite3Store) Migrate2(ctx context.Context) error {
+func (s *SQLite3Store) FixRequest(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -147,7 +147,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	key, val := "SCHEMA:VERSION:bd9f968e2bfae8a376a6eab9d18df047e82bdb85:1", ""
+	key, val := "FIX:VERSION:bd9f968e2bfae8a376a6eab9d18df047e82bdb85:2", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
 	if err == nil || err != sql.ErrNoRows {

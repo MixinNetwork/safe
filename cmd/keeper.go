@@ -31,7 +31,7 @@ func mtgFixKeeper(ctx context.Context, path string) {
 	}
 	defer txn.Rollback()
 
-	key := "FIX:bd9f968e2bfae8a376a6eab9d18df047e82bdb85:1"
+	key := "FIX:bd9f968e2bfae8a376a6eab9d18df047e82bdb85:2"
 	row := txn.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&key)
 	if err == sql.ErrNoRows {
