@@ -141,13 +141,13 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:        uuid.Must(uuid.NewV4()).String(),
-			TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
-			AppId:           node.conf.AppId,
-			AssetId:         node.conf.KeeperAssetId,
-			Extra:           memo,
-			Amount:          decimal.NewFromInt(1),
-			CreatedAt:       time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            node.conf.KeeperAssetId,
+			Extra:              memo,
+			Amount:             decimal.NewFromInt(1),
+			SequencerCreatedAt: time.Now(),
 		},
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
@@ -313,11 +313,11 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
 	out := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			Senders:   []string{string(node.id)},
-			AssetId:   node.conf.AssetId,
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			Senders:            []string{string(node.id)},
+			AssetId:            node.conf.AssetId,
+			SequencerCreatedAt: time.Now(),
 		},
 	}
 	out.Extra = mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)

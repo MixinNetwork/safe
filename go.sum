@@ -12,8 +12,8 @@ github.com/MixinNetwork/mixin v0.18.12 h1:hMHaZUe9k65C7goDrKAlOHlMJHDvB1wTf9QxQE
 github.com/MixinNetwork/mixin v0.18.12/go.mod h1:46byqFCaEelxJKspfEcJ5gEYTdE4FabPMV57DfiYDU8=
 github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
 github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
-github.com/MixinNetwork/trusted-group v0.9.1-0.20240812155646-5419bbe78838 h1:SZdbAsKmR3+O55qrYaOjd1r6bT9n155WzzZ9ajLttNU=
-github.com/MixinNetwork/trusted-group v0.9.1-0.20240812155646-5419bbe78838/go.mod h1:IS9wRax7PWhhx7b4pPjydyheiPLkX/sVceNny1Eqa1I=
+github.com/MixinNetwork/trusted-group v0.9.1-0.20240812160736-a10f471028bf h1:ZH7+aTvmBjlvyJ3UuIhiU4+1dDlHui0OjJPV+BOG+R8=
+github.com/MixinNetwork/trusted-group v0.9.1-0.20240812160736-a10f471028bf/go.mod h1:IS9wRax7PWhhx7b4pPjydyheiPLkX/sVceNny1Eqa1I=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=

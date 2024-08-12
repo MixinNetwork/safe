@@ -42,13 +42,13 @@ func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
 			UnifiedOutput: mtg.UnifiedOutput{
-				OutputId:        uuid.Must(uuid.NewV4()).String(),
-				TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-				AppId:           node.conf.AppId,
-				AssetId:         node.conf.KeeperAssetId,
-				Extra:           memo,
-				Amount:          decimal.NewFromInt(1),
-				CreatedAt:       time.Now(),
+				OutputId:           uuid.Must(uuid.NewV4()).String(),
+				TransactionHash:    crypto.Sha256Hash([]byte(op.Id)).String(),
+				AppId:              node.conf.AppId,
+				AssetId:            node.conf.KeeperAssetId,
+				Extra:              memo,
+				Amount:             decimal.NewFromInt(1),
+				SequencerCreatedAt: time.Now(),
 			},
 		}
 
@@ -88,13 +88,13 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:        uuid.Must(uuid.NewV4()).String(),
-			TransactionHash: crypto.Sha256Hash([]byte(sop.Id)).String(),
-			AppId:           node.conf.AppId,
-			AssetId:         node.conf.KeeperAssetId,
-			Extra:           memo,
-			Amount:          decimal.NewFromInt(1),
-			CreatedAt:       time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            node.conf.KeeperAssetId,
+			Extra:              memo,
+			Amount:             decimal.NewFromInt(1),
+			SequencerCreatedAt: time.Now(),
 		},
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)

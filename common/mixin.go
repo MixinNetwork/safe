@@ -31,10 +31,7 @@ func VerifyKernelTransaction(ctx context.Context, reader KernelTransactionReader
 	}
 	logger.Printf("common.readKernelTransaction(%s) => %v %v", out.TransactionHash, signed, err)
 
-	if (err != nil || signed == nil) && out.CreatedAt.Add(timeout).After(time.Now()) {
-		time.Sleep(5 * time.Second)
-		return VerifyKernelTransaction(ctx, reader, out, timeout)
-	} else if err != nil || signed == nil {
+	if signed == nil {
 		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
 	}
 

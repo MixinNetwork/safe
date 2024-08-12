@@ -48,12 +48,12 @@ func TestEthereumKeeper(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   testEthereumBondAssetId,
-			Amount:    decimal.NewFromInt(100000000000000),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            testEthereumBondAssetId,
+			Amount:             decimal.NewFromInt(100000000000000),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -73,12 +73,12 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   testEthereumBondAssetId,
-			Amount:    decimal.NewFromInt(100000000000000),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            testEthereumBondAssetId,
+			Amount:             decimal.NewFromInt(100000000000000),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -89,12 +89,12 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   cnbBondId,
-			Amount:    decimal.NewFromInt(100),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            cnbBondId,
+			Amount:             decimal.NewFromInt(100),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
@@ -113,12 +113,12 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   testEthereumBondAssetId,
-			Amount:    decimal.NewFromInt(100000000000000),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            testEthereumBondAssetId,
+			Amount:             decimal.NewFromInt(100000000000000),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -129,12 +129,12 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   cnbBondId,
-			Amount:    decimal.NewFromInt(100),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            cnbBondId,
+			Amount:             decimal.NewFromInt(100),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
@@ -215,12 +215,12 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   testEthereumBondAssetId,
-			Amount:    decimal.NewFromInt(100000000000000),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            testEthereumBondAssetId,
+			Amount:             decimal.NewFromInt(100000000000000),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	})
 	testEthereumObserverHolderDeposit(ctx, require, node, mpc, observer, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -231,12 +231,12 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
 	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:  uuid.Must(uuid.NewV4()).String(),
-			AppId:     node.conf.AppId,
-			AssetId:   cnbBondId,
-			Amount:    decimal.NewFromInt(100),
-			Extra:     testGenerateDummyExtra(node),
-			CreatedAt: time.Now(),
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            cnbBondId,
+			Amount:             decimal.NewFromInt(100),
+			Extra:              testGenerateDummyExtra(node),
+			SequencerCreatedAt: time.Now(),
 		},
 	}
 	node.ProcessOutput(ctx, action)

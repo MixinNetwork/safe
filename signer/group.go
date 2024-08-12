@@ -130,7 +130,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 		if err != nil {
 			panic(err)
 		}
-		err = node.store.WriteSessionIfNotExist(ctx, op, hash, out.OutputIndex, out.CreatedAt, needsCommittment)
+		err = node.store.WriteSessionIfNotExist(ctx, op, hash, out.OutputIndex, out.SequencerCreatedAt, needsCommittment)
 		if err != nil {
 			panic(err)
 		}
@@ -173,7 +173,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	} else if s.PreparedAt.Valid {
 		return nil
 	}
-	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], out.CreatedAt)
+	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], out.SequencerCreatedAt)
 	if err != nil {
 		return fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", op, err)
 	}
@@ -184,7 +184,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	if len(signers) <= node.threshold {
 		return nil
 	}
-	err = node.store.MarkSessionPrepared(ctx, op.Id, out.CreatedAt)
+	err = node.store.MarkSessionPrepared(ctx, op.Id, out.SequencerCreatedAt)
 	logger.Printf("node.MarkSessionPrepared(%v) => %v", op, err)
 	return err
 }
@@ -201,12 +201,12 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	self := len(out.Senders) == 1 && out.Senders[0] == string(node.id)
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
-		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.CreatedAt, self)
+		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
 		if err != nil {
 			panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err))
 		}
 	case common.OperationTypeSignInput:
-		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders[0], op.Extra, out.CreatedAt, self)
+		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
 		if err != nil {
 			panic(fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err))
 		}

@@ -129,7 +129,7 @@ func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 		Amount:     out.Amount,
 		Role:       role,
 		State:      RequestStateInitial,
-		CreatedAt:  out.CreatedAt,
+		CreatedAt:  out.SequencerCreatedAt,
 		Sequence:   out.Sequence,
 
 		Output: out,

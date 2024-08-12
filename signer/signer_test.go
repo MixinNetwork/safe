@@ -99,14 +99,14 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
 			UnifiedOutput: mtg.UnifiedOutput{
-				OutputId:        uuid.Must(uuid.NewV4()).String(),
-				TransactionHash: crypto.Sha256Hash([]byte(op.Id)).String(),
-				AppId:           node.conf.AppId,
-				AssetId:         node.conf.KeeperAssetId,
-				Extra:           memo,
-				Amount:          decimal.NewFromInt(1),
-				CreatedAt:       time.Now(),
-				Sequence:        uint64(sequence + i),
+				OutputId:           uuid.Must(uuid.NewV4()).String(),
+				TransactionHash:    crypto.Sha256Hash([]byte(op.Id)).String(),
+				AppId:              node.conf.AppId,
+				AssetId:            node.conf.KeeperAssetId,
+				Extra:              memo,
+				Amount:             decimal.NewFromInt(1),
+				SequencerCreatedAt: time.Now(),
+				Sequence:           uint64(sequence + i),
 			},
 		}
 
