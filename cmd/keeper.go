@@ -18,7 +18,7 @@ import (
 )
 
 // FIXME remove this
-func mtgFixKeeper(ctx context.Context, path string) {
+func mtgFixCache(ctx context.Context, path string) {
 	db, err := common.OpenSQLite3Store(path, "")
 	if err != nil {
 		panic(err)
@@ -74,7 +74,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 
-	mtgFixKeeper(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
+	mtgFixCache(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {

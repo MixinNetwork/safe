@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -23,47 +22,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// FIXME remove this
-func mtgFixSigner(ctx context.Context, path string) {
-	db, err := common.OpenSQLite3Store(path, "")
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	txn, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer txn.Rollback()
-
-	key := "FIX:0d996abd53c1d8103c024939a2ce2fd67170508b"
-	row := txn.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
-	err = row.Scan(&key)
-	if err == sql.ErrNoRows {
-	} else if err != nil {
-		panic(err)
-	} else {
-		return
-	}
-
-	query := "DELETE FROM caches"
-	_, err = txn.ExecContext(ctx, query)
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = txn.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)",
-		key, query, time.Now().UTC(), time.Now().UTC())
-	if err != nil {
-		panic(err)
-	}
-	err = txn.Commit()
-	if err != nil {
-		panic(err)
-	}
-}
-
 func SignerBootCmd(c *cli.Context) error {
 	ctx := context.Background()
 
@@ -80,7 +38,7 @@ func SignerBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 
-	mtgFixKeeper(ctx, mc.Signer.StoreDir+"/mtg.sqlite3")
+	mtgFixCache(ctx, mc.Signer.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Signer.StoreDir + "/mtg.sqlite3")
 	if err != nil {
