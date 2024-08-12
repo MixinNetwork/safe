@@ -6,7 +6,7 @@ require (
 	github.com/MixinNetwork/bot-api-go-client/v3 v3.7.4
 	github.com/MixinNetwork/mixin v0.18.12
 	github.com/MixinNetwork/multi-party-sig v0.4.1
-	github.com/MixinNetwork/trusted-group v0.8.3-0.20240811152936-c76164b467d1
+	github.com/MixinNetwork/trusted-group v0.8.3-0.20240812060927-21645e7e9ff7
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/btcsuite/btcd/btcutil v1.1.5
@@ -17,13 +17,13 @@ require (
 	github.com/ethereum/go-ethereum v1.14.7
 	github.com/fox-one/mixin-sdk-go/v2 v2.0.8
 	github.com/fxamacker/cbor/v2 v2.7.0
-	github.com/gofrs/uuid/v5 v5.2.0
+	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.9.0
-	github.com/urfave/cli/v2 v2.27.3
+	github.com/urfave/cli/v2 v2.27.4
 	golang.org/x/crypto v0.26.0
 )
 

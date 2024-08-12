@@ -12,8 +12,8 @@ github.com/MixinNetwork/mixin v0.18.12 h1:hMHaZUe9k65C7goDrKAlOHlMJHDvB1wTf9QxQE
 github.com/MixinNetwork/mixin v0.18.12/go.mod h1:46byqFCaEelxJKspfEcJ5gEYTdE4FabPMV57DfiYDU8=
 github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
 github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
-github.com/MixinNetwork/trusted-group v0.8.3-0.20240811152936-c76164b467d1 h1:DeTvthK5+kMzGGvGH3ZIFYZVNbVNgqyvONev25ROPxg=
-github.com/MixinNetwork/trusted-group v0.8.3-0.20240811152936-c76164b467d1/go.mod h1:z/QKUbHQdemNrmUdr5rVlCILdCePpWCHKAaEluBQ5W0=
+github.com/MixinNetwork/trusted-group v0.8.3-0.20240812060927-21645e7e9ff7 h1:1C8WYgG4IidLl+GWwIFhV4SeDwbNLyYK6d2cYcUJPUk=
+github.com/MixinNetwork/trusted-group v0.8.3-0.20240812060927-21645e7e9ff7/go.mod h1:z/QKUbHQdemNrmUdr5rVlCILdCePpWCHKAaEluBQ5W0=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
@@ -103,8 +103,8 @@ github.com/go-resty/resty/v2 v2.14.0 h1:/rhkzsAqGQkozwfKS5aFAbb6TyKd3zyFRWcdRXLP
 github.com/go-resty/resty/v2 v2.14.0/go.mod h1:IW6mekUOsElt9C7oWr0XRt9BNSD6D5rr9mhk6NjmNHg=
 github.com/gofrs/uuid v4.4.0+incompatible h1:3qXRTX8/NbyulANqlc0lchS1gqAVxRgsuW1YrTJupqA=
 github.com/gofrs/uuid v4.4.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
-github.com/gofrs/uuid/v5 v5.2.0 h1:qw1GMx6/y8vhVsx626ImfKMuS5CvJmhIKKtuyvfajMM=
-github.com/gofrs/uuid/v5 v5.2.0/go.mod h1:CDOjlDMVAtN56jqyRUZh58JT31Tiw7/oQyEXZV+9bD8=
+github.com/gofrs/uuid/v5 v5.3.0 h1:m0mUMr+oVYUdxpMLgSYCZiXe7PuVPnI94+OMeVBNedk=
+github.com/gofrs/uuid/v5 v5.3.0/go.mod h1:CDOjlDMVAtN56jqyRUZh58JT31Tiw7/oQyEXZV+9bD8=
 github.com/golang-jwt/jwt v3.2.2+incompatible h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keLg81eXfW3O+oY=
 github.com/golang-jwt/jwt v3.2.2+incompatible/go.mod h1:8pz2t5EyA70fFQQSrl6XZXzqecmYZeUEB8OUGHkxJ+I=
 github.com/golang-jwt/jwt/v5 v5.2.1 h1:OuVbFODueb089Lh128TAcimifWaLhJwVflnrgM17wHk=
@@ -210,8 +210,8 @@ github.com/tklauser/go-sysconf v0.3.14 h1:g5vzr9iPFFz24v2KZXs/pvpvh8/V9Fw6vQK5ZZ
 github.com/tklauser/go-sysconf v0.3.14/go.mod h1:1ym4lWMLUOhuBOPGtRcJm7tEGX4SCYNEEEtghGG/8uY=
 github.com/tklauser/numcpus v0.8.0 h1:Mx4Wwe/FjZLeQsK/6kt2EOepwwSl7SmJrK5bV/dXYgY=
 github.com/tklauser/numcpus v0.8.0/go.mod h1:ZJZlAY+dmR4eut8epnzf0u/VwodKmryxR8txiloSqBE=
-github.com/urfave/cli/v2 v2.27.3 h1:/POWahRmdh7uztQ3CYnaDddk0Rm90PyOgIxgW2rr41M=
-github.com/urfave/cli/v2 v2.27.3/go.mod h1:m4QzxcD2qpra4z7WhzEGn74WZLViBnMpb1ToCAKdGRQ=
+github.com/urfave/cli/v2 v2.27.4 h1:o1owoI+02Eb+K107p27wEX9Bb8eqIoZCfLXloLUSWJ8=
+github.com/urfave/cli/v2 v2.27.4/go.mod h1:m4QzxcD2qpra4z7WhzEGn74WZLViBnMpb1ToCAKdGRQ=
 github.com/vmihailenco/tagparser v0.1.2 h1:gnjoVuB/kljJ5wICEEOpx98oXMWPLj22G67Vbd1qPqc=
 github.com/vmihailenco/tagparser v0.1.2/go.mod h1:OeAg3pn3UbLjkWt+rN9oFYB6u/cQgqMEUPoW2WPyhdI=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
