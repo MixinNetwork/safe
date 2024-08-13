@@ -215,7 +215,7 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 
 func (r *Request) VerifyFormat() error {
 	if r.CreatedAt.IsZero() {
-		return fmt.Errorf("invalid request timestamp %v", r)
+		panic(r.Output.OutputId)
 	}
 	if r.Action == 0 || r.Role == 0 || r.State == 0 {
 		return fmt.Errorf("invalid request action %v", r)
