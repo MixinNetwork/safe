@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -16,56 +14,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
-
-// FIXME remove this
-func mtgFixCache(ctx context.Context, path string) {
-	db, err := common.OpenSQLite3Store(path, "")
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	txn, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer txn.Rollback()
-
-	key := "FIX:0d996abd53c1d8103c024939a2ce2fd67170508b:1"
-	row := txn.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
-	err = row.Scan(&key)
-	if err == sql.ErrNoRows {
-	} else if err != nil {
-		panic(err)
-	} else {
-		return
-	}
-
-	invalidate := "DELETE FROM caches;\n"
-	_, err = txn.ExecContext(ctx, invalidate)
-	if err != nil {
-		panic(err)
-	}
-
-	alter := "ALTER TABLE outputs DROP COLUMN mask;\n"
-	alter = alter + "ALTER TABLE outputs DROP COLUMN keys;\n"
-	alter = alter + "ALTER TABLE outputs DROP COLUMN receivers;\n"
-	_, err = txn.ExecContext(ctx, alter)
-	if err != nil {
-		panic(err)
-	}
-
-	query := invalidate + alter
-	_, err = txn.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)",
-		key, query, time.Now().UTC(), time.Now().UTC())
-	if err != nil {
-		panic(err)
-	}
-	err = txn.Commit()
-	if err != nil {
-		panic(err)
-	}
-}
 
 func KeeperBootCmd(c *cli.Context) error {
 	ctx := context.Background()
@@ -82,8 +30,6 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
-
-	mtgFixCache(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {

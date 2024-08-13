@@ -38,8 +38,6 @@ func SignerBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 
-	mtgFixCache(ctx, mc.Signer.StoreDir+"/mtg.sqlite3")
-
 	db, err := mtg.OpenSQLite3Store(mc.Signer.StoreDir + "/mtg.sqlite3")
 	if err != nil {
 		return err
