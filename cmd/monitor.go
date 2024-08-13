@@ -54,7 +54,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 }
 
 func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
-	state := "👩‍⚖️ 🧑‍⚖️ 👨‍⚖️ Signer 👩‍⚖️ 🧑‍⚖️ 👨‍⚖️\n"
+	state := "📋📋📋📋📋 Signer 📋📋📋📋📋\n"
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
 
@@ -123,7 +123,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 }
 
 func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
-	state := "👮‍♀️ 👮 👮‍♂️ Keeper 👮‍♀️ 👮 👮‍♂️\n"
+	state := "🧱🧱🧱🧱🧱 Keeper 🧱🧱🧱🧱🧱\n"
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
 
