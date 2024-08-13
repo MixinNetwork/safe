@@ -3,10 +3,10 @@ module github.com/MixinNetwork/safe
 go 1.22.5
 
 require (
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.7.4
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.7.5
 	github.com/MixinNetwork/mixin v0.18.12
 	github.com/MixinNetwork/multi-party-sig v0.4.1
-	github.com/MixinNetwork/trusted-group v0.9.1-0.20240812160736-a10f471028bf
+	github.com/MixinNetwork/trusted-group v0.9.1
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/btcsuite/btcd/btcutil v1.1.5
@@ -14,7 +14,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/dimfeld/httptreemux/v5 v5.5.0
-	github.com/ethereum/go-ethereum v1.14.7
+	github.com/ethereum/go-ethereum v1.14.8
 	github.com/fox-one/mixin-sdk-go/v2 v2.0.8
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/gofrs/uuid/v5 v5.3.0

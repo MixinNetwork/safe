@@ -50,7 +50,7 @@ func mtgFixCache(ctx context.Context, path string) {
 	alter := "ALTER TABLE outputs DROP COLUMN mask;\n"
 	alter = alter + "ALTER TABLE outputs DROP COLUMN keys;\n"
 	alter = alter + "ALTER TABLE outputs DROP COLUMN receivers;\n"
-	_, err = txn.ExecContext(ctx, invalidate)
+	_, err = txn.ExecContext(ctx, alter)
 	if err != nil {
 		panic(err)
 	}
