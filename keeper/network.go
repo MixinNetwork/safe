@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	bitcoinMinimumFeeRate = 10
+	bitcoinMinimumFeeRate = 1
 	bitcoinMaximumFeeRate = 1000
 )
 
@@ -46,6 +46,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	info.Height = binary.BigEndian.Uint64(extra[9:17])
 
 	old, err := node.store.ReadLatestNetworkInfo(ctx, info.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%s, %v) => %v", req.Id, info, old)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v", info.Chain, err))
 	} else if old != nil && old.RequestId == req.Id {
@@ -61,6 +62,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
 		valid, err := node.verifyBitcoinNetworkInfo(ctx, info, old)
+		logger.Printf("node.verifyBitcoinNetworkInfo(%s, %v) => %t", req.Id, info, valid)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err))
 		} else if !valid {
@@ -69,6 +71,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
 		valid, err := node.verifyEthereumNetworkInfo(ctx, info, old)
+		logger.Printf("node.verifyEthereumNetworkInfo(%s, %v) => %t", req.Id, info, valid)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err))
 		} else if !valid {
