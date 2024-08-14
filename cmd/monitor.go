@@ -58,6 +58,7 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
 
+	state = state + "\n𝗠𝙏𝗚\n"
 	tl, _, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
 	if err != nil {
 		return "", err
@@ -88,6 +89,7 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	amount := decimal.RequireFromString(sa.String()).Div(tTredecillion).IntPart()
 	state = state + fmt.Sprintf("💍 MSST Balance: %d TT\n", amount)
 
+	state = state + "\n𝗔𝙋𝗣\n"
 	ss, err := store.SessionsState(ctx)
 	if err != nil {
 		return "", err
@@ -132,6 +134,7 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
 
+	state = state + "\n𝗠𝙏𝗚\n"
 	req, err := store.ReadLatestRequest(ctx)
 	if err != nil {
 		return "", err
@@ -172,6 +175,7 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	}
 	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
 
+	state = state + "\n𝗔𝙋𝗣\n"
 	sbc, err := store.CountSpareKeys(ctx, common.CurveSecp256k1ECDSABitcoin, common.RequestFlagNone, common.RequestRoleSigner)
 	if err != nil {
 		return "", err
@@ -193,6 +197,27 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 		return "", err
 	}
 	state = state + fmt.Sprintf("🔑 Observer Ethereum keys: %d\n", oec)
+
+	tc, err := store.CountTransactionsByState(ctx, common.RequestStateInitial)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💷 Initial Transactions: %d\n", tc)
+	tc, err = store.CountTransactionsByState(ctx, common.RequestStatePending)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💶 Pending Transactions: %d\n", tc)
+	tc, err = store.CountTransactionsByState(ctx, common.RequestStateDone)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💵 Done Transactions: %d\n", tc)
+	tc, err = store.CountTransactionsByState(ctx, common.RequestStateFailed)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💸 Failed Transactions: %d\n", tc)
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
 	return state, nil
