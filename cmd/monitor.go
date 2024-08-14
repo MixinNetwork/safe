@@ -56,7 +56,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
 	state := "📋📋📋📋📋 Signer 📋📋📋📋📋\n"
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
-	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
+	state = state + fmt.Sprintf("⏲️ Group: %s 𝕋%d\n", mixinnet.HashMembers(grp.GetMembers())[:16], grp.GetThreshold())
 
 	state = state + "\n𝗠𝙏𝗚\n"
 	tl, _, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
@@ -132,14 +132,14 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
 	state := "🧱🧱🧱🧱🧱 Keeper 🧱🧱🧱🧱🧱\n"
 	state = state + fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
-	state = state + fmt.Sprintf("⏲️ Group: %s %d\n", mixinnet.HashMembers(grp.GetMembers()), grp.GetThreshold())
+	state = state + fmt.Sprintf("⏲️ Group: %s 𝕋%d\n", mixinnet.HashMembers(grp.GetMembers())[:16], grp.GetThreshold())
 
 	state = state + "\n𝗠𝙏𝗚\n"
 	req, err := store.ReadLatestRequest(ctx)
 	if err != nil {
 		return "", err
 	} else if req != nil {
-		state = state + fmt.Sprintf("🎆 Latest request: %s\n", req.MixinHash)
+		state = state + fmt.Sprintf("🎆 Latest request: %x\n", req.MixinHash[:8])
 	}
 	info, err := store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	if err != nil {
