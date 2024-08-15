@@ -248,7 +248,7 @@ func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, r
 			RequestID:      requestId,
 			RawTransaction: signedRaw,
 		})
-		logger.Verbosef("common.mixin.SafeSubmitTransactionRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
+		logger.Verbosef("common.mixin.SafeSubmitTransactionRequest(%s, %s) => %v %v\n", requestId, signedRaw, req, err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -284,7 +284,7 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requ
 			RequestID:      requestId,
 			RawTransaction: signedRaw,
 		})
-		logger.Verbosef("common.mixin.SafeSignMultisigRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
+		logger.Verbosef("common.mixin.SafeSignMultisigRequest(%s, %s) => %v %v\n", requestId, signedRaw, req, err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -314,7 +314,7 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeMultisigRequest, error) {
 	for {
 		req, err := client.SafeReadMultisigRequests(ctx, id)
-		logger.Verbosef("common.mixin.SafeReadMultisigRequests(%d) => %v %v", id, req, err)
+		logger.Verbosef("common.mixin.SafeReadMultisigRequests(%s) => %v %v", id, req, err)
 		if err == nil {
 			return req, nil
 		}
@@ -342,10 +342,10 @@ func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []strin
 	return &total, nil
 }
 
-func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin.User, error) {
+func ReadUsers(ctx context.Context, client *mixin.Client, ids []string) ([]*mixin.User, error) {
 	if CheckTestEnvironment(ctx) {
 		var us []*mixin.User
-		for _, u := range id {
+		for _, u := range ids {
 			us = append(us, &mixin.User{
 				UserID:  u,
 				HasSafe: true,
@@ -354,8 +354,8 @@ func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin
 		return us, nil
 	}
 	for {
-		us, err := client.ReadUsers(ctx, id...)
-		logger.Verbosef("common.mixin.ReadUsers(%s) => %v %v\n", strings.Join(id, ","), us, err)
+		us, err := client.ReadUsers(ctx, ids...)
+		logger.Verbosef("common.mixin.ReadUsers(%v) => %v %v\n", ids, us, err)
 		if err == nil {
 			return us, nil
 		}
