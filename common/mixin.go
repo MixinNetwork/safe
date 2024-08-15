@@ -118,6 +118,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 		}
 
 		_, err = bot.CreateObjectStorageTransaction(ctx, nil, extra, sTraceId, nil, "", &su)
+		logger.Verbosef("common.mixin.CreateObjectStorageTransaction(%s) => %v", sTraceId, err)
 		if err != nil {
 			// FIXME the sdk error in signature
 			if mtg.CheckRetryableError(err) || strings.Contains(err.Error(), "signature verification failed") {
@@ -189,7 +190,7 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 			State:     mixin.SafeUtxoStateUnspent,
 			Asset:     assetId,
 		})
-		logger.Verbosef("mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
+		logger.Verbosef("common.mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -201,7 +202,7 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 func GetSpendPublicKeyUntilSufficient(ctx context.Context, client *mixin.Client) (string, error) {
 	for {
 		me, err := client.UserMe(ctx)
-		logger.Verbosef("mixin.UserMe() => %v\n", err)
+		logger.Verbosef("common.mixin.UserMe() => %v\n", err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -216,7 +217,7 @@ func CreateTransactionRequestUntilSufficient(ctx context.Context, client *mixin.
 			RequestID:      id,
 			RawTransaction: raw,
 		})
-		logger.Verbosef("mixin.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
+		logger.Verbosef("common.mixin.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -247,7 +248,7 @@ func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, r
 			RequestID:      requestId,
 			RawTransaction: signedRaw,
 		})
-		logger.Verbosef("group.SafeSubmitTransactionRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
+		logger.Verbosef("common.mixin.SafeSubmitTransactionRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -283,7 +284,7 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requ
 			RequestID:      requestId,
 			RawTransaction: signedRaw,
 		})
-		logger.Verbosef("group.SafeSignMultisigRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
+		logger.Verbosef("common.mixin.SafeSignMultisigRequest(%s %s) => %v %v\n", requestId, signedRaw, req, err)
 		if err != nil && mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -295,7 +296,7 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requ
 func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := client.SafeReadTransactionRequest(ctx, id)
-		logger.Verbosef("mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		logger.Verbosef("common.mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
 		if err == nil {
 			return req, nil
 		}
@@ -313,7 +314,7 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeMultisigRequest, error) {
 	for {
 		req, err := client.SafeReadMultisigRequests(ctx, id)
-		logger.Verbosef("mixin.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
+		logger.Verbosef("common.mixin.SafeReadMultisigRequests(%d) => %v %v", id, req, err)
 		if err == nil {
 			return req, nil
 		}
@@ -354,7 +355,7 @@ func ReadUsers(ctx context.Context, client *mixin.Client, id []string) ([]*mixin
 	}
 	for {
 		us, err := client.ReadUsers(ctx, id...)
-		logger.Verbosef("mixin.ReadUsers(%s) => %v %v\n", strings.Join(id, ","), us, err)
+		logger.Verbosef("common.mixin.ReadUsers(%s) => %v %v\n", strings.Join(id, ","), us, err)
 		if err == nil {
 			return us, nil
 		}

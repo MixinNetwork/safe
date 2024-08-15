@@ -393,7 +393,7 @@ func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte
 		}
 		for _, approval := range approvals {
 			err := node.sendToKeeperBitcoinApproveTransaction(ctx, approval)
-			logger.Verbosef("node.sendToKeeperBitcoinApproveTransaction(%v) => %v", approval, err)
+			logger.Printf("node.sendToKeeperBitcoinApproveTransaction(%v) => %v", approval, err)
 			if err != nil {
 				panic(err)
 			}
