@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	mc "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
@@ -19,7 +19,6 @@ import (
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
-	"github.com/shopspring/decimal"
 )
 
 type UserStore interface {
@@ -81,13 +80,18 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	}
 	state = state + fmt.Sprintf("💍 MSKT Outputs: %d\n", len(ol))
 
-	sa, err := fetchAsset(ctx, conf.MTG, conf.AssetId)
+	app := conf.MTG.App
+	hash := bot.HashMembers([]string{app.AppId})
+	msst := crypto.Sha256Hash([]byte(conf.AssetId))
+	sol, err := bot.ListUnspentOutputs(ctx, hash, 1, msst.String(), &bot.SafeUser{
+		UserId:            app.AppId,
+		SessionId:         app.SessionId,
+		SessionPrivateKey: app.SessionPrivateKey,
+	})
 	if err != nil {
 		return "", err
 	}
-	tTredecillion := decimal.New(10, 12+42)
-	amount := decimal.RequireFromString(sa.String()).Div(tTredecillion).IntPart()
-	state = state + fmt.Sprintf("💍 MSST Balance: %d TT\n", amount)
+	state = state + fmt.Sprintf("💍 MSST Outputs: %d\n", len(sol))
 
 	state = state + "\n𝗔𝙋𝗣\n"
 	ss, err := store.SessionsState(ctx)
@@ -221,15 +225,6 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
 	return state, nil
-}
-
-func fetchAsset(ctx context.Context, conf *mtg.Configuration, assetId string) (mc.Integer, error) {
-	return bot.AssetBalanceWithSafeUser(ctx, assetId, &bot.SafeUser{
-		UserId:            conf.App.AppId,
-		SessionId:         conf.App.SessionId,
-		SessionPrivateKey: conf.App.SessionPrivateKey,
-		ServerPublicKey:   conf.App.ServerPublicKey,
-	})
 }
 
 func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, conf *mtg.Configuration, msg string) {
