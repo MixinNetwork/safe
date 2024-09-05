@@ -13,10 +13,6 @@ import (
 )
 
 func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, share []byte) (bool, error) {
-	if node.conf.SaverAPI == "" {
-		return false, nil
-	}
-
 	sid := uuid.Must(uuid.NewV4())
 	secret := crypto.Sha256Hash([]byte(node.saverKey.String() + sid.String()))
 	secret = crypto.Sha256Hash(secret[:])

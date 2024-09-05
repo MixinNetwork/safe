@@ -63,14 +63,12 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 	}
 	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.KeeperPublicKey)
 
-	if conf.SaverAPI != "" {
-		priv, err := crypto.KeyFromString(conf.SaverKey)
-		if err != nil {
-			panic(conf.SaverKey)
-		}
-		logger.Printf("node.saverKey %s", priv.Public())
-		node.saverKey = &priv
+	priv, err := crypto.KeyFromString(conf.SaverKey)
+	if err != nil {
+		panic(conf.SaverKey)
 	}
+	logger.Printf("node.saverKey %s", priv.Public())
+	node.saverKey = &priv
 
 	for _, id := range conf.MTG.Genesis.Members {
 		node.members = append(node.members, party.ID(id))
@@ -101,7 +99,7 @@ func (node *Node) Boot(ctx context.Context) {
 }
 
 func (node *Node) loopBackup(ctx context.Context) {
-	for node.conf.SaverAPI != "" {
+	for {
 		time.Sleep(5 * time.Second)
 		keys, err := node.store.ListUnbackupedKeys(ctx, 1000)
 		if err != nil {
