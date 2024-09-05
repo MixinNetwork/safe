@@ -117,7 +117,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 			continue
 		}
 
-		_, err = bot.CreateObjectStorageTransaction(ctx, nil, extra, sTraceId, nil, "", &su)
+		_, err = bot.CreateObjectStorageTransaction(ctx, nil, nil, extra, sTraceId, nil, "", &su)
 		logger.Verbosef("common.mixin.CreateObjectStorageTransaction(%s) => %v", sTraceId, err)
 		if err != nil {
 			// FIXME the sdk error in signature
