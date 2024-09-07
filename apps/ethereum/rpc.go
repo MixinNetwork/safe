@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
@@ -323,25 +324,25 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {
 	for {
 		res, err := callEthereumRPC(rpc, method, params)
-		if err != nil {
-			reason := strings.ToLower(err.Error())
-			switch {
-			case strings.Contains(reason, "timeout"):
-			case strings.Contains(reason, "eof"):
-			case strings.Contains(reason, "handshake"):
-			case strings.Contains(reason, "json"):
-			default:
-				return res, err
-			}
-			time.Sleep(7 * time.Second)
-			continue
+		if err == nil {
+			return res, nil
 		}
-		return res, err
+		logger.Printf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
+		reason := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(reason, "timeout"):
+		case strings.Contains(reason, "eof"):
+		case strings.Contains(reason, "handshake"):
+		case strings.Contains(reason, "json"):
+		default:
+			return res, err
+		}
+		time.Sleep(7 * time.Second)
 	}
 }
 
 func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
-	client := &http.Client{Timeout: 20 * time.Second}
+	client := &http.Client{Timeout: 180 * time.Second}
 
 	body, err := json.Marshal(map[string]any{
 		"method":  method,
