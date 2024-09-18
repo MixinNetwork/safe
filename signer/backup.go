@@ -12,7 +12,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, share []byte) (bool, error) {
+func (node *Node) sendKeygenBackup(_ context.Context, op *common.Operation, share []byte) (bool, error) {
 	sid := uuid.Must(uuid.NewV4())
 	secret := crypto.Sha256Hash([]byte(node.saverKey.String() + sid.String()))
 	secret = crypto.Sha256Hash(secret[:])

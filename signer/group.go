@@ -310,7 +310,7 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (strin
 	return public, crv, share, fingerPath[8:], err
 }
 
-func (node *Node) deriveByPath(ctx context.Context, crv byte, share, path []byte) ([]byte, []byte) {
+func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) ([]byte, []byte) {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		conf := cmp.EmptyConfig(curve.Secp256k1{})
@@ -345,7 +345,7 @@ func (node *Node) deriveByPath(ctx context.Context, crv byte, share, path []byte
 	}
 }
 
-func (node *Node) verifySessionHolder(ctx context.Context, crv byte, holder string) bool {
+func (node *Node) verifySessionHolder(_ context.Context, crv byte, holder string) bool {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		err := bitcoin.VerifyHolderKey(holder)
@@ -444,7 +444,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	}
 }
 
-func (node *Node) verifySessionSignerResults(ctx context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
+func (node *Node) verifySessionSignerResults(_ context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		var signed int
@@ -604,7 +604,7 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 	return ver.DepositData() != nil
 }
 
-func (node *Node) parseOperation(ctx context.Context, memo string) (*common.Operation, error) {
+func (node *Node) parseOperation(_ context.Context, memo string) (*common.Operation, error) {
 	a, m := mtg.DecodeMixinExtraHEX(memo)
 	if a != node.conf.AppId {
 		panic(memo)
