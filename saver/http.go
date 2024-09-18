@@ -17,10 +17,15 @@ func StartHTTP(store *SQLite3Store, port int) error {
 	router.PanicHandler = common.HandlePanic
 	router.NotFoundHandler = common.HandleNotFound
 
+	router.GET("/", root)
 	router.POST("/", createItem)
 	handler := handleSession(router, store)
 	listen := fmt.Sprintf(":%d", port)
 	return http.ListenAndServe(listen, handler)
+}
+
+func root(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{})
 }
 
 func createItem(w http.ResponseWriter, r *http.Request, params map[string]string) {
