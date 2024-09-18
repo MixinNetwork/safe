@@ -402,6 +402,22 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "addnodetokentosaver",
+				Usage:  "Register a signer node token to the saver database",
+				Action: cmd.AddSaverNodeToken,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "store",
+						Value: "~/.mixin/safe/saver",
+						Usage: "The saver database directory",
+					},
+					&cli.StringFlag{
+						Name:  "id",
+						Usage: "A valid signer node app id",
+					},
+				},
+			},
 		},
 	}
 
