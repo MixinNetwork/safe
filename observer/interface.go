@@ -12,6 +12,7 @@ type Configuration struct {
 	PrivateKey                  string `toml:"private-key"`
 	Timestamp                   int64  `toml:"timestamp"`
 	KeeperStoreDir              string `toml:"keeper-store-dir"`
+	MonitorConversaionId        string `toml:"monitor-conversation-id"`
 	KeeperPublicKey             string `toml:"keeper-public-key"`
 	AssetId                     string `toml:"asset-id"`
 	CustomKeyPriceAssetId       string `toml:"custom-key-price-asset-id"`

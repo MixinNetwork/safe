@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	GovernanceConversationId = ""
-	NodeTypeKeeper           = "keeper"
-	NodeTypeSigner           = "signer"
+	NodeTypeKeeper = "keeper"
+	NodeTypeSigner = "signer"
 )
 
 type AppInfo struct {
@@ -85,7 +84,7 @@ func (node *Node) Blaze(ctx context.Context) error {
 	for {
 		client := bot.NewBlazeClient(mixin.UserId, mixin.SessionId, mixin.SessionPrivateKey)
 		h := func(ctx context.Context, botMsg bot.MessageView, clientID string) error {
-			err := node.handleMessage(ctx, client, botMsg)
+			err := node.handleMessage(ctx, botMsg)
 			if err != nil {
 				log.Printf("blaze.handleMessage() => %v", err)
 				return err
@@ -99,8 +98,8 @@ func (node *Node) Blaze(ctx context.Context) error {
 	}
 }
 
-func (node *Node) handleMessage(ctx context.Context, bc *bot.BlazeClient, bm bot.MessageView) error {
-	if bm.ConversationId != GovernanceConversationId {
+func (node *Node) handleMessage(ctx context.Context, bm bot.MessageView) error {
+	if bm.ConversationId != node.conf.MonitorConversaionId {
 		return nil
 	}
 	if bm.Category != bot.MessageCategoryPlainText {

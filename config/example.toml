@@ -115,6 +115,8 @@ private-key = "c56d95ec2d09ff5e0975ec0a667cc6cc5f03046935b329fc9f6fb2c3c8500109"
 timestamp = 1721930640000000000
 keeper-store-dir = "/tmp/safe/keeper"
 keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097dd29d"
+# the mixin messenger group for monitor messages
+monitor-conversation-id = ""
 asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
 custom-key-price-asset-id = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
 custom-key-price-amount = "10"
