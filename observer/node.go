@@ -572,17 +572,3 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 		panic(chain)
 	}
 }
-
-func (node *Node) getSafeChainFromAssetChainId(chainId string) byte {
-	switch chainId {
-	case common.SafeBitcoinChainId:
-		return common.SafeChainBitcoin
-	case common.SafeLitecoinChainId:
-		return common.SafeChainLitecoin
-	case common.SafeEthereumChainId:
-		return common.SafeChainEthereum
-	case common.SafePolygonChainId:
-		return common.SafeChainPolygon
-	}
-	return 0
-}

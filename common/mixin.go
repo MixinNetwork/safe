@@ -199,18 +199,6 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 	}
 }
 
-func GetSpendPublicKeyUntilSufficient(ctx context.Context, client *mixin.Client) (string, error) {
-	for {
-		me, err := client.UserMe(ctx)
-		logger.Verbosef("common.mixin.UserMe() => %v\n", err)
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		return me.SpendPublicKey, err
-	}
-}
-
 func CreateTransactionRequestUntilSufficient(ctx context.Context, client *mixin.Client, id, raw string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := client.SafeCreateTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{

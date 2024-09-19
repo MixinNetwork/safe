@@ -12,7 +12,6 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -52,15 +51,6 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *common.Request,
 		panic(err)
 	}
 	return []*mtg.Transaction{t}, ""
-}
-
-func (node *Node) bondMaxSupply(ctx context.Context, chain byte, assetId string) decimal.Decimal {
-	switch assetId {
-	case common.SafeBitcoinChainId, common.SafeLitecoinChainId, common.SafeEthereumChainId, common.SafePolygonChainId:
-		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
-	default:
-		return decimal.RequireFromString("115792089237316195423570985008687907853269984665640564039457.58400791")
-	}
 }
 
 func (node *Node) fetchBondAssetReceiver(ctx context.Context, address, assetId string) string {
