@@ -130,6 +130,133 @@ func TestAsset(t *testing.T) {
 	require.Equal("b877b05f-a9f0-3fef-9975-6ba24d3fe7a9", safeAssetId)
 }
 
+func TestNode(t *testing.T) {
+	ctx := context.Background()
+	ctx = common.EnableTestEnvironment(ctx)
+	require := require.New(t)
+
+	root, err := os.MkdirTemp("", "safe-observer-test")
+	require.Nil(err)
+	node := testBuildNode(ctx, require, root)
+	require.NotNil(node)
+
+	k1 := &StatsInfo{
+		Type: NodeTypeKeeper,
+		Mtg: MtgInfo{
+			LatestRequest: "61d911746e291a77",
+			BitcoinHeight: "861968",
+			InitialTxs:    "0",
+			SignedTxs:     "0",
+			SnapshotTxs:   "0",
+			XINOutputs:    "10",
+			MSKTOutputs:   "10",
+		},
+		App: AppInfo{
+			SignerBitcoinKeys:    "1016",
+			SignerEthereumKeys:   "1036",
+			ObserverBitcoinKeys:  "987",
+			ObserverEthereumKeys: "1000",
+			InitialTxs:           "1",
+			PendingTxs:           "0",
+			DoneTxs:              "246",
+			FailedTxs:            "19",
+			Version:              "v0.17.2-1976a7f",
+		},
+	}
+	err = testUpsertStats(ctx, node, k1)
+	require.Nil(err)
+	nks, err := node.store.ListNodeStats(ctx, NodeTypeKeeper)
+	require.Nil(err)
+	require.Len(nks, 1)
+	stats, err := nks[0].getStats()
+	require.Nil(err)
+	require.Equal(NodeTypeKeeper, nks[0].Type)
+	require.Equal(k1.Mtg.LatestRequest, stats.Mtg.LatestRequest)
+	require.Equal(k1.Mtg.BitcoinHeight, stats.Mtg.BitcoinHeight)
+	require.Equal(k1.Mtg.InitialTxs, stats.Mtg.InitialTxs)
+	require.Equal(k1.Mtg.SignedTxs, stats.Mtg.SignedTxs)
+	require.Equal(k1.Mtg.SnapshotTxs, stats.Mtg.SnapshotTxs)
+	require.Equal(k1.Mtg.XINOutputs, stats.Mtg.XINOutputs)
+	require.Equal(k1.Mtg.MSKTOutputs, stats.Mtg.MSKTOutputs)
+	require.Equal(k1.App.SignerBitcoinKeys, stats.App.SignerBitcoinKeys)
+	require.Equal(k1.App.SignerEthereumKeys, stats.App.SignerEthereumKeys)
+	require.Equal(k1.App.ObserverBitcoinKeys, stats.App.ObserverBitcoinKeys)
+	require.Equal(k1.App.ObserverEthereumKeys, stats.App.ObserverEthereumKeys)
+	require.Equal(k1.App.InitialTxs, stats.App.InitialTxs)
+	require.Equal(k1.App.PendingTxs, stats.App.PendingTxs)
+	require.Equal(k1.App.DoneTxs, stats.App.DoneTxs)
+	require.Equal(k1.App.FailedTxs, stats.App.FailedTxs)
+	require.Equal(k1.App.Version, stats.App.Version)
+
+	s1 := &StatsInfo{
+		Type: NodeTypeSigner,
+		Mtg: MtgInfo{
+			InitialTxs:  "1",
+			SignedTxs:   "0",
+			SnapshotTxs: "142",
+			MSKTOutputs: "10",
+			MSSTOutputs: "250",
+		},
+		App: AppInfo{
+			InitialSessions: "0",
+			PendingSessions: "0",
+			FinalSessions:   "14984",
+			GeneratedKeys:   "2614",
+			Version:         "v0.17.2-1976a7f",
+		},
+	}
+	s1Id := uuid.Must(uuid.NewV4()).String()
+	s1Str, err := s1.stringify()
+	require.Nil(err)
+	err = node.store.UpsertNodeStats(ctx, s1Id, s1.Type, s1Str)
+	require.Nil(err)
+	nss, err := node.store.ListNodeStats(ctx, NodeTypeSigner)
+	require.Nil(err)
+	require.Len(nss, 1)
+	stats, err = nss[0].getStats()
+	require.Nil(err)
+	require.Equal(NodeTypeSigner, nss[0].Type)
+	require.Equal(s1.Mtg.InitialTxs, stats.Mtg.InitialTxs)
+	require.Equal(s1.Mtg.SignedTxs, stats.Mtg.SignedTxs)
+	require.Equal(s1.Mtg.SnapshotTxs, stats.Mtg.SnapshotTxs)
+	require.Equal(s1.Mtg.MSSTOutputs, stats.Mtg.MSSTOutputs)
+	require.Equal(s1.Mtg.MSKTOutputs, stats.Mtg.MSKTOutputs)
+	require.Equal(s1.App.InitialSessions, stats.App.InitialSessions)
+	require.Equal(s1.App.PendingSessions, stats.App.PendingSessions)
+	require.Equal(s1.App.FinalSessions, stats.App.FinalSessions)
+	require.Equal(s1.App.GeneratedKeys, stats.App.GeneratedKeys)
+	require.Equal(s1.App.Version, stats.App.Version)
+
+	for i := 1; i <= 10; i++ {
+		err = testUpsertStats(ctx, node, k1)
+		require.Nil(err)
+		err = testUpsertStats(ctx, node, s1)
+		require.Nil(err)
+	}
+	nks, err = node.store.ListNodeStats(ctx, NodeTypeKeeper)
+	require.Nil(err)
+	require.Len(nks, 11)
+	for _, s := range nks {
+		require.Equal(NodeTypeKeeper, s.Type)
+	}
+	nss, err = node.store.ListNodeStats(ctx, NodeTypeSigner)
+	require.Nil(err)
+	require.Len(nss, 11)
+	for _, s := range nss {
+		require.Equal(NodeTypeSigner, s.Type)
+	}
+}
+
+func testUpsertStats(ctx context.Context, node *Node, s *StatsInfo) error {
+	id := uuid.Must(uuid.NewV4()).String()
+	str, err := s.stringify()
+	if err != nil {
+		return err
+	}
+	err = node.store.UpsertNodeStats(ctx, id, s.Type, str)
+	return err
+}
+
 func testPublicKey(priv string) string {
 	seed, _ := hex.DecodeString(priv)
 	_, dk := btcec.PrivKeyFromBytes(seed)

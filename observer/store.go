@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -89,6 +90,13 @@ type Recovery struct {
 	UpdatedAt       time.Time
 }
 
+type NodeStats struct {
+	AppId     string
+	Type      string
+	Stats     string
+	UpdatedAt time.Time
+}
+
 var accountCols = []string{"address", "created_at", "signature", "approved_at", "migrated_at"}
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
@@ -115,6 +123,18 @@ var recoveryCols = []string{"address", "chain", "holder", "observer", "raw_trans
 
 func (r *Recovery) values() []any {
 	return []any{r.Address, r.Chain, r.Holder, r.Observer, r.RawTransaction, r.TransactionHash, r.State, r.CreatedAt, r.UpdatedAt}
+}
+
+var nodeCols = []string{"app_id", "node_type", "stats", "updated_at"}
+
+func (n *NodeStats) values() []any {
+	return []any{n.AppId, n.Type, n.Stats, n.UpdatedAt}
+}
+
+func (n *NodeStats) getStats() (*StatsInfo, error) {
+	ns := &StatsInfo{}
+	err := json.Unmarshal([]byte(n.Stats), ns)
+	return ns, err
 }
 
 func (r *Recovery) getState() string {
@@ -875,4 +895,62 @@ func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context, offset int64) 
 		recoveries = append(recoveries, &r)
 	}
 	return recoveries, nil
+}
+
+func (s *SQLite3Store) UpsertNodeStats(ctx context.Context, appId, typ, stats string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	ns := NodeStats{
+		AppId:     appId,
+		Type:      typ,
+		Stats:     stats,
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT app_id FROM nodes WHERE app_id=? AND node_type=?", appId, typ)
+	if err != nil {
+		return err
+	}
+	if existed {
+		err = s.execOne(ctx, tx, "UPDATE nodes SET stats=?, updated_at=? WHERE app_id=? AND node_type=?",
+			ns.Stats, time.Now().UTC(), appId, typ)
+		if err != nil {
+			return fmt.Errorf("UPDATE nodes %v", err)
+		}
+	} else {
+		vals := ns.values()
+		err = s.execOne(ctx, tx, buildInsertionSQL("nodes", nodeCols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT nodes %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeStats, error) {
+	query := fmt.Sprintf("SELECT %s FROM nodes WHERE node_type=? ORDER BY updated_at ASC", strings.Join(nodeCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, typ)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var nodes []*NodeStats
+	for rows.Next() {
+		var n NodeStats
+		err = rows.Scan(&n.AppId, &n.Type, &n.Stats, &n.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, &n)
+	}
+	return nodes, nil
 }
