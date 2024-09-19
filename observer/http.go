@@ -101,6 +101,7 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.GET("/", node.httpIndex)
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
+	router.GET("/stats", node.httpListNodes)
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/recoveries/:id", node.httpGetRecovery)
@@ -213,6 +214,38 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		cs = append(cs, chain)
 	}
 	common.RenderJSON(w, r, http.StatusOK, cs)
+}
+
+func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	typ := r.URL.Query().Get("type")
+	switch typ {
+	case NodeTypeKeeper, NodeTypeSigner:
+	default:
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "type"})
+		return
+	}
+	nss, err := node.store.ListNodeStats(r.Context(), typ)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	var ns []map[string]any
+	for _, n := range nss {
+		stats, err := n.getStats()
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		mp := map[string]any{
+			"id":         n.AppId,
+			"type":       n.Type,
+			"app":        stats.App,
+			"mtg":        stats.Mtg,
+			"updated_at": n.UpdatedAt,
+		}
+		ns = append(ns, mp)
+	}
+	common.RenderJSON(w, r, http.StatusOK, ns)
 }
 
 func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
