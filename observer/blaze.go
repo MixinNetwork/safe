@@ -79,7 +79,7 @@ func (f mixinBlazeHandler) SyncAck() bool {
 	return true
 }
 
-func (node *Node) Blaze(ctx context.Context) error {
+func (node *Node) Blaze(ctx context.Context) {
 	mixin := node.safeUser()
 	for {
 		client := bot.NewBlazeClient(mixin.UserId, mixin.SessionId, mixin.SessionPrivateKey)
@@ -93,6 +93,7 @@ func (node *Node) Blaze(ctx context.Context) error {
 		}
 		if err := client.Loop(ctx, mixinBlazeHandler(h)); err != nil {
 			log.Printf("client.Loop() => %#v", err)
+			panic(err)
 		}
 		time.Sleep(time.Second)
 	}
