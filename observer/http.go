@@ -101,7 +101,8 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.GET("/", node.httpIndex)
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
-	router.GET("/stats", node.httpListNodes)
+	router.GET("/signers", node.httpListSigners)
+	router.GET("/keepers", node.httpListKeepers)
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/recoveries/:id", node.httpGetRecovery)
@@ -122,7 +123,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 	if r.Host == "safe.mixin.dev" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(GUIDE))
+		_, _ = w.Write([]byte(GUIDE))
 		return
 	}
 
@@ -157,7 +158,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	w.Header().Set("Content-Type", "image/vnd.microsoft.icon")
 	w.WriteHeader(http.StatusOK)
-	w.Write(FAVICON)
+	_, _ = w.Write(FAVICON)
 }
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -216,13 +217,19 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 	common.RenderJSON(w, r, http.StatusOK, cs)
 }
 
-func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	typ := r.URL.Query().Get("type")
+func (node *Node) httpListSigners(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	node.httpListNodes(w, r, NodeTypeSigner)
+}
+
+func (node *Node) httpListKeepers(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	node.httpListNodes(w, r, NodeTypeKeeper)
+}
+
+func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, typ string) {
 	switch typ {
 	case NodeTypeKeeper, NodeTypeSigner:
 	default:
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "type"})
-		return
+		panic(typ)
 	}
 	nss, err := node.store.ListNodeStats(r.Context(), typ)
 	if err != nil {
@@ -718,7 +725,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 	return view
 }
 
-func (node *Node) viewRecoveries(ctx context.Context, recoveries []*Recovery) []map[string]any {
+func (node *Node) viewRecoveries(_ context.Context, recoveries []*Recovery) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, r := range recoveries {
 		rm := map[string]any{

@@ -13,6 +13,7 @@ type Configuration struct {
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
 	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
+	ObserverUserId          string             `toml:"observer-user-id"`
 	Threshold               int                `toml:"threshold"`
 	SharedKey               string             `toml:"shared-key"`
 	AssetId                 string             `toml:"asset-id"`
@@ -21,7 +22,6 @@ type Configuration struct {
 	SaverAPI                string             `toml:"saver-api"`
 	SaverKey                string             `toml:"saver-key"`
 	MixinRPC                string             `toml:"mixin-rpc"`
-	ObserverUserId          string             `toml:"observer-user-id"`
 	MTG                     *mtg.Configuration `toml:"mtg"`
 }
 

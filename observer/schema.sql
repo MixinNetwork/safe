@@ -139,9 +139,7 @@ CREATE TABLE IF NOT EXISTS recoveries (
 CREATE TABLE IF NOT EXISTS nodes (
   app_id             VARCHAR NOT NULL,
   node_type          VARCHAR NOT NULL,
-	stats              TEXT NOT NULL,
+  stats              TEXT NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('app_id', 'node_type')
 );
-
-CREATE INDEX IF NOT EXISTS nodes_by_type_updated ON nodes(node_type, updated_at);

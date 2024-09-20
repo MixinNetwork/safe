@@ -8,6 +8,8 @@ store-dir = "/tmp/safe/signer"
 messenger-conversation-id = ""
 # the mixin messenger group for monitor messages
 monitor-conversation-id = ""
+# the observer aggregates the monitor messages
+observer-user-id = "observer-id"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
 # a shared ed25519 private key to do ecdh with the keeper
@@ -26,8 +28,6 @@ saver-api = ""
 saver-key = ""
 # the mixin kernel node rpc
 mixin-rpc = "https://kernel.mixin.dev"
-# the observer is good to be a single user
-observer-user-id = "observer-id"
 
 [signer.mtg.genesis]
 members = [

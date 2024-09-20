@@ -111,8 +111,8 @@ func VerifyAssetKey(assetKey string) error {
 
 func BuildChainAssetId(base, asset string) string {
 	h := md5.New()
-	io.WriteString(h, base)
-	io.WriteString(h, asset)
+	_, _ = io.WriteString(h, base)
+	_, _ = io.WriteString(h, asset)
 	sum := h.Sum(nil)
 	sum[6] = (sum[6] & 0x0f) | 0x30
 	sum[8] = (sum[8] & 0x3f) | 0x80
@@ -132,7 +132,8 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-// TODO cross-chain deposits might be lost, which are sended from emtpy address and not included in the block traces in polygon
+// TODO cross-chain deposits might be lost, which are sended from emtpy address
+// and not included in the block traces in polygon pos
 func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
 	txs := []*RPCTransaction{}
 	for _, tx := range blockTxs {

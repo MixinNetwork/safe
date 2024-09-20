@@ -920,7 +920,7 @@ func (s *SQLite3Store) UpsertNodeStats(ctx context.Context, appId, typ, stats st
 	}
 	if existed {
 		err = s.execOne(ctx, tx, "UPDATE nodes SET stats=?, updated_at=? WHERE app_id=? AND node_type=?",
-			ns.Stats, time.Now().UTC(), appId, typ)
+			ns.Stats, ns.UpdatedAt, appId, typ)
 		if err != nil {
 			return fmt.Errorf("UPDATE nodes %v", err)
 		}
@@ -936,7 +936,7 @@ func (s *SQLite3Store) UpsertNodeStats(ctx context.Context, appId, typ, stats st
 }
 
 func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeStats, error) {
-	query := fmt.Sprintf("SELECT %s FROM nodes WHERE node_type=? ORDER BY updated_at ASC", strings.Join(nodeCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM nodes WHERE node_type=? ORDER BY updated_at DESC", strings.Join(nodeCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, typ)
 	if err != nil {
 		return nil, err
