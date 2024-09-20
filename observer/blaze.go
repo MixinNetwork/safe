@@ -146,7 +146,7 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		if len(items) != 2 {
 			continue
 		}
-		key, value := strings.TrimSpace(items[0]), strings.TrimSpace(items[1])
+		key, value := strings.TrimSpace(items[0])[5:], strings.TrimSpace(items[1])
 		switch key {
 		case "Latest request":
 			stats.Mtg.LatestRequest = value
