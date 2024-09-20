@@ -133,9 +133,13 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		return nil
 	}
 
+	var appSecion bool
 	for _, line := range lines {
 		if line == "" {
 			continue
+		}
+		if strings.Contains(line, "𝗔𝙋𝗣") {
+			appSecion = true
 		}
 		items := strings.Split(line, ":")
 		if len(items) != 2 {
@@ -148,10 +152,10 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		case "Bitcoin height":
 			stats.Mtg.BitcoinHeight = value
 		case "Initial Transactions":
-			if stats.Type == NodeTypeSigner {
-				stats.Mtg.InitialTxs = value
-			} else {
+			if appSecion {
 				stats.App.InitialTxs = value
+			} else {
+				stats.Mtg.InitialTxs = value
 			}
 		case "Signed Transactions":
 			stats.Mtg.SignedTxs = value
