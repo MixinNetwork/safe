@@ -205,10 +205,7 @@ func TestNode(t *testing.T) {
 			Version:         "v0.17.2-1976a7f",
 		},
 	}
-	s1Id := uuid.Must(uuid.NewV4()).String()
-	s1Str, err := s1.stringify()
-	require.Nil(err)
-	err = node.store.UpsertNodeStats(ctx, s1Id, s1.Type, s1Str)
+	err = testUpsertStats(ctx, node, s1)
 	require.Nil(err)
 	nss, err := node.store.ListNodeStats(ctx, NodeTypeSigner)
 	require.Nil(err)
@@ -249,12 +246,7 @@ func TestNode(t *testing.T) {
 
 func testUpsertStats(ctx context.Context, node *Node, s *StatsInfo) error {
 	id := uuid.Must(uuid.NewV4()).String()
-	str, err := s.stringify()
-	if err != nil {
-		return err
-	}
-	err = node.store.UpsertNodeStats(ctx, id, s.Type, str)
-	return err
+	return node.store.UpsertNodeStats(ctx, id, s.Type, s.String())
 }
 
 func testPublicKey(priv string) string {
@@ -263,7 +255,7 @@ func testPublicKey(priv string) string {
 	return hex.EncodeToString(dk.SerializeCompressed())
 }
 
-func testBuildNode(ctx context.Context, require *require.Assertions, root string) *Node {
+func testBuildNode(_ context.Context, require *require.Assertions, root string) *Node {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Observer *Configuration        `toml:"observer"`

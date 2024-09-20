@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/mixin/logger"
 )
 
 const (
@@ -57,12 +57,12 @@ type StatsInfo struct {
 	App  AppInfo `json:"app"`
 }
 
-func (s *StatsInfo) stringify() (string, error) {
+func (s *StatsInfo) String() string {
 	b, err := json.Marshal(s)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
-	return string(b), nil
+	return string(b)
 }
 
 type mixinBlazeHandler func(ctx context.Context, msg bot.MessageView, clientID string) error
@@ -81,19 +81,18 @@ func (f mixinBlazeHandler) SyncAck() bool {
 
 func (node *Node) Blaze(ctx context.Context) {
 	mixin := node.safeUser()
+	handler := func(ctx context.Context, botMsg bot.MessageView, clientID string) error {
+		err := node.handleMessage(ctx, botMsg)
+		if err != nil {
+			logger.Printf("blaze.handleMessage() => %v", err)
+		}
+		return err
+	}
 	for {
 		client := bot.NewBlazeClient(mixin.UserId, mixin.SessionId, mixin.SessionPrivateKey)
-		h := func(ctx context.Context, botMsg bot.MessageView, clientID string) error {
-			err := node.handleMessage(ctx, botMsg)
-			if err != nil {
-				log.Printf("blaze.handleMessage() => %v", err)
-				return err
-			}
-			return nil
-		}
-		if err := client.Loop(ctx, mixinBlazeHandler(h)); err != nil {
-			log.Printf("client.Loop() => %#v", err)
-			panic(err)
+		err := client.Loop(ctx, mixinBlazeHandler(handler))
+		if err != nil {
+			logger.Printf("client.Loop() => %#v", err)
 		}
 		time.Sleep(time.Second)
 	}
@@ -110,11 +109,7 @@ func (node *Node) handleMessage(ctx context.Context, bm bot.MessageView) error {
 	if stats == nil {
 		return nil
 	}
-	str, err := stats.stringify()
-	if err != nil {
-		return err
-	}
-	return node.store.UpsertNodeStats(ctx, bm.UserId, stats.Type, str)
+	return node.store.UpsertNodeStats(ctx, bm.UserId, stats.Type, stats.String())
 }
 
 func parseNodeStats(dataBase64 string) *StatsInfo {
