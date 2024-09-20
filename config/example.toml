@@ -26,6 +26,8 @@ saver-api = ""
 saver-key = ""
 # the mixin kernel node rpc
 mixin-rpc = "https://kernel.mixin.dev"
+# the observer is good to be a single user
+observer-user-id = "observer-id"
 
 [signer.mtg.genesis]
 members = [

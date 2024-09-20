@@ -21,6 +21,7 @@ type Configuration struct {
 	SaverAPI                string             `toml:"saver-api"`
 	SaverKey                string             `toml:"saver-key"`
 	MixinRPC                string             `toml:"mixin-rpc"`
+	ObserverUserId          string             `toml:"observer-user-id"`
 	MTG                     *mtg.Configuration `toml:"mtg"`
 }
 
