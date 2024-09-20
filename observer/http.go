@@ -248,6 +248,8 @@ func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, typ stri
 			"type":       n.Type,
 			"app":        stats.App,
 			"mtg":        stats.Mtg,
+			"runtime":    stats.Runtime,
+			"group":      stats.Group,
 			"updated_at": n.UpdatedAt,
 		}
 		ns = append(ns, mp)

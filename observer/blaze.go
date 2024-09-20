@@ -52,9 +52,11 @@ type MtgInfo struct {
 }
 
 type StatsInfo struct {
-	Type string  `json:"type"`
-	Mtg  MtgInfo `json:"mtg"`
-	App  AppInfo `json:"app"`
+	Type    string  `json:"type"`
+	Runtime string  `json:"runtime"`
+	Group   string  `json:"group"`
+	Mtg     MtgInfo `json:"mtg"`
+	App     AppInfo `json:"app"`
 }
 
 func (s *StatsInfo) String() string {
@@ -120,10 +122,7 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 	msg := string(rb)
 	lines := strings.Split(msg, "\n")
 
-	stats := &StatsInfo{
-		Mtg: MtgInfo{},
-		App: AppInfo{},
-	}
+	stats := &StatsInfo{}
 	switch {
 	case strings.HasPrefix(msg, "🧱🧱🧱🧱🧱 Keeper 🧱🧱🧱🧱🧱"):
 		stats.Type = NodeTypeKeeper
@@ -133,61 +132,61 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		return nil
 	}
 
-	var appSecion bool
 	for _, line := range lines {
 		if line == "" {
 			continue
-		}
-		if strings.Contains(line, "𝗔𝙋𝗣") {
-			appSecion = true
 		}
 		items := strings.Split(line, ":")
 		if len(items) != 2 {
 			continue
 		}
-		key, value := strings.TrimSpace(items[0])[5:], strings.TrimSpace(items[1])
+		key, value := strings.TrimSpace(items[0]), strings.TrimSpace(items[1])
 		switch key {
-		case "Latest request":
+		case "⏲️ Run time":
+			stats.Runtime = value
+		case "⏲️ Group":
+			stats.Group = value
+		case "🎆 Latest request":
 			stats.Mtg.LatestRequest = value
-		case "Bitcoin height":
+		case "🚴 Bitcoin height":
 			stats.Mtg.BitcoinHeight = value
-		case "Initial Transactions":
-			if appSecion {
-				stats.App.InitialTxs = value
-			} else {
-				stats.Mtg.InitialTxs = value
-			}
-		case "Signed Transactions":
+		case "🫰 Initial Transactions":
+			stats.Mtg.InitialTxs = value
+		case "🫰 Signed Transactions":
 			stats.Mtg.SignedTxs = value
-		case "Snapshot Transactions":
+		case "🫰 Snapshot Transactions":
 			stats.Mtg.SnapshotTxs = value
-		case "XIN Outputs":
+		case "💍 XIN Outputs":
 			stats.Mtg.XINOutputs = value
-		case "MSKT Outputs":
+		case "💍 MSKT Outputs":
 			stats.Mtg.MSKTOutputs = value
-		case "MSST Outputs":
+		case "💍 MSST Outputs":
 			stats.Mtg.MSSTOutputs = value
-		case "Signer Bitcoin keys":
+		case "🔑 Signer Bitcoin keys":
 			stats.App.SignerBitcoinKeys = value
-		case "Signer Ethereum keys":
+		case "🔑 Signer Ethereum keys":
 			stats.App.SignerEthereumKeys = value
-		case "Observer Bitcoin keys":
+		case "🔑 Observer Bitcoin keys":
 			stats.App.ObserverBitcoinKeys = value
-		case "Pending Transactions":
+		case "🔑 Observer Ethereum keys":
+			stats.App.ObserverEthereumKeys = value
+		case "💷 Initial Transactions":
+			stats.App.InitialTxs = value
+		case "💶 Pending Transactions":
 			stats.App.PendingTxs = value
-		case "Done Transactions":
+		case "💵 Done Transactions":
 			stats.App.DoneTxs = value
-		case "Failed Transactions":
+		case "💸 Failed Transactions":
 			stats.App.FailedTxs = value
-		case "Initial sessions":
+		case "🔑 Initial sessions":
 			stats.App.InitialSessions = value
-		case "Pending sessions":
+		case "🔑 Pending sessions":
 			stats.App.PendingSessions = value
-		case "Final sessions":
+		case "🔑 Final sessions":
 			stats.App.FinalSessions = value
-		case "Generated keys":
+		case "🔑 Generated keys":
 			stats.App.GeneratedKeys = value
-		case "Binary version":
+		case "🦷 Binary version":
 			stats.App.Version = value
 		}
 	}
