@@ -20,20 +20,20 @@ type AppInfo struct {
 	Version string `json:"binary_version"`
 
 	//keeper
-	SignerBitcoinKeys    string `json:"signer_bitcoin_keys"`
-	SignerEthereumKeys   string `json:"signer_ethereum_keys"`
-	ObserverBitcoinKeys  string `json:"observer_bitcoin_keys"`
-	ObserverEthereumKeys string `json:"observer_ethereum_keys"`
-	InitialTxs           string `json:"initial_transactions"`
-	PendingTxs           string `json:"pending_transactions"`
-	DoneTxs              string `json:"done_transactions"`
-	FailedTxs            string `json:"failed_transactions"`
+	SignerBitcoinKeys    string `json:"signer_bitcoin_keys,omitempty"`
+	SignerEthereumKeys   string `json:"signer_ethereum_keys,omitempty"`
+	ObserverBitcoinKeys  string `json:"observer_bitcoin_keys,omitempty"`
+	ObserverEthereumKeys string `json:"observer_ethereum_keys,omitempty"`
+	InitialTxs           string `json:"initial_transactions,omitempty"`
+	PendingTxs           string `json:"pending_transactions,omitempty"`
+	DoneTxs              string `json:"done_transactions,omitempty"`
+	FailedTxs            string `json:"failed_transactions,omitempty"`
 
 	// signer
-	InitialSessions string `json:"initial_sessions"`
-	PendingSessions string `json:"pending_sessions"`
-	FinalSessions   string `json:"final_sessions"`
-	GeneratedKeys   string `json:"generated_keys"`
+	InitialSessions string `json:"initial_sessions,omitempty"`
+	PendingSessions string `json:"pending_sessions,omitempty"`
+	FinalSessions   string `json:"final_sessions,omitempty"`
+	GeneratedKeys   string `json:"generated_keys,omitempty"`
 }
 
 type MtgInfo struct {
@@ -43,12 +43,12 @@ type MtgInfo struct {
 	MSKTOutputs string `json:"mskt_outputs"`
 
 	// keeper
-	LatestRequest string `json:"latest_request"`
-	BitcoinHeight string `json:"bitcoin_height"`
-	XINOutputs    string `json:"xin_outputs"`
+	LatestRequest string `json:"latest_request,omitempty"`
+	BitcoinHeight string `json:"bitcoin_height,omitempty"`
+	XINOutputs    string `json:"xin_outputs,omitempty"`
 
 	// signer
-	MSSTOutputs string `json:"msst_outputs"`
+	MSSTOutputs string `json:"msst_outputs,omitempty"`
 }
 
 type StatsInfo struct {
