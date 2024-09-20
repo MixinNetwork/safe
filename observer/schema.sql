@@ -133,3 +133,13 @@ CREATE TABLE IF NOT EXISTS recoveries (
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('address')
 );
+
+
+
+CREATE TABLE IF NOT EXISTS nodes (
+  app_id             VARCHAR NOT NULL,
+  node_type          VARCHAR NOT NULL,
+  stats              TEXT NOT NULL,
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('app_id', 'node_type')
+);

@@ -47,7 +47,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 			logger.Verbosef("Monitor.bundleSignerState() => %v", err)
 			continue
 		}
-		postMessages(ctx, store, conv, conf.MTG, msg)
+		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverUserId)
 		time.Sleep(30 * time.Minute)
 	}
 }
@@ -128,7 +128,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
 			continue
 		}
-		postMessages(ctx, store, conv, conf.MTG, msg)
+		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverUserId)
 		time.Sleep(30 * time.Minute)
 	}
 }
@@ -227,7 +227,7 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	return state, nil
 }
 
-func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, conf *mtg.Configuration, msg string) {
+func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, conf *mtg.Configuration, msg, observer string) {
 	app := conf.App
 	var messages []*bot.MessageRequest
 	for i := range conv.Participants {
@@ -236,7 +236,7 @@ func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, 
 			continue
 		}
 		u, err := fetchConversationUser(ctx, store, s.UserId, conf)
-		if err != nil || checkBot(u) {
+		if err != nil || checkBot(u, observer) {
 			logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
 			continue
 		}
@@ -282,7 +282,10 @@ func fetchConversationUser(ctx context.Context, store UserStore, id string, conf
 	return u, err
 }
 
-func checkBot(u *bot.User) bool {
+func checkBot(u *bot.User, observer string) bool {
+	if u.UserId == observer {
+		return false
+	}
 	id, err := strconv.ParseInt(u.IdentityNumber, 10, 64)
 	if err != nil {
 		panic(u.IdentityNumber)

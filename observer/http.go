@@ -101,6 +101,8 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.GET("/", node.httpIndex)
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/chains", node.httpListChains)
+	router.GET("/signers", node.httpListSigners)
+	router.GET("/keepers", node.httpListKeepers)
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/recoveries/:id", node.httpGetRecovery)
@@ -121,7 +123,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 	if r.Host == "safe.mixin.dev" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(GUIDE))
+		_, _ = w.Write([]byte(GUIDE))
 		return
 	}
 
@@ -156,7 +158,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	w.Header().Set("Content-Type", "image/vnd.microsoft.icon")
 	w.WriteHeader(http.StatusOK)
-	w.Write(FAVICON)
+	_, _ = w.Write(FAVICON)
 }
 
 func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -213,6 +215,44 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		cs = append(cs, chain)
 	}
 	common.RenderJSON(w, r, http.StatusOK, cs)
+}
+
+func (node *Node) httpListSigners(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	node.httpListNodes(w, r, NodeTypeSigner)
+}
+
+func (node *Node) httpListKeepers(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	node.httpListNodes(w, r, NodeTypeKeeper)
+}
+
+func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, typ string) {
+	switch typ {
+	case NodeTypeKeeper, NodeTypeSigner:
+	default:
+		panic(typ)
+	}
+	nss, err := node.store.ListNodeStats(r.Context(), typ)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	var ns []map[string]any
+	for _, n := range nss {
+		stats, err := n.getStats()
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		mp := map[string]any{
+			"id":         n.AppId,
+			"type":       n.Type,
+			"app":        stats.App,
+			"mtg":        stats.Mtg,
+			"updated_at": n.UpdatedAt,
+		}
+		ns = append(ns, mp)
+	}
+	common.RenderJSON(w, r, http.StatusOK, ns)
 }
 
 func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -685,7 +725,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 	return view
 }
 
-func (node *Node) viewRecoveries(ctx context.Context, recoveries []*Recovery) []map[string]any {
+func (node *Node) viewRecoveries(_ context.Context, recoveries []*Recovery) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, r := range recoveries {
 		rm := map[string]any{
