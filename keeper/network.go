@@ -61,7 +61,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	switch info.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
-		valid, err := node.verifyBitcoinNetworkInfo(ctx, info, old)
+		valid, err := node.verifyBitcoinNetworkInfo(info, old)
 		logger.Printf("node.verifyBitcoinNetworkInfo(%s, %v) => %t", req.Id, info, valid)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err))
@@ -70,7 +70,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		}
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
-		valid, err := node.verifyEthereumNetworkInfo(ctx, info, old)
+		valid, err := node.verifyEthereumNetworkInfo(info, old)
 		logger.Printf("node.verifyEthereumNetworkInfo(%s, %v) => %t", req.Id, info, valid)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err))
@@ -130,7 +130,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return nil, ""
 }
 
-func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info, old *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyBitcoinNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
@@ -157,7 +157,7 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info, old *store
 	return true, nil
 }
 
-func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info, old *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyEthereumNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
 	if len(info.Hash) != 66 {
 		return false, nil
 	}
@@ -229,7 +229,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*store.Asset, error) {
+func (node *Node) fetchMixinAsset(_ context.Context, id string) (*store.Asset, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
 	resp, err := client.Get(path)

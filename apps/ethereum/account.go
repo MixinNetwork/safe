@@ -12,7 +12,6 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -217,57 +216,6 @@ func DeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owne
 	}
 	_, err = bind.WaitMined(ctx, conn, t)
 	return err
-}
-
-func GetOwners(rpc, address string) ([]common.Address, error) {
-	conn, abi, err := safeInit(rpc, address)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	os, err := abi.GetOwners(nil)
-	if err != nil {
-		return nil, err
-	}
-	return os, nil
-}
-
-func GetNonce(rpc, address string) (int64, error) {
-	conn, abi, err := safeInit(rpc, address)
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
-
-	nonce, err := abi.Nonce(nil)
-	if err != nil {
-		return 0, err
-	}
-	return nonce.Int64(), nil
-}
-
-func GetNonceAtBlock(rpc, address string, blockNumber *big.Int) (*big.Int, error) {
-	data, err := hex.DecodeString("affed0e0")
-	if err != nil {
-		return nil, err
-	}
-	addr := common.HexToAddress(address)
-	callMsg := ethereum.CallMsg{
-		To:   &addr,
-		Data: data,
-	}
-	conn, err := ethclient.Dial(rpc)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	response, err := conn.CallContract(context.Background(), callMsg, blockNumber)
-	if err != nil {
-		return nil, err
-	}
-	n := new(big.Int).SetBytes(response)
-	return new(big.Int).Sub(n, big.NewInt(1)), nil
 }
 
 func GetSafeLastTxTime(rpc, address string) (time.Time, error) {

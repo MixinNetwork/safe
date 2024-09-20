@@ -123,11 +123,8 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		if count != 0 {
 			return node.failRequest(ctx, req, "")
 		}
-		txs, asset := node.closeEthereumAccountWithHolder(ctx, req, safe, raw, t.Destination.Hex())
+		txs, asset := node.closeEthereumAccountWithHolder(ctx, req, safe, raw)
 		logger.Printf("node.closeEthereumAccountWithHolder(%v, %s) => %v %s", req, t.Destination.Hex(), txs, asset)
-		if err != nil {
-			panic(err)
-		}
 		return txs, asset
 	}
 
@@ -185,7 +182,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	return txs, ""
 }
 
-func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, receiver string) ([]*mtg.Transaction, string) {
+func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte) ([]*mtg.Transaction, string) {
 	t, _ := ethereum.UnmarshalSafeTransaction(raw)
 	signedByHolder, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
 	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Holder, signedByHolder, err)

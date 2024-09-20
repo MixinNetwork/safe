@@ -118,7 +118,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	case common.SafeChainEthereum, common.SafeChainPolygon:
-		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
+		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset)
 	default:
 		return node.failRequest(ctx, req, "")
 	}
@@ -206,7 +206,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	return txs, ""
 }
 
-func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset, minimum decimal.Decimal) ([]*mtg.Transaction, string) {
+func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset) ([]*mtg.Transaction, string) {
 	_, chainId := node.ethereumParams(deposit.Chain)
 	if asset.AssetId == chainId && asset.Decimals != ethereum.ValuePrecision {
 		panic(asset.Decimals)
