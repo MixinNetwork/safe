@@ -682,8 +682,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		return fmt.Errorf("recovery destination %s is the same as safe address %s", st.Destination.Hex(), safe.Address)
 	}
 
-	switch {
-	case approval != nil: // Close account with safeBTC
+	if approval != nil { // Close account with safeBTC
 		if count != 1 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
@@ -706,7 +705,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		if err != nil || tx == nil {
 			return err
 		}
-	case approval == nil: // Close account with holder key
+	} else { // Close account with holder key
 		if count != 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
