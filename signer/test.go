@@ -27,6 +27,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type partyContextTyp string
+
+const partyContextKey = partyContextTyp("party")
+
 func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.SQLite3Store) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
@@ -45,7 +49,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 	network := newTestNetwork(nodes[0].members)
 	for i := 0; i < 4; i++ {
 		nodes[i].network = network
-		ctx = context.WithValue(ctx, "party", string(nodes[i].id))
+		ctx = context.WithValue(ctx, partyContextKey, string(nodes[i].id))
 		go network.mtgLoop(ctx, nodes[i])
 		go nodes[i].loopInitialSessions(ctx)
 		go nodes[i].loopPreparedSessions(ctx)
@@ -91,7 +95,8 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		require.Nil(err)
 
 		conf := cmp.EmptyConfig(curve.Secp256k1{})
-		conf.UnmarshalBinary(sb)
+		err = conf.UnmarshalBinary(sb)
+		require.Nil(err)
 		require.Equal(chainCode, hex.EncodeToString(conf.ChainKey))
 
 		key, _ := hex.DecodeString(public)
@@ -288,7 +293,7 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 			continue
 		}
 		var out mtg.Action
-		json.Unmarshal(mob, &out)
+		_ = json.Unmarshal(mob, &out)
 		out.TestAttachActionToGroup(node.group)
 		ts, asset := node.ProcessOutput(ctx, &out)
 		if asset != "" {
@@ -328,7 +333,7 @@ func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
 }
 
 func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessage, error) {
-	id := ctx.Value("party").(string)
+	id := ctx.Value(partyContextKey).(string)
 	msb := <-n.msgChannel(party.ID(id))
 	_, msg, _ := unmarshalSessionMessage(msb)
 	return &messenger.MixinMessage{

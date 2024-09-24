@@ -9,11 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
-)
-
-const (
-	contextKeyEnvironment = "environment"
 )
 
 func MarshalPanic(m encoding.BinaryMarshaler) []byte {
@@ -50,16 +47,11 @@ func UniqueId(a, b string) string {
 }
 
 func EnableTestEnvironment(ctx context.Context) context.Context {
-	return context.WithValue(ctx, contextKeyEnvironment, "test")
+	return mtg.EnableTestEnvironment(ctx)
 }
 
 func CheckTestEnvironment(ctx context.Context) bool {
-	val := ctx.Value(contextKeyEnvironment)
-	if val == nil {
-		return false
-	}
-	env, ok := val.(string)
-	return ok && env == "test"
+	return mtg.CheckTestEnvironment(ctx)
 }
 
 func CheckUnique(args ...any) bool {
