@@ -3,7 +3,7 @@ module github.com/MixinNetwork/safe
 go 1.23.1
 
 require (
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.8.0
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.8.2
 	github.com/MixinNetwork/mixin v0.18.13
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/trusted-group v0.9.4
@@ -14,8 +14,8 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/dimfeld/httptreemux/v5 v5.5.0
-	github.com/ethereum/go-ethereum v1.14.9
-	github.com/fox-one/mixin-sdk-go/v2 v2.0.9
+	github.com/ethereum/go-ethereum v1.14.10
+	github.com/fox-one/mixin-sdk-go/v2 v2.0.10
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/mattn/go-sqlite3 v1.14.23
@@ -36,7 +36,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.14.3 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.2 // indirect
-	github.com/consensys/bavard v0.1.16 // indirect
+	github.com/consensys/bavard v0.1.17 // indirect
 	github.com/consensys/gnark-crypto v0.14.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
@@ -51,7 +51,7 @@ require (
 	github.com/fox-one/msgpack v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-resty/resty/v2 v2.15.2 // indirect
+	github.com/go-resty/resty/v2 v2.15.3 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
