@@ -106,8 +106,8 @@ func (s *SQLite3Store) CountTransactionsByState(ctx context.Context, state byte)
 }
 
 func (s *SQLite3Store) CountUnfinishedTransactionsByHolder(ctx context.Context, holder string) (int, error) {
-	query := "SELECT COUNT(*) FROM transactions WHERE holder=? AND state=?"
-	row := s.db.QueryRowContext(ctx, query, holder, common.RequestStateInitial)
+	query := "SELECT COUNT(*) FROM transactions WHERE holder=? AND state IN (?, ?)"
+	row := s.db.QueryRowContext(ctx, query, holder, common.RequestStateInitial, common.RequestStatePending)
 
 	var count int
 	err := row.Scan(&count)
