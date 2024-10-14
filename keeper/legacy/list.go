@@ -20,10 +20,10 @@ type Property struct {
 	CreatedAt time.Time
 }
 
-func (s *SQLite3Store) listRequests(ctx context.Context, tx *sql.Tx) ([]*common.Request, error) {
+func (s *SQLite3Store) listRequests(ctx context.Context) ([]*common.Request, error) {
 	var cols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at ASC, request_id ASC", strings.Join(cols, ","))
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +46,10 @@ func (s *SQLite3Store) listRequests(ctx context.Context, tx *sql.Tx) ([]*common.
 	return requests, nil
 }
 
-func (s *SQLite3Store) readLatestNetworkInfo(ctx context.Context, tx *sql.Tx, chain int64) (*store.NetworkInfo, error) {
+func (s *SQLite3Store) readLatestNetworkInfo(ctx context.Context, chain int64) (*store.NetworkInfo, error) {
 	var cols = []string{"request_id", "chain", "fee", "height", "hash", "created_at"}
 	query := fmt.Sprintf("SELECT %s FROM network_infos WHERE chain=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(cols, ","))
-	row := tx.QueryRowContext(ctx, query, chain)
+	row := s.db.QueryRowContext(ctx, query, chain)
 
 	var n store.NetworkInfo
 	err := row.Scan(&n.RequestId, &n.Chain, &n.Fee, &n.Height, &n.Hash, &n.CreatedAt)
@@ -59,10 +59,10 @@ func (s *SQLite3Store) readLatestNetworkInfo(ctx context.Context, tx *sql.Tx, ch
 	return &n, err
 }
 
-func (s *SQLite3Store) listLatestNetworkInfos(ctx context.Context, tx *sql.Tx) ([]*store.NetworkInfo, error) {
+func (s *SQLite3Store) listLatestNetworkInfos(ctx context.Context) ([]*store.NetworkInfo, error) {
 	var infos []*store.NetworkInfo
 	for _, c := range []int64{common.SafeChainBitcoin, common.SafeChainEthereum, common.SafeChainLitecoin, common.SafeChainPolygon} {
-		info, err := s.readLatestNetworkInfo(ctx, tx, c)
+		info, err := s.readLatestNetworkInfo(ctx, c)
 		if err != nil || info == nil {
 			return nil, fmt.Errorf("legacy.readLatestNetworkInfo(%d) => %v %v", c, info, err)
 		}
@@ -71,10 +71,10 @@ func (s *SQLite3Store) listLatestNetworkInfos(ctx context.Context, tx *sql.Tx) (
 	return infos, nil
 }
 
-func (s *SQLite3Store) readLatestOperationParams(ctx context.Context, tx *sql.Tx, chain int64) (*store.OperationParams, error) {
+func (s *SQLite3Store) readLatestOperationParams(ctx context.Context, chain int64) (*store.OperationParams, error) {
 	var cols = []string{"request_id", "chain", "price_asset", "price_amount", "transaction_minimum", "created_at"}
 	query := fmt.Sprintf("SELECT %s FROM operation_params WHERE chain=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(cols, ","))
-	row := tx.QueryRowContext(ctx, query, chain)
+	row := s.db.QueryRowContext(ctx, query, chain)
 
 	var p store.OperationParams
 	var price, minimum string
@@ -89,10 +89,10 @@ func (s *SQLite3Store) readLatestOperationParams(ctx context.Context, tx *sql.Tx
 	return &p, nil
 }
 
-func (s *SQLite3Store) listLatestOperationParams(ctx context.Context, tx *sql.Tx) ([]*store.OperationParams, error) {
+func (s *SQLite3Store) listLatestOperationParams(ctx context.Context) ([]*store.OperationParams, error) {
 	var ops []*store.OperationParams
 	for _, c := range []int64{common.SafeChainBitcoin, common.SafeChainEthereum, common.SafeChainLitecoin, common.SafeChainPolygon} {
-		op, err := s.readLatestOperationParams(ctx, tx, c)
+		op, err := s.readLatestOperationParams(ctx, c)
 		if err != nil || op == nil {
 			return nil, fmt.Errorf("legacy.readLatestOperationParams(%d) => %v %v", c, op, err)
 		}
@@ -101,10 +101,10 @@ func (s *SQLite3Store) listLatestOperationParams(ctx context.Context, tx *sql.Tx
 	return ops, nil
 }
 
-func (s *SQLite3Store) listAssets(ctx context.Context, tx *sql.Tx) ([]*store.Asset, error) {
+func (s *SQLite3Store) listAssets(ctx context.Context) ([]*store.Asset, error) {
 	var cols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 	query := fmt.Sprintf("SELECT %s FROM assets", strings.Join(cols, ","))
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -122,10 +122,10 @@ func (s *SQLite3Store) listAssets(ctx context.Context, tx *sql.Tx) ([]*store.Ass
 	return assets, nil
 }
 
-func (s *SQLite3Store) listKeys(ctx context.Context, tx *sql.Tx) ([]*store.Key, error) {
+func (s *SQLite3Store) listKeys(ctx context.Context) ([]*store.Key, error) {
 	var cols = []string{"public_key", "curve", "request_id", "role", "extra", "flags", "holder", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM keys", strings.Join(cols, ","))
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -143,10 +143,10 @@ func (s *SQLite3Store) listKeys(ctx context.Context, tx *sql.Tx) ([]*store.Key, 
 	return keys, nil
 }
 
-func (s *SQLite3Store) listProposals(ctx context.Context, tx *sql.Tx) ([]*store.SafeProposal, error) {
+func (s *SQLite3Store) listProposals(ctx context.Context) ([]*store.SafeProposal, error) {
 	var cols = []string{"request_id", "chain", "holder", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM safe_proposals", strings.Join(cols, ","))
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -166,10 +166,10 @@ func (s *SQLite3Store) listProposals(ctx context.Context, tx *sql.Tx) ([]*store.
 	return ps, nil
 }
 
-func (s *SQLite3Store) listSafes(ctx context.Context, tx *sql.Tx) ([]*store.Safe, error) {
+func (s *SQLite3Store) listSafes(ctx context.Context) ([]*store.Safe, error) {
 	var cols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "safe_asset_id", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM safes", strings.Join(cols, ","))
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -189,10 +189,10 @@ func (s *SQLite3Store) listSafes(ctx context.Context, tx *sql.Tx) ([]*store.Safe
 	return safes, nil
 }
 
-func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context, tx *sql.Tx) ([]*bitcoin.Input, error) {
+func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*bitcoin.Input, error) {
 	cols := strings.Join([]string{"transaction_hash", "output_index", "satoshi", "script", "sequence"}, ",")
 	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs ORDER BY created_at ASC, request_id ASC", cols)
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -212,10 +212,10 @@ func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context, tx *sql.Tx) ([]*b
 	return inputs, nil
 }
 
-func (s *SQLite3Store) listEthereumBalances(ctx context.Context, tx *sql.Tx) ([]*store.SafeBalance, error) {
+func (s *SQLite3Store) listEthereumBalances(ctx context.Context) ([]*store.SafeBalance, error) {
 	cols := []string{"address", "asset_id", "asset_address", "safe_asset_id", "balance", "latest_tx_hash", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM ethereum_balances", cols)
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -232,10 +232,10 @@ func (s *SQLite3Store) listEthereumBalances(ctx context.Context, tx *sql.Tx) ([]
 	return sbs, nil
 }
 
-func (s *SQLite3Store) listDeposits(ctx context.Context, tx *sql.Tx) ([]*store.Deposit, error) {
+func (s *SQLite3Store) listDeposits(ctx context.Context) ([]*store.Deposit, error) {
 	var cols = []string{"transaction_hash", "output_index", "asset_id", "amount", "receiver", "sender", "state", "chain", "holder", "category", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM deposits", cols)
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -253,10 +253,10 @@ func (s *SQLite3Store) listDeposits(ctx context.Context, tx *sql.Tx) ([]*store.D
 	return ds, nil
 }
 
-func (s *SQLite3Store) listTransactions(ctx context.Context, tx *sql.Tx) ([]*store.Transaction, error) {
+func (s *SQLite3Store) listTransactions(ctx context.Context) ([]*store.Transaction, error) {
 	var cols = []string{"transaction_hash", "raw_transaction", "holder", "chain", "asset_id", "state", "data", "request_id", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM transactions", cols)
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -274,10 +274,10 @@ func (s *SQLite3Store) listTransactions(ctx context.Context, tx *sql.Tx) ([]*sto
 	return txs, nil
 }
 
-func (s *SQLite3Store) listSignatureRequests(ctx context.Context, tx *sql.Tx) ([]*store.SignatureRequest, error) {
+func (s *SQLite3Store) listSignatureRequests(ctx context.Context) ([]*store.SignatureRequest, error) {
 	var cols = []string{"request_id", "transaction_hash", "input_index", "signer", "curve", "message", "signature", "state", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM signature_requests ORDER BY created_at DESC, request_id DESC", cols)
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -295,10 +295,10 @@ func (s *SQLite3Store) listSignatureRequests(ctx context.Context, tx *sql.Tx) ([
 	return rs, nil
 }
 
-func (s *SQLite3Store) listProperties(ctx context.Context, tx *sql.Tx) ([]*Property, error) {
+func (s *SQLite3Store) listProperties(ctx context.Context) ([]*Property, error) {
 	var cols = []string{"key", "value", "created_at"}
 	query := fmt.Sprintf("SELECT %s FROM properties", cols)
-	rows, err := tx.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
