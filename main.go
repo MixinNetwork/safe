@@ -418,6 +418,21 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "exportKeeperLegacyData",
+				Usage:  "Export data of Legacy Mixin Network from keeper node",
+				Action: cmd.KeeperExportLegacyData,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "database",
+						Usage: "The legacy database backup from keeper",
+					},
+					&cli.StringFlag{
+						Name:  "export",
+						Usage: "The export database path",
+					},
+				},
+			},
 		},
 	}
 

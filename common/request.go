@@ -82,6 +82,7 @@ type Request struct {
 	ExtraHEX   string
 	State      uint8
 	CreatedAt  time.Time
+	UpdatedAt  time.Time
 	Sequence   uint64
 
 	Output *mtg.Action

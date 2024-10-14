@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"github.com/MixinNetwork/safe/keeper/legacy"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 )
@@ -26,6 +27,10 @@ type Configuration struct {
 	PolygonObserverDepositEntry string             `toml:"polygon-observer-deposit-entry"`
 	PolygonKeeperDepositEntry   string             `toml:"polygon-keeper-deposit-entry"`
 	MTG                         *mtg.Configuration `toml:"mtg"`
+}
+
+func OpenSQLite3StoreLegacy(path string) (*legacy.SQLite3Store, error) {
+	return legacy.OpenSQLite3Store(path)
 }
 
 func OpenSQLite3Store(path string) (*store.SQLite3Store, error) {

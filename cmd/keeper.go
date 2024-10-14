@@ -98,3 +98,24 @@ func KeeperFundRequest(c *cli.Context) error {
 	traceId := uuid.Must(uuid.NewV4()).String()
 	return makeKeeperPaymentRequest(c.String("config"), assetId, amount, traceId, "")
 }
+
+func KeeperExportLegacyData(c *cli.Context) error {
+	ctx := context.Background()
+
+	input := c.String("database")
+	if input == "" {
+		return fmt.Errorf("empty path of legacy database")
+	}
+	path := c.String("export")
+	if path == "" {
+		return fmt.Errorf("empty path of export database")
+	}
+
+	kd, err := keeper.OpenSQLite3StoreLegacy(input)
+	if err != nil {
+		return err
+	}
+	defer kd.Close()
+
+	return kd.ExportData(ctx, path)
+}

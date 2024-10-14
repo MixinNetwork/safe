@@ -21,6 +21,18 @@ type SafeBalance struct {
 	UpdatedAt    time.Time
 }
 
+func BalancFromRow(row *sql.Rows) (*SafeBalance, error) {
+	var sb SafeBalance
+	err := row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &sb.SafeAssetId, &sb.balance, &sb.LatestTxHash, &sb.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if sb.SafeAssetId == "" {
+		panic(sb.AssetId)
+	}
+	return &sb, nil
+}
+
 func (sb *SafeBalance) UpdateBalance(change *big.Int) {
 	balance := new(big.Int).Add(sb.BigBalance(), change)
 	if balance.Sign() < 0 {
