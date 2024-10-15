@@ -194,7 +194,7 @@ func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*store.Bitcoin
 	for rows.Next() {
 		var script string
 		var input store.BitcoinOutput
-		err = rows.Scan(&input.TransactionHash, &input.Index, &input.Address, &input.Satoshi, &script, &input.Sequence, &input.Chain, &input.State, &input.RequestId, &input.CreatedAt, &input.UpdatedAt)
+		err = rows.Scan(&input.TransactionHash, &input.Index, &input.Address, &input.Satoshi, &script, &input.Sequence, &input.Chain, &input.State, &input.SpentBy, &input.RequestId, &input.CreatedAt, &input.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

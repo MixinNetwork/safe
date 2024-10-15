@@ -25,7 +25,7 @@ type BitcoinOutput struct {
 	Sequence        uint32
 	Chain           int64
 	State           int64
-	SpentBy         string
+	SpentBy         sql.NullString
 	RequestId       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -109,6 +109,7 @@ func (s *SQLite3Store) Export(ctx context.Context, data ExportData) error {
 	if err != nil {
 		return err
 	}
+	// TODO should export migrate_assets
 
 	return tx.Commit()
 }
