@@ -228,7 +228,7 @@ func (s *SQLite3Store) listEthereumBalances(ctx context.Context) ([]*store.SafeB
 
 func (s *SQLite3Store) listDeposits(ctx context.Context) ([]*store.Deposit, error) {
 	var cols = []string{"transaction_hash", "output_index", "asset_id", "amount", "receiver", "sender", "state", "chain", "holder", "category", "created_at", "updated_at"}
-	query := fmt.Sprintf("SELECT %s FROM deposits", cols)
+	query := fmt.Sprintf("SELECT %s FROM deposits", strings.Join(cols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -249,7 +249,7 @@ func (s *SQLite3Store) listDeposits(ctx context.Context) ([]*store.Deposit, erro
 
 func (s *SQLite3Store) listTransactions(ctx context.Context) ([]*store.Transaction, error) {
 	var cols = []string{"transaction_hash", "raw_transaction", "holder", "chain", "asset_id", "state", "data", "request_id", "created_at", "updated_at"}
-	query := fmt.Sprintf("SELECT %s FROM transactions", cols)
+	query := fmt.Sprintf("SELECT %s FROM transactions", strings.Join(cols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -270,7 +270,7 @@ func (s *SQLite3Store) listTransactions(ctx context.Context) ([]*store.Transacti
 
 func (s *SQLite3Store) listSignatureRequests(ctx context.Context) ([]*store.SignatureRequest, error) {
 	var cols = []string{"request_id", "transaction_hash", "input_index", "signer", "curve", "message", "signature", "state", "created_at", "updated_at"}
-	query := fmt.Sprintf("SELECT %s FROM signature_requests ORDER BY created_at DESC, request_id DESC", cols)
+	query := fmt.Sprintf("SELECT %s FROM signature_requests ORDER BY created_at DESC, request_id DESC", strings.Join(cols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -291,7 +291,7 @@ func (s *SQLite3Store) listSignatureRequests(ctx context.Context) ([]*store.Sign
 
 func (s *SQLite3Store) listProperties(ctx context.Context) ([]*store.Property, error) {
 	var cols = []string{"key", "value", "created_at"}
-	query := fmt.Sprintf("SELECT %s FROM properties", cols)
+	query := fmt.Sprintf("SELECT %s FROM properties", strings.Join(cols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
