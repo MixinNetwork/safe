@@ -13,66 +13,79 @@ func (s *SQLite3Store) ExportData(ctx context.Context, export *store.SQLite3Stor
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d requests\n", len(requests))
 
 	infos, err := s.listLatestNetworkInfos(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d network infos\n", len(infos))
 
 	ops, err := s.listLatestOperationParams(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d operation params\n", len(ops))
 
 	assets, err := s.listAssets(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d assets\n", len(assets))
 
 	keys, err := s.listKeys(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d keys\n", len(keys))
 
 	proposals, err := s.listProposals(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d proposals\n", len(proposals))
 
 	safes, err := s.listSafes(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d safes\n", len(safes))
 
 	outputs, err := s.listBitcoinOutputs(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d bitcoin outputs\n", len(outputs))
 
 	balances, err := s.listEthereumBalances(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d ethereum balances\n", len(balances))
 
 	deposits, err := s.listDeposits(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d deposits\n", len(deposits))
 
 	txs, err := s.listTransactions(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d transactions\n", len(txs))
 
 	signatures, err := s.listSignatureRequests(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d signature requests\n", len(signatures))
 
 	properties, err := s.listProperties(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%d properties\n", len(properties))
 
 	err = export.Export(ctx, store.ExportData{
 		Requests:          requests,
