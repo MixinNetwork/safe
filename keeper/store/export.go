@@ -57,59 +57,71 @@ func (s *SQLite3Store) Export(ctx context.Context, data ExportData) error {
 	}
 	defer tx.Rollback()
 
+	fmt.Println("Exporting Requests...")
 	err = s.exportRequests(ctx, tx, data.Requests)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting NetworkInfos...")
 	err = s.exportNetworkInfos(ctx, tx, data.NetworkInfos)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting OperationParams...")
 	err = s.exportOperationParams(ctx, tx, data.OperationParams)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Assets...")
 	err = s.exportAssets(ctx, tx, data.Assets)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Keys...")
 	err = s.exportKeys(ctx, tx, data.Keys)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting SafeProposals...")
 	err = s.exportSafeProposals(ctx, tx, data.SafeProposals)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Safes...")
 	err = s.exportSafes(ctx, tx, data.Safes)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Bitcoin Outputs...")
 	err = s.exportBitcoinOutputs(ctx, tx, data.BitcoinOutputs)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Ethereum Balances...")
 	err = s.exportEthereumBalances(ctx, tx, data.EthereumBalances)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Deposits...")
 	err = s.exportDeposits(ctx, tx, data.Deposits)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Transactions...")
 	err = s.exportTransactions(ctx, tx, data.Transactions)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Signature Requests...")
 	err = s.exportSignatureRequests(ctx, tx, data.SignatureRequests)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Exporting Properties...")
 	err = s.exportProperties(ctx, tx, data.Properties)
 	if err != nil {
 		return err
 	}
-	// TODO should export migrate_assets
 
 	return tx.Commit()
 }

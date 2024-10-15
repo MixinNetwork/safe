@@ -2,11 +2,13 @@ package legacy
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/MixinNetwork/safe/keeper/store"
 )
 
 func (s *SQLite3Store) ExportData(ctx context.Context, export *store.SQLite3Store) error {
+	fmt.Println("Reading data from database...")
 	requests, err := s.listRequests(ctx)
 	if err != nil {
 		return err
@@ -72,7 +74,7 @@ func (s *SQLite3Store) ExportData(ctx context.Context, export *store.SQLite3Stor
 		return err
 	}
 
-	return export.Export(ctx, store.ExportData{
+	err = export.Export(ctx, store.ExportData{
 		Requests:          requests,
 		NetworkInfos:      infos,
 		OperationParams:   ops,
@@ -87,4 +89,10 @@ func (s *SQLite3Store) ExportData(ctx context.Context, export *store.SQLite3Stor
 		SignatureRequests: signatures,
 		Properties:        properties,
 	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Export successfully!")
+	return nil
 }
