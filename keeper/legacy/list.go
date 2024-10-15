@@ -3,6 +3,7 @@ package legacy
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -198,7 +199,8 @@ func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*store.Bitcoin
 		if err != nil {
 			return nil, err
 		}
-		input.Script = common.DecodeHexOrPanic(script)
+		b, _ := hex.DecodeString(script)
+		input.Script = b
 		inputs = append(inputs, &input)
 	}
 	return inputs, nil
@@ -206,7 +208,7 @@ func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*store.Bitcoin
 
 func (s *SQLite3Store) listEthereumBalances(ctx context.Context) ([]*store.SafeBalance, error) {
 	cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at"}
-	query := fmt.Sprintf("SELECT %s FROM ethereum_balances", cols)
+	query := fmt.Sprintf("SELECT %s FROM ethereum_balances", strings.Join(cols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
