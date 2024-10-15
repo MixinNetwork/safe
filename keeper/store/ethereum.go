@@ -27,9 +27,6 @@ func BalancFromRow(row *sql.Rows) (*SafeBalance, error) {
 	if err != nil {
 		return nil, err
 	}
-	if sb.SafeAssetId == "" {
-		panic(sb.AssetId)
-	}
 	return &sb, nil
 }
 
