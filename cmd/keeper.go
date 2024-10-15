@@ -111,11 +111,16 @@ func KeeperExportLegacyData(c *cli.Context) error {
 		return fmt.Errorf("empty path of export database")
 	}
 
+	sd, err := keeper.OpenSQLite3Store(path)
+	if err != nil {
+		return err
+	}
+	defer sd.Close()
 	kd, err := keeper.OpenSQLite3StoreLegacy(input)
 	if err != nil {
 		return err
 	}
 	defer kd.Close()
 
-	return kd.ExportData(ctx, path)
+	return kd.ExportData(ctx, sd)
 }

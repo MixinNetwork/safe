@@ -2,9 +2,11 @@ package legacy
 
 import (
 	"context"
+
+	"github.com/MixinNetwork/safe/keeper/store"
 )
 
-func (s *SQLite3Store) ExportData(ctx context.Context, path string) error {
+func (s *SQLite3Store) ExportData(ctx context.Context, export *store.SQLite3Store) error {
 	requests, err := s.listRequests(ctx)
 	if err != nil {
 		return err
@@ -70,5 +72,19 @@ func (s *SQLite3Store) ExportData(ctx context.Context, path string) error {
 		return err
 	}
 
-	return nil
+	return export.Export(ctx, store.ExportData{
+		Requests:          requests,
+		NetworkInfos:      infos,
+		OperationParams:   ops,
+		Assets:            assets,
+		Keys:              keys,
+		SafeProposals:     proposals,
+		Safes:             safes,
+		BitcoinOutputs:    outputs,
+		EthereumBalances:  balances,
+		Deposits:          deposits,
+		Transactions:      txs,
+		SignatureRequests: signatures,
+		Properties:        properties,
+	})
 }

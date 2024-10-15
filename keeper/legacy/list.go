@@ -5,20 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/shopspring/decimal"
 )
-
-type Property struct {
-	Key       string
-	Value     string
-	CreatedAt time.Time
-}
 
 func (s *SQLite3Store) listRequests(ctx context.Context) ([]*common.Request, error) {
 	var cols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at"}
@@ -167,7 +159,7 @@ func (s *SQLite3Store) listProposals(ctx context.Context) ([]*store.SafeProposal
 }
 
 func (s *SQLite3Store) listSafes(ctx context.Context) ([]*store.Safe, error) {
-	var cols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "safe_asset_id", "created_at", "updated_at"}
+	var cols = []string{"holder", "chain", "signer", "observer", "timelock", "path", "address", "extra", "receivers", "threshold", "request_id", "nonce", "state", "created_at", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM safes", strings.Join(cols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -179,7 +171,7 @@ func (s *SQLite3Store) listSafes(ctx context.Context) ([]*store.Safe, error) {
 	for rows.Next() {
 		var s store.Safe
 		var receivers string
-		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.SafeAssetId, &s.CreatedAt, &s.UpdatedAt)
+		err := rows.Scan(&s.Holder, &s.Chain, &s.Signer, &s.Observer, &s.Timelock, &s.Path, &s.Address, &s.Extra, &receivers, &s.Threshold, &s.RequestId, &s.Nonce, &s.State, &s.CreatedAt, &s.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -189,8 +181,8 @@ func (s *SQLite3Store) listSafes(ctx context.Context) ([]*store.Safe, error) {
 	return safes, nil
 }
 
-func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*bitcoin.Input, error) {
-	cols := strings.Join([]string{"transaction_hash", "output_index", "satoshi", "script", "sequence"}, ",")
+func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*store.BitcoinOutput, error) {
+	cols := strings.Join([]string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "chain", "state", "spent_by", "request_id", "created_at", "updated_at"}, ",")
 	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs ORDER BY created_at ASC, request_id ASC", cols)
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -198,11 +190,11 @@ func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*bitcoin.Input
 	}
 	defer rows.Close()
 
-	var inputs []*bitcoin.Input
+	var inputs []*store.BitcoinOutput
 	for rows.Next() {
 		var script string
-		var input bitcoin.Input
-		err = rows.Scan(&input.TransactionHash, &input.Index, &input.Satoshi, &script, &input.Sequence)
+		var input store.BitcoinOutput
+		err = rows.Scan(&input.TransactionHash, &input.Index, &input.Address, &input.Satoshi, &script, &input.Sequence, &input.Chain, &input.State, &input.RequestId, &input.CreatedAt, &input.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -213,7 +205,7 @@ func (s *SQLite3Store) listBitcoinOutputs(ctx context.Context) ([]*bitcoin.Input
 }
 
 func (s *SQLite3Store) listEthereumBalances(ctx context.Context) ([]*store.SafeBalance, error) {
-	cols := []string{"address", "asset_id", "asset_address", "safe_asset_id", "balance", "latest_tx_hash", "updated_at"}
+	cols := []string{"address", "asset_id", "asset_address", "balance", "latest_tx_hash", "updated_at"}
 	query := fmt.Sprintf("SELECT %s FROM ethereum_balances", cols)
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -295,7 +287,7 @@ func (s *SQLite3Store) listSignatureRequests(ctx context.Context) ([]*store.Sign
 	return rs, nil
 }
 
-func (s *SQLite3Store) listProperties(ctx context.Context) ([]*Property, error) {
+func (s *SQLite3Store) listProperties(ctx context.Context) ([]*store.Property, error) {
 	var cols = []string{"key", "value", "created_at"}
 	query := fmt.Sprintf("SELECT %s FROM properties", cols)
 	rows, err := s.db.QueryContext(ctx, query)
@@ -304,9 +296,9 @@ func (s *SQLite3Store) listProperties(ctx context.Context) ([]*Property, error) 
 	}
 	defer rows.Close()
 
-	var ps []*Property
+	var ps []*store.Property
 	for rows.Next() {
-		var p Property
+		var p store.Property
 		err := rows.Scan(&p.Key, &p.Value, &p.CreatedAt)
 		if err != nil {
 			return nil, err

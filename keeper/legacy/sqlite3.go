@@ -26,3 +26,7 @@ func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 		mutex: new(sync.Mutex),
 	}, nil
 }
+
+func (s *SQLite3Store) Close() error {
+	return s.db.Close()
+}

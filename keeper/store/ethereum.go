@@ -23,7 +23,7 @@ type SafeBalance struct {
 
 func BalancFromRow(row *sql.Rows) (*SafeBalance, error) {
 	var sb SafeBalance
-	err := row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &sb.SafeAssetId, &sb.balance, &sb.LatestTxHash, &sb.UpdatedAt)
+	err := row.Scan(&sb.Address, &sb.AssetId, &sb.AssetAddress, &sb.balance, &sb.LatestTxHash, &sb.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
