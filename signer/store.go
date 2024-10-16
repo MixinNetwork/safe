@@ -26,6 +26,28 @@ type SQLite3Store struct {
 	mutex *sync.Mutex
 }
 
+type Property struct {
+	Key       string
+	Value     string
+	CreatedAt time.Time
+}
+
+type SessionSigner struct {
+	SessionId string
+	SignerId  string
+	Extra     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type SessionWork struct {
+	SessionId string
+	SignerId  string
+	Round     int64
+	Extra     string
+	CreatedAt time.Time
+}
+
 func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 	db, err := common.OpenSQLite3Store(path, SCHEMA)
 	if err != nil {

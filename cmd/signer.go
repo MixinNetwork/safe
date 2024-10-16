@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/signer"
+	"github.com/MixinNetwork/safe/signer/legacy"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
@@ -189,4 +190,30 @@ func makeSignerPaymentRequest(conf *signer.Configuration, op *common.Operation, 
 	fmt.Println(url)
 	qrterminal.GenerateHalfBlock(url, qrterminal.H, os.Stdout)
 	return nil
+}
+
+func SignerExportLegacyData(c *cli.Context) error {
+	ctx := context.Background()
+
+	input := c.String("database")
+	if input == "" {
+		return fmt.Errorf("empty path of legacy database")
+	}
+	path := c.String("export")
+	if path == "" {
+		return fmt.Errorf("empty path of export database")
+	}
+
+	sd, err := signer.OpenSQLite3Store(path)
+	if err != nil {
+		return err
+	}
+	defer sd.Close()
+	kd, err := legacy.OpenSQLite3StoreLegacy(input)
+	if err != nil {
+		return err
+	}
+	defer kd.Close()
+
+	return kd.ExportData(ctx, sd)
 }

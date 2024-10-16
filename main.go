@@ -433,6 +433,21 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "exportSignerLegacyData",
+				Usage:  "Export data of Legacy Mixin Network from signer node",
+				Action: cmd.SignerExportLegacyData,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "database",
+						Usage: "The legacy database backup from keeper",
+					},
+					&cli.StringFlag{
+						Name:  "export",
+						Usage: "The export database path",
+					},
+				},
+			},
 		},
 	}
 

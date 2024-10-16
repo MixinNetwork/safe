@@ -35,16 +35,18 @@ const (
 )
 
 type Session struct {
-	Id         string
-	MixinHash  string
-	MixinIndex int
-	Operation  byte
-	Curve      byte
-	Public     string
-	Extra      string
-	State      byte
-	CreatedAt  time.Time
-	PreparedAt sql.NullTime
+	Id          string
+	MixinHash   string
+	MixinIndex  int
+	Operation   byte
+	Curve       byte
+	Public      string
+	Extra       string
+	State       byte
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	CommittedAt sql.NullTime
+	PreparedAt  sql.NullTime
 }
 
 type KeygenResult struct {

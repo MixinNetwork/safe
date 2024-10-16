@@ -57,67 +57,67 @@ func (s *SQLite3Store) Export(ctx context.Context, data ExportData) error {
 	}
 	defer tx.Rollback()
 
-	fmt.Println("Exporting Requests...")
+	fmt.Println("Exporting requests...")
 	err = s.exportRequests(ctx, tx, data.Requests)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting NetworkInfos...")
+	fmt.Println("Exporting network_infos...")
 	err = s.exportNetworkInfos(ctx, tx, data.NetworkInfos)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting OperationParams...")
+	fmt.Println("Exporting operation_params...")
 	err = s.exportOperationParams(ctx, tx, data.OperationParams)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Assets...")
+	fmt.Println("Exporting assets...")
 	err = s.exportAssets(ctx, tx, data.Assets)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Keys...")
+	fmt.Println("Exporting keys...")
 	err = s.exportKeys(ctx, tx, data.Keys)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting SafeProposals...")
+	fmt.Println("Exporting safe_proposals...")
 	err = s.exportSafeProposals(ctx, tx, data.SafeProposals)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Safes...")
+	fmt.Println("Exporting safes...")
 	err = s.exportSafes(ctx, tx, data.Safes)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Bitcoin Outputs...")
+	fmt.Println("Exporting bitcoin_outputs...")
 	err = s.exportBitcoinOutputs(ctx, tx, data.BitcoinOutputs)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Ethereum Balances...")
+	fmt.Println("Exporting ethereum_balances...")
 	err = s.exportEthereumBalances(ctx, tx, data.EthereumBalances)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Deposits...")
+	fmt.Println("Exporting deposits...")
 	err = s.exportDeposits(ctx, tx, data.Deposits)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Transactions...")
+	fmt.Println("Exporting transactions...")
 	err = s.exportTransactions(ctx, tx, data.Transactions)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Signature Requests...")
+	fmt.Println("Exporting signature Requests...")
 	err = s.exportSignatureRequests(ctx, tx, data.SignatureRequests)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting Properties...")
+	fmt.Println("Exporting properties...")
 	err = s.exportProperties(ctx, tx, data.Properties)
 	if err != nil {
 		return err

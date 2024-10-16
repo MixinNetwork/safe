@@ -13,79 +13,79 @@ func (s *SQLite3Store) ExportData(ctx context.Context, export *store.SQLite3Stor
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d requests\n", len(requests))
+	fmt.Printf("Read %d requests\n", len(requests))
 
 	infos, err := s.listLatestNetworkInfos(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d network infos\n", len(infos))
+	fmt.Printf("Read %d network_infos\n", len(infos))
 
 	ops, err := s.listLatestOperationParams(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d operation params\n", len(ops))
+	fmt.Printf("Read %d operation_params\n", len(ops))
 
 	assets, err := s.listAssets(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d assets\n", len(assets))
+	fmt.Printf("Read %d assets\n", len(assets))
 
 	keys, err := s.listKeys(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d keys\n", len(keys))
+	fmt.Printf("Read %d keys\n", len(keys))
 
 	proposals, err := s.listProposals(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d proposals\n", len(proposals))
+	fmt.Printf("Read %d safe_proposals\n", len(proposals))
 
 	safes, err := s.listSafes(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d safes\n", len(safes))
+	fmt.Printf("Read %d safes\n", len(safes))
 
 	outputs, err := s.listBitcoinOutputs(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d bitcoin outputs\n", len(outputs))
+	fmt.Printf("Read %d bitcoin_outputs\n", len(outputs))
 
 	balances, err := s.listEthereumBalances(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d ethereum balances\n", len(balances))
+	fmt.Printf("Read %d ethereum_balances\n", len(balances))
 
 	deposits, err := s.listDeposits(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d deposits\n", len(deposits))
+	fmt.Printf("Read %d deposits\n", len(deposits))
 
 	txs, err := s.listTransactions(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d transactions\n", len(txs))
+	fmt.Printf("Read %d transactions\n", len(txs))
 
 	signatures, err := s.listSignatureRequests(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d signature requests\n", len(signatures))
+	fmt.Printf("Read %d signature requests\n", len(signatures))
 
 	properties, err := s.listProperties(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d properties\n", len(properties))
+	fmt.Printf("Read %d properties\n", len(properties))
 
 	err = export.Export(ctx, store.ExportData{
 		Requests:          requests,
