@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/MixinNetwork/mixin/logger"
 )
 
 type ExportData struct {
@@ -23,25 +25,25 @@ func (s *SQLite3Store) Export(ctx context.Context, data ExportData) error {
 	}
 	defer tx.Rollback()
 
-	fmt.Println("Exporting properties...")
+	logger.Println("Exporting properties...")
 	err = s.exportProperties(ctx, tx, data.Properties)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Exporting sessions...")
+	logger.Println("Exporting sessions...")
 	err = s.exportSessions(ctx, tx, data.Sessions)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Exporting session_signers...")
+	logger.Println("Exporting session_signers...")
 	err = s.exportSessionSigners(ctx, tx, data.SessionSigners)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Exporting session_works...")
+	logger.Println("Exporting session_works...")
 	err = s.exportSessionWorks(ctx, tx, data.SessionWorks)
 	if err != nil {
 		return err

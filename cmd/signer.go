@@ -62,6 +62,29 @@ func SignerBootCmd(c *cli.Context) error {
 	}
 	defer kd.Close()
 
+	legacyData := c.String("legacy")
+	if legacyData != "" {
+		state, err := kd.SessionsState(ctx)
+		if err != nil {
+			return err
+		}
+		actions, err := db.ListActions(ctx, mtg.ActionStateDone, 1)
+		if err != nil {
+			return err
+		}
+		if state.Done == 0 && len(actions) == 0 {
+			ld, err := signer.OpenSQLite3Store(legacyData)
+			if err != nil {
+				return err
+			}
+			err = kd.ImportBackup(ctx, ld)
+			if err != nil {
+				return err
+			}
+			ld.Close()
+		}
+	}
+
 	s := &mixin.Keystore{
 		ClientID:          mc.Signer.MTG.App.AppId,
 		SessionID:         mc.Signer.MTG.App.SessionId,

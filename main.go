@@ -42,6 +42,10 @@ func main() {
 						Value:   "~/.mixin/safe/config.toml",
 						Usage:   "The configuration file path",
 					},
+					&cli.StringFlag{
+						Name:  "legacy",
+						Usage: "The path of legacy database",
+					},
 				},
 			},
 			{
@@ -116,6 +120,10 @@ func main() {
 						Aliases: []string{"c"},
 						Value:   "~/.mixin/safe/config.toml",
 						Usage:   "The configuration file path",
+					},
+					&cli.StringFlag{
+						Name:  "legacy",
+						Usage: "The path of legacy database",
 					},
 				},
 			},

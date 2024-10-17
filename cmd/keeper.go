@@ -69,6 +69,30 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer kd.Close()
+
+	legacyData := c.String("legacy")
+	if legacyData != "" {
+		req, err := kd.ReadLatestRequest(ctx)
+		if err != nil {
+			return err
+		}
+		actions, err := db.ListActions(ctx, mtg.ActionStateDone, 1)
+		if err != nil {
+			return err
+		}
+		if req == nil && len(actions) == 0 {
+			ld, err := keeper.OpenSQLite3Store(legacyData)
+			if err != nil {
+				return err
+			}
+			err = kd.ImportBackup(ctx, ld)
+			if err != nil {
+				return err
+			}
+			ld.Close()
+		}
+	}
+
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -57,67 +58,67 @@ func (s *SQLite3Store) Export(ctx context.Context, data ExportData) error {
 	}
 	defer tx.Rollback()
 
-	fmt.Println("Exporting requests...")
+	logger.Println("Exporting requests...")
 	err = s.exportRequests(ctx, tx, data.Requests)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting network_infos...")
+	logger.Println("Exporting network_infos...")
 	err = s.exportNetworkInfos(ctx, tx, data.NetworkInfos)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting operation_params...")
+	logger.Println("Exporting operation_params...")
 	err = s.exportOperationParams(ctx, tx, data.OperationParams)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting assets...")
+	logger.Println("Exporting assets...")
 	err = s.exportAssets(ctx, tx, data.Assets)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting keys...")
+	logger.Println("Exporting keys...")
 	err = s.exportKeys(ctx, tx, data.Keys)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting safe_proposals...")
+	logger.Println("Exporting safe_proposals...")
 	err = s.exportSafeProposals(ctx, tx, data.SafeProposals)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting safes...")
+	logger.Println("Exporting safes...")
 	err = s.exportSafes(ctx, tx, data.Safes)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting bitcoin_outputs...")
+	logger.Println("Exporting bitcoin_outputs...")
 	err = s.exportBitcoinOutputs(ctx, tx, data.BitcoinOutputs)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting ethereum_balances...")
+	logger.Println("Exporting ethereum_balances...")
 	err = s.exportEthereumBalances(ctx, tx, data.EthereumBalances)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting deposits...")
+	logger.Println("Exporting deposits...")
 	err = s.exportDeposits(ctx, tx, data.Deposits)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting transactions...")
+	logger.Println("Exporting transactions...")
 	err = s.exportTransactions(ctx, tx, data.Transactions)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting signature Requests...")
+	logger.Println("Exporting signature Requests...")
 	err = s.exportSignatureRequests(ctx, tx, data.SignatureRequests)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Exporting properties...")
+	logger.Println("Exporting properties...")
 	err = s.exportProperties(ctx, tx, data.Properties)
 	if err != nil {
 		return err
@@ -128,7 +129,7 @@ func (s *SQLite3Store) Export(ctx context.Context, data ExportData) error {
 
 func (s *SQLite3Store) exportRequests(ctx context.Context, tx *sql.Tx, requests []*common.Request) error {
 	for _, req := range requests {
-		vals := []any{req.Id, req.MixinHash.String(), req.MixinIndex, req.AssetId, req.Amount, req.Role, req.Action, req.Curve, req.Holder, req.ExtraHEX, req.State, req.CreatedAt, req.CreatedAt, req.Sequence}
+		vals := []any{req.Id, req.MixinHash.String(), req.MixinIndex, req.AssetId, req.Amount, req.Role, req.Action, req.Curve, req.Holder, req.ExtraHEX, req.State, req.CreatedAt, req.UpdatedAt, req.Sequence}
 		err := s.execOne(ctx, tx, buildInsertionSQL("requests", requestCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT requests %v", err)
