@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"github.com/MixinNetwork/safe/keeper/legacy"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 )
@@ -29,12 +28,12 @@ type Configuration struct {
 	MTG                         *mtg.Configuration `toml:"mtg"`
 }
 
-func OpenSQLite3StoreLegacy(path string) (*legacy.SQLite3Store, error) {
-	return legacy.OpenSQLite3Store(path)
+func OpenSQLite3StoreLegacy(path string) (*store.SQLite3Store, error) {
+	return store.OpenSQLite3Store(path, true)
 }
 
 func OpenSQLite3Store(path string) (*store.SQLite3Store, error) {
-	return store.OpenSQLite3Store(path)
+	return store.OpenSQLite3Store(path, false)
 }
 
 func OpenSQLite3ReadOnlyStore(path string) (*store.SQLite3Store, error) {

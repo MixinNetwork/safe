@@ -16,13 +16,20 @@ import (
 //go:embed schema.sql
 var SCHEMA string
 
+//go:embed legacy.sql
+var LEGACY_SCHEMA string
+
 type SQLite3Store struct {
 	db    *sql.DB
 	mutex *sync.Mutex
 }
 
-func OpenSQLite3Store(path string) (*SQLite3Store, error) {
-	db, err := common.OpenSQLite3Store(path, SCHEMA)
+func OpenSQLite3Store(path string, legacy bool) (*SQLite3Store, error) {
+	schema := SCHEMA
+	if legacy {
+		schema = LEGACY_SCHEMA
+	}
+	db, err := common.OpenSQLite3Store(path, schema)
 	if err != nil {
 		return nil, err
 	}

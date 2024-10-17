@@ -13,7 +13,6 @@ import (
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/signer"
-	"github.com/MixinNetwork/safe/signer/legacy"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
@@ -56,14 +55,14 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 
-	kd, err := signer.OpenSQLite3Store(mc.Signer.StoreDir + "/mpc.sqlite3")
+	kd, err := signer.OpenSQLite3Store(mc.Signer.StoreDir+"/mpc.sqlite3", false)
 	if err != nil {
 		return err
 	}
 	defer kd.Close()
 
-	legacyData := c.String("legacy")
-	if legacyData != "" {
+	legacyDB := c.String("legacy")
+	if legacyDB != "" {
 		state, err := kd.SessionsState(ctx)
 		if err != nil {
 			return err
@@ -73,7 +72,7 @@ func SignerBootCmd(c *cli.Context) error {
 			return err
 		}
 		if state.Done == 0 && len(actions) == 0 {
-			ld, err := signer.OpenSQLite3Store(legacyData)
+			ld, err := signer.OpenSQLite3Store(legacyDB, true)
 			if err != nil {
 				return err
 			}
@@ -81,7 +80,10 @@ func SignerBootCmd(c *cli.Context) error {
 			if err != nil {
 				return err
 			}
-			ld.Close()
+			err = ld.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -227,16 +229,16 @@ func SignerExportLegacyData(c *cli.Context) error {
 		return fmt.Errorf("empty path of export database")
 	}
 
-	sd, err := signer.OpenSQLite3Store(path)
+	ld, err := signer.OpenSQLite3Store(input, true)
+	if err != nil {
+		return err
+	}
+	defer ld.Close()
+	sd, err := signer.OpenSQLite3Store(path, false)
 	if err != nil {
 		return err
 	}
 	defer sd.Close()
-	kd, err := legacy.OpenSQLite3StoreLegacy(input)
-	if err != nil {
-		return err
-	}
-	defer kd.Close()
 
-	return kd.ExportData(ctx, sd)
+	return sd.ImportBackup(ctx, ld)
 }

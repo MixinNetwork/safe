@@ -70,8 +70,8 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	defer kd.Close()
 
-	legacyData := c.String("legacy")
-	if legacyData != "" {
+	legacyDB := c.String("legacy")
+	if legacyDB != "" {
 		req, err := kd.ReadLatestRequest(ctx)
 		if err != nil {
 			return err
@@ -81,7 +81,7 @@ func KeeperBootCmd(c *cli.Context) error {
 			return err
 		}
 		if req == nil && len(actions) == 0 {
-			ld, err := keeper.OpenSQLite3Store(legacyData)
+			ld, err := keeper.OpenSQLite3StoreLegacy(legacyDB)
 			if err != nil {
 				return err
 			}
@@ -89,7 +89,10 @@ func KeeperBootCmd(c *cli.Context) error {
 			if err != nil {
 				return err
 			}
-			ld.Close()
+			err = ld.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -135,16 +138,16 @@ func KeeperExportLegacyData(c *cli.Context) error {
 		return fmt.Errorf("empty path of export database")
 	}
 
+	ld, err := keeper.OpenSQLite3StoreLegacy(input)
+	if err != nil {
+		return err
+	}
+	defer ld.Close()
 	sd, err := keeper.OpenSQLite3Store(path)
 	if err != nil {
 		return err
 	}
 	defer sd.Close()
-	kd, err := keeper.OpenSQLite3StoreLegacy(input)
-	if err != nil {
-		return err
-	}
-	defer kd.Close()
 
-	return kd.ExportData(ctx, sd)
+	return sd.ImportBackup(ctx, ld)
 }
