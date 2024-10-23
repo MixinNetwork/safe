@@ -61,6 +61,7 @@ func SignerBootCmd(c *cli.Context) error {
 	}
 	defer kd.Close()
 
+	var fromStart bool
 	legacyDB := c.String("legacy")
 	if legacyDB != "" {
 		state, err := kd.SessionsState(ctx)
@@ -84,6 +85,7 @@ func SignerBootCmd(c *cli.Context) error {
 			if err != nil {
 				return err
 			}
+			fromStart = true
 		}
 	}
 
@@ -108,7 +110,7 @@ func SignerBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
 
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
-	node.Boot(ctx)
+	node.Boot(ctx, fromStart)
 
 	if mmc := mc.Signer.MonitorConversaionId; mmc != "" {
 		go MonitorSigner(ctx, db, kd, mc.Signer, group, mmc, version)

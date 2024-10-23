@@ -70,6 +70,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	defer kd.Close()
 
+	var fromStart bool
 	legacyDB := c.String("legacy")
 	if legacyDB != "" {
 		req, err := kd.ReadLatestRequest(ctx)
@@ -93,11 +94,12 @@ func KeeperBootCmd(c *cli.Context) error {
 			if err != nil {
 				return err
 			}
+			fromStart = true
 		}
 	}
 
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
-	keeper.Boot(ctx)
+	keeper.Boot(ctx, fromStart)
 
 	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc, version)

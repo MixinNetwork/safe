@@ -41,14 +41,16 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, conf *Configuration, s
 	return node
 }
 
-func (node *Node) Boot(ctx context.Context) {
+func (node *Node) Boot(ctx context.Context, fromStart bool) {
 	terminated, err := node.store.ReadTerminate(ctx)
 	if err != nil || terminated {
 		panic(err)
 	}
-	err = node.Migrate(ctx)
-	if err != nil {
-		panic(err)
+	if !fromStart {
+		err = node.Migrate(ctx)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
