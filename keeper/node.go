@@ -23,7 +23,6 @@ type Node struct {
 	signerAESKey   [32]byte
 	observerAESKey [32]byte
 	store          *store.SQLite3Store
-	terminated     bool
 	mixin          *mixin.Client
 }
 

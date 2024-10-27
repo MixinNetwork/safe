@@ -220,8 +220,8 @@ func (r *Request) VerifyFormat() error {
 	if r.Action == 0 || r.Role == 0 || r.State == 0 {
 		return fmt.Errorf("invalid request action %v", r)
 	}
-	id := uuid.FromStringOrNil(r.AssetId)
-	if id.IsNil() || id.String() != r.AssetId {
+	id, err := uuid.FromString(r.AssetId)
+	if err != nil || id.IsNil() || id.String() != r.AssetId {
 		return fmt.Errorf("invalid request asset %v", r)
 	}
 	if r.Amount.Cmp(decimal.New(1, -8)) < 0 {

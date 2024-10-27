@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding"
 	"encoding/hex"
@@ -10,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/gofrs/uuid/v5"
 )
 
 func MarshalPanic(m encoding.BinaryMarshaler) []byte {
@@ -43,7 +44,12 @@ func Fingerprint(public string) []byte {
 }
 
 func UniqueId(a, b string) string {
-	return mixin.UniqueConversationID(a, b)
+	minID, maxID := a, b
+	if strings.Compare(a, b) > 0 {
+		maxID, minID = a, b
+	}
+
+	return uuidHash([]byte(minID + maxID))
 }
 
 func EnableTestEnvironment(ctx context.Context) context.Context {
@@ -72,4 +78,13 @@ func ExpandTilde(path string) string {
 	}
 	path = strings.Replace(path, "~", home, 1)
 	return path
+}
+
+func uuidHash(b []byte) string {
+	h := md5.New()
+	h.Write(b)
+	sum := h.Sum(nil)
+	sum[6] = (sum[6] & 0x0f) | 0x30
+	sum[8] = (sum[8] & 0x3f) | 0x80
+	return uuid.Must(uuid.FromBytes(sum)).String()
 }

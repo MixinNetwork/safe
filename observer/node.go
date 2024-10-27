@@ -445,7 +445,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 		return false, nil
 	}
 
-	rid := uuid.FromBytesOrNil(op.Extra).String()
+	rid := uuid.Must(uuid.FromBytes(op.Extra)).String()
 	tx, err := common.SafeReadTransactionRequestUntilSufficient(ctx, node.mixin, rid)
 	if err != nil {
 		return false, err
