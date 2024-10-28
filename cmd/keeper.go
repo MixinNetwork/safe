@@ -32,11 +32,11 @@ func mtgFixCache(ctx context.Context, path string) {
 	}
 	defer txn.Rollback()
 
-	row := txn.QueryRowContext(ctx, "SELECT trace_id,app_id,opponent_app_id,state,asset_id,receivers,threshold,amount,refs,sequence,compaction,storage FROM transactions WHERE trace_id=?", "24a1cdf1-872d-3cc2-b826-e2a888b67303")
-	var traceId, appId, opponentAppId, assetId, receivers, amount, refs string
+	row := txn.QueryRowContext(ctx, "SELECT trace_id,app_id,opponent_app_id,state,asset_id,receivers,threshold,amount,refs,sequence,compaction,storage,storage_trace_id FROM transactions WHERE trace_id=?", "24a1cdf1-872d-3cc2-b826-e2a888b67303")
+	var traceId, appId, opponentAppId, assetId, receivers, amount, refs, storageTraceId string
 	var state, threshold, sequence int64
 	var compaction, storage bool
-	err = row.Scan(&traceId, &appId, &opponentAppId, &state, &assetId, &receivers, &threshold, &amount, &refs, &sequence, &compaction, &storage)
+	err = row.Scan(&traceId, &appId, &opponentAppId, &state, &assetId, &receivers, &threshold, &amount, &refs, &sequence, &compaction, &storage, &storageTraceId)
 	if err == sql.ErrNoRows {
 		return
 	} else if err != nil {
@@ -55,7 +55,16 @@ func mtgFixCache(ctx context.Context, path string) {
 		panic(err)
 	}
 
-	r, err = txn.ExecContext(ctx, "INSERT INTO transactions (trace_id,app_id,opponent_app_id,state,asset_id,receivers,threshold,amount,refs,sequence,compaction,storage,memo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", "239f25cd-ee77-3534-b3dd-1c1815b581b6", appId, opponentAppId, state, assetId, receivers, threshold, amount, refs, sequence, compaction, storage, string(memo))
+	r, err = txn.ExecContext(ctx, "INSERT INTO transactions (trace_id,app_id,opponent_app_id,state,asset_id,receivers,threshold,amount,refs,sequence,compaction,storage,memo,updated_at,storage_trace_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", "239f25cd-ee77-3534-b3dd-1c1815b581b6", appId, opponentAppId, state, assetId, receivers, threshold, amount, refs, sequence, compaction, storage, string(memo), time.Time{}, storageTraceId)
+	if err != nil {
+		panic(err)
+	}
+	rac, err = r.RowsAffected()
+	if err != nil || rac != 1 {
+		panic(err)
+	}
+
+	r, err = txn.ExecContext(ctx, "UPDATE outputs SET trace_id='239f25cd-ee77-3534-b3dd-1c1815b581b6' WHERE trace_id='24a1cdf1-872d-3cc2-b826-e2a888b67303'")
 	if err != nil {
 		panic(err)
 	}
