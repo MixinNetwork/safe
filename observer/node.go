@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -513,6 +514,13 @@ func (node *Node) readMixinWithdrawalsCheckpoint(ctx context.Context) (uint64, e
 
 func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset uint64) error {
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
+}
+
+func (node *Node) GetKeepers() []string {
+	ms := make([]string, len(node.keeper.Genesis.Members))
+	copy(ms, node.keeper.Genesis.Members)
+	sort.Strings(ms)
+	return ms
 }
 
 func (node *Node) safeUser() bot.SafeUser {

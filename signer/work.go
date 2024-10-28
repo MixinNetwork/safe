@@ -14,11 +14,12 @@ func (node *Node) DailyWorks(ctx context.Context, now time.Time) []byte {
 	end := now.UTC().Truncate(day)
 	begin := end.Add(-day)
 
-	works, err := node.store.CountDailyWorks(ctx, node.members, begin, end)
+	members := node.GetPartySlice()
+	works, err := node.store.CountDailyWorks(ctx, members, begin, end)
 	if err != nil {
 		panic(err)
 	}
-	for i, id := range node.members {
+	for i, id := range members {
 		if id == node.id && works[i] != 0 {
 			panic(works[i])
 		}

@@ -21,7 +21,7 @@ const (
 
 func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve.Curve) (*KeygenResult, error) {
 	logger.Printf("node.frostKeygen(%x)", sessionId)
-	start, err := frost.Keygen(group, node.id, node.members, node.threshold)(sessionId)
+	start, err := frost.Keygen(group, node.id, node.GetPartySlice(), node.threshold)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("frost.Keygen(%x) => %v", sessionId, err)
 	}

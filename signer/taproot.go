@@ -21,7 +21,7 @@ const (
 
 func (node *Node) taprootKeygen(ctx context.Context, sessionId []byte) (*KeygenResult, error) {
 	logger.Printf("node.taprootKeygen(%x)", sessionId)
-	start, err := frost.KeygenTaproot(node.id, node.members, node.threshold)(sessionId)
+	start, err := frost.KeygenTaproot(node.id, node.GetPartySlice(), node.threshold)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("frost.KeygenTaproot(%x) => %v", sessionId, err)
 	}
