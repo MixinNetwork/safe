@@ -26,7 +26,6 @@ import (
 
 type Node struct {
 	id        party.ID
-	members   party.IDSlice
 	threshold int
 
 	conf       *Configuration
@@ -70,12 +69,9 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 	logger.Printf("node.saverKey %s", priv.Public())
 	node.saverKey = &priv
 
-	for _, id := range conf.MTG.Genesis.Members {
-		node.members = append(node.members, party.ID(id))
-	}
-	sort.Sort(node.members)
-	if mgt := conf.MTG.Genesis.Threshold; mgt < conf.Threshold || mgt < len(node.members)*2/3+1 {
-		panic(fmt.Errorf("%d/%d/%d", conf.Threshold, mgt, len(node.members)))
+	members := node.GetMembers()
+	if mgt := conf.MTG.Genesis.Threshold; mgt < conf.Threshold || mgt < len(members)*2/3+1 {
+		panic(fmt.Errorf("%d/%d/%d", conf.Threshold, mgt, len(members)))
 	}
 
 	return node
@@ -269,7 +265,7 @@ func (node *Node) Index() int {
 }
 
 func (node *Node) findMember(m string) int {
-	return slices.Index(node.members, party.ID(m))
+	return slices.Index(node.GetMembers(), m)
 }
 
 func (node *Node) synced(ctx context.Context) bool {
@@ -428,8 +424,11 @@ func (node *Node) GetMembers() []string {
 }
 
 func (node *Node) GetPartySlice() party.IDSlice {
-	ms := make(party.IDSlice, len(node.members))
-	copy(ms, node.members)
+	members := node.GetMembers()
+	ms := make(party.IDSlice, len(members))
+	for _, id := range members {
+		ms = append(ms, party.ID(id))
+	}
 	return ms
 }
 
