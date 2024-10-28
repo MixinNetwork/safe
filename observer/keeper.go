@@ -80,7 +80,7 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendKeeperTransaction(%v) omitted %x", op, extra))
 	}
-	members := node.keeper.Genesis.Members
+	members := node.GetKeepers()
 	threshold := node.keeper.Genesis.Threshold
 	traceId := fmt.Sprintf("OBSERVER:%s:KEEPER:%v:%d", node.conf.App.AppId, members, threshold)
 	traceId = node.safeTraceId(traceId, op.Id)

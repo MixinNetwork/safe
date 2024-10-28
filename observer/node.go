@@ -515,6 +515,14 @@ func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset ui
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
 }
 
+func (node *Node) GetKeepers() []string {
+	ms := make([]string, len(node.keeper.Genesis.Members))
+	for _, id := range node.keeper.Genesis.Members {
+		ms = append(ms, id)
+	}
+	return ms
+}
+
 func (node *Node) safeUser() bot.SafeUser {
 	return bot.SafeUser{
 		UserId:            node.conf.App.AppId,
