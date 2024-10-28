@@ -426,8 +426,8 @@ func (node *Node) GetMembers() []string {
 func (node *Node) GetPartySlice() party.IDSlice {
 	members := node.GetMembers()
 	ms := make(party.IDSlice, len(members))
-	for _, id := range members {
-		ms = append(ms, party.ID(id))
+	for i, id := range members {
+		ms[i] = party.ID(id)
 	}
 	return ms
 }
