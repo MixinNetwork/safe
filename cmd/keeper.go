@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -14,6 +16,59 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
+
+// FIXME remove this
+func mtgFixCache(ctx context.Context, path string) {
+	_, memo := mtg.DecodeMixinExtraHEX("7665346b464152624d62653470336d59733239636b305037307948675144652d7073336e484975356866687376784c7042626b356f6844523049687853304e784c354d654451")
+	db, err := common.OpenSQLite3Store(path, "")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	txn, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer txn.Rollback()
+
+	row := txn.QueryRowContext(ctx, "SELECT trace_id,app_id,opponent_app_id,state,asset_id,receivers,threshold,amount,refs,sequence,compaction,storage FROM transactions WHERE trace_id=?", "24a1cdf1-872d-3cc2-b826-e2a888b67303")
+	var traceId, appId, opponentAppId, assetId, receivers, amount, refs string
+	var state, threshold, sequence int64
+	var compaction, storage bool
+	err = row.Scan(&traceId, &appId, &opponentAppId, &state, &assetId, &receivers, &threshold, &amount, &refs, &sequence, &compaction, &storage)
+	if err == sql.ErrNoRows {
+		return
+	} else if err != nil {
+		panic(err)
+	}
+	if state != 10 {
+		panic(state)
+	}
+
+	r, err := txn.ExecContext(ctx, "DELETE FROM transactions WHERE trace_id=?", traceId)
+	if err != nil {
+		panic(err)
+	}
+	rac, err := r.RowsAffected()
+	if err != nil || rac != 1 {
+		panic(err)
+	}
+
+	r, err = txn.ExecContext(ctx, "INSERT INTO transactions (trace_id,app_id,opponent_app_id,state,asset_id,receivers,threshold,amount,refs,sequence,compaction,storage,memo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", "239f25cd-ee77-3534-b3dd-1c1815b581b6", appId, opponentAppId, state, assetId, receivers, threshold, amount, refs, sequence, compaction, storage, string(memo))
+	if err != nil {
+		panic(err)
+	}
+	rac, err = r.RowsAffected()
+	if err != nil || rac != 1 {
+		panic(err)
+	}
+
+	err = txn.Commit()
+	if err != nil {
+		panic(err)
+	}
+}
 
 func KeeperBootCmd(c *cli.Context) error {
 	ctx := context.Background()
@@ -30,6 +85,8 @@ func KeeperBootCmd(c *cli.Context) error {
 	}
 	mc.Keeper.MTG.GroupSize = 1
 	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
+
+	mtgFixCache(ctx, mc.Keeper.StoreDir+"/mtg.sqlite3")
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
