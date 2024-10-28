@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/MixinNetwork/safe/keeper"
@@ -38,6 +39,8 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 	handleDevConfig(conf.Dev)
 	conf.checkMainnet(role)
 	conf.checkTestnet(role)
+	sort.Strings(conf.Keeper.MTG.Genesis.Members)
+	sort.Strings(conf.Signer.MTG.Genesis.Members)
 	return &conf, nil
 }
 
