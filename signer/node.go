@@ -415,25 +415,21 @@ type MultiPartySession struct {
 
 func (node *Node) GetKeepers() []string {
 	ms := make([]string, len(node.keeper.Genesis.Members))
-	for _, id := range node.keeper.Genesis.Members {
-		ms = append(ms, id)
-	}
+	copy(ms, node.keeper.Genesis.Members)
+	sort.Strings(ms)
 	return ms
 }
 
 func (node *Node) GetMembers() []string {
-	ms := make([]string, len(node.members))
-	for _, id := range node.members {
-		ms = append(ms, string(id))
-	}
+	ms := make([]string, len(node.conf.MTG.Genesis.Members))
+	copy(ms, node.conf.MTG.Genesis.Members)
+	sort.Strings(ms)
 	return ms
 }
 
 func (node *Node) GetPartySlice() party.IDSlice {
 	ms := make(party.IDSlice, len(node.members))
-	for _, id := range node.members {
-		ms = append(ms, id)
-	}
+	copy(ms, node.members)
 	return ms
 }
 

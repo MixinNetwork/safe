@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -67,6 +68,7 @@ func (node *Node) Index() int {
 func (node *Node) GetSigners() []string {
 	ms := make([]string, len(node.signer.Genesis.Members))
 	copy(ms, node.signer.Genesis.Members)
+	sort.Strings(ms)
 	return ms
 }
 

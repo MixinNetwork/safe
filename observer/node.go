@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -517,9 +518,8 @@ func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset ui
 
 func (node *Node) GetKeepers() []string {
 	ms := make([]string, len(node.keeper.Genesis.Members))
-	for _, id := range node.keeper.Genesis.Members {
-		ms = append(ms, id)
-	}
+	copy(ms, node.keeper.Genesis.Members)
+	sort.Strings(ms)
 	return ms
 }
 
