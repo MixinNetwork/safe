@@ -64,6 +64,12 @@ func (node *Node) Index() int {
 	panic(node.conf.MTG.App.AppId)
 }
 
+func (node *Node) GetSigners() []string {
+	ms := make([]string, len(node.signer.Genesis.Members))
+	copy(ms, node.signer.Genesis.Members)
+	return ms
+}
+
 func (node *Node) buildTransaction(ctx context.Context, act *mtg.Action, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) *mtg.Transaction {
 	logger.Printf("node.buildTransaction(%s, %s, %v, %d, %s, %x, %s)", opponentAppId, assetId, receivers, threshold, amount, memo, traceId)
 	return node.buildTransactionWithReferences(ctx, act, opponentAppId, assetId, receivers, threshold, amount, memo, traceId, crypto.Hash{})

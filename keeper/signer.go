@@ -34,6 +34,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 	if !ok || batch.Cmp(big.NewInt(1)) < 0 || batch.Cmp(big.NewInt(SignerKeygenMaximum)) > 0 {
 		return node.failRequest(ctx, req, "")
 	}
+	signers := node.GetSigners()
 	var txs []*mtg.Transaction
 	for i := 0; i < int(batch.Int64()); i++ {
 		op := &common.Operation{
@@ -41,7 +42,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 			Curve: crv,
 		}
 		op.Id = common.UniqueId(req.Id, fmt.Sprintf("%8d", i))
-		op.Id = common.UniqueId(op.Id, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
+		op.Id = common.UniqueId(op.Id, fmt.Sprintf("MTG:%v:%d", signers, node.signer.Genesis.Threshold))
 		tx := node.buildSignerTransaction(ctx, req.Output, op)
 		if tx == nil {
 			return node.failRequest(ctx, req, "")
@@ -98,7 +99,7 @@ func (node *Node) buildSignerTransaction(ctx context.Context, act *mtg.Action, o
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildSignerTransaction(%v) omitted %x", op, extra))
 	}
-	members := node.signer.Genesis.Members
+	members := node.GetSigners()
 	threshold := node.signer.Genesis.Threshold
 	return node.buildTransaction(ctx, act, node.conf.SignerAppId, node.conf.AssetId, members, threshold, "1", extra, op.Id)
 }

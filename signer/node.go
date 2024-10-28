@@ -190,7 +190,7 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 }
 
 func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
-	parallelization := runtime.NumCPU() * (len(node.members)/16 + 1)
+	parallelization := runtime.NumCPU() * (len(node.GetMembers())/16 + 1)
 
 	var sessions []*Session
 	prepared, err := node.store.ListPreparedSessions(ctx, parallelization*4)
@@ -413,6 +413,30 @@ type MultiPartySession struct {
 	round    round.Number
 }
 
+func (node *Node) GetKeepers() []string {
+	ms := make([]string, len(node.keeper.Genesis.Members))
+	for _, id := range node.keeper.Genesis.Members {
+		ms = append(ms, id)
+	}
+	return ms
+}
+
+func (node *Node) GetMembers() []string {
+	ms := make([]string, len(node.members))
+	for _, id := range node.members {
+		ms = append(ms, string(id))
+	}
+	return ms
+}
+
+func (node *Node) GetPartySlice() party.IDSlice {
+	ms := make(party.IDSlice, len(node.members))
+	for _, id := range node.members {
+		ms = append(ms, id)
+	}
+	return ms
+}
+
 func (mps *MultiPartySession) findMember(id party.ID) bool {
 	for _, m := range mps.members {
 		if m == id {
@@ -479,8 +503,9 @@ func (node *Node) getSession(sessionId []byte) *MultiPartySession {
 	sid := hex.EncodeToString(sessionId)
 	session := node.sessions[sid]
 
+	members := node.GetMembers()
 	if session == nil {
-		size := len(node.members) * len(node.members)
+		size := len(members) * len(members)
 		session = &MultiPartySession{
 			id:       sessionId,
 			round:    MPCFirstMessageRound,
@@ -540,7 +565,7 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 }
 
 func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Context, memo []byte, traceId string) error {
-	receivers := node.conf.MTG.Genesis.Members
+	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 	amount := decimal.NewFromInt(1)
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))

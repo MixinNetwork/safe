@@ -311,9 +311,10 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
 	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
+	signerMembers := node.GetSigners()
 	for i := byte(0); i < batch; i++ {
 		pid := common.UniqueId(id, fmt.Sprintf("%8d", i))
-		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", node.signer.Genesis.Members, node.signer.Genesis.Threshold))
+		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", signerMembers, node.signer.Genesis.Threshold))
 		v, err := node.store.ReadProperty(ctx, pid)
 		require.Nil(err)
 		var om map[string]any
