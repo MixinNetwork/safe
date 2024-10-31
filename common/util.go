@@ -88,3 +88,13 @@ func uuidHash(b []byte) string {
 	sum[8] = (sum[8] & 0x3f) | 0x80
 	return uuid.Must(uuid.FromBytes(sum)).String()
 }
+
+func CheckTransactionRetryError(err string) bool {
+	switch {
+	case strings.Contains(err, "spent by other transaction"):
+		return true
+	case strings.Contains(err, "inputs locked by another transaction"):
+		return true
+	}
+	return false
+}
