@@ -178,7 +178,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			if sp.Chain == 4 || safe.Chain == 4 {
+			if (sp != nil && sp.Chain == 4) || (safe != nil && safe.Chain == 4) {
 				continue
 			}
 			id := common.UniqueId(account.Address, account.Signature.String)
