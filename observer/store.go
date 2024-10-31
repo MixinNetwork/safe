@@ -326,7 +326,7 @@ func (s *SQLite3Store) MarkAccountDeployed(ctx context.Context, addr string) err
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.ApprovedAt.Valid {
+	if old.DeployedAt.Valid {
 		return nil
 	}
 
