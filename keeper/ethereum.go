@@ -393,7 +393,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	old, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
-	} else if old != nil {
+	} else if old != nil && old.State == common.RequestStateDone {
 		return node.failRequest(ctx, req, "")
 	}
 	chain := common.SafeCurveChain(req.Curve)
