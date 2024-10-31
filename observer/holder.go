@@ -29,10 +29,14 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 	if err != nil || safe == nil {
 		return "proposed", err
 	}
-	if int(safe.State) == common.RequestStateFailed {
+	switch int(safe.State) {
+	case common.RequestStateFailed:
 		return "failed", nil
+	case common.RequestStatePending:
+		return "pending", nil
+	default:
+		return "approved", nil
 	}
-	return "approved", nil
 }
 
 func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, extra []byte, createdAt time.Time) error {
