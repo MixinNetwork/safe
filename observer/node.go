@@ -150,6 +150,23 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			panic(err)
 		}
 		for _, account := range as {
+			safe, err := node.keeperStore.ReadSafeByAddress(ctx, account.Address)
+			if err != nil {
+				panic(err)
+			}
+			switch safe.State {
+			case common.RequestStateDone, common.RequestStateFailed:
+				err = node.store.MarkAccountDeployed(ctx, safe.Address)
+				logger.Printf("store.MarkAccountDeployed(%s) => %v", safe.Address, err)
+				if err != nil {
+					panic(err)
+				}
+				continue
+			}
+			if account.ApprovedAt.Valid && time.Now().Before(account.ApprovedAt.Time.Add(time.Minute*30)) {
+				continue
+			}
+
 			sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
 			if err != nil {
 				panic(err)
@@ -191,6 +208,11 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				continue
 			}
 
+			t := account.CreatedAt
+			if account.ApprovedAt.Valid {
+				t = account.ApprovedAt.Time
+			}
+			id = common.UniqueId(id, fmt.Sprintf("%d", t.Unix()))
 			logger.Printf("node.sendAccountApprovals(%d, %s, %s, %x)", sp.Chain, sp.Holder, id, extra)
 			err = node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 			if err != nil {

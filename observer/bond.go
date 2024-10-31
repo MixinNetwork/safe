@@ -43,8 +43,8 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	}
-	err = node.store.MarkAccountApproved(ctx, safe.Address)
-	logger.Printf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
+	err = node.store.MarkAccountDeployed(ctx, safe.Address)
+	logger.Printf("store.MarkAccountDeployed(%s) => %v", safe.Address, err)
 	return err
 }
 

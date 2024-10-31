@@ -75,8 +75,8 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 	if err != nil {
 		return err
 	}
-	err = node.store.MarkAccountApproved(ctx, safe.Address)
-	logger.Printf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
+	err = node.store.MarkAccountDeployed(ctx, safe.Address)
+	logger.Printf("store.MarkAccountDeployed(%s) => %v", safe.Address, err)
 	return err
 }
 
