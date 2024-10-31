@@ -170,6 +170,11 @@ func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) erro
 	if safe.State != common.RequestStatePending {
 		panic(safe.State)
 	}
+	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM safes WHERE address=?", safe.Address)
+	if err != nil || existed {
+		return err
+	}
+
 	err = s.execOne(ctx, tx, buildInsertionSQL("safes", safeCols), safe.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT safes %v", err)
