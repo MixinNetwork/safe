@@ -160,14 +160,6 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				panic(err)
 			}
 			if safe != nil {
-				if safe.Chain == 4 {
-					err = node.store.MarkAccountDeployed(ctx, safe.Address)
-					logger.Printf("store.MarkAccountDeployed(%s) => %v", safe.Address, err)
-					if err != nil {
-						panic(err)
-					}
-					continue
-				}
 				switch safe.State {
 				case common.RequestStateDone, common.RequestStateFailed:
 					err = node.store.MarkAccountDeployed(ctx, safe.Address)
@@ -185,6 +177,9 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
 			if err != nil {
 				panic(err)
+			}
+			if sp.Chain == 4 || safe.Chain == 4 {
+				continue
 			}
 			id := common.UniqueId(account.Address, account.Signature.String)
 			rid := uuid.Must(uuid.FromString(sp.RequestId))
