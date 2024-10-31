@@ -44,6 +44,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	}
 
 	ar, handled, err := node.store.ReadActionResult(ctx, out.OutputId, req.Id)
+	logger.Printf("store.ReadActionResult(%s %s) => %v %t %v", out.OutputId, req.Id, ar, handled, err)
 	if err != nil {
 		panic(err)
 	}
@@ -60,6 +61,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
+		logger.Printf("invalid role: %d %d", req.Role, role)
 		return nil, ""
 	}
 
