@@ -155,21 +155,6 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			panic(err)
 		}
 		for _, account := range as {
-			safe, err := node.keeperStore.ReadSafeByAddress(ctx, account.Address)
-			if err != nil {
-				panic(err)
-			}
-			if safe != nil {
-				switch safe.State {
-				case common.RequestStateDone, common.RequestStateFailed:
-					err = node.store.MarkAccountDeployed(ctx, safe.Address)
-					logger.Printf("store.MarkAccountDeployed(%s) => %v", safe.Address, err)
-					if err != nil {
-						panic(err)
-					}
-					continue
-				}
-			}
 			if account.ApprovedAt.Valid && time.Now().Before(account.ApprovedAt.Time.Add(time.Minute*30)) {
 				continue
 			}
