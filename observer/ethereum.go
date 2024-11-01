@@ -37,11 +37,8 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 		return fmt.Errorf("keeperStore.ReadSafeProposalByAddress(%s) => %v", gs.Address, err)
 	}
 	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
-	if err != nil || safe == nil {
-		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v", gs.Address, err)
-	}
-	if safe.State != common.RequestStateDone {
-		return fmt.Errorf("invalid safe %s state: %d", safe.Address, safe.State)
+	if err != nil || safe == nil || safe.State != common.RequestStateDone {
+		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v %v", gs.Address, safe, err)
 	}
 	rpc, ethereumAssetId := node.ethereumParams(safe.Chain)
 	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, ethereumAssetId, "", sp.Holder, sp.Address)

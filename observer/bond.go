@@ -34,8 +34,8 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 		return fmt.Errorf("bitcoin.UnmarshalWitnessScriptAccount(%x) => %v", data, err)
 	}
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, wsa.Address)
-	if err != nil {
-		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
+	if err != nil || safe == nil || safe.State != common.RequestStateDone {
+		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", wsa.Address, safe, err)
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
 	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder, safe.Address)
