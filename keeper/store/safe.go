@@ -170,7 +170,7 @@ func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) erro
 	if safe.State != common.RequestStatePending {
 		panic(safe.State)
 	}
-	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM safes WHERE address=?", safe.Address)
+	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM safes WHERE address=? AND state=?", safe.Address, common.RequestStatePending)
 	if err != nil || existed {
 		return err
 	}
