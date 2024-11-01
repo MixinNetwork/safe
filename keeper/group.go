@@ -61,7 +61,6 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
-		logger.Printf("invalid role: %d %d", req.Role, role)
 		return nil, ""
 	}
 
