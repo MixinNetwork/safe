@@ -26,10 +26,6 @@ func (node *Node) Migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if safe == nil {
-			continue
-		}
-
 		switch safe.State {
 		case common.RequestStateDone, common.RequestStateFailed:
 			err = node.store.MarkAccountDeployed(ctx, safe.Address)
