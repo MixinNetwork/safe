@@ -58,6 +58,11 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.Migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	for _, chain := range []byte{
 		common.SafeChainBitcoin,
 		common.SafeChainLitecoin,
@@ -150,11 +155,14 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			panic(err)
 		}
 		for _, account := range as {
+			if account.ApprovedAt.Valid && time.Now().Before(account.ApprovedAt.Time.Add(time.Minute*30)) {
+				continue
+			}
+
 			sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
 			if err != nil {
 				panic(err)
 			}
-			id := common.UniqueId(account.Address, account.Signature.String)
 			rid := uuid.Must(uuid.FromString(sp.RequestId))
 
 			var extra []byte
@@ -191,6 +199,12 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				continue
 			}
 
+			t := account.CreatedAt
+			if account.ApprovedAt.Valid {
+				t = account.ApprovedAt.Time
+			}
+			id := common.UniqueId(account.Address, account.Signature.String)
+			id = common.UniqueId(id, t.String())
 			logger.Printf("node.sendAccountApprovals(%d, %s, %s, %x)", sp.Chain, sp.Holder, id, extra)
 			err = node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 			if err != nil {

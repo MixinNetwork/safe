@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at    TIMESTAMP NOT NULL,
   signature     VARCHAR,
   approved_at   TIMESTAMP,
+  deployed_at   TIMESTAMP,
   migrated_at   TIMESTAMP, /* FIXME remove this after all migrated */
   PRIMARY KEY ('address')
 );

@@ -21,6 +21,7 @@ type Account struct {
 	CreatedAt  time.Time
 	Signature  sql.NullString
 	ApprovedAt sql.NullTime
+	DeployedAt sql.NullTime
 	MigratedAt sql.NullTime
 }
 
@@ -97,7 +98,7 @@ type NodeStats struct {
 	UpdatedAt time.Time
 }
 
-var accountCols = []string{"address", "created_at", "signature", "approved_at", "migrated_at"}
+var accountCols = []string{"address", "created_at", "signature", "approved_at", "deployed_at", "migrated_at"}
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
@@ -212,7 +213,7 @@ func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, addr
 		return err
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, sql.NullString{}, sql.NullTime{}, createdAt)
+	err = s.execOne(ctx, tx, buildInsertionSQL("accounts", accountCols), address, createdAt, sql.NullString{}, sql.NullTime{}, sql.NullTime{}, createdAt)
 	if err != nil {
 		return fmt.Errorf("INSERT accounts %v", err)
 	}
@@ -245,7 +246,7 @@ func (s *SQLite3Store) readAccount(ctx context.Context, txn *sql.Tx, addr string
 	row := txn.QueryRowContext(ctx, query, addr)
 
 	var a Account
-	err := row.Scan(&a.Address, &a.CreatedAt, &a.Signature, &a.ApprovedAt, &a.MigratedAt)
+	err := row.Scan(&a.Address, &a.CreatedAt, &a.Signature, &a.ApprovedAt, &a.DeployedAt, &a.MigratedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -299,11 +300,37 @@ func (s *SQLite3Store) MarkAccountApproved(ctx context.Context, addr string) err
 	if old == nil {
 		return fmt.Errorf("account not exists: %s", addr)
 	}
-	if old.ApprovedAt.Valid {
+
+	err = s.execOne(ctx, tx, "UPDATE accounts SET approved_at=? WHERE address=?", time.Now().UTC(), addr)
+	if err != nil {
+		return fmt.Errorf("UPDATE accounts %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) MarkAccountDeployed(ctx context.Context, addr string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	old, err := s.readAccount(ctx, tx, addr)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		return fmt.Errorf("account not exists: %s", addr)
+	}
+	if old.DeployedAt.Valid {
 		return nil
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE accounts SET approved_at=? WHERE address=?", time.Now().UTC(), addr)
+	err = s.execOne(ctx, tx, "UPDATE accounts SET deployed_at=? WHERE address=?", time.Now().UTC(), addr)
 	if err != nil {
 		return fmt.Errorf("UPDATE accounts %v", err)
 	}
@@ -341,7 +368,7 @@ func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) err
 }
 
 func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Account, error) {
-	query := fmt.Sprintf("SELECT %s FROM accounts WHERE approved_at IS NULL AND signature IS NOT NULL ORDER BY created_at ASC LIMIT 100", strings.Join(accountCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM accounts WHERE deployed_at IS NULL AND signature IS NOT NULL ORDER BY created_at ASC LIMIT 100", strings.Join(accountCols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -351,7 +378,7 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 	var accounts []*Account
 	for rows.Next() {
 		var a Account
-		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Signature, &a.ApprovedAt, &a.ApprovedAt)
+		err := rows.Scan(&a.Address, &a.CreatedAt, &a.Signature, &a.ApprovedAt, &a.DeployedAt, &a.MigratedAt)
 		if err != nil {
 			return nil, err
 		}

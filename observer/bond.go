@@ -34,8 +34,8 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 		return fmt.Errorf("bitcoin.UnmarshalWitnessScriptAccount(%x) => %v", data, err)
 	}
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, wsa.Address)
-	if err != nil {
-		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", wsa.Address, err)
+	if err != nil || safe == nil || safe.State != common.RequestStateDone {
+		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", wsa.Address, safe, err)
 	}
 	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
 	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder, safe.Address)
@@ -43,8 +43,8 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	}
-	err = node.store.MarkAccountApproved(ctx, safe.Address)
-	logger.Printf("store.MarkAccountApproved(%s) => %v", safe.Address, err)
+	err = node.store.MarkAccountDeployed(ctx, safe.Address)
+	logger.Printf("store.MarkAccountDeployed(%s) => %v", safe.Address, err)
 	return err
 }
 
@@ -126,7 +126,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error) {
+func (node *Node) fetchMixinAsset(_ context.Context, id string) (*Asset, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
 	resp, err := client.Get(path)
