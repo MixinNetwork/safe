@@ -126,7 +126,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error) {
+func (node *Node) fetchMixinAsset(_ context.Context, id string) (*Asset, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
 	resp, err := client.Get(path)

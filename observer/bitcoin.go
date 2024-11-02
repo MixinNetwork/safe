@@ -96,7 +96,7 @@ func (node *Node) bitcoinDummyHolder() string {
 	return hex.EncodeToString(dk.SerializeCompressed())
 }
 
-func (node *Node) bitcoinReadBlock(ctx context.Context, num int64, chain byte) ([]*bitcoin.RPCTransaction, error) {
+func (node *Node) bitcoinReadBlock(_ context.Context, num int64, chain byte) ([]*bitcoin.RPCTransaction, error) {
 	rpc, _ := node.bitcoinParams(chain)
 
 	if num == 0 {
@@ -589,8 +589,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	switch {
-	case approval != nil: // Close account with safeBTC
+	if approval != nil {
 		if count != 1 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
@@ -613,7 +612,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		if err != nil || tx == nil {
 			return err
 		}
-	case approval == nil: // Close account with holder key
+	} else {
 		if count != 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
