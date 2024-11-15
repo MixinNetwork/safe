@@ -3,7 +3,7 @@ module github.com/MixinNetwork/safe
 go 1.23.3
 
 require (
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.9.1
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.9.2
 	github.com/MixinNetwork/mixin v0.18.17
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/trusted-group v0.9.6
@@ -33,7 +33,7 @@ require (
 	github.com/MixinNetwork/go-number v0.1.1 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.14.3 // indirect
+	github.com/bits-and-blooms/bitset v1.15.0 // indirect
 	github.com/btcsuite/btclog v0.0.0-20241017175713-3428138b75c7 // indirect
 	github.com/btcsuite/btcutil v1.0.2 // indirect
 	github.com/consensys/bavard v0.1.22 // indirect
