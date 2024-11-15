@@ -1077,10 +1077,35 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	// FIXME this actually has no effect because we are not using group.Run()
 	group.EnableDebug()
 
+	for i := range 100000 {
+		sequence += uint64(i)
+		err = testInitializeOutputs(ctx, db, conf.Keeper.AppId, conf.Keeper.AssetId, uint64(sequence))
+		require.Nil(err)
+	}
+	for i := range 100000 {
+		sequence += uint64(i + 1)
+		err = testInitializeOutputs(ctx, db, conf.Keeper.AppId, mtg.StorageAssetId, uint64(sequence))
+		require.Nil(err)
+	}
+
 	var client *mixin.Client
 	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)
 	group.AttachWorker(node.conf.AppId, node)
 	return node
+}
+
+func testInitializeOutputs(ctx context.Context, db *mtg.SQLite3Store, appId, assetId string, sequence uint64) error {
+	id := uuid.Must(uuid.NewV4())
+	err := db.WriteAction(ctx, &mtg.UnifiedOutput{
+		OutputId:        id.String(),
+		AppId:           appId,
+		AssetId:         assetId,
+		Amount:          decimal.NewFromInt(1),
+		Sequence:        sequence,
+		TransactionHash: crypto.Sha256Hash(id.Bytes()).String(),
+		State:           mtg.SafeUtxoStateUnspent,
+	}, mtg.ActionStateInitial)
+	return err
 }
 
 func testRecipient() []byte {
