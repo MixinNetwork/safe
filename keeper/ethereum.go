@@ -893,7 +893,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	if err != nil || deployed.Sign() <= 0 {
 		panic(fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err))
 	}
-	tt := node.buildTransaction(ctx, req.Output, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(req.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
+	tt := node.buildTransaction(ctx, req.Output, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(txRequest.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
 	if tt == nil {
 		return node.failRequest(ctx, req, txRequest.AssetId)
 	}

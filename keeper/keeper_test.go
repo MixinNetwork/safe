@@ -60,20 +60,22 @@ var sequence uint64 = 5000000
 
 func TestBitcoinKeeper(t *testing.T) {
 	require := require.New(t)
-	ctx, node, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
+	require.Nil(err)
 	node.ProcessOutput(ctx, &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            bondId,
-			Amount:             decimal.NewFromInt(1000000),
-			SequencerCreatedAt: time.Now(),
-			Extra:              testGenerateDummyExtra(node),
-			Sequence:           sequence,
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
 	})
 	input := &bitcoin.Input{
@@ -145,20 +147,22 @@ func TestBitcoinKeeper(t *testing.T) {
 
 func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
+	require.Nil(err)
 	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            bondId,
-			Amount:             decimal.NewFromInt(1000000),
-			SequencerCreatedAt: time.Now(),
-			Extra:              testGenerateDummyExtra(node),
-			Sequence:           sequence,
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
 	}
 	node.ProcessOutput(ctx, action)
@@ -212,20 +216,22 @@ func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 
 func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(require)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
 	require.Equal(testBondAssetId, bondId)
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
+	require.Nil(err)
 	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            bondId,
-			Amount:             decimal.NewFromInt(1000000),
-			SequencerCreatedAt: time.Now(),
-			Extra:              testGenerateDummyExtra(node),
-			Sequence:           sequence,
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
 	}
 	node.ProcessOutput(ctx, action)
@@ -269,7 +275,7 @@ func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Len(pendings, 0)
 }
 
-func testPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
+func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
 	logger.SetLevel(logger.INFO)
 	ctx, signers, _ := signer.TestPrepare(require)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSABitcoin)
@@ -277,7 +283,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 
 	root, err := os.MkdirTemp("", "safe-keeper-test-")
 	require.Nil(err)
-	node := testBuildNode(ctx, require, root)
+	node, db := testBuildNode(ctx, require, root)
 	require.NotNil(node)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
@@ -338,7 +344,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, string, [
 		testUpdateNetworkStatus(ctx, require, node, 793574, "00000000000000000002a4f5cd899ea457314c808897c5c5f1f1cd6ffe2b266a")
 	}
 
-	return ctx, node, mpc, signers
+	return ctx, node, db, mpc, signers
 }
 
 func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, node *Node) {
@@ -948,6 +954,7 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 			Extra:              memo,
 			Amount:             amount,
 			SequencerCreatedAt: time.Now(),
+			Sequence:           sequence,
 		},
 	}
 }
@@ -1045,7 +1052,7 @@ func testDeployBondContract(ctx context.Context, require *require.Assertions, no
 	return asset.AssetId
 }
 
-func testBuildNode(ctx context.Context, require *require.Assertions, root string) *Node {
+func testBuildNode(ctx context.Context, require *require.Assertions, root string) (*Node, *mtg.SQLite3Store) {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Keeper *Configuration `toml:"keeper"`
@@ -1055,6 +1062,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	}
 	err := toml.Unmarshal(f, &conf)
 	require.Nil(err)
+	conf.Keeper.MTG.GroupSize = 1
 
 	if rpc := os.Getenv("POLYGONRPC"); rpc != "" {
 		conf.Keeper.PolygonRPC = rpc
@@ -1077,35 +1085,52 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	// FIXME this actually has no effect because we are not using group.Run()
 	group.EnableDebug()
 
-	for i := range 10000000 {
+	for i := range 1000 {
 		sequence += uint64(i)
-		err = testInitializeOutputs(ctx, db, conf.Keeper.AppId, conf.Keeper.AssetId, uint64(sequence))
+		_, err = testWriteOutput(ctx, db, conf.Keeper.AppId, conf.Keeper.AssetId, "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 	}
-	for i := range 10000000 {
-		sequence += uint64(i + 1)
-		err = testInitializeOutputs(ctx, db, conf.Keeper.AppId, mtg.StorageAssetId, uint64(sequence))
+	sequence += uint64(1)
+	for i := range 1000 {
+		sequence += uint64(i)
+		_, err = testWriteOutput(ctx, db, conf.Keeper.AppId, conf.Keeper.ObserverAssetId, "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 	}
+	sequence += uint64(1)
+	for i := range 1000 {
+		sequence += uint64(i)
+		_, err = testWriteOutput(ctx, db, conf.Keeper.AppId, testAccountPriceAssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		require.Nil(err)
+	}
+	sequence += uint64(1)
+	for i := range 1000 {
+		sequence += uint64(i)
+		_, err = testWriteOutput(ctx, db, conf.Keeper.AppId, mtg.StorageAssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		require.Nil(err)
+	}
+	sequence += uint64(100)
 
 	var client *mixin.Client
 	node := NewNode(kd, group, conf.Keeper, conf.Signer.MTG, client)
 	group.AttachWorker(node.conf.AppId, node)
-	return node
+	return node, db
 }
 
-func testInitializeOutputs(ctx context.Context, db *mtg.SQLite3Store, appId, assetId string, sequence uint64) error {
+func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, appId, assetId, extra string, sequence uint64, amount decimal.Decimal) (*mtg.UnifiedOutput, error) {
 	id := uuid.Must(uuid.NewV4())
-	err := db.WriteAction(ctx, &mtg.UnifiedOutput{
-		OutputId:        id.String(),
-		AppId:           appId,
-		AssetId:         assetId,
-		Amount:          decimal.NewFromInt(1),
-		Sequence:        sequence,
-		TransactionHash: crypto.Sha256Hash(id.Bytes()).String(),
-		State:           mtg.SafeUtxoStateUnspent,
-	}, mtg.ActionStateInitial)
-	return err
+	output := &mtg.UnifiedOutput{
+		OutputId:           id.String(),
+		AppId:              appId,
+		AssetId:            assetId,
+		Amount:             amount,
+		Sequence:           sequence,
+		SequencerCreatedAt: time.Now(),
+		TransactionHash:    crypto.Sha256Hash(id.Bytes()).String(),
+		State:              mtg.SafeUtxoStateUnspent,
+		Extra:              extra,
+	}
+	err := db.WriteAction(ctx, output, mtg.ActionStateInitial)
+	return output, err
 }
 
 func testRecipient() []byte {

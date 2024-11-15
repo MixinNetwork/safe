@@ -43,18 +43,22 @@ const (
 
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
-	ctx, node, _, signers := testEthereumPrepare(require)
+	ctx, node, db, _, signers := testEthereumPrepare(require)
 
-	node.ProcessOutput(ctx, &mtg.Action{
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            testEthereumBondAssetId,
-			Amount:             decimal.NewFromInt(100000000000000),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	_, assetId := node.ethereumParams(common.SafeChainPolygon)
@@ -67,34 +71,42 @@ func TestEthereumKeeper(t *testing.T) {
 
 func TestEthereumKeeperERC20(t *testing.T) {
 	require := require.New(t)
-	ctx, node, _, signers := testEthereumPrepare(require)
+	ctx, node, db, _, signers := testEthereumPrepare(require)
 
-	node.ProcessOutput(ctx, &mtg.Action{
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            testEthereumBondAssetId,
-			Amount:             decimal.NewFromInt(100000000000000),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
 	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
 	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
-	node.ProcessOutput(ctx, &mtg.Action{
+	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action = &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            cnbBondId,
-			Amount:             decimal.NewFromInt(100),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
 
 	txHash := testEthereumProposeERC20Transaction(ctx, require, node, testEthereumUSDTBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
@@ -103,38 +115,46 @@ func TestEthereumKeeperERC20(t *testing.T) {
 
 func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, _, signers := testEthereumPrepare(require)
+	ctx, node, db, _, signers := testEthereumPrepare(require)
 	for i := 0; i < 10; i++ {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 52430860, "55877f07c696cbf6e75174d7e8c2313d62aa665101be2c53dd1bd5f3a85507b1")
 	}
 
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
-	node.ProcessOutput(ctx, &mtg.Action{
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            testEthereumBondAssetId,
-			Amount:             decimal.NewFromInt(100000000000000),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
 	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
 	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
-	node.ProcessOutput(ctx, &mtg.Action{
+	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action = &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            cnbBondId,
-			Amount:             decimal.NewFromInt(100),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
 
 	txHash := testEthereumProposeRecoveryTransaction(ctx, require, node, cnbBondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
@@ -204,37 +224,44 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 
 func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, _, _ := testEthereumPrepare(require)
+	ctx, node, db, _, _ := testEthereumPrepare(require)
 	for i := 0; i < 10; i++ {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 52430860, "55877f07c696cbf6e75174d7e8c2313d62aa665101be2c53dd1bd5f3a85507b1")
 	}
 
 	holder := testEthereumPublicKey(testEthereumKeyHolder)
 	observer := testEthereumPublicKey(testEthereumKeyObserver)
-	node.ProcessOutput(ctx, &mtg.Action{
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            testEthereumBondAssetId,
-			Amount:             decimal.NewFromInt(100000000000000),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
-	})
+	}
+	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
 	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
 	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
 	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
 	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
-	action := &mtg.Action{
+	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action = &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            cnbBondId,
-			Amount:             decimal.NewFromInt(100),
-			Extra:              testGenerateDummyExtra(node),
-			SequencerCreatedAt: time.Now(),
+			OutputId:           output.OutputId,
+			AppId:              output.AppId,
+			AssetId:            output.AssetId,
+			Amount:             output.Amount,
+			SequencerCreatedAt: output.SequencerCreatedAt,
+			Extra:              output.Extra,
+			Sequence:           output.Sequence,
 		},
 	}
 	node.ProcessOutput(ctx, action)
@@ -294,7 +321,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(common.RequestStateFailed, int(safe.State))
 }
 
-func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, string, []*signer.Node) {
+func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
 	logger.SetLevel(logger.INFO)
 	ctx, signers, _ := signer.TestPrepare(require)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSAEthereum)
@@ -302,7 +329,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 
 	root, err := os.MkdirTemp("", "safe-keeper-test-")
 	require.Nil(err)
-	node := testBuildNode(ctx, require, root)
+	node, db := testBuildNode(ctx, require, root)
 	require.NotNil(node)
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
@@ -365,7 +392,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, s
 	holder := testEthereumPublicKey(testEthereumKeyHolder)
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	require.Equal(int64(1), safe.Nonce)
-	return ctx, node, mpc, signers
+	return ctx, node, db, mpc, signers
 }
 
 func testEthereumProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, bondId string, rid string) string {
