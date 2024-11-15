@@ -68,15 +68,7 @@ func TestBitcoinKeeper(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
 	require.Nil(err)
 	node.ProcessOutput(ctx, &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	})
 	input := &bitcoin.Input{
 		TransactionHash: "40e228e5a3cba99fd3fc5350a00bfeef8bafb760e26919ec74bca67776c90427",
@@ -155,15 +147,7 @@ func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
 	require.Nil(err)
 	action := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	input := &bitcoin.Input{
@@ -224,15 +208,7 @@ func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
 	require.Nil(err)
 	action := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	input := &bitcoin.Input{
@@ -324,7 +300,8 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLi
 		v, err := node.store.ReadProperty(ctx, pid)
 		require.Nil(err)
 		var om map[string]any
-		json.Unmarshal([]byte(v), &om)
+		err = json.Unmarshal([]byte(v), &om)
+		require.Nil(err)
 		b, _ := hex.DecodeString(om["memo"].(string))
 		b = common.AESDecrypt(node.signerAESKey[:], b)
 		o, err := common.DecodeOperation(b)
@@ -901,7 +878,8 @@ func testSpareKeys(ctx context.Context, require *require.Assertions, node *Node,
 func testReadObserverResponse(ctx context.Context, require *require.Assertions, node *Node, id string, typ byte) []byte {
 	v, _ := node.store.ReadProperty(ctx, id)
 	var om map[string]any
-	json.Unmarshal([]byte(v), &om)
+	err := json.Unmarshal([]byte(v), &om)
+	require.Nil(err)
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
 	switch typ {
 	case common.ActionBitcoinSafeApproveAccount:

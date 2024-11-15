@@ -48,15 +48,7 @@ func TestEthereumKeeper(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -76,15 +68,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -96,15 +80,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action = &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
@@ -124,15 +100,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -144,15 +112,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action = &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
@@ -234,15 +194,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
@@ -254,15 +206,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
 	require.Nil(err)
 	action = &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           output.OutputId,
-			AppId:              output.AppId,
-			AssetId:            output.AssetId,
-			Amount:             output.Amount,
-			SequencerCreatedAt: output.SequencerCreatedAt,
-			Extra:              output.Extra,
-			Sequence:           output.Sequence,
-		},
+		UnifiedOutput: *output,
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
@@ -369,7 +313,8 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *
 		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", signerMembers, node.signer.Genesis.Threshold))
 		v, _ := node.store.ReadProperty(ctx, pid)
 		var om map[string]any
-		json.Unmarshal([]byte(v), &om)
+		err = json.Unmarshal([]byte(v), &om)
+		require.Nil(err)
 		b, _ := hex.DecodeString(om["memo"].(string))
 		b = common.AESDecrypt(node.signerAESKey[:], b)
 		o, err := common.DecodeOperation(b)
