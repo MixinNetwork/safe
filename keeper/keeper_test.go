@@ -1077,12 +1077,12 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	// FIXME this actually has no effect because we are not using group.Run()
 	group.EnableDebug()
 
-	for i := range 100000 {
+	for i := range 10000000 {
 		sequence += uint64(i)
 		err = testInitializeOutputs(ctx, db, conf.Keeper.AppId, conf.Keeper.AssetId, uint64(sequence))
 		require.Nil(err)
 	}
-	for i := range 100000 {
+	for i := range 10000000 {
 		sequence += uint64(i + 1)
 		err = testInitializeOutputs(ctx, db, conf.Keeper.AppId, mtg.StorageAssetId, uint64(sequence))
 		require.Nil(err)
