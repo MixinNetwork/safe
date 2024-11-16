@@ -861,7 +861,7 @@ func (node *Node) deriveBIP32WithPath(ctx context.Context, public string, path8 
 }
 
 func (node *Node) checkTransactionIndexSignaturePending(ctx context.Context, hash string, index int, req *common.Request) (bool, error) {
-	old, err := node.store.ReadSignatureRequestByTransactionIndex(ctx, hash, index)
+	old, err := node.store.ReadPendingSignatureRequestByTransactionIndex(ctx, hash, index)
 	if err != nil {
 		return false, err
 	}
