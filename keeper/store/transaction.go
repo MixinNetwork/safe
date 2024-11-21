@@ -68,7 +68,7 @@ func (s *SQLite3Store) ReadTransactionByRequestId(ctx context.Context, requestId
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	var hash string
 	query := "SELECT transaction_hash FROM transactions WHERE request_id=?"
@@ -88,7 +88,7 @@ func (s *SQLite3Store) ReadTransaction(ctx context.Context, hash string) (*Trans
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	return s.readTransaction(ctx, tx, hash)
 }
@@ -145,7 +145,7 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStatePending)
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	if transactionHasOutputs(trx.Chain) {
 		inputs := TransactionInputsFromRawTransaction(trx)
@@ -284,7 +284,7 @@ func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Tran
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
 		common.RequestStateFailed, req.CreatedAt, trx.TransactionHash, common.RequestStateDone)

@@ -94,7 +94,7 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	cols := []string{"key", "value", "created_at"}
 	err = s.execOne(ctx, tx, buildInsertionSQL("properties", cols), k, v, time.Now().UTC())

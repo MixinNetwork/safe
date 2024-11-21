@@ -206,7 +206,7 @@ func (s *SQLite3Store) WriteAccountProposalIfNotExists(ctx context.Context, addr
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT created_at FROM accounts WHERE address=?", address)
 	if err != nil || existed {
@@ -236,7 +236,7 @@ func (s *SQLite3Store) ReadAccount(ctx context.Context, addr string) (*Account, 
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	return s.readAccount(ctx, tx, addr)
 }
@@ -261,7 +261,7 @@ func (s *SQLite3Store) SaveAccountApprovalSignature(ctx context.Context, addr, s
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
@@ -291,7 +291,7 @@ func (s *SQLite3Store) MarkAccountApproved(ctx context.Context, addr string) err
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
@@ -317,7 +317,7 @@ func (s *SQLite3Store) MarkAccountDeployed(ctx context.Context, addr string) err
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
@@ -346,7 +346,7 @@ func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) err
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	old, err := s.readAccount(ctx, tx, addr)
 	if err != nil {
@@ -451,7 +451,7 @@ func (s *SQLite3Store) WritePendingDepositIfNotExists(ctx context.Context, d *De
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	if d.State != common.RequestStateInitial {
 		panic(d.State)
@@ -478,7 +478,7 @@ func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHa
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "UPDATE deposits SET request_id=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
 	err = s.execOne(ctx, tx, query, rid, time.Now().UTC(), transactionHash, outputIndex, oldRid, common.RequestStateInitial)
@@ -497,7 +497,7 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
 	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, common.RequestStateInitial)
@@ -516,7 +516,7 @@ func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "UPDATE transactions SET spent_hash=?, spent_raw=?, updated_at=? WHERE transaction_hash=? AND state=? AND spent_hash IS NULL"
 	err = s.execOne(ctx, tx, query, spentHash, spentRaw, time.Now().UTC(), hash, common.RequestStateDone)
@@ -535,7 +535,7 @@ func (s *SQLite3Store) RefundFullySignedTransactionApproval(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=? AND spent_hash IS NULL"
 	err = s.execOne(ctx, tx, query, common.RequestStateFailed, time.Now().UTC(), hash, common.RequestStateDone)
@@ -606,7 +606,7 @@ func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT raw_transaction FROM transactions WHERE transaction_hash=?", approval.TransactionHash)
 	if err != nil || existed {
@@ -629,7 +629,7 @@ func (s *SQLite3Store) RevokeTransactionApproval(ctx context.Context, transactio
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
 		sigBase64, common.RequestStateFailed, time.Now().UTC(), transactionHash, common.RequestStateInitial)
@@ -648,7 +648,7 @@ func (s *SQLite3Store) AddTransactionPartials(ctx context.Context, transactionHa
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, updated_at=? WHERE transaction_hash=? AND state=?",
 		raw, time.Now().UTC(), transactionHash, common.RequestStateInitial)
@@ -667,7 +667,7 @@ func (s *SQLite3Store) MarkTransactionApprovalPaid(ctx context.Context, transact
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
 		common.RequestStatePending, time.Now().UTC(), transactionHash, common.RequestStateInitial)
@@ -686,7 +686,7 @@ func (s *SQLite3Store) UpdateTransactionApprovalRequestTime(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET updated_at=? WHERE transaction_hash=? AND state=?",
 		time.Now().UTC(), transactionHash, common.RequestStatePending)
@@ -705,7 +705,7 @@ func (s *SQLite3Store) FinishTransactionSignatures(ctx context.Context, transact
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=?",
 		raw, common.RequestStateDone, time.Now().UTC(), transactionHash)
@@ -736,7 +736,7 @@ func (s *SQLite3Store) WriteAccountantKeys(ctx context.Context, crv byte, keys m
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	for addr, priv := range keys {
 		pub := hex.EncodeToString(priv.PubKey().SerializeCompressed())
@@ -771,7 +771,7 @@ func (s *SQLite3Store) WriteObserverKeys(ctx context.Context, crv byte, publics 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	for pub, code := range publics {
 		cols := []string{"public_key", "curve", "chain_code", "created_at"}
@@ -803,7 +803,7 @@ func (s *SQLite3Store) DeleteObserverKey(ctx context.Context, pub string) error 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "DELETE FROM observers WHERE public_key=?", pub)
 	if err != nil {
@@ -833,7 +833,7 @@ func (s *SQLite3Store) WriteAssetMeta(ctx context.Context, asset *Asset) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	vals := []any{asset.AssetId, asset.MixinId, asset.AssetKey, asset.Symbol, asset.Name, asset.Decimals, asset.Chain, asset.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("assets", assetCols), vals...)
@@ -851,7 +851,7 @@ func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recov
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	vals := recovery.values()
 	err = s.execOne(ctx, tx, buildInsertionSQL("recoveries", recoveryCols), vals...)
@@ -869,7 +869,7 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw str
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=?", address)
 	if err != nil || !existed {
@@ -932,7 +932,7 @@ func (s *SQLite3Store) UpsertNodeStats(ctx context.Context, appId, typ, stats st
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	ns := NodeStats{
 		AppId:     appId,

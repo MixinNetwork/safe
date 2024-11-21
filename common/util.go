@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/sha256"
+	"database/sql"
 	"encoding"
 	"encoding/hex"
 	"encoding/json"
@@ -97,4 +98,12 @@ func CheckTransactionRetryError(err string) bool {
 		return true
 	}
 	return false
+}
+
+func Rollback(txn *sql.Tx) {
+	err := txn.Rollback()
+	const already = "transaction has already been committed or rolled back"
+	if err != nil && !strings.Contains(err.Error(), already) {
+		panic(err)
+	}
 }

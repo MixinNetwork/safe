@@ -48,7 +48,7 @@ func (s *SQLite3Store) ReadNodePublicKey(ctx context.Context, nodeId string) (*c
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	row := tx.QueryRowContext(ctx, "SELECT public_key FROM tokens WHERE node_id=?", nodeId)
 	var publicKey string
@@ -68,7 +68,7 @@ func (s *SQLite3Store) WriteNodePublicKey(ctx context.Context, nodeId, publicKey
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	timestamp := time.Now().UTC()
 	err = s.execOne(ctx, tx, "INSERT INTO tokens (node_id, public_key, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -88,7 +88,7 @@ func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, nodeId, data
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	var old string
 	timestamp := time.Now().UTC()

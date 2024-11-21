@@ -76,7 +76,7 @@ func (s *SQLite3Store) WriteNetworkInfoFromRequest(ctx context.Context, info *Ne
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	vals := []any{info.RequestId, info.Chain, info.Fee, info.Height, info.Hash, info.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("network_infos", infoCols), vals...)
@@ -122,7 +122,7 @@ func (s *SQLite3Store) WriteOperationParamsFromRequest(ctx context.Context, para
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM requests WHERE request_id=? AND state=?", params.RequestId, common.RequestStateDone)
 	if err != nil || existed {
@@ -169,7 +169,7 @@ func (s *SQLite3Store) WriteAssetMeta(ctx context.Context, asset *Asset) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	vals := []any{asset.AssetId, asset.MixinId, asset.AssetKey, asset.Symbol, asset.Name, asset.Decimals, asset.Chain, asset.CreatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("assets", assetCols), vals...)

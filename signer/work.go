@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	"github.com/MixinNetwork/safe/common"
 )
 
 // TODO put all works query to the custodian module
@@ -36,7 +37,7 @@ func (s *SQLite3Store) CountDailyWorks(ctx context.Context, members []party.ID, 
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	works := make([]int, len(members))
 	for i, id := range members {

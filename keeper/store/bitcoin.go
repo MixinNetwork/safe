@@ -21,7 +21,7 @@ func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	script := hex.EncodeToString(utxo.Script)
 	cols := []string{"transaction_hash", "output_index", "address", "satoshi", "script", "sequence", "chain", "state", "spent_by", "request_id", "created_at", "updated_at"}
@@ -54,7 +54,7 @@ func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, transactionHash stri
 	if err != nil {
 		return nil, "", err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	return s.readBitcoinUTXO(ctx, tx, transactionHash, index)
 }
@@ -64,7 +64,7 @@ func (s *SQLite3Store) ListAllBitcoinUTXOsForHolder(ctx context.Context, holder 
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	safe, err := s.readSafe(ctx, tx, holder)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *SQLite3Store) ListPendingBitcoinUTXOsForHolder(ctx context.Context, hol
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	safe, err := s.readSafe(ctx, tx, holder)
 	if err != nil {
@@ -104,7 +104,7 @@ func (s *SQLite3Store) ReadUnspentUtxoCountForSafe(ctx context.Context, address 
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT COUNT(*) FROM bitcoin_outputs WHERE address=? AND state IN (?, ?)"
 	row := s.db.QueryRowContext(ctx, query, address, common.RequestStateInitial, common.RequestStatePending)
