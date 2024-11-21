@@ -177,7 +177,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	}
 
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, transfer.Receiver)
-	logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", transfer.Receiver, safe, err)
+	logger.Printf("keeperStore.ReadSafeByAddress(%s, %s) => %v %v", transfer.Hash, transfer.Receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
 	} else if safe == nil {
@@ -185,7 +185,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	}
 
 	asset, err := node.fetchAssetMeta(ctx, transfer.AssetId)
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", transfer.AssetId, asset, err)
+	logger.Printf("node.fetchAssetMeta(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
 	if err != nil || asset == nil {
 		return err
 	}
@@ -202,8 +202,9 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		amount = decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
 	default:
 		asset, err := ethereum.FetchAsset(chain, rpc, transfer.TokenAddress)
+		logger.Printf("ethereum.FetchAsset(%s, %s) => %v %v", transfer.Hash, transfer.TokenAddress, asset, err)
 		if err != nil {
-			return err
+			return nil
 		}
 		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
 	}

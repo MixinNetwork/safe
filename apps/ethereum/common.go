@@ -279,6 +279,7 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 		return nil, err
 	}
 	defer conn.Close()
+
 	token, err := abi.NewAsset(addr, conn)
 	if err != nil {
 		return nil, err
