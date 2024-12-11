@@ -3,6 +3,7 @@ package common
 import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/solana"
 )
 
 const (
@@ -10,11 +11,13 @@ const (
 	SafeChainLitecoin = bitcoin.ChainLitecoin
 	SafeChainEthereum = ethereum.ChainEthereum
 	SafeChainPolygon  = ethereum.ChainPolygon
+	SafeChainSolana   = solana.ChainSolana
 
 	SafeBitcoinChainId  = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
 	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
 	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
 	SafePolygonChainId  = "b7938396-3f94-4e0a-9179-d3440718156f"
+	SafeSolanaChainId   = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 )
 
 func SafeCurveChain(crv byte) byte {
@@ -27,6 +30,8 @@ func SafeCurveChain(crv byte) byte {
 		return SafeChainEthereum
 	case CurveSecp256k1ECDSAPolygon:
 		return SafeChainPolygon
+	case CurveEdwards25519Default:
+		return SafeChainSolana
 	default:
 		panic(crv)
 	}
@@ -42,6 +47,8 @@ func SafeChainCurve(chain byte) byte {
 		return CurveSecp256k1ECDSAEthereum
 	case SafeChainPolygon:
 		return CurveSecp256k1ECDSAPolygon
+	case SafeChainSolana:
+		return CurveEdwards25519Default
 	default:
 		panic(chain)
 	}
@@ -57,6 +64,8 @@ func SafeChainAssetId(chain byte) string {
 		return SafeEthereumChainId
 	case SafeChainPolygon:
 		return SafePolygonChainId
+	case SafeChainSolana:
+		return SafeSolanaChainId
 	default:
 		panic(chain)
 	}
@@ -80,6 +89,8 @@ func SafeAssetIdChainNoPanic(chainId string) byte {
 		return SafeChainEthereum
 	case SafePolygonChainId:
 		return SafeChainPolygon
+	case SafeSolanaChainId:
+		return SafeChainSolana
 	}
 	return 0
 }

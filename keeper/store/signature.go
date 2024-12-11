@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 )
@@ -177,9 +178,15 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 		}
 	}
+
 	if transactionHasBalance(safe.Chain) {
 		for _, sb := range bm {
-			err = s.createOrUpdateEthereumBalance(ctx, tx, sb)
+			switch safe.Chain {
+			case solana.ChainSolana:
+				err = s.createOrUpdateSolanaBalance(ctx, tx, sb)
+			default:
+				err = s.createOrUpdateEthereumBalance(ctx, tx, sb)
+			}
 			if err != nil {
 				return err
 			}

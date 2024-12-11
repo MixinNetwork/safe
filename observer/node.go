@@ -69,6 +69,7 @@ func (node *Node) Boot(ctx context.Context) {
 		common.SafeChainPolygon,
 		common.SafeChainEthereum,
 	} {
+		// send price info for each chain on observer boot up (temporary)
 		err := node.sendPriceInfo(ctx, chain)
 		if err != nil {
 			panic(err)
@@ -89,15 +90,21 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.ethereumTransactionSpendLoop(ctx, chain)
 		}
 	}
+
+	/// 安全密钥循环, 作用是添加观察者密钥
 	go node.safeKeyLoop(ctx, common.SafeChainBitcoin)
 	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
+
 	go node.mixinWithdrawalsLoop(ctx)
+
 	go node.sendAccountApprovals(ctx)
+
 	go node.Blaze(ctx)
 	node.snapshotsLoop(ctx)
 }
 
 func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
+	// assetID is chain id of the asset
 	var assetId string
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
@@ -107,6 +114,9 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	default:
 		panic(chain)
 	}
+
+	/// asset is the asset meta of the operation price asset
+	/// 也就是 gas asset
 	asset, err := node.fetchAssetMeta(ctx, node.conf.OperationPriceAssetId)
 	if err != nil {
 		return err
@@ -127,14 +137,14 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := common.UniqueId("ActionObserverSetOperationParams", dummy)
-	id = common.UniqueId(id, assetId)
-	id = common.UniqueId(id, asset.AssetId)
+	id = common.UniqueId(id, assetId)       // chain asset id
+	id = common.UniqueId(id, asset.AssetId) // gas asset id
 	id = common.UniqueId(id, amount.String())
 	id = common.UniqueId(id, minimum.String())
 	extra := []byte{chain}
-	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
-	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
-	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))
+	extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...) // append gas asset id
+	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))      // append gas amount
+	extra = binary.BigEndian.AppendUint64(extra, uint64(minimum.IntPart()))     // append gas minimum
 	return node.sendKeeperResponse(ctx, dummy, common.ActionObserverSetOperationParams, chain, id, extra)
 }
 
@@ -159,6 +169,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				continue
 			}
 
+			/// sp is 安全提案
 			sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
 			if err != nil {
 				panic(err)

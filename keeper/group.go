@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -208,6 +209,18 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 		return node.processEthereumSafeCloseAccount(ctx, req)
 	case common.ActionEthereumSafeRefundTransaction:
 		return node.processEthereumSafeRefundTransaction(ctx, req)
+	case common.ActionSolanaSafeProposeAccount:
+		return node.processSolanaSafeProposeAccount(ctx, req)
+	case common.ActionSolanaSafeApproveAccount:
+		return node.processSolanaSafeApproveAccount(ctx, req)
+	case common.ActionSolanaSafeProposeTransaction:
+		return node.processSolanaSafeProposeTransaction(ctx, req)
+	case common.ActionSolanaSafeApproveTransaction:
+		return node.processSolanaSafeApproveTransaction(ctx, req)
+	case common.ActionSolanaSafeRevokeTransaction:
+		return node.processSolanaSafeRevokeTransaction(ctx, req)
+	case common.ActionSolanaSafeCloseAccount:
+		return node.processSolanaSafeCloseAccount(ctx, req)
 	default:
 		panic(req.Action)
 	}
@@ -258,6 +271,12 @@ func (node *Node) processKeyAdd(ctx context.Context, req *common.Request) ([]*mt
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
+	case common.CurveEdwards25519Default:
+		err = solana.VerifyHolderKey(req.Holder)
+		logger.Printf("solana.VerifyHolderKey(%s, %x) => %v", req.Holder, chainCode, err)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
 	default:
 		panic(req.Curve)
 	}
@@ -296,6 +315,8 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *commo
 		return node.processBitcoinSafeSignatureResponse(ctx, req, safe, tx, old)
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return node.processEthereumSafeSignatureResponse(ctx, req, safe, tx, old)
+	case common.SafeChainSolana:
+		return node.processSolanaSafeSignatureResponse(ctx, req, safe, tx, old)
 	default:
 		panic(safe.Chain)
 	}

@@ -26,6 +26,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 	case common.CurveSecp256k1ECDSAEthereum:
+	case common.CurveEdwards25519Default:
 	default:
 		return node.failRequest(ctx, req, "")
 	}

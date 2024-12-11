@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -77,6 +78,15 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		} else if !valid {
 			return node.failRequest(ctx, req, "")
 		}
+	case common.SafeChainSolana:
+		info.Hash = hex.EncodeToString(extra[17:])
+		valid, err := node.verifySolanaNetworkInfo(info, old)
+		logger.Printf("node.verifySolanaNetworkInfo(%s, %v) => %t", req.Id, info, valid)
+		if err != nil {
+			panic(fmt.Errorf("node.verifySolanaNetworkInfo(%v) => %v", info, err))
+		} else if !valid {
+			return node.failRequest(ctx, req, "")
+		}
 	default:
 		return node.failRequest(ctx, req, "")
 	}
@@ -106,6 +116,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	case common.SafeChainLitecoin:
 	case common.SafeChainEthereum:
 	case common.SafeChainPolygon:
+	case common.SafeChainSolana:
 	default:
 		return node.failRequest(ctx, req, "")
 	}
@@ -163,7 +174,7 @@ func (node *Node) verifyEthereumNetworkInfo(info, old *store.NetworkInfo) (bool,
 	}
 	if old != nil && old.Hash == info.Hash {
 		if old.Height != info.Height {
-			return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+			return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
 		}
 	} else {
 		rpc, _ := node.ethereumParams(info.Chain)
@@ -173,6 +184,31 @@ func (node *Node) verifyEthereumNetworkInfo(info, old *store.NetworkInfo) (bool,
 		}
 		if block.Height != info.Height {
 			return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
+		}
+	}
+	return true, nil
+}
+
+// todo: implement solana network info verification
+func (node *Node) verifySolanaNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
+	if len(info.Hash) != 64 {
+		return false, nil
+	}
+
+	if old != nil && old.Hash == info.Hash {
+		if old.Height != info.Height {
+			return false, fmt.Errorf("malicious solana block %s", info.Hash)
+		}
+	} else {
+		// info.Height is the slot number
+		client, _ := node.solanaParams()
+		block, err := client.RPCGetBlock(context.TODO(), info.Height)
+		if err != nil || block == nil {
+			return false, fmt.Errorf("malicious solana block or node not in sync? %s %v", info.Hash, err)
+		}
+
+		if block.Blockhash.String() != info.Hash {
+			return false, fmt.Errorf("malicious solana block %s", info.Hash)
 		}
 	}
 	return true, nil
@@ -200,33 +236,56 @@ func (node *Node) ethereumParams(chain byte) (string, string) {
 	}
 }
 
-func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id, assetContract string, chain byte) (*store.Asset, error) {
+func (node *Node) solanaClient() *solana.Client {
+	return solana.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
+}
+
+func (node *Node) fetchAssetMetaFromMessengerOrNetwork(ctx context.Context, id, assetContract string, chain byte) (*store.Asset, error) {
 	meta, err := node.fetchAssetMeta(ctx, id)
 	if err != nil || meta != nil {
 		return meta, err
 	}
 	switch chain {
-	case common.SafeChainEthereum:
-	case common.SafeChainPolygon:
+	case common.SafeChainEthereum, common.SafeChainPolygon:
+		rpc, _ := node.ethereumParams(chain)
+		token, err := ethereum.FetchAsset(chain, rpc, assetContract)
+		if err != nil {
+			return nil, err
+		}
+		asset := &store.Asset{
+			AssetId:   token.Id,
+			MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
+			AssetKey:  token.Address,
+			Symbol:    token.Symbol,
+			Name:      token.Name,
+			Decimals:  token.Decimals,
+			Chain:     token.Chain,
+			CreatedAt: time.Now().UTC(),
+		}
+		return asset, node.store.WriteAssetMeta(ctx, asset)
+	case common.SafeChainSolana:
+		client, _ := node.solanaParams()
+		token, err := client.RPCGetAsset(ctx, assetContract)
+		if err != nil {
+			return nil, err
+		}
+
+		asset := &store.Asset{
+			AssetId:   token.Id,
+			MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
+			AssetKey:  token.Address,
+			Symbol:    token.Symbol,
+			Name:      token.Name,
+			Decimals:  token.Decimals,
+			Chain:     chain,
+			CreatedAt: time.Now().UTC(),
+		}
+
+		return asset, node.store.WriteAssetMeta(ctx, asset)
 	default:
 		panic(chain)
 	}
-	rpc, _ := node.ethereumParams(chain)
-	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
-	if err != nil {
-		return nil, err
-	}
-	asset := &store.Asset{
-		AssetId:   token.Id,
-		MixinId:   crypto.Sha256Hash([]byte(token.Id)).String(),
-		AssetKey:  token.Address,
-		Symbol:    token.Symbol,
-		Name:      token.Name,
-		Decimals:  token.Decimals,
-		Chain:     token.Chain,
-		CreatedAt: time.Now().UTC(),
-	}
-	return asset, node.store.WriteAssetMeta(ctx, asset)
+
 }
 
 func (node *Node) fetchMixinAsset(_ context.Context, id string) (*store.Asset, error) {

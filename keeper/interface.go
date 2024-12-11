@@ -22,6 +22,9 @@ type Configuration struct {
 	LitecoinRPC                 string             `toml:"litecoin-rpc"`
 	EthereumRPC                 string             `toml:"ethereum-rpc"`
 	PolygonRPC                  string             `toml:"polygon-rpc"`
+	SolanaRPC                   string             `toml:"solana-rpc"`
+	SolanaWsRPC                 string             `toml:"solana-ws-rpc"`
+	SolanaPayerPrivateKey       string             `toml:"solana-payer-private-key"`
 	PolygonFactoryAddress       string             `toml:"polygon-factory-address"`
 	PolygonObserverDepositEntry string             `toml:"polygon-observer-deposit-entry"`
 	PolygonKeeperDepositEntry   string             `toml:"polygon-keeper-deposit-entry"`
