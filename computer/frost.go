@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 	frostSignRoundTimeout   = 5 * time.Minute
 )
 
-func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve.Curve) (*KeygenResult, error) {
+func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve.Curve) (*store.KeygenResult, error) {
 	logger.Printf("node.frostKeygen(%x)", sessionId)
 	start, err := frost.Keygen(group, node.id, node.GetPartySlice(), node.threshold)(sessionId)
 	if err != nil {
@@ -32,14 +33,14 @@ func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve
 	}
 	keygenConfig := keygenResult.(*frost.Config)
 
-	return &KeygenResult{
+	return &store.KeygenResult{
 		Public: common.MarshalPanic(keygenConfig.PublicPoint()),
 		Share:  common.MarshalPanic(keygenConfig),
 		SSID:   start.SSID(),
 	}, nil
 }
 
-func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*SignResult, error) {
+func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*store.SignResult, error) {
 	logger.Printf("node.frostSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	conf := frost.EmptyConfig(group)
 	err := conf.UnmarshalBinary(share)
@@ -82,7 +83,7 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 		return nil, fmt.Errorf("node.frostSign(%x, %s, %x) => %v verify", sessionId, public, m, signature)
 	}
 
-	return &SignResult{
+	return &store.SignResult{
 		Signature: signature.Serialize(),
 		SSID:      start.SSID(),
 	}, nil

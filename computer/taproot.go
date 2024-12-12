@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/taproot"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 	taprootSignRoundTimeout   = time.Minute
 )
 
-func (node *Node) taprootKeygen(ctx context.Context, sessionId []byte) (*KeygenResult, error) {
+func (node *Node) taprootKeygen(ctx context.Context, sessionId []byte) (*store.KeygenResult, error) {
 	logger.Printf("node.taprootKeygen(%x)", sessionId)
 	start, err := frost.KeygenTaproot(node.id, node.GetPartySlice(), node.threshold)(sessionId)
 	if err != nil {
@@ -32,14 +33,14 @@ func (node *Node) taprootKeygen(ctx context.Context, sessionId []byte) (*KeygenR
 	}
 	keygenConfig := keygenResult.(*frost.TaprootConfig)
 
-	return &KeygenResult{
+	return &store.KeygenResult{
 		Public: keygenConfig.PublicKey,
 		Share:  common.MarshalPanic(keygenConfig),
 		SSID:   start.SSID(),
 	}, nil
 }
 
-func (node *Node) taprootSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte) (*SignResult, error) {
+func (node *Node) taprootSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte) (*store.SignResult, error) {
 	logger.Printf("node.taprootSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	group := curve.Secp256k1{}
 	conf := &frost.TaprootConfig{PrivateShare: group.NewScalar()}
@@ -66,7 +67,7 @@ func (node *Node) taprootSign(ctx context.Context, members []party.ID, public st
 		return nil, fmt.Errorf("node.taprootSign(%x, %s, %x) => %v verify", sessionId, public, m, signature)
 	}
 
-	return &SignResult{
+	return &store.SignResult{
 		Signature: signature,
 		SSID:      start.SSID(),
 	}, nil

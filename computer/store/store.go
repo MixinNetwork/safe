@@ -1,4 +1,4 @@
-package computer
+package store
 
 import (
 	"context"
@@ -24,6 +24,59 @@ var SCHEMA string
 type SQLite3Store struct {
 	db    *sql.DB
 	mutex *sync.Mutex
+}
+
+type Session struct {
+	Id         string
+	MixinHash  string
+	MixinIndex int
+	Operation  byte
+	Curve      byte
+	Public     string
+	Extra      string
+	State      byte
+	CreatedAt  time.Time
+	PreparedAt sql.NullTime
+}
+
+type KeygenResult struct {
+	Public []byte
+	Share  []byte
+	SSID   []byte
+}
+
+type SignResult struct {
+	Signature []byte
+	SSID      []byte
+}
+
+type Key struct {
+	Public      string
+	Fingerprint string
+	Curve       byte
+	Share       string
+	SessionId   string
+	CreatedAt   time.Time
+	BackedUpAt  sql.NullTime
+}
+
+func (k *Key) AsOperation() *common.Operation {
+	return &common.Operation{
+		Id:     k.SessionId,
+		Type:   common.OperationTypeKeygenInput,
+		Curve:  k.Curve,
+		Public: k.Public,
+	}
+}
+
+func (r *Session) AsOperation() *common.Operation {
+	return &common.Operation{
+		Id:     r.Id,
+		Type:   r.Operation,
+		Curve:  r.Curve,
+		Public: r.Public,
+		Extra:  common.DecodeHexOrPanic(r.Extra),
+	}
 }
 
 func OpenSQLite3Store(path string) (*SQLite3Store, error) {
@@ -246,6 +299,31 @@ func (s *SQLite3Store) WriteSessionWorkIfNotExist(ctx context.Context, sessionId
 	}
 
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) CountDailyWorks(ctx context.Context, members []party.ID, begin, end time.Time) ([]int, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer common.Rollback(tx)
+
+	works := make([]int, len(members))
+	for i, id := range members {
+		var work int
+		sql := "SELECT COUNT(*) FROM session_works WHERE signer_id=? AND created_at>? AND created_at<?"
+		row := tx.QueryRowContext(ctx, sql, id, begin, end)
+		err = row.Scan(&work)
+		if err != nil {
+			return nil, err
+		}
+		works[i] = work
+	}
+
+	return works, nil
 }
 
 func (s *SQLite3Store) PrepareSessionSignerIfNotExist(ctx context.Context, sessionId, signerId string, createdAt time.Time) error {

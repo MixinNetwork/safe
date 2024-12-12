@@ -3,7 +3,6 @@ package computer
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/gofrs/uuid/v5"
@@ -33,59 +33,6 @@ const (
 	MPCFirstMessageRound = 2
 	PrepareExtra         = "PREPARE"
 )
-
-type Session struct {
-	Id         string
-	MixinHash  string
-	MixinIndex int
-	Operation  byte
-	Curve      byte
-	Public     string
-	Extra      string
-	State      byte
-	CreatedAt  time.Time
-	PreparedAt sql.NullTime
-}
-
-type KeygenResult struct {
-	Public []byte
-	Share  []byte
-	SSID   []byte
-}
-
-type SignResult struct {
-	Signature []byte
-	SSID      []byte
-}
-
-type Key struct {
-	Public      string
-	Fingerprint string
-	Curve       byte
-	Share       string
-	SessionId   string
-	CreatedAt   time.Time
-	BackedUpAt  sql.NullTime
-}
-
-func (k *Key) asOperation() *common.Operation {
-	return &common.Operation{
-		Id:     k.SessionId,
-		Type:   common.OperationTypeKeygenInput,
-		Curve:  k.Curve,
-		Public: k.Public,
-	}
-}
-
-func (r *Session) asOperation() *common.Operation {
-	return &common.Operation{
-		Id:     r.Id,
-		Type:   r.Operation,
-		Curve:  r.Curve,
-		Public: r.Public,
-		Extra:  common.DecodeHexOrPanic(r.Extra),
-	}
-}
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	logger.Verbosef("node.ProcessOutput(%v)", out)
@@ -425,7 +372,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 	}
 }
 
-func (node *Node) verifySessionSignerResults(_ context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
+func (node *Node) verifySessionSignerResults(_ context.Context, session *store.Session, sessionSigners map[string]string) (bool, []byte) {
 	members := node.GetMembers()
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
@@ -494,7 +441,7 @@ func (node *Node) startOperation(ctx context.Context, op *common.Operation, memb
 func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	logger.Printf("node.startKeygen(%v)", op)
 	var err error
-	var res *KeygenResult
+	var res *store.KeygenResult
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		res, err = node.cmpKeygen(ctx, op.IdBytes(), op.Curve)
@@ -545,7 +492,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), fingerprint)
 	}
 
-	var res *SignResult
+	var res *store.SignResult
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		res, err = node.cmpSign(ctx, members, public, share, op.Extra, op.IdBytes(), op.Curve, path)

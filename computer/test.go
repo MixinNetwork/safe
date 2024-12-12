@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -205,7 +206,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	if !(strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Signer.StoreDir, "/var/folders")) {
 		panic(root)
 	}
-	kd, err := OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")
+	kd, err := store.OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")
 	require.Nil(err)
 
 	md, err := mtg.OpenSQLite3Store(conf.Signer.StoreDir + "/mtg.sqlite3")

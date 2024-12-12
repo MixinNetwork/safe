@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 	cmpSignRoundTimeout   = 5 * time.Minute
 )
 
-func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*KeygenResult, error) {
+func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*store.KeygenResult, error) {
 	logger.Printf("node.cmpKeygen(%x)", sessionId)
 	start, err := cmp.Keygen(curve.Secp256k1{}, node.id, node.GetPartySlice(), node.threshold, nil)(sessionId)
 	if err != nil {
@@ -32,14 +33,14 @@ func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*K
 	}
 	keygenConfig := keygenResult.(*cmp.Config)
 
-	return &KeygenResult{
+	return &store.KeygenResult{
 		Public: common.MarshalPanic(keygenConfig.PublicPoint()),
 		Share:  common.MarshalPanic(keygenConfig),
 		SSID:   start.SSID(),
 	}, nil
 }
 
-func (node *Node) cmpSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, crv byte, path []byte) (*SignResult, error) {
+func (node *Node) cmpSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, crv byte, path []byte) (*store.SignResult, error) {
 	logger.Printf("node.cmpSign(%x, %s, %x, %d, %x, %v)", sessionId, public, m, crv, path, members)
 	conf := cmp.EmptyConfig(curve.Secp256k1{})
 	err := conf.UnmarshalBinary(share)
@@ -76,7 +77,7 @@ func (node *Node) cmpSign(ctx context.Context, members []party.ID, public string
 		return nil, fmt.Errorf("node.cmpSign(%x, %s, %x) => %v verify", sessionId, public, m, signature)
 	}
 
-	res := &SignResult{SSID: start.SSID()}
+	res := &store.SignResult{SSID: start.SSID()}
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
 		res.Signature = signature.SerializeDER()

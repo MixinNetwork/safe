@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/common/round"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -35,7 +36,7 @@ type Node struct {
 	mutex      *sync.Mutex
 	sessions   map[string]*MultiPartySession
 	operations map[string]bool
-	store      *SQLite3Store
+	store      *store.SQLite3Store
 
 	keeper       *mtg.Configuration
 	mixin        *mixin.Client
@@ -43,7 +44,7 @@ type Node struct {
 	saverKey     *crypto.Key
 }
 
-func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
+func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
 	node := &Node{
 		id:         party.ID(conf.MTG.App.AppId),
 		threshold:  conf.Threshold,
@@ -107,7 +108,7 @@ func (node *Node) loopBackup(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			op := key.asOperation()
+			op := key.AsOperation()
 			saved, err := node.sendKeygenBackup(ctx, op, share)
 			logger.Printf("node.sendKeygenBackup(%v, %d) => %t %v", op, len(share), saved, err)
 			if err != nil {
@@ -138,7 +139,7 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 		}
 
 		for _, s := range sessions {
-			op := s.asOperation()
+			op := s.AsOperation()
 			err := node.sendSignerPrepareTransaction(ctx, op)
 			logger.Printf("node.sendSignerPrepareTransaction(%v) => %v", op, err)
 			if err != nil {
@@ -172,7 +173,7 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 			if len(signers) != threshold && s.Operation != common.OperationTypeKeygenInput {
 				panic(fmt.Sprintf("ListSessionPreparedMember(%s, %d) => %d", s.Id, threshold, len(signers)))
 			}
-			results[i] = node.queueOperation(ctx, s.asOperation(), signers)
+			results[i] = node.queueOperation(ctx, s.AsOperation(), signers)
 		}
 		for _, res := range results {
 			if res == nil {
@@ -185,10 +186,10 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 	}
 }
 
-func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
+func (node *Node) listPreparedSessions(ctx context.Context) []*store.Session {
 	parallelization := runtime.NumCPU() * (len(node.GetMembers())/16 + 1)
 
-	var sessions []*Session
+	var sessions []*store.Session
 	prepared, err := node.store.ListPreparedSessions(ctx, parallelization*4)
 	if err != nil {
 		panic(err)
@@ -224,7 +225,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 		}
 
 		for _, s := range sessions {
-			op := s.asOperation()
+			op := s.AsOperation()
 			switch op.Type {
 			case common.OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)
@@ -468,7 +469,7 @@ func (mps *MultiPartySession) receive(msg *protocol.Message) {
 	mps.received[msg.RoundNumber] = append(mps.received[msg.RoundNumber], msg)
 }
 
-func (mps *MultiPartySession) process(ctx context.Context, h protocol.Handler, store *SQLite3Store) {
+func (mps *MultiPartySession) process(ctx context.Context, h protocol.Handler, store *store.SQLite3Store) {
 	for i, msg := range mps.received[mps.round] {
 		if msg == nil || !h.CanAccept(msg) {
 			continue
