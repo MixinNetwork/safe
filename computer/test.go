@@ -24,7 +24,6 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,45 +124,6 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		}
 	}
 	return public, chainCode
-}
-
-func testCMPSign(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte) []byte {
-	return testCMPSignWithPath(ctx, require, nodes, public, msg, crv, []byte{0, 0, 0, 0})
-}
-
-func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes []*Node, public string, msg []byte, crv byte, path []byte) []byte {
-	node := nodes[0]
-	sid := common.UniqueId("sign", hex.EncodeToString(msg))
-	sid = common.UniqueId(sid, hex.EncodeToString(path))
-	fingerPath := append(common.Fingerprint(public), path...)
-	sop := &common.Operation{
-		Type:   common.OperationTypeSignInput,
-		Id:     sid,
-		Curve:  crv,
-		Public: hex.EncodeToString(fingerPath),
-		Extra:  msg,
-	}
-	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptOperation(sop))
-	memo = hex.EncodeToString([]byte(memo))
-	out := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            node.conf.AssetId,
-			Extra:              memo,
-			Amount:             decimal.NewFromInt(1),
-			SequencerCreatedAt: time.Now(),
-		},
-	}
-	op := TestProcessOutput(ctx, require, nodes, out, sid)
-	require.True(node.store.CheckActionResultsBySessionId(ctx, sid))
-
-	require.Equal(common.OperationTypeSignOutput, int(op.Type))
-	require.Equal(sid, op.Id)
-	require.Equal(crv, op.Curve)
-	require.Len(op.Public, 66)
-	return op.Extra
 }
 
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
