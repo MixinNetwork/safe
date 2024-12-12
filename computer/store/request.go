@@ -10,14 +10,56 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/gofrs/uuid"
+	"github.com/shopspring/decimal"
 )
 
-var requestCols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "curve", "holder", "extra", "state", "created_at", "updated_at", "sequence"}
+type Request struct {
+	Id         string
+	MixinHash  crypto.Hash
+	MixinIndex int
+	AssetId    string
+	Amount     decimal.Decimal
+	Role       uint8
+	Action     uint8
+	ExtraHEX   string
+	State      uint8
+	CreatedAt  time.Time
+	Sequence   uint64
 
-func requestFromRow(row *sql.Row) (*common.Request, error) {
+	Output *mtg.Action
+}
+
+func (req *Request) ExtraBytes() []byte {
+	return common.DecodeHexOrPanic(req.ExtraHEX)
+}
+
+func (r *Request) VerifyFormat() error {
+	if r.CreatedAt.IsZero() {
+		panic(r.Output.OutputId)
+	}
+	if r.Action == 0 || r.Role == 0 || r.State == 0 {
+		return fmt.Errorf("invalid request action %v", r)
+	}
+	id, err := uuid.FromString(r.AssetId)
+	if err != nil || id.IsNil() || id.String() != r.AssetId {
+		return fmt.Errorf("invalid request asset %v", r)
+	}
+	if r.Amount.Cmp(decimal.New(1, -8)) < 0 {
+		return fmt.Errorf("invalid request amount %v", r)
+	}
+	if !r.MixinHash.HasValue() {
+		return fmt.Errorf("invalid request mixin %v", r)
+	}
+	return nil
+}
+
+var requestCols = []string{"request_id", "mixin_hash", "mixin_index", "asset_id", "amount", "role", "action", "extra", "state", "created_at", "updated_at", "sequence"}
+
+func requestFromRow(row *sql.Row) (*Request, error) {
 	var mh string
-	var r common.Request
-	err := row.Scan(&r.Id, &mh, &r.MixinIndex, &r.AssetId, &r.Amount, &r.Role, &r.Action, &r.Curve, &r.Holder, &r.ExtraHEX, &r.State, &r.CreatedAt, &time.Time{}, &r.Sequence)
+	var r Request
+	err := row.Scan(&r.Id, &mh, &r.MixinIndex, &r.AssetId, &r.Amount, &r.Role, &r.Action, &r.ExtraHEX, &r.State, &r.CreatedAt, &time.Time{}, &r.Sequence)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -27,7 +69,7 @@ func requestFromRow(row *sql.Row) (*common.Request, error) {
 	return &r, err
 }
 
-func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *common.Request) error {
+func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *Request) error {
 	if req.State == 0 || req.Role == 0 {
 		panic(req)
 	}
@@ -45,7 +87,7 @@ func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *common.R
 		return err
 	}
 
-	vals := []any{req.Id, req.MixinHash.String(), req.MixinIndex, req.AssetId, req.Amount, req.Role, req.Action, req.Curve, req.Holder, req.ExtraHEX, req.State, req.CreatedAt, req.CreatedAt, req.Sequence}
+	vals := []any{req.Id, req.MixinHash.String(), req.MixinIndex, req.AssetId, req.Amount, req.Role, req.Action, req.ExtraHEX, req.State, req.CreatedAt, req.CreatedAt, req.Sequence}
 	err = s.execOne(ctx, tx, buildInsertionSQL("requests", requestCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT requests %v", err)
@@ -53,14 +95,14 @@ func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*common.Request, error) {
+func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE request_id=?", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
 
 	return requestFromRow(row)
 }
 
-func (s *SQLite3Store) FailRequest(ctx context.Context, req *common.Request, compaction string, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) FailRequest(ctx context.Context, req *Request, compaction string, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -84,14 +126,14 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, req *common.Request, com
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadPendingRequest(ctx context.Context) (*common.Request, error) {
+func (s *SQLite3Store) ReadPendingRequest(ctx context.Context) (*Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC, request_id ASC LIMIT 1", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)
 
 	return requestFromRow(row)
 }
 
-func (s *SQLite3Store) ReadLatestRequest(ctx context.Context) (*common.Request, error) {
+func (s *SQLite3Store) ReadLatestRequest(ctx context.Context) (*Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 

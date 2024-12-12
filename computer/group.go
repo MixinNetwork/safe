@@ -112,8 +112,10 @@ func (node *Node) getActionRole(act byte) byte {
 	}
 }
 
-func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
+func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	switch req.Action {
+	case OperationTypeStartProcess:
+		return node.startProcess(ctx, req)
 	// case common.OperationTypeKeygenOutput:
 	// 	return node.processKeyAdd(ctx, req)
 	// case common.OperationTypeSignOutput:

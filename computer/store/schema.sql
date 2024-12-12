@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS properties (
 	PRIMARY KEY ('key')
 );
 
+
 CREATE TABLE IF NOT EXISTS keys (
 	public       VARCHAR NOT NULL,
 	fingerprint  VARCHAR NOT NULL,
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS keys (
 
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_session_id ON keys(session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_fingerprint ON keys(fingerprint);
+
 
 CREATE TABLE IF NOT EXISTS sessions (
 	session_id    VARCHAR NOT NULL,
@@ -67,8 +69,6 @@ CREATE TABLE IF NOT EXISTS requests (
   amount      VARCHAR NOT NULL,
   role        INTEGER NOT NULL,
   action      INTEGER NOT NULL,
-  curve       INTEGER NOT NULL,
-  holder      VARCHAR NOT NULL,
   extra       VARCHAR NOT NULL,
   state       INTEGER NOT NULL,
   created_at  TIMESTAMP NOT NULL,
@@ -79,6 +79,18 @@ CREATE TABLE IF NOT EXISTS requests (
 
 CREATE UNIQUE INDEX IF NOT EXISTS requests_by_mixin_hash_index ON requests(mixin_hash, mixin_index);
 CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_at);
+
+
+CREATE TABLE IF NOT EXISTS programs (
+  program_id  VARCHAR NOT NULL,
+  request_id  VARCHAR NOT NULL,
+  address     VARCHAR NOT NULL,
+  created_at  TIMESTAMP NOT NULL,
+  PRIMARY KEY ('program_id')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS programs_by_address ON programs(address);
+CREATE INDEX IF NOT EXISTS programs_by_created ON programs(created_at);
 
 
 CREATE TABLE IF NOT EXISTS action_results (

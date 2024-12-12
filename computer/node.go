@@ -586,3 +586,12 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, node.conf.MTG.App.SpendPrivateKey)
 	return err
 }
+
+func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId string) ([]*mtg.Transaction, string) {
+	logger.Printf("node.failRequest(%v, %s)", req, assetId)
+	err := node.store.FailRequest(ctx, req, assetId, nil)
+	if err != nil {
+		panic(err)
+	}
+	return nil, assetId
+}
