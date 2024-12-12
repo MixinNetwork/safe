@@ -59,6 +59,28 @@ CREATE TABLE IF NOT EXISTS session_works (
 );
 
 
+CREATE TABLE IF NOT EXISTS requests (
+  request_id  VARCHAR NOT NULL,
+  mixin_hash  VARCHAR NOT NULL,
+  mixin_index INTEGER NOT NULL,
+  asset_id    VARCHAR NOT NULL,
+  amount      VARCHAR NOT NULL,
+  role        INTEGER NOT NULL,
+  action      INTEGER NOT NULL,
+  curve       INTEGER NOT NULL,
+  holder      VARCHAR NOT NULL,
+  extra       VARCHAR NOT NULL,
+  state       INTEGER NOT NULL,
+  created_at  TIMESTAMP NOT NULL,
+  updated_at  TIMESTAMP NOT NULL,
+  sequence    INTEGER NOT NULL,
+  PRIMARY KEY ('request_id')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS requests_by_mixin_hash_index ON requests(mixin_hash, mixin_index);
+CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_at);
+
+
 CREATE TABLE IF NOT EXISTS action_results (
 	output_id       VARCHAR NOT NULL,
 	compaction      VARCHAR NOT NULL,

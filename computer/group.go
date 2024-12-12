@@ -51,7 +51,7 @@ func (node *Node) processActionWithPersistence(ctx context.Context, out *mtg.Act
 		return txs, compaction
 	}
 	sessionId, txs, compaction := node.processAction(ctx, out)
-	err := node.store.WriteActionResults(ctx, out.OutputId, txs, compaction, sessionId)
+	err := node.store.WriteActionResult(ctx, out.OutputId, txs, compaction, sessionId)
 	if err != nil {
 		panic(err)
 	}
@@ -64,31 +64,69 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 	if isDeposit {
 		return sessionId, nil, ""
 	}
-	switch out.AssetId {
-	case node.conf.AssetId:
-		if len(out.Senders) != 1 || node.findMember(out.Senders[0]) < 0 {
-			logger.Printf("invalid senders: %s", out.Senders)
-			return sessionId, nil, ""
-		}
-		req, err := node.parseSignerMessage(out)
-		logger.Printf("node.parseSignerMessage(%v) => %v %v", out, req, err)
-		if err != nil {
-			return sessionId, nil, ""
-		}
-		sessionId = req.Id
-		if string(req.Extra) == PrepareExtra {
-			err = node.processSignerPrepare(ctx, req, out)
-			logger.Printf("node.processSignerPrepare(%v, %v) => %v", req, out, err)
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			txs, asset := node.processSignerResult(ctx, req, out)
-			logger.Printf("node.processSignerResult(%v, %v) => %v %s", req, out, txs, asset)
-			return sessionId, txs, asset
-		}
+
+	req, err := node.parseRequest(out)
+	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
+	if err != nil {
+		return sessionId, nil, ""
 	}
-	return sessionId, nil, ""
+
+	role := node.getActionRole(req.Action)
+	if role == 0 || role != req.Role {
+		return sessionId, nil, ""
+	}
+	err = req.VerifyFormat()
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteRequestIfNotExist(ctx, req)
+	if err != nil {
+		panic(err)
+	}
+
+	txs, asset := node.processRequest(ctx, req)
+	logger.Printf("node.processRequest(%v) => %v %s", req, txs, asset)
+	return req.Id, txs, asset
+}
+
+func (node *Node) getActionRole(act byte) byte {
+	switch act {
+	case OperationTypeStartProcess:
+		return common.RequestRoleHolder
+	case OperationTypeAddUser:
+		return common.RequestRoleHolder
+	case OperationTypeSystemCall:
+		return common.RequestRoleHolder
+	// case common.OperationTypeKeygenOutput:
+	// 	return common.RequestRoleSigner
+	// case common.OperationTypeSignOutput:
+	// 	return common.RequestRoleSigner
+	// case common.ActionTerminate:
+	// 	return common.RequestRoleObserver
+	// case common.ActionObserverAddKey:
+	// 	return common.RequestRoleObserver
+	// case common.ActionObserverRequestSignerKeys:
+	// 	return common.RequestRoleObserver
+	default:
+		return 0
+	}
+}
+
+func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
+	switch req.Action {
+	// case common.OperationTypeKeygenOutput:
+	// 	return node.processKeyAdd(ctx, req)
+	// case common.OperationTypeSignOutput:
+	// 	return node.processSignerSignatureResponse(ctx, req)
+	// case common.ActionTerminate:
+	// 	return node.Terminate(ctx)
+	// case common.ActionObserverAddKey:
+	// 	return node.processKeyAdd(ctx, req)
+	// case common.ActionObserverRequestSignerKeys:
+	// 	return node.processSignerKeygenRequests(ctx, req)
+	default:
+		panic(req.Action)
+	}
 }
 
 func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {

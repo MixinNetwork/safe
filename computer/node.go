@@ -424,6 +424,19 @@ func (node *Node) GetMembers() []string {
 	return ms
 }
 
+func (node *Node) IsMember(id string) bool {
+	return slices.Contains(node.GetMembers(), id)
+}
+
+func (node *Node) IsFromGroup(senders []string) bool {
+	members := node.GetMembers()
+	if len(members) != len(senders) {
+		return false
+	}
+	sort.Strings(senders)
+	return slices.Equal(members, senders)
+}
+
 func (node *Node) GetPartySlice() party.IDSlice {
 	members := node.GetMembers()
 	ms := make(party.IDSlice, len(members))

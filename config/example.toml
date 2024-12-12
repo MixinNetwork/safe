@@ -161,6 +161,7 @@ public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b63756"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
 asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
+observer-asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
 # the http api to receive all keygen backup, must be private accessible
 saver-api = ""
 # the ed25519 private key hex to sign and encrypt all the data to saver

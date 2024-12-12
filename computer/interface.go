@@ -16,6 +16,7 @@ type Configuration struct {
 	PublicKey               string             `toml:"public-key"`
 	Threshold               int                `toml:"threshold"`
 	AssetId                 string             `toml:"asset-id"`
+	ObserverAssetId         string             `toml:"observer-asset-id"`
 	SaverAPI                string             `toml:"saver-api"`
 	SaverKey                string             `toml:"saver-key"`
 	MixinMessengerAPI       string             `toml:"mixin-messenger-api"`
