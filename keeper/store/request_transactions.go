@@ -34,7 +34,7 @@ func (s *SQLite3Store) FailAction(ctx context.Context, req *common.Request) erro
 	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
 	if err != nil {
 		return err
-	}
+	} 
 
 	return tx.Commit()
 }

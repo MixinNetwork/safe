@@ -42,17 +42,20 @@ func ObserverBootCmd(c *cli.Context) error {
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
 
+	// mc is the configuration of observer (temporary)
 	mc, err := config.ReadConfiguration(c.String("config"), "observer")
 	if err != nil {
 		return err
 	}
 
+	// db is the SQLite3 database of observer (temporary)
 	db, err := observer.OpenSQLite3Store(mc.Observer.StoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
+	// kd is the SQLite3 database of keeper which is read-only (temporary)
 	kd, err := keeper.OpenSQLite3ReadOnlyStore(mc.Observer.KeeperStoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err

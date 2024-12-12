@@ -32,6 +32,9 @@ func (node *Node) safeAddObserverKeys(ctx context.Context, chain byte) error {
 	case common.SafeChainEthereum:
 		crv = common.CurveSecp256k1ECDSAEthereum
 	}
+
+	/// 获取观察者密钥数量, 如果数量小于1000, 则继续添加观察者密钥
+	/// spare keys 就是没有被使用的密钥
 	count, err := node.keeperStore.CountSpareKeys(ctx, crv, common.RequestFlagNone, common.RequestRoleObserver)
 	if err != nil {
 		return err

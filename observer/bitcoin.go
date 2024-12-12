@@ -358,11 +358,16 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 
 func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
 	for index := range tx.Vout {
+		/// out 是输出
 		out := tx.Vout[index]
+		/// skt 是脚本类型
 		skt := out.ScriptPubKey.Type
+		/// 如果脚本类型不是 witness script hash 或 witness key hash, 则跳过
 		if skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash && skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash {
 			continue
 		}
+
+		/// 如果输出索引不等于 index, 则 panic
 		if out.N != int64(index) {
 			panic(tx.TxId)
 		}

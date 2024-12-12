@@ -13,10 +13,12 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
+	sg "github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -56,6 +58,13 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
 		deposit.Amount = new(big.Int).SetBytes(extra[60:])
+	case common.SafeChainSolana:
+		// use transaction signature as hash
+		deposit.Hash = sg.SignatureFromBytes(extra[0:64]).String()
+		// use mint address as asset address
+		deposit.AssetAddress = sg.PublicKeyFromBytes(extra[64:96]).String()
+		deposit.Index = binary.BigEndian.Uint64(extra[96:104])
+		deposit.Amount = new(big.Int).SetBytes(extra[104:])
 	default:
 		return nil, fmt.Errorf("invalid deposit chain %d", deposit.Chain)
 	}
@@ -98,7 +107,7 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	if bond.Decimals != 18 || bond.AssetId != safeAssetId || bond.Chain != common.SafeChainPolygon {
 		panic(bond.AssetId)
 	}
-	asset, err := node.fetchAssetMetaFromMessengerOrEthereum(ctx, deposit.Asset, deposit.AssetAddress, deposit.Chain)
+	asset, err := node.fetchAssetMetaFromMessengerOrNetwork(ctx, deposit.Asset, deposit.AssetAddress, deposit.Chain)
 	if err != nil {
 		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", deposit.Asset, err))
 	}
@@ -119,6 +128,8 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 		return node.doBitcoinHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset, plan.TransactionMinimum)
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return node.doEthereumHolderDeposit(ctx, req, deposit, safe, bond.AssetId, asset)
+	case common.SafeChainSolana:
+		return node.doSolanaHolderDeposit(ctx, req, deposit, safe, safeAssetId, asset)
 	default:
 		return node.failRequest(ctx, req, "")
 	}
@@ -249,6 +260,98 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		panic(err)
 	}
 	return []*mtg.Transaction{t}, ""
+}
+
+func (node *Node) doSolanaHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset) ([]*mtg.Transaction, string) {
+	_, chainId := node.solanaParams()
+	if asset.AssetId == chainId && asset.Decimals != solana.NativeTokenDecimals {
+		panic(asset.Decimals)
+	}
+
+	// 检查是否已经处理过这笔充值
+	deposited, err := node.store.ReadDeposit(ctx, deposit.Hash, int64(deposit.Index))
+	logger.Printf("store.ReadDeposit(%s, %d, %s, %s) => %v %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, deposited, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadDeposit(%s, %d, %s, %s) => %v", deposit.Hash, int64(deposit.Index), asset.AssetId, safe.Address, err))
+	} else if deposited != nil {
+		return node.failRequest(ctx, req, "")
+	}
+
+	// 读取并更新 Safe 余额
+	safeBalance, err := node.store.ReadSolanaBalance(ctx, safe.Address, asset.AssetId, safeAssetId)
+	logger.Printf("store.ReadSolanaBalance(%s, %s) => %v %v", safe.Address, asset.AssetId, safeBalance, err)
+	if err != nil {
+		panic(err)
+	}
+
+	safeBalance.UpdateBalance(deposit.Amount)
+	if safeBalance.AssetAddress == "" {
+		safeBalance.AssetAddress = deposit.AssetAddress
+	}
+
+	// 验证 Solana 交易
+	output, err := node.verifySolanaTransaction(ctx, req, deposit, safe)
+	logger.Printf("node.verifySolanaTransaction(%v) => %v %v", req, output, err)
+	if err != nil {
+		panic(fmt.Errorf("node.verifySolanaTransaction(%s) => %v", deposit.Hash, err))
+	}
+	if output == nil {
+		return node.failRequest(ctx, req, "")
+	}
+
+	// 构建交易
+	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	if t == nil {
+		return node.failRequest(ctx, req, "")
+	}
+
+	// 保存充值记录
+	err = node.store.CreateSolanaBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), deposit.Amount, output.Sender, req, []*mtg.Transaction{t})
+	logger.Printf("store.CreateSolanaBalanceDepositFromRequest(%v) => %v", req, err)
+	if err != nil {
+		panic(err)
+	}
+
+	return []*mtg.Transaction{t}, ""
+}
+
+func (node *Node) verifySolanaTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe) (*solana.Transfer, error) {
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil || info == nil {
+		return nil, err
+	}
+	if info.CreatedAt.After(req.CreatedAt) {
+		return nil, fmt.Errorf("malicious solana network info %v", info)
+	}
+
+	// 验证交易
+	client, _ := node.solanaParams()
+	t, stx, err := client.VerifyDeposit(ctx, deposit.Hash, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
+	if err != nil || t == nil {
+		return nil, fmt.Errorf("malicious solana deposit or node not in sync? %s %v", deposit.Hash, err)
+	}
+	if t.Receiver != safe.Address {
+		return nil, fmt.Errorf("malicious solana deposit %s", deposit.Hash)
+	}
+
+	// 检查确认数
+	confirmations := info.Height - stx.Slot + 1
+	if info.Height < stx.Slot {
+		confirmations = 0
+	}
+	isSafe, err := node.checkTrustedSender(ctx, t.Sender)
+	if err != nil {
+		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", t.Sender, err)
+	}
+	if isSafe && confirmations > 0 {
+		confirmations = 1000000
+	}
+	if !solana.CheckFinalization(confirmations) {
+		return nil, fmt.Errorf("solana.CheckFinalization(%s)", deposit.Hash)
+	}
+
+	return t, nil
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {

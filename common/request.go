@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
@@ -64,6 +65,14 @@ const (
 	ActionEthereumSafeRevokeTransaction  = 134
 	ActionEthereumSafeCloseAccount       = 135
 	ActionEthereumSafeRefundTransaction  = 136
+
+	// for all Solana like chains
+	ActionSolanaSafeProposeAccount     = 140
+	ActionSolanaSafeApproveAccount     = 141
+	ActionSolanaSafeProposeTransaction = 142
+	ActionSolanaSafeApproveTransaction = 143
+	ActionSolanaSafeRevokeTransaction  = 144
+	ActionSolanaSafeCloseAccount       = 145
 
 	FlagProposeNormalTransaction   = 0
 	FlagProposeRecoveryTransaction = 1
@@ -141,6 +150,7 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 	switch req.Action {
 	case ActionBitcoinSafeProposeAccount:
 	case ActionEthereumSafeProposeAccount:
+	case ActionSolanaSafeProposeAccount:
 	default:
 		panic(req.Action)
 	}
@@ -193,6 +203,8 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		err = bitcoin.VerifyHolderKey(arp.Observer)
 	case ActionEthereumSafeProposeAccount:
 		err = ethereum.VerifyHolderKey(arp.Observer)
+	case ActionSolanaSafeProposeAccount:
+		err = solana.VerifyHolderKey(arp.Observer)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
@@ -235,6 +247,8 @@ func (r *Request) VerifyFormat() error {
 		return bitcoin.VerifyHolderKey(r.Holder)
 	case CurveSecp256k1ECDSAEthereum, CurveSecp256k1ECDSAMVM, CurveSecp256k1ECDSAPolygon:
 		return ethereum.VerifyHolderKey(r.Holder)
+	case CurveEdwards25519Default:
+		return solana.VerifyHolderKey(r.Holder)
 	default:
 		return fmt.Errorf("invalid request curve %v", r)
 	}

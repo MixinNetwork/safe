@@ -151,6 +151,18 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 		if found < 0 && req.AssetId != safe.SafeAssetId {
 			panic(req.AssetId)
 		}
+	case common.SafeChainSolana:
+		bs, err := node.store.ReadAllSolanaTokenBalances(ctx, safe.Address)
+		if err != nil {
+			panic(err)
+		}
+
+		found := slices.IndexFunc(bs, func(sb *store.SafeBalance) bool {
+			return sb.SafeAssetId == req.AssetId
+		})
+		if found < 0 && req.AssetId != safe.SafeAssetId {
+			panic(req.AssetId)
+		}
 	}
 
 	return node.failRequest(ctx, req, "")
