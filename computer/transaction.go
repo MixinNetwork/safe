@@ -2,13 +2,66 @@ package computer
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
+
+func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
+	if common.CheckTestEnvironment(ctx) {
+		val, err := node.store.ReadProperty(ctx, ref.String())
+		if err != nil {
+			panic(ref.String())
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(val)
+		if err != nil {
+			panic(ref.String())
+		}
+		return raw
+	}
+
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+	if err != nil {
+		panic(ref.String())
+	}
+
+	raw := common.AESDecrypt(node.aesKey[:], ver.Extra)
+	return raw[16:]
+}
+
+func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Request, extra []byte) *mtg.Transaction {
+	logger.Printf("node.writeStorageTransaction(%x)", extra)
+	if common.CheckTestEnvironment(ctx) {
+		tx := req.Output.BuildStorageTransaction(ctx, extra)
+		v := hex.EncodeToString(extra)
+		o, err := node.store.ReadProperty(ctx, tx.TraceId)
+		if err != nil {
+			panic(err)
+		}
+		if o == v {
+			return tx
+		}
+		err = node.store.WriteProperty(ctx, tx.TraceId, v)
+		if err != nil {
+			panic(err)
+		}
+		return tx
+	}
+
+	enough := req.Output.CheckAssetBalanceForStorageAt(ctx, extra)
+	if !enough {
+		return nil
+	}
+	stx := req.Output.BuildStorageTransaction(ctx, extra)
+	logger.Printf("group.BuildStorageTransaction(%x) => %v", extra, stx)
+	return stx
+}
 
 func (node *Node) buildSignerResultTransaction(ctx context.Context, op *common.Operation, act *mtg.Action) (*mtg.Transaction, string) {
 	extra := node.encryptOperation(op)

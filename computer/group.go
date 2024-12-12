@@ -479,22 +479,8 @@ func (node *Node) startOperation(ctx context.Context, op *common.Operation, memb
 
 func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	logger.Printf("node.startKeygen(%v)", op)
-	var err error
-	var res *store.KeygenResult
-	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		res, err = node.cmpKeygen(ctx, op.IdBytes())
-		logger.Printf("node.cmpKeygen(%v) => %v", op, err)
-	case common.CurveSecp256k1SchnorrBitcoin:
-		res, err = node.taprootKeygen(ctx, op.IdBytes())
-		logger.Printf("node.taprootKeygen(%v) => %v", op, err)
-	case common.CurveEdwards25519Mixin, common.CurveEdwards25519Default:
-		res, err = node.frostKeygen(ctx, op.IdBytes(), curve.Edwards25519{})
-		logger.Printf("node.frostKeygen(%v) => %v", op, err)
-	default:
-		panic(op.Id)
-	}
-
+	res, err := node.frostKeygen(ctx, op.IdBytes(), curve.Edwards25519{})
+	logger.Printf("node.frostKeygen(%v) => %v", op, err)
 	if err != nil {
 		return node.store.FailSession(ctx, op.Id)
 	}
@@ -515,7 +501,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		logger.Printf("node.startSign(%v, %v) exit without committement\n", op, members)
 		return nil
 	}
-	public, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+	public, crv, share, _, err := node.readKeyByFingerPath(ctx, op.Public)
 	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
 	if err != nil {
 		return fmt.Errorf("node.readKeyByFingerPath(%s) => %v", op.Public, err)
@@ -531,23 +517,8 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), fingerprint)
 	}
 
-	var res *store.SignResult
-	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		res, err = node.cmpSign(ctx, members, public, share, op.Extra, op.IdBytes(), op.Curve, path)
-		logger.Printf("node.cmpSign(%v) => %v %v", op, res, err)
-	case common.CurveSecp256k1SchnorrBitcoin:
-		res, err = node.taprootSign(ctx, members, public, share, op.Extra, op.IdBytes())
-		logger.Printf("node.taprootSign(%v) => %v %v", op, res, err)
-	case common.CurveEdwards25519Default:
-		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
-		logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
-	case common.CurveEdwards25519Mixin:
-		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
-		logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
-	default:
-		panic(op.Id)
-	}
+	res, err := node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
+	logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
 
 	if err != nil {
 		err = node.store.FailSession(ctx, op.Id)
