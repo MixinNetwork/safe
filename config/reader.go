@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MixinNetwork/safe/computer"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
 	"github.com/MixinNetwork/safe/signer"
@@ -19,6 +20,7 @@ type Configuration struct {
 	Signer   *signer.Configuration   `toml:"signer"`
 	Keeper   *keeper.Configuration   `toml:"keeper"`
 	Observer *observer.Configuration `toml:"observer"`
+	Computer *computer.Configuration `toml:"computer"`
 	Dev      *DevConfig              `toml:"dev"`
 }
 
@@ -49,6 +51,7 @@ func (c *Configuration) checkMainnet(role string) {
 	case "signer":
 	case "keeper":
 	case "observer":
+	case "computer":
 	default:
 		panic(role)
 	}
@@ -144,6 +147,7 @@ func (c *Configuration) checkTestnet(role string) {
 	case "signer":
 	case "keeper":
 	case "observer":
+	case "computer":
 	default:
 		panic(role)
 	}

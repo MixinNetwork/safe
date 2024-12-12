@@ -9,19 +9,18 @@ import (
 
 type Configuration struct {
 	AppId                   string             `toml:"app-id"`
-	KeeperAppId             string             `toml:"keeper-app-id"`
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
 	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
-	ObserverUserId          string             `toml:"observer-user-id"`
 	Threshold               int                `toml:"threshold"`
-	SharedKey               string             `toml:"shared-key"`
 	AssetId                 string             `toml:"asset-id"`
-	KeeperAssetId           string             `toml:"keeper-asset-id"`
-	KeeperPublicKey         string             `toml:"keeper-public-key"`
 	SaverAPI                string             `toml:"saver-api"`
 	SaverKey                string             `toml:"saver-key"`
+	MixinMessengerAPI       string             `toml:"mixin-messenger-api"`
 	MixinRPC                string             `toml:"mixin-rpc"`
+	SolanaRPC               string             `toml:"solana-rpc"`
+	SolanaKey               string             `toml:"solana-key"`
+	SolanaDepositEntry      string             `toml:"solana-deposit-entry"`
 	MTG                     *mtg.Configuration `toml:"mtg"`
 }
 
