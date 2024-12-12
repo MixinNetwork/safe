@@ -20,7 +20,7 @@ const (
 	cmpSignRoundTimeout   = 5 * time.Minute
 )
 
-func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*store.KeygenResult, error) {
+func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte) (*store.KeygenResult, error) {
 	logger.Printf("node.cmpKeygen(%x)", sessionId)
 	start, err := cmp.Keygen(curve.Secp256k1{}, node.id, node.GetPartySlice(), node.threshold, nil)(sessionId)
 	if err != nil {

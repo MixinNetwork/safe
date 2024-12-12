@@ -484,7 +484,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	var res *store.KeygenResult
 	switch op.Curve {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		res, err = node.cmpKeygen(ctx, op.IdBytes(), op.Curve)
+		res, err = node.cmpKeygen(ctx, op.IdBytes())
 		logger.Printf("node.cmpKeygen(%v) => %v", op, err)
 	case common.CurveSecp256k1SchnorrBitcoin:
 		res, err = node.taprootKeygen(ctx, op.IdBytes())
