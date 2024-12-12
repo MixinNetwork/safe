@@ -102,7 +102,7 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 				OutputId:           uuid.Must(uuid.NewV4()).String(),
 				TransactionHash:    crypto.Sha256Hash([]byte(op.Id)).String(),
 				AppId:              node.conf.AppId,
-				AssetId:            node.conf.KeeperAssetId,
+				AssetId:            node.conf.AssetId,
 				Extra:              memo,
 				Amount:             decimal.NewFromInt(1),
 				SequencerCreatedAt: time.Now(),

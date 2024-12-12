@@ -12,6 +12,8 @@ type Configuration struct {
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
 	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
+	SharedKey               string             `toml:"shared-key"`
+	PublicKey               string             `toml:"public-key"`
 	Threshold               int                `toml:"threshold"`
 	AssetId                 string             `toml:"asset-id"`
 	SaverAPI                string             `toml:"saver-api"`

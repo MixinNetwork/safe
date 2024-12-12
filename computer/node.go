@@ -60,7 +60,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 			Timeout: 5 * time.Second,
 		},
 	}
-	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.KeeperPublicKey)
+	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.PublicKey)
 
 	priv, err := crypto.KeyFromString(conf.SaverKey)
 	if err != nil {

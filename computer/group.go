@@ -118,25 +118,6 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 		return sessionId, nil, ""
 	}
 	switch out.AssetId {
-	case node.conf.KeeperAssetId:
-		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
-			panic(out.TransactionHash)
-		}
-		op, err := node.parseOperation(ctx, out.Extra)
-		logger.Printf("node.parseOperation(%v) => %v %v", out, op, err)
-		if err != nil {
-			return sessionId, nil, ""
-		}
-		sessionId = op.Id
-		needsCommittment := op.Type == common.OperationTypeSignInput
-		hash, err := crypto.HashFromString(out.TransactionHash)
-		if err != nil {
-			panic(err)
-		}
-		err = node.store.WriteSessionIfNotExist(ctx, op, hash, out.OutputIndex, out.SequencerCreatedAt, needsCommittment)
-		if err != nil {
-			panic(err)
-		}
 	case node.conf.AssetId:
 		if len(out.Senders) != 1 || node.findMember(out.Senders[0]) < 0 {
 			logger.Printf("invalid senders: %s", out.Senders)
@@ -652,16 +633,16 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 
 	amount := decimal.NewFromInt(1)
 	if !common.CheckTestEnvironment(ctx) {
-		balance := act.CheckAssetBalanceAt(ctx, node.conf.KeeperAssetId)
+		balance := act.CheckAssetBalanceAt(ctx, node.conf.AssetId)
 		if balance.Cmp(amount) < 0 {
-			return nil, node.conf.KeeperAssetId
+			return nil, node.conf.AssetId
 		}
 	}
 
 	members := node.GetKeepers()
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := act.BuildTransaction(ctx, traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
+	tx := act.BuildTransaction(ctx, traceId, node.conf.AppId, node.conf.AssetId, amount.String(), string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
 	return tx, ""
 }
