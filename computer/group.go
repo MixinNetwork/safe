@@ -23,7 +23,6 @@ import (
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/gofrs/uuid/v5"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -261,7 +260,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if repliedToKeeper {
 		return nil, ""
 	}
-	tx, asset := node.buildKeeperTransaction(ctx, op, out)
+	tx, asset := node.buildSignerResultTransaction(ctx, op, out)
 	if asset != "" {
 		return nil, asset
 	}
@@ -610,26 +609,4 @@ func (node *Node) encryptOperation(op *common.Operation) []byte {
 		panic(hex.EncodeToString(extra))
 	}
 	return common.AESEncrypt(node.aesKey[:], extra, op.Id)
-}
-
-func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operation, act *mtg.Action) (*mtg.Transaction, string) {
-	extra := node.encryptOperation(op)
-	if len(extra) > 160 {
-		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
-	}
-
-	amount := decimal.NewFromInt(1)
-	if !common.CheckTestEnvironment(ctx) {
-		balance := act.CheckAssetBalanceAt(ctx, node.conf.AssetId)
-		if balance.Cmp(amount) < 0 {
-			return nil, node.conf.AssetId
-		}
-	}
-
-	members := node.GetKeepers()
-	threshold := node.keeper.Genesis.Threshold
-	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
-	tx := act.BuildTransaction(ctx, traceId, node.conf.AppId, node.conf.AssetId, amount.String(), string(extra), members, threshold)
-	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
-	return tx, ""
 }
