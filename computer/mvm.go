@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
@@ -48,24 +49,32 @@ func (node *Node) addUser(ctx context.Context, req *store.Request) ([]*mtg.Trans
 		panic(req.Role)
 	}
 
-	ab := req.ExtraBytes()
-	if len(ab) != 32 {
-		logger.Printf("startProcess(%v) => invalid program address bytes length %d", req.Id, len(ab))
+	mix := string(req.ExtraBytes())
+	_, err := mc.NewAddressFromString(mix)
+	logger.Printf("common.NewAddressFromString(%s) => %v", mix, err)
+	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
 
-	address := solana.PublicKeyFromBytes(ab).String()
-	old, err := node.store.ReadProgramByAddress(ctx, address)
-	logger.Printf("store.ReadProgramByAddress(%s) => %v %v", address, old, err)
+	old, err := node.store.ReadUserByAddress(ctx, mix)
+	logger.Printf("store.ReadUserByAddress(%s) => %v %v", mix, old, err)
 	if err != nil {
-		panic(fmt.Errorf("store.ReadProgramByAddress(%s) => %v", address, err))
+		panic(fmt.Errorf("store.ReadUserByAddress(%s) => %v", mix, err))
 	} else if old != nil {
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.WriteProgramWithRequest(ctx, req, address)
+	count, err := node.store.CountSpareKeys(ctx)
+	logger.Printf("store.CountSpareKeys(%v) => %d %v", req, count, err)
 	if err != nil {
-		panic(fmt.Errorf("store.WriteProgramWithRequest(%v %s) => %v", req, address, err))
+		panic(fmt.Errorf("store.CountSpareKeys() => %v", err))
+	} else if count == 0 {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.WriteUserWithRequest(ctx, req, mix)
+	if err != nil {
+		panic(fmt.Errorf("store.WriteUserWithRequest(%v %s %s) => %v", req, mix, err))
 	}
 	return nil, ""
 }

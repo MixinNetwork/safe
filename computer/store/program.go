@@ -11,7 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-const startProgramId = 16777217
+var startProgramId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(24), nil)
 
 type Program struct {
 	ProgramId string
@@ -46,10 +46,12 @@ func (s *SQLite3Store) GetNextProgramId(ctx context.Context) (*big.Int, error) {
 	if err != nil {
 		return nil, err
 	}
-	if program == nil {
-		return big.NewInt(startProgramId), nil
+	id := startProgramId
+	if program != nil {
+		id = program.Id()
 	}
-	return program.Id(), nil
+	id = big.NewInt(0).Add(id, big.NewInt(1))
+	return id, nil
 }
 
 func (s *SQLite3Store) ReadLatestProgram(ctx context.Context) (*Program, error) {
@@ -88,15 +90,20 @@ func (s *SQLite3Store) WriteProgramWithRequest(ctx context.Context, req *Request
 	}
 	defer common.Rollback(tx)
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT program_id FROM programs WHERE address=?", address)
-	if err != nil || existed {
-		return err
-	}
-
 	vals := []any{id.String(), req.Id, address, time.Now()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("programs", programCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT programs %v", err)
 	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, nil, "", req.Id)
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }

@@ -13,15 +13,12 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
@@ -58,72 +55,6 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 	}
 
 	return ctx, nodes, saverStore
-}
-
-func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {
-	const public = "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b"
-	sid := common.UniqueId("prepare", public)
-	for _, node := range nodes {
-		parts := strings.Split(testFROSTKeys[node.id], ";")
-		pub, share := parts[0], parts[1]
-		conf, _ := hex.DecodeString(share)
-		require.Equal(public, pub)
-
-		op := &common.Operation{Id: sid, Curve: curve, Type: common.OperationTypeKeygenInput}
-		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.Sha256Hash([]byte(sid)), 0, time.Now(), false)
-		require.Nil(err)
-		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf, false)
-		require.Nil(err)
-	}
-	return public
-}
-
-func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, string) {
-	const public = "02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c"
-	const chainCode = "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
-	sid := common.UniqueId("prepare", public)
-	for _, node := range nodes {
-		parts := strings.Split(testCMPKeys[node.id], ";")
-		pub, share := parts[0], parts[1]
-		sb, _ := hex.DecodeString(share)
-		require.Equal(public, pub)
-
-		op := &common.Operation{Id: sid, Curve: crv, Type: common.OperationTypeKeygenInput}
-		err := node.store.WriteSessionIfNotExist(ctx, op, crypto.Sha256Hash([]byte(sid)), 0, time.Now().UTC(), false)
-		require.Nil(err)
-		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb, false)
-		require.Nil(err)
-
-		conf := cmp.EmptyConfig(curve.Secp256k1{})
-		err = conf.UnmarshalBinary(sb)
-		require.Nil(err)
-		require.Equal(chainCode, hex.EncodeToString(conf.ChainKey))
-
-		key, _ := hex.DecodeString(public)
-		parentFP := []byte{0x00, 0x00, 0x00, 0x00}
-		version := []byte{0x04, 0x88, 0xb2, 0x1e}
-		extPub := hdkeychain.NewExtendedKey(version, key, conf.ChainKey, parentFP, 0, 0, false)
-		require.Equal("xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM", extPub.String())
-		ecPub, err := extPub.ECPubKey()
-		require.Nil(err)
-		require.Equal(key, ecPub.SerializeCompressed())
-
-		for i := uint32(0); i < 16; i++ {
-			conf, err = conf.DeriveBIP32(i)
-			require.Nil(err)
-			spb := common.MarshalPanic(conf.PublicPoint())
-
-			extPub, err = extPub.Derive(i)
-			require.Nil(err)
-			ecPub, _ = extPub.ECPubKey()
-			bpb := ecPub.SerializeCompressed()
-
-			require.NotEqual(key, bpb)
-			require.Equal(bpb, spb)
-			require.Equal([]byte(conf.ChainKey), extPub.ChainCode())
-		}
-	}
-	return public, chainCode
 }
 
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {

@@ -27,7 +27,7 @@ func (node *Node) keyLoop(ctx context.Context) {
 }
 
 func (node *Node) requestKeys(ctx context.Context) error {
-	count, err := node.store.CountSpareKeys(ctx, common.RequestRoleSigner)
+	count, err := node.store.CountSpareKeys(ctx)
 	if err != nil || count > 1000 {
 		return err
 	}

@@ -24,6 +24,7 @@ type Key struct {
 	SessionId   string
 	UserId      sql.NullString
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 	BackedUpAt  sql.NullTime
 }
 
@@ -53,8 +54,8 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	timestamp := time.Now().UTC()
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
-	cols := []string{"public", "fingerprint", "share", "session_id", "user_id", "created_at"}
-	values := []any{public, fingerprint, share, sessionId, timestamp}
+	cols := []string{"public", "fingerprint", "share", "session_id", "user_id", "created_at", "updated_at"}
+	values := []any{public, fingerprint, share, sessionId, timestamp, timestamp}
 	if saved {
 		cols = append(cols, "backed_up_at")
 		values = append(values, timestamp)
@@ -66,7 +67,7 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE sessions SET public=?, state=?, updated_at=? WHERE session_id=? AND created_at=updated_at AND state=?",
-		public, common.RequestStatePending, timestamp, sessionId, common.RequestStateInitial)
+		public, common.RequestStateDone, timestamp, sessionId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}
@@ -78,7 +79,7 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "backed_up_at"}
+	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "backed_up_at"}
 	query := fmt.Sprintf("SELECT %s FROM keys WHERE backed_up_at IS NULL ORDER BY created_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -89,7 +90,7 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	var keys []*Key
 	for rows.Next() {
 		var k Key
-		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.BackedUpAt)
+		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt, &k.BackedUpAt)
 		if err != nil {
 			return nil, err
 		}
@@ -98,9 +99,9 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	return keys, nil
 }
 
-func (s *SQLite3Store) CountSpareKeys(ctx context.Context, role byte) (int, error) {
-	query := "SELECT COUNT(*) FROM keys WHERE role=? AND user_id IS NULL"
-	row := s.db.QueryRowContext(ctx, query, role)
+func (s *SQLite3Store) CountSpareKeys(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM keys WHERE user_id IS NULL"
+	row := s.db.QueryRowContext(ctx, query)
 
 	var count int
 	err := row.Scan(&count)
@@ -143,4 +144,35 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 	}
 	conf, err := common.Base91Decode(share)
 	return public, conf, err
+}
+
+func (s *SQLite3Store) assignKeyToUser(ctx context.Context, tx *sql.Tx, req *Request, uid string) (string, error) {
+	existed, err := s.checkExistence(ctx, tx, "SELECT public FROM keys WHERE user_id=?", uid)
+	if err != nil || existed {
+		return "", fmt.Errorf("store.checkKeyWithPublic(%s) => %t %v", uid, existed, err)
+	}
+
+	key, err := readSpareKey(ctx, tx)
+	if err != nil || key == "" {
+		return "", fmt.Errorf("store.readSpareKey() => %s %v", key, err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE keys SET user_id=?, updated_at=? WHERE public_key=? AND user_id IS NULL",
+		uid, req.CreatedAt, key)
+	if err != nil {
+		return "", fmt.Errorf("UPDATE keys %v", err)
+	}
+
+	return key, nil
+}
+
+func readSpareKey(ctx context.Context, tx *sql.Tx) (string, error) {
+	var public string
+	query := "SELECT public FROM keys WHERE user_id IS NULL ORDER BY created_at ASC LIMIT 1"
+	row := tx.QueryRowContext(ctx, query)
+	err := row.Scan(&public)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return public, err
 }

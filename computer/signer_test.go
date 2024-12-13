@@ -74,10 +74,9 @@ func testSaverItemsCheck(ctx context.Context, require *require.Assertions, nodes
 			rb = common.AESDecrypt(secret[:], rb)
 			decodedShare := rb[16:]
 
-			public, crv, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(op.Public)))
+			public, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(op.Public)))
 			require.Nil(err)
 			require.Equal(op.Public, public)
-			require.Equal(op.Curve, crv)
 			require.True(bytes.Equal(decodedShare, share))
 		}
 	}

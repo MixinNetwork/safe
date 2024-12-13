@@ -13,12 +13,14 @@ CREATE TABLE IF NOT EXISTS keys (
 	session_id   VARCHAR NOT NULL,
 	user_id      VARCHAR,
 	created_at   TIMESTAMP NOT NULL,
+	updated_at   TIMESTAMP NOT NULL,
 	backed_up_at TIMESTAMP,
 	PRIMARY KEY ('public')
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_session_id ON keys(session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_fingerprint ON keys(fingerprint);
+CREATE INDEX IF NOT EXISTS keys_by_user_created ON sessions(user_id, created_at);
 
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -90,6 +92,19 @@ CREATE TABLE IF NOT EXISTS programs (
 
 CREATE UNIQUE INDEX IF NOT EXISTS programs_by_address ON programs(address);
 CREATE INDEX IF NOT EXISTS programs_by_created ON programs(created_at);
+
+
+CREATE TABLE IF NOT EXISTS users (
+  user_id     VARCHAR NOT NULL,
+  request_id  VARCHAR NOT NULL,
+  address     VARCHAR NOT NULL,
+  public      VARCHAR NOT NULL,
+  created_at  TIMESTAMP NOT NULL,
+  PRIMARY KEY ('user_id')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_by_address ON users(address);
+CREATE INDEX IF NOT EXISTS users_by_created ON users(created_at);
 
 
 CREATE TABLE IF NOT EXISTS action_results (
