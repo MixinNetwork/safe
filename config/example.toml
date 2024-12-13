@@ -147,7 +147,7 @@ spend-private-key = ""
 
 [computer]
 # the id represents actions and outptus for computer group
-app-id = ""
+app-id = "a7376114-5db3-4822-bd3c-26416b57da1b"
 store-dir = "/tmp/safe/computer"
 # the mixin messenger group conversation id for computer communication
 messenger-conversation-id = ""
@@ -161,8 +161,8 @@ shared-key = "6a9529b56918123e973b4e8b19724908fe68123753660274b03ddb01d1854a09"
 public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b63756"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
-asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
-observer-asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
+asset-id = "5473950f-8b08-40b3-96e9-a270fc68edc3"
+observer-asset-id = "8291dc92-c390-41f4-969a-88ddf887cb8f"
 # the http api to receive all keygen backup, must be private accessible
 saver-api = ""
 # the ed25519 private key hex to sign and encrypt all the data to saver

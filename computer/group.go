@@ -18,7 +18,6 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/gofrs/uuid/v5"
 )
 
 const (
@@ -34,41 +33,46 @@ func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if out.SequencerCreatedAt.IsZero() {
 		panic(out.OutputId)
 	}
-	txs1, asset1 := node.processActionWithPersistence(ctx, out)
-	txs2, asset2 := node.processActionWithPersistence(ctx, out)
+	txs1, asset1 := node.processAction(ctx, out)
+	txs2, asset2 := node.processAction(ctx, out)
 	mtg.ReplayCheck(out, txs1, txs2, asset1, asset2)
 	return txs1, asset1
 }
 
-func (node *Node) processActionWithPersistence(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	txs, compaction, found := node.store.ReadActionResults(ctx, out.OutputId)
-	if found {
-		return txs, compaction
+func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	if common.CheckTestEnvironment(ctx) {
+		out.TestAttachActionToGroup(node.group)
 	}
-	sessionId, txs, compaction := node.processAction(ctx, out)
-	err := node.store.WriteActionResult(ctx, out.OutputId, txs, compaction, sessionId)
-	if err != nil {
-		panic(err)
-	}
-	return txs, compaction
-}
-
-func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, []*mtg.Transaction, string) {
-	sessionId := uuid.Nil.String()
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
-		return sessionId, nil, ""
+		return nil, ""
 	}
 
 	req, err := node.parseRequest(out)
 	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
 	if err != nil {
-		return sessionId, nil, ""
+		return nil, ""
+	}
+
+	ar, handled, err := node.store.ReadActionResult(ctx, out.OutputId, req.Id)
+	logger.Printf("store.ReadActionResult(%s %s) => %v %t %v", out.OutputId, req.Id, ar, handled, err)
+	if err != nil {
+		panic(err)
+	}
+	if ar != nil {
+		return ar.Transactions, ar.Compaction
+	}
+	if handled {
+		err = node.store.FailAction(ctx, req)
+		if err != nil {
+			panic(err)
+		}
+		return nil, ""
 	}
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
-		return sessionId, nil, ""
+		return nil, ""
 	}
 	err = req.VerifyFormat()
 	if err != nil {
@@ -81,7 +85,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 
 	txs, asset := node.processRequest(ctx, req)
 	logger.Printf("node.processRequest(%v) => %v %s", req, txs, asset)
-	return req.Id, txs, asset
+	return txs, asset
 }
 
 func (node *Node) getActionRole(act byte) byte {
@@ -130,6 +134,14 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	default:
 		panic(req.Action)
 	}
+}
+
+func (node *Node) timestamp(ctx context.Context) (uint64, error) {
+	req, err := node.store.ReadLatestRequest(ctx)
+	if err != nil || req == nil {
+		return node.conf.MTG.Genesis.Epoch, err
+	}
+	return req.Sequence, nil
 }
 
 func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {

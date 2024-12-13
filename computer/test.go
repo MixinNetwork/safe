@@ -4,58 +4,24 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 )
 
 type partyContextTyp string
 
 const partyContextKey = partyContextTyp("party")
-
-func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.SQLite3Store) {
-	logger.SetLevel(logger.INFO)
-	ctx := context.Background()
-	ctx = common.EnableTestEnvironment(ctx)
-
-	saverStore, port := testStartSaver(require)
-
-	nodes := make([]*Node, 4)
-	for i := 0; i < 4; i++ {
-		dir := fmt.Sprintf("safe-signer-test-%d", i)
-		root, err := os.MkdirTemp("", dir)
-		require.Nil(err)
-		nodes[i] = testBuildNode(ctx, require, root, i, saverStore, port)
-	}
-
-	network := newTestNetwork(nodes[0].GetPartySlice())
-	for i := 0; i < 4; i++ {
-		nodes[i].network = network
-		ctx = context.WithValue(ctx, partyContextKey, string(nodes[i].id))
-		go network.mtgLoop(ctx, nodes[i])
-		go nodes[i].loopInitialSessions(ctx)
-		go nodes[i].loopPreparedSessions(ctx)
-		go nodes[i].loopPendingSessions(ctx)
-		go nodes[i].acceptIncomingMessages(ctx)
-	}
-
-	return ctx, nodes, saverStore
-}
 
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	out.TestAttachActionToGroup(nodes[0].group)
@@ -71,44 +37,6 @@ func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes [
 		logger.Verbosef("testWaitOperation(%s, %s) => %v\n", node.id, sessionId, op)
 	}
 	return op
-}
-
-func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store, port int) *Node {
-	f, _ := os.ReadFile("../config/example.toml")
-	var conf struct {
-		Signer *Configuration `toml:"signer"`
-		Keeper struct {
-			MTG *mtg.Configuration `toml:"mtg"`
-		} `toml:"keeper"`
-	}
-	err := toml.Unmarshal(f, &conf)
-	require.Nil(err)
-
-	conf.Signer.StoreDir = root
-	conf.Signer.MTG.App.AppId = conf.Signer.MTG.Genesis.Members[i]
-	conf.Signer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
-
-	seed := crypto.Sha256Hash([]byte(conf.Signer.MTG.App.AppId))
-	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
-	conf.Signer.SaverKey = priv.String()
-	err = saverStore.WriteNodePublicKey(ctx, conf.Signer.MTG.App.AppId, priv.Public().String())
-	require.Nil(err)
-
-	if !(strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Signer.StoreDir, "/var/folders")) {
-		panic(root)
-	}
-	kd, err := store.OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")
-	require.Nil(err)
-
-	md, err := mtg.OpenSQLite3Store(conf.Signer.StoreDir + "/mtg.sqlite3")
-	require.Nil(err)
-	group, err := mtg.BuildGroup(ctx, md, conf.Signer.MTG)
-	require.Nil(err)
-	group.EnableDebug()
-
-	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil)
-	group.AttachWorker(node.conf.AppId, node)
-	return node
 }
 
 func testWaitOperation(ctx context.Context, node *Node, sessionId string) *common.Operation {

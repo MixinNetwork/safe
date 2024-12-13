@@ -74,7 +74,7 @@ func (node *Node) addUser(ctx context.Context, req *store.Request) ([]*mtg.Trans
 
 	err = node.store.WriteUserWithRequest(ctx, req, mix)
 	if err != nil {
-		panic(fmt.Errorf("store.WriteUserWithRequest(%v %s %s) => %v", req, mix, err))
+		panic(fmt.Errorf("store.WriteUserWithRequest(%v %s) => %v", req, mix, err))
 	}
 	return nil, ""
 }

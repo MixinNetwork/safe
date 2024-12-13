@@ -14,7 +14,6 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/gofrs/uuid"
 )
 
 //go:embed schema.sql
@@ -242,39 +241,6 @@ func (s *SQLite3Store) ListSessionSignerResults(ctx context.Context, sessionId s
 	return signers, nil
 }
 
-func (s *SQLite3Store) WriteActionResult(ctx context.Context, outputId string, txs []*mtg.Transaction, compaction, sessionId string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	err = s.writeActionResult(ctx, tx, outputId, txs, compaction, sessionId)
-	if err != nil {
-		return fmt.Errorf("INSERT action_results %v", err)
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, outputId string, txs []*mtg.Transaction, compaction, sessionId string) error {
-	if uuid.Must(uuid.FromString(outputId)).String() != outputId {
-		panic(outputId)
-	}
-
-	ts := common.Base91Encode(mtg.SerializeTransactions(txs))
-	cols := []string{"output_id", "compaction", "transactions", "session_id", "created_at"}
-	vals := []any{outputId, compaction, ts, sessionId, time.Now().UTC()}
-	err := s.execOne(ctx, tx, buildInsertionSQL("action_results", cols), vals...)
-	if err != nil {
-		return fmt.Errorf("INSERT action_results %v", err)
-	}
-	return nil
-}
-
 func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessionId string) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -312,37 +278,6 @@ func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessio
 		}
 	}
 	return false
-}
-
-func (s *SQLite3Store) ReadActionResults(ctx context.Context, outputId string) ([]*mtg.Transaction, string, bool) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer common.Rollback(tx)
-
-	query := "SELECT transactions,compaction FROM action_results where output_id=?"
-	row := tx.QueryRowContext(ctx, query, outputId)
-	var ts, compaction string
-	err = row.Scan(&ts, &compaction)
-	if err == sql.ErrNoRows {
-		return nil, "", false
-	} else if err != nil {
-		panic(err)
-	}
-
-	tb, err := common.Base91Decode(ts)
-	if err != nil {
-		panic(ts)
-	}
-	txs, err := mtg.DeserializeTransactions(tb)
-	if err != nil {
-		panic(ts)
-	}
-	return txs, compaction, true
 }
 
 type State struct {
