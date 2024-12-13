@@ -18,6 +18,14 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+func (node *Node) bootSigner(ctx context.Context) {
+	go node.loopBackup(ctx)
+	go node.loopInitialSessions(ctx)
+	go node.loopPreparedSessions(ctx)
+	go node.loopPendingSessions(ctx)
+	go node.acceptIncomingMessages(ctx)
+}
+
 func (node *Node) loopBackup(ctx context.Context) {
 	for {
 		time.Sleep(5 * time.Second)
@@ -153,11 +161,11 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			case common.OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 			case common.OperationTypeSignInput:
-				holder, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
-				if err != nil || crv != op.Curve {
+				holder, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+				if err != nil {
 					panic(err)
 				}
-				signed, sig := node.verifySessionSignature(ctx, op.Curve, holder, op.Extra, share, path)
+				signed, sig := node.verifySessionSignature(ctx, holder, op.Extra, share, path)
 				if signed {
 					op.Extra = sig
 				} else {
@@ -228,7 +236,6 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 			node.queueOperation(ctx, &common.Operation{
 				Id:     r.Id,
 				Type:   r.Operation,
-				Curve:  r.Curve,
 				Public: r.Public,
 				Extra:  common.DecodeHexOrPanic(r.Extra),
 			}, signers)

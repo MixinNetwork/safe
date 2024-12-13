@@ -96,7 +96,7 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 	}
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", op.Id, string(node.id))
 
-	return node.sendTransactionToSignerGroupUntilSufficient(ctx, extra, traceId)
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
 }
 
 func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Operation) error {
@@ -106,10 +106,23 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 	}
 	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
 
-	return node.sendTransactionToSignerGroupUntilSufficient(ctx, extra, traceId)
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
 }
 
-func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Context, memo []byte, traceId string) error {
+func (node *Node) sendGroupTransaction(ctx context.Context, traceId string, action byte, memo []byte) error {
+	var extra []byte
+	extra = append(extra, action)
+	extra = append(extra, memo...)
+	extra = common.AESEncrypt(node.aesKey[:], extra, traceId)
+	if len(extra) > 160 {
+		panic(fmt.Errorf("node.sendSignerResultTransaction(%d %x) omitted %x", action, memo, extra))
+	}
+
+	traceId = fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", traceId, string(node.id))
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
+}
+
+func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, traceId string) error {
 	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 	amount := decimal.NewFromInt(1)

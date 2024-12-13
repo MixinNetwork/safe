@@ -20,6 +20,11 @@ const (
 	OperationTypeStartProcess = 0
 	OperationTypeAddUser      = 1
 	OperationTypeSystemCall   = 2
+
+	OperationTypeKeygenInput  = 10
+	OperationTypeKeygenOutput = 11
+	OperationTypeSignInput    = 12
+	OperationTypeSignOutput   = 13
 )
 
 func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*store.Request, error) {

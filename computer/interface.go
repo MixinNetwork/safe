@@ -12,6 +12,7 @@ type Configuration struct {
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
 	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
+	Timestamp               int64              `toml:"timestamp"`
 	SharedKey               string             `toml:"shared-key"`
 	PublicKey               string             `toml:"public-key"`
 	Threshold               int                `toml:"threshold"`

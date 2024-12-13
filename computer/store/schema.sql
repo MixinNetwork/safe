@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS properties (
 CREATE TABLE IF NOT EXISTS keys (
 	public       VARCHAR NOT NULL,
 	fingerprint  VARCHAR NOT NULL,
-	curve        INTEGER NOT NULL,
 	share        VARCHAR NOT NULL,
 	session_id   VARCHAR NOT NULL,
+	user_id      VARCHAR,
 	created_at   TIMESTAMP NOT NULL,
 	backed_up_at TIMESTAMP,
 	PRIMARY KEY ('public')
@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 	mixin_hash    VARCHAR NOT NULL,
 	mixin_index   INTEGER NOT NULL,
 	operation     INTEGER NOT NULL,
-	curve         INTEGER NOT NULL,
 	public        VARCHAR NOT NULL,
 	extra         VARCHAR NOT NULL,
 	state         INTEGER NOT NULL,

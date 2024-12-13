@@ -72,11 +72,8 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 }
 
 func (node *Node) Boot(ctx context.Context) {
-	go node.loopBackup(ctx)
-	go node.loopInitialSessions(ctx)
-	go node.loopPreparedSessions(ctx)
-	go node.loopPendingSessions(ctx)
-	go node.acceptIncomingMessages(ctx)
+	node.bootObserver(ctx)
+	node.bootSigner(ctx)
 	logger.Printf("node.Boot(%s, %d)", node.id, node.Index())
 }
 

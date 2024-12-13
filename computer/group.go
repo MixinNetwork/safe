@@ -13,15 +13,11 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
-	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -96,6 +92,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleHolder
 	case OperationTypeSystemCall:
 		return common.RequestRoleHolder
+	case common.ActionObserverRequestSignerKeys:
+		return common.RequestRoleObserver
 	// case common.OperationTypeKeygenOutput:
 	// 	return common.RequestRoleSigner
 	// case common.OperationTypeSignOutput:
@@ -115,6 +113,10 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	switch req.Action {
 	case OperationTypeStartProcess:
 		return node.startProcess(ctx, req)
+	case OperationTypeAddUser:
+		return node.addUser(ctx, req)
+	case OperationTypeKeygenInput:
+		return node.processSignerKeygenRequests(ctx, req)
 	// case common.OperationTypeKeygenOutput:
 	// 	return node.processKeyAdd(ctx, req)
 	// case common.OperationTypeSignOutput:
@@ -164,7 +166,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	if err != nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
 	}
-	if op.Curve != session.Curve || op.Type != session.Operation {
+	if op.Type != session.Operation {
 		panic(session.Id)
 	}
 
@@ -195,25 +197,25 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		panic(session.Id)
 	}
 
-	op = &common.Operation{Id: op.Id, Curve: session.Curve}
+	op = &common.Operation{Id: op.Id}
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		if signers[string(node.id)] != session.Public {
 			panic(session.Public)
 		}
-		valid := node.verifySessionHolder(ctx, session.Curve, session.Public)
+		valid := node.verifySessionHolder(ctx, session.Public)
 		logger.Printf("node.verifySessionHolder(%v) => %t", session, valid)
 		if !valid {
 			return nil, ""
 		}
-		holder, crv, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
+		holder, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
 		if err != nil {
 			panic(err)
 		}
-		if holder != session.Public || crv != session.Curve {
+		if holder != session.Public {
 			panic(session.Public)
 		}
-		public, chainCode := node.deriveByPath(ctx, crv, share, []byte{0, 0, 0, 0})
+		public, chainCode := node.deriveByPath(ctx, share, []byte{0, 0, 0, 0})
 		if hex.EncodeToString(public) != session.Public {
 			panic(session.Public)
 		}
@@ -229,22 +231,19 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		}
 		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
 			// this could happend only after crash or not commited
-			err = node.store.MarkSessionPending(ctx, session.Id, session.Curve, session.Public, extra)
+			err = node.store.MarkSessionPending(ctx, session.Id, session.Public, extra)
 			logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", session, extra, err)
 			if err != nil {
 				panic(err)
 			}
 		}
 
-		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
+		holder, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
 			panic(err)
 		}
-		if crv != op.Curve {
-			panic(session.Id)
-		}
-		valid, vsig := node.verifySessionSignature(ctx, op.Curve, holder, extra, share, path)
+		valid, vsig := node.verifySessionSignature(ctx, holder, extra, share, path)
 		logger.Printf("node.verifySessionSignature(%v, %s, %x, %v) => %t", session, holder, extra, path, valid)
 		if !valid || !bytes.Equal(sig, vsig) {
 			panic(hex.EncodeToString(vsig))
@@ -267,73 +266,29 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	return []*mtg.Transaction{tx}, ""
 }
 
-func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, byte, []byte, []byte, error) {
+func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, []byte, []byte, error) {
 	fingerPath, err := hex.DecodeString(public)
 	if err != nil || len(fingerPath) != 12 || fingerPath[8] > 3 {
-		return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
+		return "", nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 	}
 	fingerprint := hex.EncodeToString(fingerPath[:8])
-	public, crv, share, err := node.store.ReadKeyByFingerprint(ctx, fingerprint)
-	return public, crv, share, fingerPath[8:], err
+	public, share, err := node.store.ReadKeyByFingerprint(ctx, fingerprint)
+	return public, share, fingerPath[8:], err
 }
 
-func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) ([]byte, []byte) {
-	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-		conf := cmp.EmptyConfig(curve.Secp256k1{})
-		err := conf.UnmarshalBinary(share)
-		if err != nil {
-			panic(err)
-		}
-		for i := 0; i < int(path[0]); i++ {
-			conf, err = conf.DeriveBIP32(uint32(path[i+1]))
-			if err != nil {
-				panic(err)
-			}
-		}
-		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
-	case common.CurveSecp256k1SchnorrBitcoin:
-		group := curve.Secp256k1{}
-		conf := &frost.TaprootConfig{PrivateShare: group.NewScalar()}
-		err := conf.UnmarshalBinary(share)
-		if err != nil {
-			panic(err)
-		}
-		return conf.PublicKey, conf.ChainKey
-	case common.CurveEdwards25519Default, common.CurveEdwards25519Mixin:
-		conf := frost.EmptyConfig(curve.Edwards25519{})
-		err := conf.UnmarshalBinary(share)
-		if err != nil {
-			panic(err)
-		}
-		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
-	default:
-		panic(crv)
+func (node *Node) deriveByPath(_ context.Context, share, path []byte) ([]byte, []byte) {
+	conf := frost.EmptyConfig(curve.Edwards25519{})
+	err := conf.UnmarshalBinary(share)
+	if err != nil {
+		panic(err)
 	}
+	return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
 }
 
-func (node *Node) verifySessionHolder(_ context.Context, crv byte, holder string) bool {
-	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin:
-		err := bitcoin.VerifyHolderKey(holder)
-		logger.Printf("bitcoin.VerifyHolderKey(%s) => %v", holder, err)
-		return err == nil
-	case common.CurveSecp256k1ECDSAEthereum:
-		err := ethereum.VerifyHolderKey(holder)
-		logger.Printf("ethereum.VerifyHolderKey(%s) => %v", holder, err)
-		return err == nil
-	case common.CurveSecp256k1SchnorrBitcoin:
-		var point secp256k1.JacobianPoint
-		clipped := point.X.SetByteSlice(common.DecodeHexOrPanic(holder))
-		return !clipped
-	case common.CurveEdwards25519Mixin,
-		common.CurveEdwards25519Default:
-		point := curve.Edwards25519Point{}
-		err := point.UnmarshalBinary(common.DecodeHexOrPanic(holder))
-		return err == nil
-	default:
-		panic(crv)
-	}
+func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
+	point := curve.Edwards25519Point{}
+	err := point.UnmarshalBinary(common.DecodeHexOrPanic(holder))
+	return err == nil
 }
 
 func (node *Node) concatMessageAndSignature(msg, sig []byte) []byte {
@@ -358,57 +313,41 @@ func (node *Node) checkSignatureAppended(extra []byte) bool {
 	return len(extra) > int(el)+32
 }
 
-func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
+func (node *Node) verifySessionSignature(ctx context.Context, holder string, extra, share, path []byte) (bool, []byte) {
 	if !node.checkSignatureAppended(extra) {
 		return false, nil
 	}
 	el := binary.BigEndian.Uint32(extra[:4])
 	msg := extra[4 : 4+el]
 	sig := extra[4+el:]
-	public, _ := node.deriveByPath(ctx, crv, share, path)
 
-	switch crv {
-	case common.CurveSecp256k1ECDSABitcoin:
-		err := bitcoin.VerifySignatureDER(hex.EncodeToString(public), msg, sig)
-		logger.Printf("bitcoin.VerifySignatureDER(%x, %x, %x) => %v", public, msg, sig, err)
-		return err == nil, sig
-	case common.CurveSecp256k1ECDSAEthereum:
-		err := ethereum.VerifyHashSignature(hex.EncodeToString(public), msg, sig)
-		logger.Printf("ethereum.VerifyHashSignature(%x, %x, %x) => %v", public, msg, sig, err)
-		return err == nil, sig
-	case common.CurveEdwards25519Mixin:
-		if len(msg) < 32 || len(sig) != 64 {
-			return false, nil
-		}
-		group := curve.Edwards25519{}
-		r := group.NewScalar()
-		err := r.UnmarshalBinary(msg[:32])
-		if err != nil {
-			return false, nil
-		}
-		pub, _ := hex.DecodeString(holder)
-		P := group.NewPoint()
-		err = P.UnmarshalBinary(pub)
-		if err != nil {
-			return false, nil
-		}
-		P = r.ActOnBase().Add(P)
-		var msig crypto.Signature
-		copy(msig[:], sig)
-		var mpub crypto.Key
-		pub, _ = P.MarshalBinary()
-		copy(mpub[:], pub)
-		var hash crypto.Hash
-		copy(hash[:], msg[32:])
-		res := mpub.Verify(hash, msig)
-		logger.Printf("mixin.Verify(%v, %x) => %t", hash, msig[:], res)
-		return res, sig
-	case common.CurveEdwards25519Default,
-		common.CurveSecp256k1SchnorrBitcoin:
-		return common.CheckTestEnvironment(ctx), sig // TODO
-	default:
-		panic(crv)
+	// FIXME verify 25519 default
+	if len(msg) < 32 || len(sig) != 64 {
+		return false, nil
 	}
+	group := curve.Edwards25519{}
+	r := group.NewScalar()
+	err := r.UnmarshalBinary(msg[:32])
+	if err != nil {
+		return false, nil
+	}
+	pub, _ := hex.DecodeString(holder)
+	P := group.NewPoint()
+	err = P.UnmarshalBinary(pub)
+	if err != nil {
+		return false, nil
+	}
+	P = r.ActOnBase().Add(P)
+	var msig crypto.Signature
+	copy(msig[:], sig)
+	var mpub crypto.Key
+	pub, _ = P.MarshalBinary()
+	copy(mpub[:], pub)
+	var hash crypto.Hash
+	copy(hash[:], msg[32:])
+	res := mpub.Verify(hash, msig)
+	logger.Printf("mixin.Verify(%v, %x) => %t", hash, msig[:], res)
+	return res, sig
 }
 
 func (node *Node) verifySessionSignerResults(_ context.Context, session *store.Session, sessionSigners map[string]string) (bool, []byte) {
@@ -492,7 +431,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		logger.Printf("store.FailSession(%s, startKeygen) => %v", op.Id, err)
 		return err
 	}
-	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Curve, op.Public, res.Share, saved)
+	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Public, res.Share, saved)
 }
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {
@@ -501,16 +440,13 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		logger.Printf("node.startSign(%v, %v) exit without committement\n", op, members)
 		return nil
 	}
-	public, crv, share, _, err := node.readKeyByFingerPath(ctx, op.Public)
+	public, share, _, err := node.readKeyByFingerPath(ctx, op.Public)
 	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
 	if err != nil {
 		return fmt.Errorf("node.readKeyByFingerPath(%s) => %v", op.Public, err)
 	}
 	if public == "" {
 		return node.store.FailSession(ctx, op.Id)
-	}
-	if crv != op.Curve {
-		return fmt.Errorf("node.startSign(%v) invalid curve %d %d", op, crv, op.Curve)
 	}
 	fingerprint := op.Public[:16]
 	if hex.EncodeToString(common.Fingerprint(public)) != fingerprint {
@@ -526,7 +462,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		return err
 	}
 	extra := node.concatMessageAndSignature(op.Extra, res.Signature)
-	err = node.store.MarkSessionPending(ctx, op.Id, op.Curve, op.Public, extra)
+	err = node.store.MarkSessionPending(ctx, op.Id, op.Public, extra)
 	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, extra, err)
 	return err
 }
