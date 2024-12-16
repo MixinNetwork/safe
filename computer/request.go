@@ -25,15 +25,22 @@ const (
 	OperationTypeSignOutput  = 11
 )
 
-func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*store.Request, error) {
+func keyAsOperation(k *store.Key) *common.Operation {
+	return &common.Operation{
+		Id:     k.SessionId,
+		Type:   OperationTypeKeygenInput,
+		Public: k.Public,
+	}
+}
+
+func DecodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, error) {
 	h, err := crypto.HashFromString(out.TransactionHash)
 	if err != nil {
 		return nil, err
 	}
-	extra := common.DecodeHexOrPanic(out.Extra)
 	r := &store.Request{
-		Action:     extra[0],
 		Id:         out.OutputId,
+		Action:     extra[0],
 		ExtraHEX:   hex.EncodeToString(extra[1:]),
 		MixinHash:  h,
 		MixinIndex: out.OutputIndex,
@@ -82,12 +89,11 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*store.Request, error) 
 	if a != node.conf.AppId {
 		panic(out.Extra)
 	}
-	if len(m) < 12 {
+	if len(m) < 2 {
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
-	b := common.AESDecrypt(node.aesKey[:], m)
 	role := node.requestRole(out.AssetId)
-	return DecodeRequest(out, b, role)
+	return DecodeRequest(out, m, role)
 }
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*store.Request, error) {
@@ -101,9 +107,8 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*store.Request, error) {
 	if len(m) < 12 {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
-	b := common.AESDecrypt(node.aesKey[:], m)
 	role := node.requestRole(out.AssetId)
-	return DecodeRequest(out, b, role)
+	return DecodeRequest(out, m, role)
 }
 
 func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {

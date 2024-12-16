@@ -2,38 +2,14 @@ package computer
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
-
-func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
-	if common.CheckTestEnvironment(ctx) {
-		val, err := node.store.ReadProperty(ctx, ref.String())
-		if err != nil {
-			panic(ref.String())
-		}
-		raw, err := base64.RawURLEncoding.DecodeString(val)
-		if err != nil {
-			panic(ref.String())
-		}
-		return raw
-	}
-
-	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
-	if err != nil {
-		panic(ref.String())
-	}
-
-	raw := common.AESDecrypt(node.aesKey[:], ver.Extra)
-	return raw[16:]
-}
 
 func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Request, extra []byte) *mtg.Transaction {
 	logger.Printf("node.writeStorageTransaction(%x)", extra)
@@ -64,7 +40,7 @@ func (node *Node) buildStorageTransaction(ctx context.Context, req *common.Reque
 }
 
 func (node *Node) buildSignerResultTransaction(ctx context.Context, op *common.Operation, act *mtg.Action) (*mtg.Transaction, string) {
-	extra := node.encryptOperation(op)
+	extra := encodeOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.buildKeeperTransaction(%v) omitted %x", op, extra))
 	}
@@ -78,7 +54,7 @@ func (node *Node) buildSignerResultTransaction(ctx context.Context, op *common.O
 	}
 
 	members := node.GetMembers()
-	threshold := node.keeper.Genesis.Threshold
+	threshold := node.conf.MTG.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := act.BuildTransaction(ctx, traceId, node.conf.AppId, node.conf.AssetId, amount.String(), string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
@@ -90,7 +66,7 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 		panic(op.Type)
 	}
 	op.Extra = []byte(PrepareExtra)
-	extra := common.AESEncrypt(node.aesKey[:], op.Encode(), op.Id)
+	extra := encodeOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerPrepareTransaction(%v) omitted %x", op, extra))
 	}
@@ -100,7 +76,7 @@ func (node *Node) sendSignerPrepareTransaction(ctx context.Context, op *common.O
 }
 
 func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Operation) error {
-	extra := common.AESEncrypt(node.aesKey[:], op.Encode(), op.Id)
+	extra := encodeOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
 	}
@@ -109,16 +85,13 @@ func (node *Node) sendSignerResultTransaction(ctx context.Context, op *common.Op
 	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
 }
 
-func (node *Node) sendGroupTransaction(ctx context.Context, traceId string, action byte, memo []byte) error {
-	var extra []byte
-	extra = append(extra, action)
-	extra = append(extra, memo...)
-	extra = common.AESEncrypt(node.aesKey[:], extra, traceId)
+func (node *Node) sendObserverTransaction(ctx context.Context, op *common.Operation) error {
+	extra := encodeOperation(op)
 	if len(extra) > 160 {
-		panic(fmt.Errorf("node.sendSignerResultTransaction(%d %x) omitted %x", action, memo, extra))
+		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
 	}
 
-	traceId = fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", traceId, string(node.id))
+	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
 	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
 }
 
@@ -134,4 +107,17 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, node.conf.MTG.App.SpendPrivateKey)
 	return err
+}
+
+func encodeOperation(op *common.Operation) []byte {
+	extra := []byte{op.Type}
+	extra = append(extra, op.Extra...)
+	return extra
+}
+
+func decodeOperation(extra []byte) *common.Operation {
+	return &common.Operation{
+		Type:  extra[0],
+		Extra: extra[1:],
+	}
 }

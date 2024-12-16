@@ -14,6 +14,7 @@ type Session struct {
 	Id         string
 	MixinHash  string
 	MixinIndex int
+	Index      int
 	Operation  byte
 	Public     string
 	Extra      string
@@ -61,9 +62,9 @@ func (s *SQLite3Store) WriteSessionsWithRequest(ctx context.Context, req *Reques
 			return err
 		}
 
-		cols := []string{"session_id", "mixin_hash", "mixin_index", "operation", "public",
+		cols := []string{"session_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
 			"extra", "state", "created_at", "updated_at"}
-		vals := []any{session.Id, session.MixinHash, session.MixinIndex, session.Operation, session.Public,
+		vals := []any{session.Id, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
 			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
 		if !needsCommittment {
 			cols = append(cols, "committed_at", "prepared_at")
@@ -79,7 +80,7 @@ func (s *SQLite3Store) WriteSessionsWithRequest(ctx context.Context, req *Reques
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, nil, "", req.Id)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
 	if err != nil {
 		return err
 	}

@@ -96,7 +96,7 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleHolder
 	case OperationTypeSystemCall:
 		return common.RequestRoleHolder
-	case common.ActionObserverRequestSignerKeys:
+	case OperationTypeKeygenInput:
 		return common.RequestRoleObserver
 	// case common.OperationTypeKeygenOutput:
 	// 	return common.RequestRoleSigner
@@ -184,7 +184,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 
 	self := len(out.Senders) == 1 && out.Senders[0] == string(node.id)
 	switch session.Operation {
-	case common.OperationTypeKeygenInput:
+	case OperationTypeKeygenInput:
 		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
 		if err != nil {
 			panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err))
@@ -211,7 +211,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 
 	op = &common.Operation{Id: op.Id}
 	switch session.Operation {
-	case common.OperationTypeKeygenInput:
+	case OperationTypeKeygenInput:
 		if signers[string(node.id)] != session.Public {
 			panic(session.Public)
 		}
@@ -365,7 +365,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, holder string, ext
 func (node *Node) verifySessionSignerResults(_ context.Context, session *store.Session, sessionSigners map[string]string) (bool, []byte) {
 	members := node.GetMembers()
 	switch session.Operation {
-	case common.OperationTypeKeygenInput:
+	case OperationTypeKeygenInput:
 		var signed int
 		for _, id := range members {
 			public, found := sessionSigners[id]
@@ -400,14 +400,11 @@ func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error)
 		panic(out.Extra)
 	}
 
-	b := common.AESDecrypt(node.aesKey[:], memo)
-	req, err := common.DecodeOperation(b)
-	if err != nil {
-		return nil, fmt.Errorf("common.DecodeOperation(%x) => %v", b, err)
-	}
+	req := decodeOperation(memo)
+	req.Id = out.OutputId
 
 	switch req.Type {
-	case common.OperationTypeKeygenInput:
+	case OperationTypeKeygenInput:
 	case common.OperationTypeSignInput:
 	default:
 		return nil, fmt.Errorf("invalid action %d", req.Type)
@@ -419,7 +416,7 @@ func (node *Node) startOperation(ctx context.Context, op *common.Operation, memb
 	logger.Printf("node.startOperation(%v)", op)
 
 	switch op.Type {
-	case common.OperationTypeKeygenInput:
+	case OperationTypeKeygenInput:
 		return node.startKeygen(ctx, op)
 	case common.OperationTypeSignInput:
 		return node.startSign(ctx, op, members)
@@ -442,6 +439,12 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		err = node.store.FailSession(ctx, op.Id)
 		logger.Printf("store.FailSession(%s, startKeygen) => %v", op.Id, err)
 		return err
+	}
+	if common.CheckTestEnvironment(ctx) {
+		err = node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString([]byte(op.Public)))
+		if err != nil {
+			panic(err)
+		}
 	}
 	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Public, res.Share, saved)
 }
@@ -499,33 +502,13 @@ func (node *Node) parseOperation(_ context.Context, memo string) (*common.Operat
 	if m == nil {
 		return nil, fmt.Errorf("mtg.DecodeMixinExtraHEX(%s)", memo)
 	}
-	b := common.AESDecrypt(node.aesKey[:], m)
-	op, err := common.DecodeOperation(b)
-	if err != nil {
-		return nil, fmt.Errorf("common.DecodeOperation(%x) => %v", b, err)
-	}
+	op := decodeOperation(m)
 
 	switch op.Type {
 	case common.OperationTypeSignInput:
-	case common.OperationTypeKeygenInput:
+	case OperationTypeKeygenInput:
 	default:
 		return nil, fmt.Errorf("invalid action %d", op.Type)
 	}
-
-	switch op.Curve {
-	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
-	case common.CurveSecp256k1SchnorrBitcoin:
-	case common.CurveEdwards25519Mixin, common.CurveEdwards25519Default:
-	default:
-		return nil, fmt.Errorf("invalid curve %d", op.Curve)
-	}
 	return op, nil
-}
-
-func (node *Node) encryptOperation(op *common.Operation) []byte {
-	extra := op.Encode()
-	if len(extra) > OperationExtraLimit {
-		panic(hex.EncodeToString(extra))
-	}
-	return common.AESEncrypt(node.aesKey[:], extra, op.Id)
 }

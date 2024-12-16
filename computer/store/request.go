@@ -118,7 +118,7 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, req *Request, compaction
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, nil, "", req.Id)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
 	if err != nil {
 		return err
 	}

@@ -28,14 +28,6 @@ type Key struct {
 	BackedUpAt  sql.NullTime
 }
 
-func (k *Key) AsOperation() *common.Operation {
-	return &common.Operation{
-		Id:     k.SessionId,
-		Type:   common.OperationTypeKeygenInput,
-		Public: k.Public,
-	}
-}
-
 func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string, public string, conf []byte, saved bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -55,7 +47,7 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
 	cols := []string{"public", "fingerprint", "share", "session_id", "user_id", "created_at", "updated_at"}
-	values := []any{public, fingerprint, share, sessionId, timestamp, timestamp}
+	values := []any{public, fingerprint, share, sessionId, nil, timestamp, timestamp}
 	if saved {
 		cols = append(cols, "backed_up_at")
 		values = append(values, timestamp)

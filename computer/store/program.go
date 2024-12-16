@@ -100,7 +100,7 @@ func (s *SQLite3Store) WriteProgramWithRequest(ctx context.Context, req *Request
 	if err != nil {
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, nil, "", req.Id)
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
 	if err != nil {
 		return err
 	}

@@ -154,11 +154,6 @@ messenger-conversation-id = ""
 # the mixin messenger group for monitor messages
 monitor-conversation-id = ""
 timestamp = 1721930640000000000
-# a shared ed25519 private key to do ecdh with computer and observer
-shared-key = "6a9529b56918123e973b4e8b19724908fe68123753660274b03ddb01d1854a09"
-# the computer ed25519 public key to do ecdh with the shared key
-# and this key is used to verify the signature of all responses
-public-key = "041990273aba480d3fe46301907863168e04417a76fcf04e296323e395b63756"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
 asset-id = "5473950f-8b08-40b3-96e9-a270fc68edc3"

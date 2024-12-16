@@ -37,7 +37,11 @@ func (node *Node) requestKeys(ctx context.Context) error {
 	}
 	id := common.UniqueId(requested.String(), requested.String())
 	keysCount := []byte{16}
-	err = node.sendGroupTransaction(ctx, id, common.OperationTypeKeygenInput, keysCount)
+	err = node.sendObserverTransaction(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeKeygenInput,
+		Extra: keysCount,
+	})
 	if err != nil {
 		return err
 	}

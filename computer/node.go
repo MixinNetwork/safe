@@ -25,19 +25,17 @@ type Node struct {
 	conf       *Configuration
 	group      *mtg.Group
 	network    Network
-	aesKey     [32]byte
 	mutex      *sync.Mutex
 	sessions   map[string]*MultiPartySession
 	operations map[string]bool
 	store      *store.SQLite3Store
 
-	keeper       *mtg.Configuration
 	mixin        *mixin.Client
 	backupClient *http.Client
 	saverKey     *crypto.Key
 }
 
-func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
+func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf *Configuration, mixin *mixin.Client) *Node {
 	node := &Node{
 		id:         party.ID(conf.MTG.App.AppId),
 		threshold:  conf.Threshold,
@@ -48,14 +46,11 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 		sessions:   make(map[string]*MultiPartySession),
 		operations: make(map[string]bool),
 		store:      store,
-		keeper:     keeper,
 		mixin:      mixin,
 		backupClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
 	}
-	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.PublicKey)
-
 	priv, err := crypto.KeyFromString(conf.SaverKey)
 	if err != nil {
 		panic(conf.SaverKey)

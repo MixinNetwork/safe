@@ -42,7 +42,7 @@ func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes [
 func testWaitOperation(ctx context.Context, node *Node, sessionId string) *common.Operation {
 	timeout := time.Now().Add(time.Minute * 4)
 	for ; time.Now().Before(timeout); time.Sleep(3 * time.Second) {
-		val, err := node.store.ReadProperty(ctx, "KEEPER:"+sessionId)
+		val, err := node.store.ReadProperty(ctx, "SIGNER:"+sessionId)
 		if err != nil {
 			panic(err)
 		}
@@ -50,8 +50,7 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 			continue
 		}
 		_, m := mtg.DecodeMixinExtraHEX(val)
-		b := common.AESDecrypt(node.aesKey[:], m)
-		op, _ := common.DecodeOperation(b)
+		op := decodeOperation(m)
 		if op != nil {
 			return op
 		}
@@ -120,13 +119,9 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 			panic(asset)
 		}
 		for _, t := range ts {
-			b := common.AESDecrypt(node.aesKey[:], []byte(t.Memo))
-			op, err := common.DecodeOperation(b)
-			if err != nil {
-				panic(err)
-			}
+			op := decodeOperation([]byte(t.Memo))
 			memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, []byte(t.Memo))
-			err = node.store.WriteProperty(ctx, "KEEPER:"+op.Id, hex.EncodeToString([]byte(memo)))
+			err := node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString([]byte(memo)))
 			if err != nil {
 				panic(err)
 			}

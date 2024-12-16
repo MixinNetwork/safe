@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 	session_id    VARCHAR NOT NULL,
 	mixin_hash    VARCHAR NOT NULL,
 	mixin_index   INTEGER NOT NULL,
+    sub_index     INTEGER NOT NULL,
 	operation     INTEGER NOT NULL,
 	public        VARCHAR NOT NULL,
 	extra         VARCHAR NOT NULL,
@@ -38,7 +39,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 	PRIMARY KEY ('session_id')
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS sessions_by_mixin_hash_index ON sessions(mixin_hash, mixin_index);
+CREATE UNIQUE INDEX IF NOT EXISTS sessions_by_mixin_hash_index ON sessions(mixin_hash, mixin_index, sub_index);
 CREATE INDEX IF NOT EXISTS sessions_by_state_created ON sessions(state, created_at);
 
 
@@ -111,9 +112,9 @@ CREATE TABLE IF NOT EXISTS action_results (
 	output_id       VARCHAR NOT NULL,
 	compaction      VARCHAR NOT NULL,
 	transactions    TEXT NOT NULL,
-	session_id      VARCHAR NOT NULL,
+	request_id      VARCHAR NOT NULL,
 	created_at      TIMESTAMP NOT NULL,
 	PRIMARY KEY ('output_id')
 );
 
-CREATE INDEX IF NOT EXISTS action_results_by_session ON action_results(session_id);
+CREATE INDEX IF NOT EXISTS action_results_by_request ON action_results(request_id);

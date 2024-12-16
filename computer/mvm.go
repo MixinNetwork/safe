@@ -102,14 +102,15 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 			Id:         id,
 			MixinHash:  req.MixinHash.String(),
 			MixinIndex: req.Output.OutputIndex,
+			Index:      i,
 			Operation:  OperationTypeKeygenInput,
 			CreatedAt:  req.Output.SequencerCreatedAt,
 		})
 	}
 
-	err := node.store.WriteSessionsWithRequest(ctx, req, sessions, true)
+	err := node.store.WriteSessionsWithRequest(ctx, req, sessions, false)
 	if err != nil {
-		panic(fmt.Errorf("store.FailRequest(%v) => %v", req, err))
+		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
 	}
 	return nil, ""
 }
