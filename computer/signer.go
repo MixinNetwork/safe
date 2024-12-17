@@ -96,14 +96,14 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 		sessions := node.listPreparedSessions(ctx)
 		results := make([]<-chan error, len(sessions))
 		for i, s := range sessions {
-			// threshold := node.threshold + 1
-			// signers, err := node.store.ListSessionPreparedMembers(ctx, s.Id, threshold)
-			// if err != nil {
-			// 	panic(err)
-			// }
-			// if len(signers) != threshold && s.Operation != common.OperationTypeKeygenInput {
-			// 	panic(fmt.Sprintf("ListSessionPreparedMember(%s, %d) => %d", s.Id, threshold, len(signers)))
-			// }
+			threshold := node.threshold + 1
+			signers, err := node.store.ListSessionPreparedMembers(ctx, s.Id, threshold)
+			if err != nil {
+				panic(err)
+			}
+			if len(signers) != threshold && s.Operation != OperationTypeKeygenInput {
+				panic(fmt.Sprintf("ListSessionPreparedMember(%s, %d) => %d", s.Id, threshold, len(signers)))
+			}
 			results[i] = node.queueOperation(ctx, s.AsOperation(), node.GetPartySlice())
 		}
 		for _, res := range results {
