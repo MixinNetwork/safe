@@ -98,6 +98,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleHolder
 	case OperationTypeKeygenInput:
 		return common.RequestRoleObserver
+	case OperationTypeInitMPCKey:
+		return common.RequestRoleObserver
 	// case common.OperationTypeKeygenOutput:
 	// 	return common.RequestRoleSigner
 	// case common.OperationTypeSignOutput:
@@ -121,6 +123,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.addUser(ctx, req)
 	case OperationTypeKeygenInput:
 		return node.processSignerKeygenRequests(ctx, req)
+	case OperationTypeInitMPCKey:
+		return node.processSignerKeyInitRequests(ctx, req)
 	// case common.OperationTypeKeygenOutput:
 	// 	return node.processKeyAdd(ctx, req)
 	// case common.OperationTypeSignOutput:

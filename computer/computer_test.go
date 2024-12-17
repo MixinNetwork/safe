@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
@@ -28,7 +30,68 @@ func TestComputer(t *testing.T) {
 	ctx, nodes, _, _ := testPrepare(require)
 
 	testObserverRequestGenerateKeys(ctx, require, nodes)
+	testObserverRequestInitMpcKey(ctx, require, nodes)
+	testUserRequestAddUsers(ctx, require, nodes)
+}
 
+func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	node := nodes[0]
+	start := big.NewInt(0).Add(store.StartUserId, big.NewInt(1))
+
+	id := uuid.Must(uuid.NewV4())
+	seed := id.Bytes()
+	seed = append(seed, id.Bytes()...)
+	seed = append(seed, id.Bytes()...)
+	seed = append(seed, id.Bytes()...)
+	mix := mc.NewAddressFromSeed(seed)
+	out := testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
+	testStep(ctx, require, node, out)
+	user1, err := node.store.ReadUserByAddress(ctx, mix.String())
+	require.Nil(err)
+	require.Equal(mix.String(), user1.Address)
+	require.Equal(start.String(), user1.UserId)
+	count, err := node.store.CountSpareKeys(ctx)
+	require.Nil(err)
+	require.Equal(6, count)
+
+	start = big.NewInt(0).Add(start, big.NewInt(1))
+	id = uuid.Must(uuid.NewV4())
+	seed = id.Bytes()
+	seed = append(seed, id.Bytes()...)
+	seed = append(seed, id.Bytes()...)
+	seed = append(seed, id.Bytes()...)
+	mix = mc.NewAddressFromSeed(seed)
+	out = testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
+	testStep(ctx, require, node, out)
+	user2, err := node.store.ReadUserByAddress(ctx, mix.String())
+	require.Nil(err)
+	require.Equal(mix.String(), user2.Address)
+	require.Equal(start.String(), user2.UserId)
+	count, err = node.store.CountSpareKeys(ctx)
+	require.Nil(err)
+	require.Equal(5, count)
+}
+
+func testObserverRequestInitMpcKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	node := nodes[0]
+	initialized, err := node.store.CheckMpcKeyInitialized(ctx)
+	require.Nil(err)
+	require.False(initialized)
+
+	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
+	require.Nil(err)
+	require.NotEqual("", key)
+	id := common.UniqueId(key, "mpc key init")
+	extra := common.DecodeHexOrPanic(key)
+	out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
+	testStep(ctx, require, node, out)
+
+	count, err := node.store.CountSpareKeys(ctx)
+	require.Nil(err)
+	require.Equal(7, count)
+	initialized, err = node.store.CheckMpcKeyInitialized(ctx)
+	require.Nil(err)
+	require.True(initialized)
 }
 
 func testObserverRequestGenerateKeys(ctx context.Context, require *require.Assertions, nodes []*Node) {
@@ -59,12 +122,11 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	sessions, err := node.store.ListPreparedSessions(ctx, 500)
 	require.Nil(err)
 	require.Len(sessions, 0)
-
 }
 
-func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
+func testBuildUserRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
 	sequence += 10
-
+	id = common.UniqueId(id, "output")
 	memo := []byte{action}
 	memo = append(memo, extra...)
 	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
@@ -72,7 +134,30 @@ func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) 
 	timestamp := time.Now()
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           common.UniqueId(id, "output"),
+			OutputId:           id,
+			TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
+			AppId:              node.conf.AppId,
+			Senders:            []string{string(node.id)},
+			AssetId:            mtg.StorageAssetId,
+			Extra:              memoStr,
+			Amount:             decimal.New(1, 1),
+			SequencerCreatedAt: timestamp,
+			Sequence:           sequence,
+		},
+	}
+}
+
+func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
+	sequence += 10
+	id = common.UniqueId(id, "output")
+	memo := []byte{action}
+	memo = append(memo, extra...)
+	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+	memoStr = hex.EncodeToString([]byte(memoStr))
+	timestamp := time.Now()
+	return &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:           id,
 			TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
 			AppId:              node.conf.AppId,
 			Senders:            []string{string(node.id)},

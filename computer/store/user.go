@@ -11,7 +11,8 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-var startUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
+var StartUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
+var MPCUserId = big.NewInt(10000)
 
 type User struct {
 	UserId    string
@@ -47,7 +48,7 @@ func (s *SQLite3Store) GetNextUserId(ctx context.Context) (*big.Int, error) {
 	if err != nil {
 		return nil, err
 	}
-	id := startUserId
+	id := StartUserId
 	if u != nil {
 		id = u.Id()
 	}
@@ -56,7 +57,7 @@ func (s *SQLite3Store) GetNextUserId(ctx context.Context) (*big.Int, error) {
 }
 
 func (s *SQLite3Store) ReadLatestUser(ctx context.Context) (*User, error) {
-	query := fmt.Sprintf("SELECT %s FROM users ORDER BY created_at DESC LIMIT 1", strings.Join(userCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM users WHERE user_id!='10000' ORDER BY created_at DESC LIMIT 1", strings.Join(userCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
 	return userFromRow(row)
@@ -97,6 +98,40 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, a
 	}
 
 	vals := []any{id.String(), req.Id, address, key, time.Now()}
+	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT users %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) WriteSignerUserWithRequest(ctx context.Context, req *Request, address, key string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	err = s.execOne(ctx, tx, "UPDATE keys SET user_id=?, updated_at=? WHERE public=? AND user_id IS NULL",
+		MPCUserId.String(), req.CreatedAt, key)
+	if err != nil {
+		return fmt.Errorf("UPDATE keys %v", err)
+	}
+
+	vals := []any{MPCUserId.String(), req.Id, address, key, time.Now()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)

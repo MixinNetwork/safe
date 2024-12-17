@@ -11,6 +11,10 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
+const (
+	KeygenRequestTimeKey = "keygen-request-time"
+)
+
 type KeygenResult struct {
 	Public []byte
 	Share  []byte
@@ -138,6 +142,36 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 	return public, conf, err
 }
 
+func (s *SQLite3Store) ReadFirstGeneratedKey(ctx context.Context, operation byte) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// var id string
+	// row := s.db.QueryRowContext(ctx, "",
+	// 	operation, 0)
+	// err := row.Scan(&id)
+	// if err == sql.ErrNoRows {
+	// 	return "", nil
+	// } else if err != nil {
+	// 	return "", err
+	// }
+
+	var public string
+	row := s.db.QueryRowContext(
+		ctx,
+		"SELECT public FROM keys WHERE user_id IS NULL AND session_id=(SELECT session_id FROM sessions WHERE operation=? AND sub_index=? ORDER BY created_at ASC LIMIT 1)",
+		operation,
+		0,
+	)
+	err := row.Scan(&public)
+	if err == sql.ErrNoRows {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return public, err
+}
+
 func (s *SQLite3Store) assignKeyToUser(ctx context.Context, tx *sql.Tx, req *Request, uid string) (string, error) {
 	existed, err := s.checkExistence(ctx, tx, "SELECT public FROM keys WHERE user_id=?", uid)
 	if err != nil || existed {
@@ -149,13 +183,26 @@ func (s *SQLite3Store) assignKeyToUser(ctx context.Context, tx *sql.Tx, req *Req
 		return "", fmt.Errorf("store.readSpareKey() => %s %v", key, err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE keys SET user_id=?, updated_at=? WHERE public_key=? AND user_id IS NULL",
+	err = s.execOne(ctx, tx, "UPDATE keys SET user_id=?, updated_at=? WHERE public=? AND user_id IS NULL",
 		uid, req.CreatedAt, key)
 	if err != nil {
 		return "", fmt.Errorf("UPDATE keys %v", err)
 	}
 
 	return key, nil
+}
+
+func (s *SQLite3Store) CheckMpcKeyInitialized(ctx context.Context) (bool, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer common.Rollback(tx)
+
+	return s.checkExistence(ctx, tx, "SELECT public FROM keys WHERE user_id=?", MPCUserId.String())
 }
 
 func readSpareKey(ctx context.Context, tx *sql.Tx) (string, error) {

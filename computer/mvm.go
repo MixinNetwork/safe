@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 
@@ -111,6 +112,45 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 	err := node.store.WriteSessionsWithRequest(ctx, req, sessions, false)
 	if err != nil {
 		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
+	}
+	return nil, ""
+}
+
+func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeInitMPCKey {
+		panic(req.Action)
+	}
+	initialized, err := node.store.CheckMpcKeyInitialized(ctx)
+	logger.Printf("store.CheckMpcKeyInitialized() => %t %v", initialized, err)
+	if err != nil {
+		panic(fmt.Errorf("store.CheckMpcKeyInitialized() => %v", err))
+	} else if initialized {
+		return node.failRequest(ctx, req, "")
+	}
+
+	public := hex.EncodeToString(req.ExtraBytes())
+	old, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(public)))
+	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", public, old, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadKeyByFingerprint() => %v", err))
+	} else if old == "" {
+		return node.failRequest(ctx, req, "")
+	}
+
+	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
+	logger.Printf("store.ReadFirstGeneratedKey() => %s %v", key, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadFirstGeneratedKey() => %v", err))
+	} else if key == "" || old != key {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.WriteSignerUserWithRequest(ctx, req, node.conf.SolanaDepositEntry, key)
+	if err != nil {
+		panic(fmt.Errorf("store.WriteSignerUserWithRequest(%v) => %v", req, err))
 	}
 	return nil, ""
 }

@@ -22,7 +22,8 @@ const (
 	OperationTypeSystemCall   = 2
 
 	OperationTypeKeygenInput = 10
-	OperationTypeSignOutput  = 11
+	OperationTypeInitMPCKey  = 11
+	OperationTypeSignOutput  = 12
 )
 
 func keyAsOperation(k *store.Key) *common.Operation {
