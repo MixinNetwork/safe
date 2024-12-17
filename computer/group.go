@@ -117,6 +117,19 @@ func (node *Node) getActionRole(act byte) byte {
 
 func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	switch req.Action {
+	case OperationTypeKeygenInput, OperationTypeInitMPCKey:
+	default:
+		initialized, err := node.store.CheckMpcKeyInitialized(ctx)
+		if err != nil {
+			panic(err)
+		}
+		if !initialized {
+			logger.Printf("processRequest (%v) => store.CheckMpcKeyInitialized() => %t", req, initialized)
+			return node.failRequest(ctx, req, "")
+		}
+	}
+
+	switch req.Action {
 	case OperationTypeStartProcess:
 		return node.startProcess(ctx, req)
 	case OperationTypeAddUser:
