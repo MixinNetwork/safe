@@ -23,7 +23,8 @@ const (
 
 	OperationTypeKeygenInput = 10
 	OperationTypeInitMPCKey  = 11
-	OperationTypeSignOutput  = 12
+	OperationTypeCreateNonce = 12
+	OperationTypeSignOutput  = 13
 )
 
 func keyAsOperation(k *store.Key) *common.Operation {

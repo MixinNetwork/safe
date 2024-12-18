@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	KeygenRequestTimeKey = "keygen-request-time"
+	KeygenRequestTimeKey       = "keygen-request-time"
+	NonceAccountRequestTimeKey = "nonce-request-time"
 )
 
 type KeygenResult struct {
@@ -145,16 +146,6 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 func (s *SQLite3Store) ReadFirstGeneratedKey(ctx context.Context, operation byte) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
-	// var id string
-	// row := s.db.QueryRowContext(ctx, "",
-	// 	operation, 0)
-	// err := row.Scan(&id)
-	// if err == sql.ErrNoRows {
-	// 	return "", nil
-	// } else if err != nil {
-	// 	return "", err
-	// }
 
 	var public string
 	row := s.db.QueryRowContext(

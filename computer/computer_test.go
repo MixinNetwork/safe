@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -30,6 +31,7 @@ func TestComputer(t *testing.T) {
 	ctx, nodes, _, _ := testPrepare(require)
 
 	testObserverRequestGenerateKeys(ctx, require, nodes)
+	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverRequestInitMpcKey(ctx, require, nodes)
 	testUserRequestAddUsers(ctx, require, nodes)
 }
@@ -50,9 +52,14 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	require.Nil(err)
 	require.Equal(mix.String(), user1.Address)
 	require.Equal(start.String(), user1.UserId)
+	require.NotEqual("", user1.Public)
+	require.NotEqual("", user1.NonceAccount)
 	count, err := node.store.CountSpareKeys(ctx)
 	require.Nil(err)
 	require.Equal(6, count)
+	count, err = node.store.CountSpareNonceAccounts(ctx)
+	require.Nil(err)
+	require.Equal(2, count)
 
 	start = big.NewInt(0).Add(start, big.NewInt(1))
 	id = uuid.Must(uuid.NewV4())
@@ -67,9 +74,52 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	require.Nil(err)
 	require.Equal(mix.String(), user2.Address)
 	require.Equal(start.String(), user2.UserId)
+	require.NotEqual("", user1.Public)
+	require.NotEqual("", user1.NonceAccount)
 	count, err = node.store.CountSpareKeys(ctx)
 	require.Nil(err)
 	require.Equal(5, count)
+	count, err = node.store.CountSpareNonceAccounts(ctx)
+	require.Nil(err)
+	require.Equal(1, count)
+}
+
+func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	node := nodes[0]
+	count, err := node.store.CountSpareNonceAccounts(ctx)
+	require.Nil(err)
+	require.Equal(0, count)
+
+	var addr solana.PublicKey
+	for i := range 4 {
+		address, hash := testGenerateRandNonceAccount(require)
+		if i == 0 {
+			addr = address
+		}
+		extra := address.Bytes()
+		extra = append(extra, hash[:]...)
+
+		id := uuid.Must(uuid.NewV4()).String()
+		out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
+		testStep(ctx, require, node, out)
+		account, err := node.store.ReadNonceAccount(ctx, address.String())
+		require.Nil(err)
+		require.Equal(hash.String(), account.Hash)
+	}
+
+	_, hash := testGenerateRandNonceAccount(require)
+	extra := addr.Bytes()
+	extra = append(extra, hash[:]...)
+	id := uuid.Must(uuid.NewV4()).String()
+	out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
+	testStep(ctx, require, node, out)
+	account, err := node.store.ReadNonceAccount(ctx, addr.String())
+	require.Nil(err)
+	require.Equal(hash.String(), account.Hash)
+
+	count, err = node.store.CountSpareNonceAccounts(ctx)
+	require.Nil(err)
+	require.Equal(4, count)
 }
 
 func testObserverRequestInitMpcKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
@@ -81,8 +131,14 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
 	require.Nil(err)
 	require.NotEqual("", key)
+	account, err := node.store.ReadFirstGeneratedNonceAccount(ctx)
+	require.Nil(err)
+	require.NotEqual("", account)
+	addr, err := solana.PublicKeyFromBase58(account)
+	require.Nil(err)
 	id := common.UniqueId(key, "mpc key init")
 	extra := common.DecodeHexOrPanic(key)
+	extra = append(extra, addr.Bytes()...)
 	out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
 	testStep(ctx, require, node, out)
 
@@ -305,4 +361,12 @@ func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, appId, assetId, 
 	}
 	err := db.WriteAction(ctx, output, mtg.ActionStateDone)
 	return output, err
+}
+
+func testGenerateRandNonceAccount(require *require.Assertions) (solana.PublicKey, solana.Hash) {
+	key1, err := solana.NewRandomPrivateKey()
+	require.Nil(err)
+	key2, err := solana.NewRandomPrivateKey()
+	require.Nil(err)
+	return key1.PublicKey(), solana.HashFromBytes(key2.PublicKey().Bytes())
 }

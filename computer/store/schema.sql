@@ -96,16 +96,27 @@ CREATE INDEX IF NOT EXISTS programs_by_created ON programs(created_at);
 
 
 CREATE TABLE IF NOT EXISTS users (
-  user_id     VARCHAR NOT NULL,
-  request_id  VARCHAR NOT NULL,
-  address     VARCHAR NOT NULL,
-  public      VARCHAR NOT NULL,
-  created_at  TIMESTAMP NOT NULL,
+  user_id        VARCHAR NOT NULL,
+  request_id     VARCHAR NOT NULL,
+  address        VARCHAR NOT NULL,
+  public         VARCHAR NOT NULL,
+  nonce_account  VARCHAR NOT NULL,
+  created_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('user_id')
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_by_address ON users(address);
 CREATE INDEX IF NOT EXISTS users_by_created ON users(created_at);
+
+
+CREATE TABLE IF NOT EXISTS nonce_accounts (
+  address        VARCHAR NOT NULL,
+  hash           VARCHAR NOT NULL,
+  user_id        VARCHAR,
+  created_at     TIMESTAMP NOT NULL,
+  updated_at     TIMESTAMP NOT NULL,
+  PRIMARY KEY ('address')
+);
 
 
 CREATE TABLE IF NOT EXISTS action_results (

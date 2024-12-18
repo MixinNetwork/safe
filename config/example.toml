@@ -165,6 +165,7 @@ saver-key = ""
 mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://kernel.mixin.dev"
 solana-rpc = "https://api.mainnet-beta.solana.com"
+solana-ws-rpc = ""
 # solana private key to sign and send transaction
 solana-key = ""
 solana-deposit-entry = ""

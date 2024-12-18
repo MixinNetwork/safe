@@ -72,6 +72,13 @@ func (node *Node) addUser(ctx context.Context, req *store.Request) ([]*mtg.Trans
 	} else if count == 0 {
 		return node.failRequest(ctx, req, "")
 	}
+	count, err = node.store.CountSpareNonceAccounts(ctx)
+	logger.Printf("store.CountSpareNonceAccounts(%v) => %d %v", req, count, err)
+	if err != nil {
+		panic(fmt.Errorf("store.CountSpareNonceAccounts() => %v", err))
+	} else if count == 0 {
+		return node.failRequest(ctx, req, "")
+	}
 
 	err = node.store.WriteUserWithRequest(ctx, req, mix)
 	if err != nil {
@@ -131,7 +138,14 @@ func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.R
 		return node.failRequest(ctx, req, "")
 	}
 
-	public := hex.EncodeToString(req.ExtraBytes())
+	extra := req.ExtraBytes()
+	if len(extra) != 64 {
+		return node.failRequest(ctx, req, "")
+	}
+	publicKey := extra[:32]
+	nonceAccount := solana.PublicKeyFromBytes(extra[32:])
+
+	public := hex.EncodeToString(publicKey)
 	old, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(public)))
 	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", public, old, err)
 	if err != nil {
@@ -139,7 +153,6 @@ func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.R
 	} else if old == "" {
 		return node.failRequest(ctx, req, "")
 	}
-
 	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
 	logger.Printf("store.ReadFirstGeneratedKey() => %s %v", key, err)
 	if err != nil {
@@ -148,9 +161,53 @@ func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.R
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.WriteSignerUserWithRequest(ctx, req, node.conf.SolanaDepositEntry, key)
+	oldAccount, err := node.store.ReadNonceAccount(ctx, nonceAccount.String())
+	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount.String(), oldAccount, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadKeyByFingerprint() => %v", err))
+	} else if oldAccount == nil || oldAccount.UserId.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+	account, err := node.store.ReadFirstGeneratedNonceAccount(ctx)
+	logger.Printf("store.ReadFirstGeneratedNonceAccount() => %s %v", account, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadFirstGeneratedNonceAccount() => %v", err))
+	} else if account == "" || oldAccount.Address != account {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.WriteSignerUserWithRequest(ctx, req, node.conf.SolanaDepositEntry, key, account)
 	if err != nil {
 		panic(fmt.Errorf("store.WriteSignerUserWithRequest(%v) => %v", req, err))
+	}
+	return nil, ""
+}
+
+func (node *Node) processCreateOrUpdateNonceAccount(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeCreateNonce {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	if len(extra) != 64 {
+		return node.failRequest(ctx, req, "")
+	}
+	address := solana.PublicKeyFromBytes(extra[0:32]).String()
+	hash := solana.HashFromBytes(extra[32:]).String()
+
+	old, err := node.store.ReadNonceAccount(ctx, address)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadNonceAccount(%s) => %v", address, err))
+	} else if old != nil && old.Hash == hash {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.WriteOrUpdateNonceAccount(ctx, req, address, hash)
+	if err != nil {
+		panic(fmt.Errorf("store.WriteOrUpdateNonceAccount(%v %s %s) => %v", req, address, hash, err))
 	}
 	return nil, ""
 }

@@ -91,15 +91,17 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 func (node *Node) getActionRole(act byte) byte {
 	switch act {
 	case OperationTypeStartProcess:
-		return common.RequestRoleHolder
+		return RequestRoleUser
 	case OperationTypeAddUser:
-		return common.RequestRoleHolder
+		return RequestRoleUser
 	case OperationTypeSystemCall:
-		return common.RequestRoleHolder
+		return RequestRoleUser
 	case OperationTypeKeygenInput:
-		return common.RequestRoleObserver
+		return RequestRoleObserver
 	case OperationTypeInitMPCKey:
-		return common.RequestRoleObserver
+		return RequestRoleObserver
+	case OperationTypeCreateNonce:
+		return RequestRoleObserver
 	// case common.OperationTypeKeygenOutput:
 	// 	return common.RequestRoleSigner
 	// case common.OperationTypeSignOutput:
@@ -117,7 +119,7 @@ func (node *Node) getActionRole(act byte) byte {
 
 func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	switch req.Action {
-	case OperationTypeKeygenInput, OperationTypeInitMPCKey:
+	case OperationTypeKeygenInput, OperationTypeInitMPCKey, OperationTypeCreateNonce:
 	default:
 		initialized, err := node.store.CheckMpcKeyInitialized(ctx)
 		if err != nil {
@@ -138,6 +140,9 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSignerKeygenRequests(ctx, req)
 	case OperationTypeInitMPCKey:
 		return node.processSignerKeyInitRequests(ctx, req)
+	case OperationTypeCreateNonce:
+		return node.processCreateOrUpdateNonceAccount(ctx, req)
+
 	// case common.OperationTypeKeygenOutput:
 	// 	return node.processKeyAdd(ctx, req)
 	// case common.OperationTypeSignOutput:
