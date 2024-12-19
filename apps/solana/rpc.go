@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
 	lookup "github.com/gagliardetto/solana-go/programs/address-lookup-table"
+	"github.com/gagliardetto/solana-go/programs/system"
+	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
@@ -62,6 +65,17 @@ func (c *Client) RPCGetBlock(ctx context.Context, slot uint64) (*rpc.GetBlockRes
 		return nil, err
 	}
 	return block, nil
+}
+
+func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+	result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
+	if err != nil {
+		if err.Error() == "not found" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
+	}
+	return result, nil
 }
 
 func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
@@ -134,14 +148,32 @@ func (c *Client) processTransactionWithAddressLookups(ctx context.Context, txx *
 }
 
 func (c *Client) GetNonceAccountHash(ctx context.Context, nonce solana.PublicKey) (*solana.Hash, error) {
-	result, err := c.GetRPCClient().GetAccountInfo(ctx, nonce)
+	account, err := c.RPCGetAccount(ctx, nonce)
 	if err != nil {
 		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
 	}
-	data := result.Value.Data.GetBinary()
-	if len(data) < 4+4+32+32 {
-		return nil, fmt.Errorf("invalid nonce account data: %x", data)
+	if account == nil {
+		return nil, nil
 	}
-	hash := solana.HashFromBytes(data[40:72])
+	var nonceAccountData system.NonceAccount
+	if err := bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData); err != nil {
+		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+	}
+	hash := (solana.Hash)(nonceAccountData.Nonce)
 	return &hash, nil
+}
+
+func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Mint, error) {
+	account, err := c.RPCGetAccount(ctx, mint)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetMint() => %v", err)
+	}
+	if account == nil {
+		return nil, nil
+	}
+	var token token.Mint
+	if err := bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token); err != nil {
+		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+	}
+	return &token, nil
 }
