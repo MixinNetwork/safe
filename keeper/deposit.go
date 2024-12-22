@@ -263,8 +263,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 }
 
 func (node *Node) doSolanaHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset) ([]*mtg.Transaction, string) {
-	_, chainId := node.solanaParams()
-	if asset.AssetId == chainId && asset.Decimals != solana.NativeTokenDecimals {
+	if asset.AssetId == common.SafeSolanaChainId && asset.Decimals != solana.NativeTokenDecimals {
 		panic(asset.Decimals)
 	}
 
@@ -326,7 +325,7 @@ func (node *Node) verifySolanaTransaction(ctx context.Context, req *common.Reque
 	}
 
 	// 验证交易
-	client, _ := node.solanaParams()
+	client := node.solanaClient()
 	t, stx, err := client.VerifyDeposit(ctx, deposit.Hash, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
 	if err != nil || t == nil {
 		return nil, fmt.Errorf("malicious solana deposit or node not in sync? %s %v", deposit.Hash, err)

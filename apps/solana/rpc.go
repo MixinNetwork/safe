@@ -13,6 +13,7 @@ import (
 func NewClient(rpcEndpoint, wsEndpoint string) *Client {
 	return &Client{
 		rpcEndpoint: rpcEndpoint,
+		rpcClient:   rpc.New(rpcEndpoint),
 		wsEndpoint:  wsEndpoint,
 	}
 }
@@ -25,9 +26,6 @@ type Client struct {
 }
 
 func (c *Client) getRPCClient() *rpc.Client {
-	if c.rpcClient == nil {
-		c.rpcClient = rpc.New(c.rpcEndpoint)
-	}
 	return c.rpcClient
 }
 

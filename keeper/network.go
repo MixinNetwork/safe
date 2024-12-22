@@ -201,7 +201,7 @@ func (node *Node) verifySolanaNetworkInfo(info, old *store.NetworkInfo) (bool, e
 		}
 	} else {
 		// info.Height is the slot number
-		client, _ := node.solanaParams()
+		client := node.solanaClient()
 		block, err := client.RPCGetBlock(context.TODO(), info.Height)
 		if err != nil || block == nil {
 			return false, fmt.Errorf("malicious solana block or node not in sync? %s %v", info.Hash, err)
@@ -264,7 +264,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrNetwork(ctx context.Context, id, 
 		}
 		return asset, node.store.WriteAssetMeta(ctx, asset)
 	case common.SafeChainSolana:
-		client, _ := node.solanaParams()
+		client := node.solanaClient()
 		token, err := client.RPCGetAsset(ctx, assetContract)
 		if err != nil {
 			return nil, err

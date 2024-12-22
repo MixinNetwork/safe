@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DefaultAuthorityIndex = 1
+	DefaultAuthorityIndex uint32 = 1
 )
 
 func GetAuthorityPDA(ms solana.PublicKey, index uint32) solana.PublicKey {
@@ -40,6 +40,41 @@ func GetMultisigPDA(createKey solana.PublicKey) solana.PublicKey {
 			[]byte("squad"),
 			createKey.Bytes(),
 			[]byte("multisig"),
+		},
+		squads_mpl.ProgramID,
+	)
+	if err != nil {
+		panic(err)
+	}
+	return address
+}
+
+func GetTransactionPDA(ms solana.PublicKey, nonce uint32) solana.PublicKey {
+	nonceBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(nonceBytes, nonce)
+
+	address, _, err := solana.FindProgramAddress(
+		[][]byte{
+			[]byte("squad"),
+			ms.Bytes(),
+			nonceBytes,
+			[]byte("transaction"),
+		},
+		squads_mpl.ProgramID,
+	)
+	if err != nil {
+		panic(err)
+	}
+	return address
+}
+
+func GetInstructionPDA(txPda solana.PublicKey, index uint8) solana.PublicKey {
+	address, _, err := solana.FindProgramAddress(
+		[][]byte{
+			[]byte("squad"),
+			txPda.Bytes(),
+			{index},
+			[]byte("instruction"),
 		},
 		squads_mpl.ProgramID,
 	)

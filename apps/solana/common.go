@@ -20,6 +20,10 @@ import (
 const (
 	ChainSolana = 7
 
+	AssetChainSystem    byte = 0
+	AssetChainToken     byte = 1
+	AssetChainToken2022 byte = 2
+
 	SolanaMixinChainId         = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 	SolanaEmptyAddress         = "11111111111111111111111111111111"
 	NativeTokenDecimals uint32 = 9

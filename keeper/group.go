@@ -218,7 +218,7 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 	case common.ActionSolanaSafeApproveTransaction:
 		return node.processSolanaSafeApproveTransaction(ctx, req)
 	case common.ActionSolanaSafeRevokeTransaction:
-		return node.processSolanaSafeRevokeTransaction(ctx, req)
+		return node.processSafeRevokeTransaction(ctx, req)
 	case common.ActionSolanaSafeCloseAccount:
 		return node.processSolanaSafeCloseAccount(ctx, req)
 	default:

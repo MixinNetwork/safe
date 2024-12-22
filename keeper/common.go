@@ -31,6 +31,10 @@ func ethereumDefaultDerivationPath() []byte {
 	return []byte{0, 0, 0, 0}
 }
 
+func solanaDefaultDerivationPath() string {
+	return "m/44'/501'/0'/0'"
+}
+
 func (node *Node) failRequest(ctx context.Context, req *common.Request, assetId string) ([]*mtg.Transaction, string) {
 	logger.Printf("node.failRequest(%v, %s)", req, assetId)
 	err := node.store.FailRequest(ctx, req, assetId, nil)

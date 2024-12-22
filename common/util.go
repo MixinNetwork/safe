@@ -7,6 +7,7 @@ import (
 	"encoding"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
@@ -60,8 +61,8 @@ func CheckTestEnvironment(ctx context.Context) bool {
 	return mtg.CheckTestEnvironment(ctx)
 }
 
-func CheckUnique(args ...any) bool {
-	filter := make(map[any]struct{})
+func CheckUnique[T comparable](args ...T) bool {
+	filter := make(map[T]struct{}, len(args))
 	for _, k := range args {
 		filter[k] = struct{}{}
 	}
@@ -97,4 +98,16 @@ func CheckTransactionRetryError(err string) bool {
 		return true
 	}
 	return false
+}
+
+func Must[T any](v T, err error) T {
+	if err != nil {
+		panic(fmt.Errorf("must: %w", err))
+	}
+
+	return v
+}
+
+func Try[T any](v T, err error) T {
+	return v
 }

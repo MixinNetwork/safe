@@ -12,7 +12,7 @@ import (
 )
 
 type Asset struct {
-	AssetId   string
+	AssetId   string // safe asset id
 	MixinId   string
 	AssetKey  string
 	Symbol    string

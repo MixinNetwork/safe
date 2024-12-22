@@ -3,16 +3,19 @@ package solana
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/big"
+	"slices"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/safe/apps/solana/squads_mpl"
-	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
 	ata "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	token "github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	confirm "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
+	"github.com/gofrs/uuid/v5"
 )
 
 type Output struct {
@@ -142,84 +145,266 @@ func ExtractOutputs(tx *solana.Transaction) []*Output {
 	return outputs
 }
 
-func (c *Client) BuildSquadsSafe(ctx context.Context, holder, signer, observer solana.PublicKey, payer solana.PrivateKey) (*squads_mpl.Ms, *solana.Transaction, error) {
-	ms := &squads_mpl.Ms{
-		Threshold: 2,
-		CreateKey: holder,
-		Keys:      []solana.PublicKey{holder, signer, observer},
-	}
+type BuildSquadsSafeParams struct {
+	Members   []solana.PublicKey
+	Creator   solana.PublicKey
+	Nonce     solana.PublicKey
+	BlockHash solana.Hash
+	Payer     solana.PublicKey
+	Threshold uint16
+}
 
-	inst := squads_mpl.NewCreateInstruction(
-		2,
-		holder,
-		ms.Keys,
-		"",
-		GetMultisigPDA(holder),
-		holder,
-		system.ProgramID,
-	).Build()
-
-	tx, err := c.useNonceAccountAsBlockhash(ctx, []solana.Instruction{inst}, payer)
+func BuildSquadsSafe(params BuildSquadsSafeParams) *solana.Transaction {
+	tx, err := solana.NewTransaction(
+		[]solana.Instruction{
+			system.NewAdvanceNonceAccountInstruction(
+				params.Nonce,
+				solana.SysVarRecentBlockHashesPubkey,
+				params.Payer,
+			).Build(),
+			squads_mpl.NewCreateInstruction(
+				params.Threshold,
+				params.Creator,
+				params.Members,
+				"",
+				GetMultisigPDA(params.Creator),
+				params.Creator,
+				system.ProgramID,
+			).Build(),
+		},
+		params.BlockHash,
+		solana.TransactionPayer(params.Payer),
+	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("solana.useNonceAccountAsBlockhash() => %v", err)
+		panic(fmt.Errorf("solana.NewTransaction() => %v", err))
 	}
 
-	// 这个阶段的 tx 只缺少 holder 的签名
-	return ms, tx, nil
+	return tx
+}
+
+type TransactionRequest struct {
+	Flag         uint8
+	RequestID    uuid.UUID
+	NonceAccount solana.PublicKey
+	BlockHash    solana.Hash
+	PayerAccount solana.PublicKey
+
+	// extra is the extra data for the transaction
+	// 1. transaction reference to a storage transaction
+	// 2. destination address
+	Extra [32]byte
+}
+
+func DecodeTransactionRequest(b []byte) (*TransactionRequest, error) {
+	var (
+		dec = common.NewDecoder(b)
+		req TransactionRequest
+	)
+
+	if b, err := dec.ReadByte(); err != nil {
+		return nil, err
+	} else {
+		req.Flag = b
+	}
+
+	if err := dec.Read(req.RequestID[:]); err != nil {
+		return nil, err
+	}
+
+	if err := dec.Read(req.NonceAccount[:]); err != nil {
+		return nil, err
+	}
+
+	if err := dec.Read(req.BlockHash[:]); err != nil {
+		return nil, err
+	}
+
+	if err := dec.Read(req.PayerAccount[:]); err != nil {
+		return nil, err
+	}
+
+	if err := dec.Read(req.Extra[:]); err != nil {
+		return nil, err
+	}
+
+	// it should be io.EOF
+	if _, err := dec.ReadByte(); err != io.EOF {
+		return nil, fmt.Errorf("invalid transaction request length")
+	}
+
+	return &req, nil
+}
+
+// CreateTransactionFromOutputs creates a transaction from outputs
+// `creator` is the creator of the multisig & the transaction, used to be the holder of the safe
+func CreateTransactionFromOutputs(req *TransactionRequest, outputs []*Output, voters []solana.PublicKey, creator solana.PublicKey, nonce uint32) (*solana.Transaction, error) {
+	instructions := []solana.Instruction{
+		system.NewAdvanceNonceAccountInstruction(
+			req.NonceAccount,
+			solana.SysVarRecentBlockHashesPubkey,
+			req.PayerAccount,
+		).Build(),
+	}
+
+	msPda := GetMultisigPDA(creator)
+	authorityPad := GetDefaultAuthorityPDA(msPda)
+	txPda := GetTransactionPDA(msPda, nonce)
+
+	// 1. create transaction
+	instructions = append(instructions, squads_mpl.NewCreateTransactionInstruction(
+		DefaultAuthorityIndex,
+		msPda,
+		txPda,
+		creator,
+		system.ProgramID,
+	).Build())
+
+	// 2. add transfer instructions
+	var (
+		innerInstructions []solana.Instruction
+		tokenAccounts     = make(map[solana.PublicKey]struct{})
+	)
+
+	for _, output := range outputs {
+		// native solana
+		if output.TokenAddress == SolanaEmptyAddress {
+			innerInstructions = append(innerInstructions, system.NewTransferInstruction(
+				output.Amount.Uint64(),
+				authorityPad,
+				solana.MPK(output.Destination),
+			).Build())
+
+			continue
+		}
+
+		mint := solana.MPK(output.TokenAddress)
+		source, _, err := solana.FindAssociatedTokenAddress(authorityPad, mint)
+		if err != nil {
+			return nil, fmt.Errorf("solana.FindAssociatedTokenAddress() => %v", err)
+		}
+
+		destination, _, err := solana.FindAssociatedTokenAddress(solana.MPK(output.Destination), mint)
+		if err != nil {
+			return nil, fmt.Errorf("solana.FindAssociatedTokenAddress() => %v", err)
+		}
+
+		innerInstructions = append(innerInstructions, token.NewTransferInstruction(
+			output.Amount.Uint64(),
+			source,
+			destination,
+			authorityPad,
+			nil,
+		).Build())
+
+		if _, ok := tokenAccounts[destination]; !ok {
+			inst := ata.NewCreateInstruction(req.PayerAccount, solana.MPK(output.Destination), mint).Build()
+			// createIdempotent
+			instructions = append(instructions, solana.NewInstruction(inst.ProgramID(), inst.Accounts(), []byte{1}))
+			tokenAccounts[destination] = struct{}{}
+		}
+	}
+
+	var ixKeysList solana.AccountMetaSlice
+
+	for idx, inner := range innerInstructions {
+		if idx > 255 {
+			return nil, fmt.Errorf("too many instructions")
+		}
+
+		data, err := inner.Data()
+		if err != nil {
+			return nil, fmt.Errorf("solana.Instruction.Data() => %v", err)
+		}
+
+		ixKey := GetInstructionPDA(txPda, uint8(idx+1))
+		ixKeysList.Append(solana.Meta(ixKey))
+		ixKeysList.Append(solana.Meta(inner.ProgramID()))
+
+		var keys []squads_mpl.MsAccountMeta
+		for _, account := range inner.Accounts() {
+			keys = append(keys, squads_mpl.MsAccountMeta{
+				Pubkey:     account.PublicKey,
+				IsSigner:   account.IsSigner,
+				IsWritable: account.IsWritable,
+			})
+
+			ixKeysList.Append(account)
+		}
+
+		instructions = append(instructions, squads_mpl.NewAddInstructionInstruction(
+			squads_mpl.IncomingInstruction{
+				ProgramId: inner.ProgramID(),
+				Keys:      keys,
+				Data:      data,
+			},
+			msPda,
+			txPda,
+			ixKey,
+			creator,
+			system.ProgramID,
+		).Build())
+	}
+
+	// active transaction
+	instructions = append(instructions, squads_mpl.NewActivateTransactionInstruction(
+		msPda,
+		txPda,
+		creator,
+	).Build())
+
+	// vote
+	for _, voter := range voters {
+		instructions = append(instructions, squads_mpl.NewApproveTransactionInstruction(
+			msPda,
+			txPda,
+			voter,
+		).Build())
+	}
+
+	var (
+		keysUnique  solana.AccountMetaSlice
+		keyIndexMap = make([]byte, len(ixKeysList))
+	)
+
+	for idx, key := range ixKeysList {
+		p := slices.IndexFunc(keysUnique, func(k *solana.AccountMeta) bool {
+			return k.PublicKey.Equals(key.PublicKey) && k.IsWritable == key.IsWritable
+		})
+
+		if p < 0 {
+			keysUnique.Append(key)
+			p = len(keysUnique) - 1
+		}
+
+		if p > 255 {
+			return nil, fmt.Errorf("too many unique keys")
+		}
+
+		keyIndexMap[idx] = byte(p)
+	}
+
+	// execute
+	executeIxBuilder := squads_mpl.NewExecuteTransactionInstruction(keyIndexMap, msPda, txPda, creator)
+	for _, key := range keysUnique {
+		executeIxBuilder.Append(key)
+	}
+
+	instructions = append(instructions, executeIxBuilder.Build())
+	return solana.NewTransaction(instructions, req.BlockHash, solana.TransactionPayer(req.PayerAccount))
 }
 
 const nonceAccountSize uint64 = 80
 
-func (c *Client) useNonceAccountAsBlockhash(ctx context.Context, instructions []solana.Instruction, payer solana.PrivateKey) (*solana.Transaction, error) {
-	nonceKey := solana.NewWallet()
-	nonceAccount, err := c.createNonceAccount(ctx, nonceKey.PrivateKey, payer)
-	if err != nil {
-		return nil, fmt.Errorf("solana.createNonceAccount() => %v", err)
+func (c *Client) ReadNonceAccount(ctx context.Context, nonceKey solana.PublicKey) (*system.NonceAccount, error) {
+	client := c.getRPCClient()
+	var account system.NonceAccount
+	if err := client.GetAccountDataInto(ctx, nonceKey, &account); err != nil {
+		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
 	}
-
-	var nonceAccountData system.NonceAccount
-	if err := bin.NewBinDecoder(nonceAccount.Data.GetBinary()).Decode(&nonceAccountData); err != nil {
-		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
-	}
-
-	b := solana.NewTransactionBuilder()
-	b.SetRecentBlockHash(solana.Hash(nonceAccountData.Nonce))
-	b.SetFeePayer(payer.PublicKey())
-
-	// advance nonce account
-	b.AddInstruction(system.NewAdvanceNonceAccountInstruction(
-		nonceKey.PublicKey(),
-		solana.SysVarRecentBlockHashesPubkey,
-		payer.PublicKey(),
-	).Build())
-
-	for _, inst := range instructions {
-		b.AddInstruction(inst)
-	}
-
-	// withdraw nonce account
-	b.AddInstruction(system.NewWithdrawNonceAccountInstruction(
-		nonceAccount.Lamports,
-		nonceKey.PublicKey(),
-		payer.PublicKey(),
-		solana.SysVarRecentBlockHashesPubkey,
-		solana.SysVarRentPubkey,
-		payer.PublicKey(),
-	).Build())
-
-	tx, err := b.Build()
-	if err != nil {
-		panic(err)
-	}
-
-	if _, err := tx.PartialSign(buildSignersGetter(payer)); err != nil {
-		panic(err)
-	}
-
-	return tx, nil
+	return &account, nil
 }
 
-func (c *Client) createNonceAccount(ctx context.Context, nonceKey, payer solana.PrivateKey) (*rpc.Account, error) {
+func (c *Client) CreateNonceAccount(ctx context.Context, nonceKey, payer solana.PrivateKey) (*system.NonceAccount, error) {
 	client := c.getRPCClient()
 	blockhash, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
@@ -261,7 +446,7 @@ func (c *Client) createNonceAccount(ctx context.Context, nonceKey, payer solana.
 		panic(err)
 	}
 
-	if _, err := tx.Sign(buildSignersGetter(nonceKey, payer)); err != nil {
+	if err := Sign(tx, nonceKey, payer); err != nil {
 		panic(err)
 	}
 
@@ -276,21 +461,87 @@ func (c *Client) createNonceAccount(ctx context.Context, nonceKey, payer solana.
 		return nil, fmt.Errorf("solana.SendAndConfirmTransaction() => %v", err)
 	}
 
-	result, err := client.GetAccountInfo(ctx, nonceKey.PublicKey())
-	if err != nil {
-		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
-	}
-
-	return result.Value, nil
+	return c.ReadNonceAccount(ctx, nonceKey.PublicKey())
 }
 
-func buildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *solana.PrivateKey {
+func Sign(tx *solana.Transaction, keys ...solana.PrivateKey) error {
 	mapKeys := make(map[solana.PublicKey]*solana.PrivateKey)
 	for _, k := range keys {
 		mapKeys[k.PublicKey()] = &k
 	}
 
-	return func(key solana.PublicKey) *solana.PrivateKey {
+	_, err := tx.PartialSign(func(key solana.PublicKey) *solana.PrivateKey {
 		return mapKeys[key]
+	})
+	return err
+}
+
+// AddSignature add new signature to the transaction
+func AddSignature(tx *solana.Transaction, pub solana.PublicKey, signature solana.Signature) error {
+	content, err := tx.Message.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("solana.Transaction.Message.MarshalBinary() => %v", err)
 	}
+
+	if !pub.Verify(content, signature) {
+		return fmt.Errorf("signature verification failed")
+	}
+
+	numRequiredSignatures := int(tx.Message.Header.NumRequiredSignatures)
+	if len(tx.Signatures) == 0 {
+		tx.Signatures = make([]solana.Signature, numRequiredSignatures)
+	} else if len(tx.Signatures) != numRequiredSignatures {
+		return fmt.Errorf("invalid signatures length, expected %d, actual %d", numRequiredSignatures, len(tx.Signatures))
+	}
+
+	idx := slices.Index(tx.Message.AccountKeys, pub)
+	if idx < 0 || idx >= numRequiredSignatures {
+		return fmt.Errorf("signature index out of range")
+	}
+
+	tx.Signatures[idx] = signature
+	return nil
+}
+
+func GetAuthorityAddressFromCreateTx(tx *solana.Transaction) solana.PublicKey {
+	for _, ix := range tx.Message.Instructions {
+		program, _ := tx.Message.Program(ix.ProgramIDIndex)
+		if program != squads_mpl.ProgramID {
+			continue
+		}
+
+		accounts, err := ix.ResolveInstructionAccounts(&tx.Message)
+		if err != nil {
+			continue
+		}
+
+		inst, err := squads_mpl.DecodeInstruction(accounts, ix.Data)
+		if err != nil {
+			continue
+		}
+
+		create, ok := inst.Impl.(*squads_mpl.Create)
+		if !ok {
+			continue
+		}
+
+		return GetDefaultAuthorityPDA(create.GetMultisigAccount().PublicKey)
+	}
+
+	return solana.PublicKey{}
+}
+
+func CheckTransactionSignedBy(tx *solana.Transaction, pub solana.PublicKey) bool {
+	content, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, sig := range tx.Signatures {
+		if pub.Verify(content, sig) {
+			return true
+		}
+	}
+
+	return false
 }

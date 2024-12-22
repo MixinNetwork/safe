@@ -670,7 +670,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			return node.failRequest(ctx, req, "")
 		}
 		balances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
-		logger.Printf("store.ReadAllEthereumTokenBalances(%s) => %v %v", safe.Address, balances, err)
+		logger.Printf("store.ReadAllEthereumTokenBalances(%s) => %v ， m%v", safe.Address, balances, err)
 		if err != nil {
 			panic(err)
 		}

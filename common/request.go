@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	sg "github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -100,7 +101,16 @@ type AccountProposal struct {
 	Receivers []string
 	Threshold byte
 	Timelock  time.Duration
-	Observer  string
+	Observer  string // preferred observer key, optional
+
+	// NonceAccount is the account to be used as nonce for the create safe transaction, solana only
+	NonceAccount sg.PublicKey
+
+	// BlockHash is the block hash of the create safe transaction, solana only
+	BlockHash sg.Hash
+
+	// PayerAccount is the account to be used as payer for the create safe transaction, solana only
+	PayerAccount sg.PublicKey
 }
 
 func (req *Request) Operation() *Operation {
@@ -161,7 +171,10 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		return nil, err
 	}
 	timelock := time.Duration(hours) * time.Hour
-	if timelock < bitcoin.TimeLockMinimum || timelock > bitcoin.TimeLockMaximum {
+
+	if req.Action == ActionSolanaSafeProposeAccount && timelock != 0 {
+		return nil, fmt.Errorf("solana timelock must be 0")
+	} else if timelock < bitcoin.TimeLockMinimum || timelock > bitcoin.TimeLockMaximum {
 		return nil, fmt.Errorf("timelock %d hours", hours)
 	}
 
@@ -189,25 +202,44 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		Receivers: receivers,
 		Threshold: threshold,
 	}
+
 	offset := 2 + 1 + 1 + int(total)*16
-	if offset == len(extra) {
-		return arp, nil
+
+	// read nonce account & payer account for solana
+	if req.Action == ActionSolanaSafeProposeAccount {
+		if err := dec.Read(arp.NonceAccount[:]); err != nil {
+			return nil, err
+		}
+
+		if err := dec.Read(arp.BlockHash[:]); err != nil {
+			return nil, err
+		}
+
+		if err := dec.Read(arp.PayerAccount[:]); err != nil {
+			return nil, err
+		}
+
+		offset += sg.PublicKeyLength * 3
 	}
 
-	if len(extra) != offset+33 {
-		return nil, fmt.Errorf("extra size %x %v", extra, arp)
-	}
-	arp.Observer = hex.EncodeToString(extra[offset:])
-	switch req.Action {
-	case ActionBitcoinSafeProposeAccount:
-		err = bitcoin.VerifyHolderKey(arp.Observer)
-	case ActionEthereumSafeProposeAccount:
-		err = ethereum.VerifyHolderKey(arp.Observer)
-	case ActionSolanaSafeProposeAccount:
-		err = solana.VerifyHolderKey(arp.Observer)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
+	if observerBytes := extra[offset:]; len(observerBytes) > 0 {
+		switch req.Action {
+		case ActionBitcoinSafeProposeAccount:
+			arp.Observer = hex.EncodeToString(observerBytes)
+			err = bitcoin.VerifyHolderKey(arp.Observer)
+		case ActionEthereumSafeProposeAccount:
+			arp.Observer = hex.EncodeToString(observerBytes)
+			err = ethereum.VerifyHolderKey(arp.Observer)
+		case ActionSolanaSafeProposeAccount:
+			if len(observerBytes) != sg.PublicKeyLength {
+				return nil, fmt.Errorf("invalid observer length %d", len(observerBytes))
+			}
+
+			arp.Observer = sg.PublicKeyFromBytes(observerBytes).String()
+		}
+		if err != nil {
+			return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
+		}
 	}
 
 	us, err := ReadUsers(ctx, client, arp.Receivers)
