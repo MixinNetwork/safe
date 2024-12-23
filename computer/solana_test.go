@@ -62,18 +62,21 @@ func TestComputerSolana(t *testing.T) {
 	}
 	transfers := []solanaApp.TokenTransfers{
 		{
-			IsSol:       true,
+			SolanaAsset: true,
 			Amount:      10000000,
 			Destination: user.PublicKey(),
 		},
 		{
-			Mint:        mint,
+			Mint:        mint.PublicKey(),
 			Amount:      10000000,
 			Destination: user.PublicKey(),
 			Decimals:    8,
 		},
 	}
-	tx, err = rpcClient.TransferTokens(ctx, testPayerPrivKey, testMtgPrivKey, nonce, transfers)
+	tx, mints, err := rpcClient.TransferTokens(ctx, testPayerPrivKey, testMtgPrivKey, nonce, transfers)
+	require.Nil(err)
+	require.Len(mints, 1)
+	_, err = tx.Sign(solanaApp.BuildSignersGetter([]solana.PrivateKey{payer, mtg, mint}...))
 	require.Nil(err)
 	require.Equal(
 		"AwAFC83FbI0IejAbIRRLKrXhKGtQpdlB7gL2JIjbAwi5Q9LWh+mBbeScWnn/TP5dr0xFz7V2EwYACKukUWzjrDD6k9RkLLxwGoFACZKqiUySwUhPyCGVNzc8O4yjc3M7XUcMbrrUr3mVJkS9gIgbOTSz4nitL07uo2FOHEKDUNkF6sTsN2b4E5F03p01h6e5Eo461IsTij6ElObZW4qVdaayYWQJxEz9jCArEmdI/aeLBT2ByII/+LALSw2bXMmDOWEsHAan1RcZLFaO4IqEX3PSl4jPA1wxRbIas0TYBi6pQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQan1RcZLFxRIYzJTD1K8X9Y2u4Im6H9ROPb2YoAAAAAjJclj04kifG7PRApFI4NgwtaE5na/xCEBI572Nvp+Fnt4V4o90OzKUDLSaoj1tCx8aTOnuRwGYtkr4MfIunrSwYHAwMGAAQEAAAABwIBBAwCAAAAgJaYAAAAAAAHAgACNAAAAABgTRYAAAAAAFIAAAAAAAAABt324ddloZPZy+FGzut5rBy0he1fWzeROoz1hX7/AKkIAQJDFAiH6YFt5Jxaef9M/l2vTEXPtXYTBgAIq6RRbOOsMPqT1AEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoHAAUEAgcICQAIAwIFAQkHgJaYAAAAAAA=",

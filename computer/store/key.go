@@ -108,6 +108,21 @@ func (s *SQLite3Store) CountSpareKeys(ctx context.Context) (int, error) {
 	return count, err
 }
 
+func (s *SQLite3Store) GetSpareKey(ctx context.Context) (*Key, error) {
+	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at"}
+	query := fmt.Sprintf("SELECT %s FROM keys WHERE user_id IS NULL ORDER BY created_at LIMIT 1", strings.Join(cols, ","))
+	row := s.db.QueryRowContext(ctx, query)
+
+	var k Key
+	err := row.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return &k, nil
+}
+
 func (s *SQLite3Store) MarkKeyBackuped(ctx context.Context, public string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

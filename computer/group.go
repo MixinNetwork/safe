@@ -132,23 +132,14 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	switch req.Action {
 	case OperationTypeAddUser:
 		return node.addUser(ctx, req)
+	case OperationTypeSystemCall:
+		return node.systemCall(ctx, req)
 	case OperationTypeKeygenInput:
 		return node.processSignerKeygenRequests(ctx, req)
 	case OperationTypeInitMPCKey:
 		return node.processSignerKeyInitRequests(ctx, req)
 	case OperationTypeCreateNonce:
 		return node.processCreateOrUpdateNonceAccount(ctx, req)
-
-	// case common.OperationTypeKeygenOutput:
-	// 	return node.processKeyAdd(ctx, req)
-	// case common.OperationTypeSignOutput:
-	// 	return node.processSignerSignatureResponse(ctx, req)
-	// case common.ActionTerminate:
-	// 	return node.Terminate(ctx)
-	// case common.ActionObserverAddKey:
-	// 	return node.processKeyAdd(ctx, req)
-	// case common.ActionObserverRequestSignerKeys:
-	// 	return node.processSignerKeygenRequests(ctx, req)
 	default:
 		panic(req.Action)
 	}

@@ -3,6 +3,7 @@ package solana
 import (
 	"fmt"
 
+	"github.com/MixinNetwork/safe/common"
 	solana "github.com/gagliardetto/solana-go"
 )
 
@@ -20,4 +21,8 @@ func VerifyMessageSignature(public string, msg, signature []byte) error {
 	}
 
 	return fmt.Errorf("solana.VerifyMessageSignature(%s, %x, %x)", public, msg, signature)
+}
+
+func PublicKeyFromEd25519Public(pub string) solana.PublicKey {
+	return solana.PublicKeyFromBytes(common.DecodeHexOrPanic(pub))
 }

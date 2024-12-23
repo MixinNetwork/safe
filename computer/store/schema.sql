@@ -83,18 +83,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS requests_by_mixin_hash_index ON requests(mixin
 CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_at);
 
 
-CREATE TABLE IF NOT EXISTS programs (
-  program_id  VARCHAR NOT NULL,
-  request_id  VARCHAR NOT NULL,
-  address     VARCHAR NOT NULL,
-  created_at  TIMESTAMP NOT NULL,
-  PRIMARY KEY ('program_id')
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS programs_by_address ON programs(address);
-CREATE INDEX IF NOT EXISTS programs_by_created ON programs(created_at);
-
-
 CREATE TABLE IF NOT EXISTS users (
   user_id        VARCHAR NOT NULL,
   request_id     VARCHAR NOT NULL,
@@ -107,6 +95,36 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_by_address ON users(address);
 CREATE INDEX IF NOT EXISTS users_by_created ON users(created_at);
+
+
+CREATE TABLE IF NOT EXISTS system_calls (
+  request_id     VARCHAR NOT NULL,
+  user_id        VARCHAR NOT NULL,
+  raw            TEXT NOT NULL,
+  state          INTEGER NOT NULL,
+  created_at     TIMESTAMP NOT NULL,
+  updated_at     TIMESTAMP NOT NULL,
+  PRIMARY KEY ('request_id')
+);
+
+CREATE INDEX IF NOT EXISTS calls_by_user ON system_calls(user_id);
+CREATE INDEX IF NOT EXISTS calls_by_state ON system_calls(state);
+
+
+CREATE TABLE IF NOT EXISTS sub_calls (
+  message        VARCHAR NOT NULL,
+  request_id     VARCHAR NOT NULL,
+  user_id        VARCHAR NOT NULL,
+  mints          VARCHAR NOT NULL,
+  raw            TEXT NOT NULL,
+  state          INTEGER NOT NULL,
+  created_at     TIMESTAMP NOT NULL,
+  updated_at     TIMESTAMP NOT NULL,
+  PRIMARY KEY ('message')
+);
+
+CREATE INDEX IF NOT EXISTS sub_calls_by_request ON sub_calls(request_id);
+CREATE INDEX IF NOT EXISTS sub_calls_by_user ON sub_calls(user_id);
 
 
 CREATE TABLE IF NOT EXISTS nonce_accounts (

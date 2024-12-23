@@ -2,48 +2,25 @@ package computer
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/shopspring/decimal"
 )
 
 const (
 	SignerKeygenMaximum = 128
 )
-
-func (node *Node) startProcess(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleUser {
-		panic(req.Role)
-	}
-
-	ab := req.ExtraBytes()
-	if len(ab) != 32 {
-		logger.Printf("startProcess(%v) => invalid program address bytes length %d", req.Id, len(ab))
-		return node.failRequest(ctx, req, "")
-	}
-
-	address := solana.PublicKeyFromBytes(ab).String()
-	old, err := node.store.ReadProgramByAddress(ctx, address)
-	logger.Printf("store.ReadProgramByAddress(%s) => %v %v", address, old, err)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadProgramByAddress(%s) => %v", address, err))
-	} else if old != nil {
-		return node.failRequest(ctx, req, "")
-	}
-
-	err = node.store.WriteProgramWithRequest(ctx, req, address)
-	if err != nil {
-		panic(fmt.Errorf("store.WriteProgramWithRequest(%v %s) => %v", req, address, err))
-	}
-	return nil, ""
-}
 
 func (node *Node) addUser(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
@@ -85,6 +62,141 @@ func (node *Node) addUser(ctx context.Context, req *store.Request) ([]*mtg.Trans
 		panic(fmt.Errorf("store.WriteUserWithRequest(%v %s) => %v", req, mix, err))
 	}
 	return nil, ""
+}
+
+func (node *Node) systemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleUser {
+		panic(req.Role)
+	}
+	if req.AssetId != mtg.StorageAssetId {
+		return node.failRequest(ctx, req, "")
+	}
+	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+	logger.Printf("store.ReadUser(%s) => %v %v", store.MPCUserId.String(), mtgUser, err)
+	if err != nil {
+		panic(err)
+	}
+	nonce, err := node.store.ReadNonceAccount(ctx, mtgUser.NonceAccount)
+	logger.Printf("store.ReadNonceAccount(%s) => %v %v", mtgUser.NonceAccount, nonce, err)
+	if err != nil {
+		panic(err)
+	}
+
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	if err != nil {
+		panic(err)
+	}
+
+	data := req.ExtraBytes()
+	x, n := binary.Varint(data[:4])
+	logger.Printf("systemCall.Varint(%x) => %d %d", data[:4], x, n)
+	if n <= 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	user, err := node.store.ReadUser(ctx, big.NewInt(x))
+	logger.Printf("store.ReadUser(%d) => %v %v", x, user, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadUser() => %v", err))
+	} else if user == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	tx, err := solana.TransactionFromBytes(data[4:])
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", data[4:], tx, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	call := store.SystemCall{
+		RequestId: req.Id,
+		UserId:    user.Id().String(),
+		Raw:       hex.EncodeToString(data[4:]),
+		State:     store.SystemCallStateInitial,
+		CreatedAt: req.CreatedAt,
+		UpdatedAt: req.CreatedAt,
+	}
+
+	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
+	withdraws := [][2]string{}
+	transfers := []solanaApp.TokenTransfers{}
+	for _, ref := range ver.References {
+		ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+		if err != nil {
+			panic(err)
+		}
+		if ver == nil {
+			continue
+		}
+
+		outputs := node.group.ListOutputsForTransaction(ctx, ver.PayloadHash().String(), req.Sequence)
+		total := decimal.NewFromInt(0)
+		for _, output := range outputs {
+			if output.State == mtg.SafeUtxoStateUnspent {
+				total = total.Add(output.Amount)
+			} else {
+				panic(req.Id)
+			}
+		}
+
+		asset, err := node.mixin.SafeReadAsset(ctx, ver.Asset.String())
+		if err != nil {
+			panic(err)
+		}
+		if asset.ChainID != common.SafeSolanaChainId {
+			key, err := node.store.GetSpareKey(ctx)
+			if err != nil {
+				panic(err)
+			}
+			transfers = append(transfers, solanaApp.TokenTransfers{
+				SolanaAsset: false,
+				Mint:        solanaApp.PublicKeyFromEd25519Public(key.Public),
+				Destination: destination,
+				Amount:      total.BigInt().Uint64(),
+				Decimals:    uint8(asset.Precision),
+			})
+			continue
+		}
+
+		transfers = append(transfers, solanaApp.TokenTransfers{
+			SolanaAsset: true,
+			Destination: destination,
+			Amount:      total.BigInt().Uint64(),
+			Decimals:    uint8(9),
+		})
+		withdraws = append(withdraws, [2]string{asset.AssetID, total.String()})
+	}
+
+	var txs []*mtg.Transaction
+	var compaction string
+	var subCalls []store.SubCall
+	if len(withdraws) > 0 {
+		// TODO build withdrawal txs with mtg
+	} else {
+		call.State = store.SystemCallStateWithdrawed
+		tx, mints, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, solanaApp.NonceAccount{
+			Address: solana.MustPublicKeyFromBase58(nonce.Address),
+			Hash:    solana.MustHashFromBase58(nonce.Hash),
+		}, transfers)
+		if err != nil {
+			panic(err)
+		}
+		subCalls = append(subCalls, store.SubCall{
+			Message:   tx.Message.ToBase64(),
+			RequestId: req.Id,
+			UserId:    user.Id().String(),
+			Mints:     strings.Join(mints, ","),
+			Raw:       tx.MustToBase64(),
+			State:     store.SystemCallStateInitial,
+			CreatedAt: req.CreatedAt,
+			UpdatedAt: req.CreatedAt,
+		})
+	}
+
+	err = node.store.WriteUnfinishedSystemCallWithRequest(ctx, req, call, subCalls, txs, compaction)
+	logger.Printf("solana.WriteUnfinishedSystemCallWithRequest(%v %d %d %s) => %v", call, len(subCalls), len(txs), compaction, err)
+	if err != nil {
+		panic(err)
+	}
+
+	return txs, compaction
 }
 
 func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

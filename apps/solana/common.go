@@ -15,8 +15,8 @@ type NonceAccount struct {
 }
 
 type TokenTransfers struct {
-	IsSol       bool
-	Mint        solana.PrivateKey
+	SolanaAsset bool
+	Mint        solana.PublicKey
 	Destination solana.PublicKey
 	Amount      uint64
 	Decimals    uint8
@@ -33,19 +33,16 @@ func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *s
 	}
 }
 
-func buildInitialTxWithNonceAccount(key string, nonce NonceAccount) (*solana.TransactionBuilder, solana.PrivateKey) {
-	payer, err := solana.PrivateKeyFromBase58(key)
-	if err != nil {
-		panic(err)
-	}
+func buildInitialTxWithNonceAccount(key string, nonce NonceAccount) (*solana.TransactionBuilder, solana.PublicKey) {
+	payer := solana.MustPublicKeyFromBase58(key)
 
 	b := solana.NewTransactionBuilder()
 	b.SetRecentBlockHash(nonce.Hash)
-	b.SetFeePayer(payer.PublicKey())
+	b.SetFeePayer(payer)
 	b.AddInstruction(system.NewAdvanceNonceAccountInstruction(
 		nonce.Address,
 		solana.SysVarRecentBlockHashesPubkey,
-		payer.PublicKey(),
+		payer,
 	).Build())
 	return b, payer
 }
