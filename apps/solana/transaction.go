@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MixinNetwork/safe/common"
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
@@ -104,7 +105,7 @@ func (c *Client) TransferTokens(ctx context.Context, payerKey, mtgKey string, no
 		if err != nil {
 			return nil, err
 		}
-		if mintToken == nil {
+		if mintToken == nil || common.CheckTestEnvironment(ctx) {
 			if rent == 0 {
 				rent, err = c.getRPCClient().GetMinimumBalanceForRentExemption(
 					ctx,
@@ -143,7 +144,7 @@ func (c *Client) TransferTokens(ctx context.Context, payerKey, mtgKey string, no
 		if err != nil {
 			return nil, err
 		}
-		if ata == nil {
+		if ata == nil || common.CheckTestEnvironment(ctx) {
 			builder.AddInstruction(
 				tokenAta.NewCreateInstruction(
 					payer.PublicKey(),
