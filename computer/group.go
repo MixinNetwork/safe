@@ -90,8 +90,6 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 func (node *Node) getActionRole(act byte) byte {
 	switch act {
-	case OperationTypeStartProcess:
-		return RequestRoleUser
 	case OperationTypeAddUser:
 		return RequestRoleUser
 	case OperationTypeSystemCall:
@@ -132,8 +130,6 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	}
 
 	switch req.Action {
-	case OperationTypeStartProcess:
-		return node.startProcess(ctx, req)
 	case OperationTypeAddUser:
 		return node.addUser(ctx, req)
 	case OperationTypeKeygenInput:

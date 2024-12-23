@@ -17,9 +17,8 @@ const (
 	RequestRoleSigner   = 2
 	RequestRoleObserver = 3
 
-	OperationTypeStartProcess = 0
-	OperationTypeAddUser      = 1
-	OperationTypeSystemCall   = 2
+	OperationTypeAddUser    = 1
+	OperationTypeSystemCall = 2
 
 	OperationTypeKeygenInput = 10
 	OperationTypeInitMPCKey  = 11
