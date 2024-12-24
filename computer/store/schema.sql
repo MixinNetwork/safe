@@ -108,32 +108,24 @@ CREATE INDEX IF NOT EXISTS assets_by_address ON deployed_assets(address);
 
 
 CREATE TABLE IF NOT EXISTS system_calls (
-  request_id     VARCHAR NOT NULL,
-  user_id        VARCHAR NOT NULL,
-  raw            TEXT NOT NULL,
-  state          INTEGER NOT NULL,
-  created_at     TIMESTAMP NOT NULL,
-  updated_at     TIMESTAMP NOT NULL,
+  request_id            VARCHAR NOT NULL,
+  user_id               VARCHAR NOT NULL,
+  public                VARCHAR NOT NULL,
+  message               VARCHAR NOT NULL,
+  raw                   TEXT NOT NULL,
+  state                 INTEGER NOT NULL,
+  withdrawal_ids        VARCHAR NOT NULL,
+  withdrawed_at         TIMESTAMP,
+  prepared_message      VARCHAR NOT NULL,
+  prepared_raw          VARCHAR NOT NULL,
+  prepared_at           TIMESTAMP,
+  post_process_message  VARCHAR NOT NULL,
+  post_process_raw      VARCHAR NOT NULL,
+  post_process_at       TIMESTAMP,
+  created_at            TIMESTAMP NOT NULL,
+  updated_at            TIMESTAMP NOT NULL,
   PRIMARY KEY ('request_id')
 );
-
-CREATE INDEX IF NOT EXISTS calls_by_user ON system_calls(user_id);
-CREATE INDEX IF NOT EXISTS calls_by_state ON system_calls(state);
-
-
-CREATE TABLE IF NOT EXISTS sub_calls (
-  message        VARCHAR NOT NULL,
-  request_id     VARCHAR NOT NULL,
-  user_id        VARCHAR NOT NULL,
-  raw            TEXT NOT NULL,
-  state          INTEGER NOT NULL,
-  created_at     TIMESTAMP NOT NULL,
-  updated_at     TIMESTAMP NOT NULL,
-  PRIMARY KEY ('message')
-);
-
-CREATE INDEX IF NOT EXISTS sub_calls_by_request ON sub_calls(request_id);
-CREATE INDEX IF NOT EXISTS sub_calls_by_user ON sub_calls(user_id);
 
 
 CREATE TABLE IF NOT EXISTS nonce_accounts (

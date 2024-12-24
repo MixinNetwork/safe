@@ -100,6 +100,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleObserver
 	case OperationTypeCreateNonce:
 		return RequestRoleObserver
+	case OperationTypeConfirmCall:
+		return RequestRoleObserver
 	// case common.OperationTypeKeygenOutput:
 	// 	return common.RequestRoleSigner
 	// case common.OperationTypeSignOutput:
@@ -131,15 +133,17 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 
 	switch req.Action {
 	case OperationTypeAddUser:
-		return node.addUser(ctx, req)
+		return node.processAddUser(ctx, req)
 	case OperationTypeSystemCall:
-		return node.systemCall(ctx, req)
+		return node.processSystemCall(ctx, req)
 	case OperationTypeKeygenInput:
 		return node.processSignerKeygenRequests(ctx, req)
 	case OperationTypeInitMPCKey:
 		return node.processSignerKeyInitRequests(ctx, req)
 	case OperationTypeCreateNonce:
 		return node.processCreateOrUpdateNonceAccount(ctx, req)
+	case OperationTypeConfirmCall:
+		return node.processConfirmCall(ctx, req)
 	default:
 		panic(req.Action)
 	}
