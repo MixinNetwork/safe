@@ -482,3 +482,14 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		return node.failRequest(ctx, req, "")
 	}
 }
+
+func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleSigner {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeSignOutput {
+		panic(req.Action)
+	}
+
+	return nil, ""
+}

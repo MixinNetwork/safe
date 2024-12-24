@@ -102,16 +102,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleObserver
 	case OperationTypeConfirmCall:
 		return RequestRoleObserver
-	// case common.OperationTypeKeygenOutput:
-	// 	return common.RequestRoleSigner
-	// case common.OperationTypeSignOutput:
-	// 	return common.RequestRoleSigner
-	// case common.ActionTerminate:
-	// 	return common.RequestRoleObserver
-	// case common.ActionObserverAddKey:
-	// 	return common.RequestRoleObserver
-	// case common.ActionObserverRequestSignerKeys:
-	// 	return common.RequestRoleObserver
+	case OperationTypeSignOutput:
+		return RequestRoleSigner
 	default:
 		return 0
 	}
@@ -144,6 +136,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processCreateOrUpdateNonceAccount(ctx, req)
 	case OperationTypeConfirmCall:
 		return node.processConfirmCall(ctx, req)
+	case OperationTypeSignOutput:
+		return node.processSignerSignatureResponse(ctx, req)
 	default:
 		panic(req.Action)
 	}
@@ -273,7 +267,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if !valid || !bytes.Equal(sig, vsig) {
 			panic(hex.EncodeToString(vsig))
 		}
-		op.Type = common.OperationTypeSignOutput
+		op.Type = OperationTypeSignOutput
 		op.Public = holder
 		op.Extra = vsig
 	default:
