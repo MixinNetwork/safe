@@ -38,7 +38,7 @@ func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *common.R
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM requests WHERE request_id=?", req.Id)
 	if err != nil || existed {
@@ -68,7 +68,7 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, req *common.Request, com
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=? AND state=?",
 		common.RequestStateFailed, time.Now().UTC(), req.Id, common.RequestStateInitial)

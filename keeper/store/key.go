@@ -61,7 +61,7 @@ func (s *SQLite3Store) WriteKeyFromRequest(ctx context.Context, req *common.Requ
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	if common.NormalizeCurve(req.Curve) != req.Curve {
 		panic(req.Curve)
@@ -93,7 +93,7 @@ func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req 
 	if err != nil {
 		return "", "", err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	signer, err := readKeyWithRoleAndHolder(ctx, tx, req.Holder, common.RequestRoleSigner)
 	if err != nil {

@@ -393,7 +393,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	old, err := node.store.ReadSafe(ctx, req.Holder)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
-	} else if old != nil {
+	} else if old != nil && old.State != common.RequestStatePending {
 		return node.failRequest(ctx, req, "")
 	}
 	chain := common.SafeCurveChain(req.Curve)
@@ -893,7 +893,7 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	if err != nil || deployed.Sign() <= 0 {
 		panic(fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err))
 	}
-	tt := node.buildTransaction(ctx, req.Output, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(req.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
+	tt := node.buildTransaction(ctx, req.Output, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(txRequest.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
 	if tt == nil {
 		return node.failRequest(ctx, req, txRequest.AssetId)
 	}

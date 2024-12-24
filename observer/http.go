@@ -140,7 +140,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 			"contract": node.conf.PolygonFactoryAddress,
 		},
 		"keeper": map[string]any{
-			"members":   node.keeper.Genesis.Members,
+			"members":   node.GetKeepers(),
 			"threshold": node.keeper.Genesis.Threshold,
 		},
 		"params": map[string]any{

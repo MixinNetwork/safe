@@ -46,7 +46,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 		nodes[i] = testBuildNode(ctx, require, root, i, saverStore, port)
 	}
 
-	network := newTestNetwork(nodes[0].members)
+	network := newTestNetwork(nodes[0].GetPartySlice())
 	for i := 0; i < 4; i++ {
 		nodes[i].network = network
 		ctx = context.WithValue(ctx, partyContextKey, string(nodes[i].id))

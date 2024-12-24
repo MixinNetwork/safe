@@ -59,7 +59,7 @@ func GenerateTestSafeProposal(c *cli.Context) error {
 	total := byte(1)
 	receivers := []string{"fcb87491-4fa0-4c2f-b387-262b63cbc112"}
 	extra := []byte{threshold, total}
-	uid := uuid.FromStringOrNil(receivers[0])
+	uid := uuid.Must(uuid.FromString(receivers[0]))
 	extra = append(extra, uid.Bytes()...)
 
 	sid := uuid.Must(uuid.NewV4()).String()

@@ -21,7 +21,7 @@ const (
 
 func (node *Node) cmpKeygen(ctx context.Context, sessionId []byte, crv byte) (*KeygenResult, error) {
 	logger.Printf("node.cmpKeygen(%x)", sessionId)
-	start, err := cmp.Keygen(curve.Secp256k1{}, node.id, node.members, node.threshold, nil)(sessionId)
+	start, err := cmp.Keygen(curve.Secp256k1{}, node.id, node.GetPartySlice(), node.threshold, nil)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("cmp.Keygen(%x) => %v", sessionId, err)
 	}

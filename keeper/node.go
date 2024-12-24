@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -23,7 +24,6 @@ type Node struct {
 	signerAESKey   [32]byte
 	observerAESKey [32]byte
 	store          *store.SQLite3Store
-	terminated     bool
 	mixin          *mixin.Client
 }
 
@@ -65,6 +65,13 @@ func (node *Node) Index() int {
 		return index
 	}
 	panic(node.conf.MTG.App.AppId)
+}
+
+func (node *Node) GetSigners() []string {
+	ms := make([]string, len(node.signer.Genesis.Members))
+	copy(ms, node.signer.Genesis.Members)
+	sort.Strings(ms)
+	return ms
 }
 
 func (node *Node) buildTransaction(ctx context.Context, act *mtg.Action, opponentAppId, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) *mtg.Transaction {

@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -57,6 +58,11 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.store.Migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	for _, chain := range []byte{
 		common.SafeChainBitcoin,
 		common.SafeChainLitecoin,
@@ -149,11 +155,14 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			panic(err)
 		}
 		for _, account := range as {
+			if account.ApprovedAt.Valid && time.Now().Before(account.ApprovedAt.Time.Add(time.Minute*30)) {
+				continue
+			}
+
 			sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, account.Address)
 			if err != nil {
 				panic(err)
 			}
-			id := common.UniqueId(account.Address, account.Signature.String)
 			rid := uuid.Must(uuid.FromString(sp.RequestId))
 
 			var extra []byte
@@ -190,6 +199,12 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				continue
 			}
 
+			t := account.CreatedAt
+			if account.ApprovedAt.Valid {
+				t = account.ApprovedAt.Time
+			}
+			id := common.UniqueId(account.Address, account.Signature.String)
+			id = common.UniqueId(id, t.String())
 			logger.Printf("node.sendAccountApprovals(%d, %s, %s, %x)", sp.Chain, sp.Holder, id, extra)
 			err = node.sendKeeperResponse(ctx, sp.Holder, byte(action), sp.Chain, id, extra)
 			if err != nil {
@@ -445,7 +460,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 		return false, nil
 	}
 
-	rid := uuid.FromBytesOrNil(op.Extra).String()
+	rid := uuid.Must(uuid.FromBytes(op.Extra)).String()
 	tx, err := common.SafeReadTransactionRequestUntilSufficient(ctx, node.mixin, rid)
 	if err != nil {
 		return false, err
@@ -513,6 +528,13 @@ func (node *Node) readMixinWithdrawalsCheckpoint(ctx context.Context) (uint64, e
 
 func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset uint64) error {
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
+}
+
+func (node *Node) GetKeepers() []string {
+	ms := make([]string, len(node.keeper.Genesis.Members))
+	copy(ms, node.keeper.Genesis.Members)
+	sort.Strings(ms)
+	return ms
 }
 
 func (node *Node) safeUser() bot.SafeUser {

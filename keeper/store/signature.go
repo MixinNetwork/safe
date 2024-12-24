@@ -34,7 +34,7 @@ func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Co
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE safes SET state=?, updated_at=? WHERE holder=? AND state=?",
 		common.RequestStateFailed, req.CreatedAt, req.Holder, common.RequestStateDone)
@@ -70,7 +70,7 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
 	if err != nil {
@@ -133,7 +133,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?", req.Id, common.RequestStatePending)
 	if err != nil || existed {
@@ -156,7 +156,7 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	_, err = tx.ExecContext(ctx, "UPDATE signature_requests SET state=?, updated_at=? WHERE transaction_hash=?",
 		common.RequestStateDone, req.CreatedAt, transactionHash)
@@ -206,9 +206,9 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadSignatureRequestByTransactionIndex(ctx context.Context, transactionHash string, index int) (*SignatureRequest, error) {
+func (s *SQLite3Store) ReadPendingSignatureRequestByTransactionIndex(ctx context.Context, transactionHash string, index int) (*SignatureRequest, error) {
 	var r SignatureRequest
-	query := fmt.Sprintf("SELECT %s FROM signature_requests WHERE transaction_hash=? AND input_index=?", strings.Join(signatureCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM signature_requests WHERE transaction_hash=? AND input_index=? ORDER BY state DESC, created_at DESC", strings.Join(signatureCols, ","))
 	row := s.db.QueryRowContext(ctx, query, transactionHash, index)
 	err := row.Scan(&r.RequestId, &r.TransactionHash, &r.InputIndex, &r.Signer, &r.Curve, &r.Message, &r.Signature, &r.State, &r.CreatedAt, &r.UpdatedAt)
 	if err == sql.ErrNoRows {

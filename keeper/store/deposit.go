@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/MixinNetwork/safe/common"
 )
 
 type Deposit struct {
@@ -30,7 +32,7 @@ func (s *SQLite3Store) ReadDeposit(ctx context.Context, hash string, index int64
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := fmt.Sprintf("SELECT %s FROM deposits WHERE transaction_hash=? AND output_index=?", strings.Join(depositsCols, ","))
 	row := tx.QueryRowContext(ctx, query, hash, index)

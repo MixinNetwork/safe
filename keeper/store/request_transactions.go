@@ -29,7 +29,7 @@ func (s *SQLite3Store) FailAction(ctx context.Context, req *common.Request) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *SQLite3Store) ReadActionResult(ctx context.Context, outputId, requestId
 	if err != nil {
 		return nil, false, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	row := tx.QueryRowContext(ctx, "SELECT state FROM requests where request_id=?", requestId)
 	var state int

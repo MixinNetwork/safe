@@ -427,7 +427,7 @@ func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	defer txn.Rollback()
+	defer common.Rollback(txn)
 
 	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE (chain=? AND satoshi>=? AND satoshi<=? AND state=?) OR (spent_by=?) LIMIT 1", strings.Join(outputCols, ","))
 	params := []any{tx.Chain, min, max, common.RequestStateInitial, tx.TransactionHash}
@@ -472,7 +472,7 @@ func (s *SQLite3Store) WriteBitcoinUTXOIfNotExists(ctx context.Context, utxo *Ou
 	if err != nil {
 		return err
 	}
-	defer txn.Rollback()
+	defer common.Rollback(txn)
 
 	if utxo.State != common.RequestStateInitial {
 		panic(utxo.State)
@@ -519,7 +519,7 @@ func (s *SQLite3Store) WriteBitcoinFeeOutput(ctx context.Context, msgTx *wire.Ms
 	if err != nil {
 		return err
 	}
-	defer txn.Rollback()
+	defer common.Rollback(txn)
 
 	signedBuffer, err := bitcoin.MarshalWiredTransaction(msgTx, wire.WitnessEncoding, tx.Chain)
 	if err != nil {

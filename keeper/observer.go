@@ -18,7 +18,7 @@ func (node *Node) buildObserverResponseWithAssetAndStorageTraceId(ctx context.Co
 		Type:  typ,
 		Id:    id,
 		Curve: crv,
-		Extra: uuid.FromStringOrNil(storageTraceId).Bytes(),
+		Extra: uuid.Must(uuid.FromString(storageTraceId)).Bytes(),
 	}
 	return node.buildObserverTransaction(ctx, op, act, assetId, amount, storageTraceId)
 }

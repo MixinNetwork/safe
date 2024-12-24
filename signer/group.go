@@ -447,21 +447,22 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 }
 
 func (node *Node) verifySessionSignerResults(_ context.Context, session *Session, sessionSigners map[string]string) (bool, []byte) {
+	members := node.GetMembers()
 	switch session.Operation {
 	case common.OperationTypeKeygenInput:
 		var signed int
-		for _, id := range node.conf.MTG.Genesis.Members {
+		for _, id := range members {
 			public, found := sessionSigners[id]
 			if found && public == session.Public && public == sessionSigners[string(node.id)] {
 				signed = signed + 1
 			}
 		}
-		exact := len(node.conf.MTG.Genesis.Members)
+		exact := len(members)
 		return signed >= exact, nil
 	case common.OperationTypeSignInput:
 		var signed int
 		var sig []byte
-		for _, id := range node.conf.MTG.Genesis.Members {
+		for _, id := range members {
 			extra, found := sessionSigners[id]
 			if sig == nil && found {
 				sig = common.DecodeHexOrPanic(extra)
@@ -659,7 +660,7 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 		}
 	}
 
-	members := node.keeper.Genesis.Members
+	members := node.GetKeepers()
 	threshold := node.keeper.Genesis.Threshold
 	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := act.BuildTransaction(ctx, traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)

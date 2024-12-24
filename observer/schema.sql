@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at    TIMESTAMP NOT NULL,
   signature     VARCHAR,
   approved_at   TIMESTAMP,
+  deployed_at   TIMESTAMP,
   migrated_at   TIMESTAMP, /* FIXME remove this after all migrated */
   PRIMARY KEY ('address')
 );
@@ -80,6 +81,8 @@ CREATE TABLE IF NOT EXISTS deposits (
 
 CREATE INDEX IF NOT EXISTS deposits_by_chain_state_created ON deposits(chain, state, created_at);
 CREATE INDEX IF NOT EXISTS deposits_by_holder_asset_state_created ON deposits(holder, asset_id, state, created_at);
+CREATE INDEX IF NOT EXISTS deposits_by_chain_state_updated ON deposits(chain, state, updated_at);
+CREATE INDEX IF NOT EXISTS deposits_by_holder_asset_state_updated ON deposits(holder, asset_id, state, updated_at);
 
 
 

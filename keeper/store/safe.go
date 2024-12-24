@@ -104,7 +104,7 @@ func (s *SQLite3Store) WriteSafeProposalWithRequest(ctx context.Context, sp *Saf
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, buildInsertionSQL("safe_proposals", safeProposalCols), sp.values()...)
 	if err != nil {
@@ -131,7 +131,7 @@ func (s *SQLite3Store) WriteEthereumSafeProposalWithRequest(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, buildInsertionSQL("safe_proposals", safeProposalCols), sp.values()...)
 	if err != nil {
@@ -165,11 +165,16 @@ func (s *SQLite3Store) WriteUnfinishedSafe(ctx context.Context, safe *Safe) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	if safe.State != common.RequestStatePending {
 		panic(safe.State)
 	}
+	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM safes WHERE address=? AND state=?", safe.Address, common.RequestStatePending)
+	if err != nil || existed {
+		return err
+	}
+
 	err = s.execOne(ctx, tx, buildInsertionSQL("safes", safeCols), safe.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT safes %v", err)
@@ -185,7 +190,7 @@ func (s *SQLite3Store) WriteSafeWithRequest(ctx context.Context, safe *Safe, txs
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	if safe.State != common.RequestStateDone {
 		panic(safe.State)
@@ -215,7 +220,7 @@ func (s *SQLite3Store) FinishSafeWithRequest(ctx context.Context, transactionHas
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	if safe.State != common.RequestStatePending {
 		panic(safe.State)
@@ -257,7 +262,7 @@ func (s *SQLite3Store) ReadSafe(ctx context.Context, holder string) (*Safe, erro
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	return s.readSafe(ctx, tx, holder)
 }

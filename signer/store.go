@@ -78,7 +78,7 @@ func (s *SQLite3Store) Migrate2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	key, val := "SCHEMA:VERSION:4d2865072e7d5eceee7d0aa1527e463b2b08b6cb", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
@@ -112,7 +112,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	key, val := "SCHEMA:VERSION:4fca1938ab13afa2f58bc3fabb4c653331b13476", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
@@ -146,7 +146,7 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT curve FROM keys WHERE public=?", public)
 	if err != nil || existed {
@@ -209,7 +209,7 @@ func (s *SQLite3Store) MarkKeyBackuped(ctx context.Context, public string) error
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "UPDATE keys SET backed_up_at=? WHERE public=? AND backed_up_at IS NULL"
 	err = s.execOne(ctx, tx, query, time.Now().UTC(), public)
@@ -259,7 +259,7 @@ func (s *SQLite3Store) WriteSessionWorkIfNotExist(ctx context.Context, sessionId
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT created_at FROM session_works WHERE session_id=? AND signer_id=? AND round=?"
 	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId, round)
@@ -285,7 +285,7 @@ func (s *SQLite3Store) PrepareSessionSignerIfNotExist(ctx context.Context, sessi
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT extra FROM session_signers WHERE session_id=? AND signer_id=?"
 	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId)
@@ -311,7 +311,7 @@ func (s *SQLite3Store) WriteSessionSignerIfNotExist(ctx context.Context, session
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT extra FROM session_signers WHERE session_id=? AND signer_id=?", sessionId, signerId)
 	if err != nil || existed {
@@ -348,7 +348,7 @@ func (s *SQLite3Store) UpdateSessionSigner(ctx context.Context, sessionId, signe
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT extra FROM session_signers WHERE session_id=? AND signer_id=?"
 	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId)
@@ -431,7 +431,7 @@ func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Op
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT session_id FROM sessions WHERE session_id=?", op.Id)
 	if err != nil || existed {
@@ -462,7 +462,7 @@ func (s *SQLite3Store) FailSession(ctx context.Context, sessionId string) error 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	// the pending state is important, because we needs to let the other nodes know our failed
 	// result, and the pending state allows the node to process this session accordingly
@@ -483,7 +483,7 @@ func (s *SQLite3Store) MarkSessionPending(ctx context.Context, sessionId string,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE sessions SET extra=?, state=?, updated_at=? WHERE session_id=? AND curve=? AND public=? AND state=? AND prepared_at IS NOT NULL",
 		hex.EncodeToString(extra), common.RequestStatePending, time.Now().UTC(), sessionId, curve, fingerprint, common.RequestStateInitial)
@@ -502,7 +502,7 @@ func (s *SQLite3Store) MarkSessionCommitted(ctx context.Context, sessionId strin
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	committedAt := time.Now().UTC()
 	query := "UPDATE sessions SET committed_at=?, updated_at=? WHERE session_id=? AND state=? AND committed_at IS NULL"
@@ -522,7 +522,7 @@ func (s *SQLite3Store) MarkSessionPrepared(ctx context.Context, sessionId string
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT prepared_at FROM sessions WHERE session_id=? AND prepared_at IS NOT NULL"
 	existed, err := s.checkExistence(ctx, tx, query, sessionId)
@@ -547,7 +547,7 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE sessions SET state=?, updated_at=? WHERE session_id=? AND state=?",
 		common.RequestStateDone, time.Now().UTC(), sessionId, common.RequestStatePending)
@@ -570,7 +570,7 @@ func (s *SQLite3Store) WriteActionResults(ctx context.Context, outputId string, 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	ts := common.Base91Encode(mtg.SerializeTransactions(txs))
 	cols := []string{"output_id", "compaction", "transactions", "session_id", "created_at"}
@@ -591,7 +591,7 @@ func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessio
 	if err != nil {
 		panic(err)
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT transactions,compaction FROM action_results where session_id=?"
 	rows, err := tx.QueryContext(ctx, query, sessionId)
@@ -630,7 +630,7 @@ func (s *SQLite3Store) ReadActionResults(ctx context.Context, outputId string) (
 	if err != nil {
 		panic(err)
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	query := "SELECT transactions,compaction FROM action_results where output_id=?"
 	row := tx.QueryRowContext(ctx, query, outputId)
@@ -714,7 +714,7 @@ func (s *SQLite3Store) SessionsState(ctx context.Context) (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	var state State
 	row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStateInitial)
@@ -792,7 +792,7 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	var ov string
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
