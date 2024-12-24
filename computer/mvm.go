@@ -83,7 +83,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
 	logger.Printf("store.ReadUser(%s) => %v %v", store.MPCUserId.String(), mtgUser, err)
-	if err != nil {
+	if err != nil || mtgUser == nil {
 		panic(err)
 	}
 	nonce, err := node.store.ReadNonceAccount(ctx, mtgUser.NonceAccount)
@@ -105,7 +105,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	} else if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
+	destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
 
 	tx, err := solana.TransactionFromBytes(data[4:])
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", data[4:], tx, err)
@@ -399,6 +399,11 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if call.WithdrawedAt.Valid {
 			return node.failRequest(ctx, req, "")
 		}
+		mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
+		if err != nil {
+			panic(err)
+		}
+
 		// TODO mtg check withdrawal confirmed
 
 		id := common.UniqueId(req.Id, rid)
@@ -409,7 +414,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			MixinIndex: req.Output.OutputIndex,
 			Index:      0,
 			Operation:  OperationTypeSignInput,
-			Public:     call.Public,
+			Public:     mtg.Public,
 			Extra:      call.PreparedMessage,
 			CreatedAt:  req.Output.SequencerCreatedAt,
 		}
