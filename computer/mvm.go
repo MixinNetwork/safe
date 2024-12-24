@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
@@ -88,9 +89,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 	nonce, err := node.store.ReadNonceAccount(ctx, mtgUser.NonceAccount)
 	logger.Printf("store.ReadNonceAccount(%s) => %v %v", mtgUser.NonceAccount, nonce, err)
-	if err != nil {
+	if err != nil || nonce == nil {
 		panic(err)
 	}
+	destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
 
 	data := req.ExtraBytes()
 	x, n := binary.Varint(data[:4])
@@ -105,26 +107,28 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	} else if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
+	var calls []*store.SystemCall
 
 	tx, err := solana.TransactionFromBytes(data[4:])
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", data[4:], tx, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	message, err := tx.Message.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
+	now := time.Now().UTC()
 	call := store.SystemCall{
-		RequestId: req.Id,
-		UserId:    user.Id().String(),
-		Public:    user.Public,
-		Message:   hex.EncodeToString(message),
-		Raw:       tx.MustToBase64(),
-		State:     common.RequestStateInitial,
-		CreatedAt: req.CreatedAt,
-		UpdatedAt: req.CreatedAt,
+		RequestId:       req.Id,
+		Superior:        req.Id,
+		Type:            store.CallTypeMain,
+		Public:          user.Public,
+		Message:         tx.Message.ToBase64(),
+		Raw:             tx.MustToBase64(),
+		State:           common.RequestStateInitial,
+		WithdrawalIds:   "",
+		WithdrawedAt:    sql.NullTime{Valid: true, Time: now},
+		Signature:       sql.NullString{Valid: false},
+		RequestSignerAt: sql.NullTime{Valid: false},
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	withdraws := [][2]string{}
@@ -143,6 +147,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 			continue
 		}
 
+		// TODO support in mtg
 		outputs := node.group.ListOutputsForTransaction(ctx, ver.PayloadHash().String(), req.Sequence)
 		total := decimal.NewFromInt(0)
 		for _, output := range outputs {
@@ -211,20 +216,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		}
 		call.WithdrawalIds = strings.Join(ids, ",")
 		call.WithdrawedAt = sql.NullTime{}
-	} else {
-		call.WithdrawalIds = ""
-		call.WithdrawedAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	}
 
 	if len(transfers) > 0 {
-		transferTx, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, solanaApp.NonceAccount{
-			Address: solana.MustPublicKeyFromBase58(nonce.Address),
-			Hash:    solana.MustHashFromBase58(nonce.Hash),
-		}, transfers)
-		if err != nil {
-			panic(err)
-		}
-		message, err := transferTx.Message.MarshalBinary()
+		transferTx, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, nonce.Account(), transfers)
 		if err != nil {
 			panic(err)
 		}
@@ -234,16 +229,26 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 				panic(err)
 			}
 		}
-		call.PreparedMessage = hex.EncodeToString(message)
-		call.PreparedRaw = transferTx.MustToBase64()
-		call.PreparedAt = sql.NullTime{}
-	} else {
-		call.PreparedMessage = ""
-		call.PreparedRaw = ""
-		call.PreparedAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+		id := common.UniqueId(req.Id, store.CallTypePrepare)
+		calls = append(calls, &store.SystemCall{
+			RequestId:       id,
+			Superior:        req.Id,
+			Type:            store.CallTypePrepare,
+			Public:          mtgUser.Public,
+			Message:         transferTx.Message.ToBase64(),
+			Raw:             transferTx.MustToBase64(),
+			State:           common.RequestStateInitial,
+			WithdrawalIds:   "",
+			WithdrawedAt:    sql.NullTime{Valid: true, Time: req.CreatedAt},
+			Signature:       sql.NullString{Valid: false},
+			RequestSignerAt: sql.NullTime{Valid: false},
+			CreatedAt:       req.CreatedAt,
+			UpdatedAt:       req.CreatedAt,
+		})
 	}
+	calls = append(calls, &call)
 
-	err = node.store.WriteUnfinishedSystemCallWithRequest(ctx, req, call, store.DeployedAssetsFromTransferTokens(transfers), txs, compaction)
+	err = node.store.WriteUnfinishedSystemCallWithRequest(ctx, req, calls, store.DeployedAssetsFromTransferTokens(transfers), txs, compaction)
 	logger.Printf("solana.WriteUnfinishedSystemCallWithRequest(%v %d %s) => %v", call, len(txs), compaction, err)
 	if err != nil {
 		panic(err)
@@ -384,41 +389,23 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	if req.Action != OperationTypeCreateNonce {
 		panic(req.Action)
 	}
-	members := node.GetMembers()
-	threshold := node.conf.MTG.Genesis.Threshold
 
 	extra := req.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
+	// TODO check tx confirmed
+
 	switch flag {
 	case ConfirmFlagMixinWithdrawal:
 		rid := uuid.Must(uuid.FromBytes(extra)).String()
-		call, err := node.store.ReadSystemCallByRequestId(ctx, rid, common.RequestStateInitial)
+		call, err := node.store.ReadInitialSystemCallBySuperior(ctx, rid)
 		if err != nil {
 			panic(err)
 		}
 		if call.WithdrawedAt.Valid {
 			return node.failRequest(ctx, req, "")
 		}
-		mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
-		if err != nil {
-			panic(err)
-		}
 
-		// TODO mtg check withdrawal confirmed
-
-		id := common.UniqueId(req.Id, rid)
-		id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
-		session := &store.Session{
-			Id:         id,
-			MixinHash:  req.MixinHash.String(),
-			MixinIndex: req.Output.OutputIndex,
-			Index:      0,
-			Operation:  OperationTypeSignInput,
-			Public:     mtg.Public,
-			Extra:      call.PreparedMessage,
-			CreatedAt:  req.Output.SequencerCreatedAt,
-		}
-		err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, rid, []*store.Session{session})
+		err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call)
 		if err != nil {
 			panic(err)
 		}
@@ -434,48 +421,16 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if err != nil {
 			panic(err)
 		}
-		msg, err := tx.MarshalBinary()
-		if err != nil {
-			panic(err)
-		}
-		message := hex.EncodeToString(msg)
-		call, err := node.store.ReadSystemCallByAnyMessage(ctx, message)
+		call, err := node.store.ReadSystemCallByMessage(ctx, tx.Message.ToBase64())
 		if err != nil || call == nil {
 			panic(err)
 		}
-
-		switch message {
-		case call.Message:
-			// TODO may burn minted spl token
-			err := node.store.MarkSystemCallDoneWithRequest(ctx, req, call.RequestId, common.RequestStateDone, []*store.Session{})
-			if err != nil {
-				panic(err)
-			}
-		case call.PreparedMessage:
-			if call.PreparedAt.Valid || call.State != common.RequestStateInitial {
-				return node.failRequest(ctx, req, "")
-			}
-			id := common.UniqueId(req.Id, call.PreparedMessage)
-			id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
-			session := &store.Session{
-				Id:         id,
-				MixinHash:  req.MixinHash.String(),
-				MixinIndex: req.Output.OutputIndex,
-				Index:      0,
-				Operation:  OperationTypeSignInput,
-				Public:     call.Public,
-				Extra:      call.Message,
-				CreatedAt:  req.Output.SequencerCreatedAt,
-			}
-			err := node.store.MarkSystemCallPreparedWithRequest(ctx, req, call.RequestId, []*store.Session{session})
-			if err != nil {
-				panic(err)
-			}
-		case call.PostProcessMessage:
-			err := node.store.MarkSystemCallProcessedWithRequest(ctx, req, call.RequestId)
-			if err != nil {
-				panic(err)
-			}
+		if call.State != common.RequestStatePending {
+			return node.failRequest(ctx, req, "")
+		}
+		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call.RequestId)
+		if err != nil {
+			panic(err)
 		}
 		return nil, ""
 	default:

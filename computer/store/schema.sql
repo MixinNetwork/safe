@@ -109,19 +109,16 @@ CREATE INDEX IF NOT EXISTS assets_by_address ON deployed_assets(address);
 
 CREATE TABLE IF NOT EXISTS system_calls (
   request_id            VARCHAR NOT NULL,
-  user_id               VARCHAR NOT NULL,
+  superior_request_id   VARCHAR NOT NULL,
+  call_type             VARCHAR NOT NULL,
   public                VARCHAR NOT NULL,
   message               VARCHAR NOT NULL,
   raw                   TEXT NOT NULL,
   state                 INTEGER NOT NULL,
   withdrawal_ids        VARCHAR NOT NULL,
   withdrawed_at         TIMESTAMP,
-  prepared_message      VARCHAR NOT NULL,
-  prepared_raw          VARCHAR NOT NULL,
-  prepared_at           TIMESTAMP,
-  post_process_message  VARCHAR NOT NULL,
-  post_process_raw      VARCHAR NOT NULL,
-  post_process_at       TIMESTAMP,
+  signature             VARCHAR,
+  request_signer_at     TIMESTAMP,
   created_at            TIMESTAMP NOT NULL,
   updated_at            TIMESTAMP NOT NULL,
   PRIMARY KEY ('request_id')
