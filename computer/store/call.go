@@ -35,7 +35,7 @@ type SystemCall struct {
 
 var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "public", "message", "raw", "state", "withdrawal_ids", "withdrawed_at", "signature", "request_signer_at", "created_at", "updated_at"}
 
-func systemCallFromRow(row *sql.Row) (*SystemCall, error) {
+func systemCallFromRow(row Row) (*SystemCall, error) {
 	var c SystemCall
 	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.Public, &c.Message, &c.Raw, &c.State, &c.WithdrawalIds, &c.WithdrawedAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
@@ -152,6 +152,37 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) SystemCallRequestSigner(ctx context.Context, call *SystemCall, sessions []*Session) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	now := time.Now().UTC()
+	query := "UPDATE system_calls SET request_signer_at=?, updated_at=? WHERE rid=? AND state=? AND signature IS NULL"
+	err = s.execOne(ctx, tx, query, now, now, call.RequestId, common.RequestStatePending)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
+	}
+
+	for _, session := range sessions {
+		cols := []string{"session_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
+			"extra", "state", "created_at", "updated_at"}
+		vals := []any{session.Id, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
+			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
+		err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) ReadSystemCallByRequestId(ctx context.Context, rid string, state int64) (*SystemCall, error) {
 	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE request_id=? AND state=?", strings.Join(systemCallCols, ","))
 	row := s.db.QueryRowContext(ctx, query, rid, state)
@@ -171,4 +202,26 @@ func (s *SQLite3Store) ReadSystemCallByMessage(ctx context.Context, message stri
 	row := s.db.QueryRowContext(ctx, query, message)
 
 	return systemCallFromRow(row)
+}
+
+func (s *SQLite3Store) ListPendingSystemCalls(ctx context.Context) ([]*SystemCall, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY reated_at ASC LIMIT 100", systemCallCols)
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStatePending)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []*SystemCall
+	for rows.Next() {
+		call, err := systemCallFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		calls = append(calls, call)
+	}
+	return calls, nil
 }

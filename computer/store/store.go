@@ -393,3 +393,7 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	}
 	return tx.Commit()
 }
+
+type Row interface {
+	Scan(dest ...any) error
+}

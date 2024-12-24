@@ -68,6 +68,7 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	node.bootComputer(ctx)
 	node.bootObserver(ctx)
 	node.bootSigner(ctx)
 	logger.Printf("node.Boot(%s, %d)", node.id, node.Index())
@@ -121,6 +122,63 @@ func (node *Node) GetPartySlice() party.IDSlice {
 		ms[i] = party.ID(id)
 	}
 	return ms
+}
+
+func (node *Node) bootComputer(ctx context.Context) {
+	go node.pendingSystemCallsLoop(ctx)
+}
+
+func (node *Node) pendingSystemCallsLoop(ctx context.Context) {
+	for {
+		err := node.processPendingSystemCalls(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(1 * time.Minute)
+	}
+}
+
+func (node *Node) processPendingSystemCalls(ctx context.Context) error {
+	members := node.GetMembers()
+	threshold := node.conf.MTG.Genesis.Threshold
+
+	calls, err := node.store.ListPendingSystemCalls(ctx)
+	if err != nil {
+		return err
+	}
+	for _, call := range calls {
+		now := time.Now()
+		if call.RequestSignerAt.Time.Add(20 * time.Minute).After(now) {
+			continue
+		}
+		req, err := node.store.ReadRequest(ctx, call.Superior)
+		if err != nil {
+			return err
+		}
+
+		createdAt := now
+		if call.RequestSignerAt.Valid {
+			createdAt = call.RequestSignerAt.Time
+		}
+		id := common.UniqueId(call.RequestId, createdAt.String())
+		id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
+		session := &store.Session{
+			Id:         id,
+			MixinHash:  req.MixinHash.String(),
+			MixinIndex: req.Output.OutputIndex,
+			Index:      0,
+			Operation:  OperationTypeSignInput,
+			Public:     call.Public,
+			Extra:      call.Message,
+			CreatedAt:  createdAt,
+		}
+		err = node.store.SystemCallRequestSigner(ctx, call, []*store.Session{session})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId string) ([]*mtg.Transaction, string) {
