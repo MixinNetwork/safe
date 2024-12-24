@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -24,11 +25,16 @@ type Session struct {
 }
 
 func (r *Session) AsOperation() *common.Operation {
+	extra, err := base64.StdEncoding.DecodeString(r.Extra)
+	if err != nil {
+		panic(err)
+	}
+
 	return &common.Operation{
 		Id:     r.Id,
 		Type:   r.Operation,
 		Public: r.Public,
-		Extra:  common.DecodeHexOrPanic(r.Extra),
+		Extra:  extra,
 	}
 }
 
@@ -141,31 +147,6 @@ func (s *SQLite3Store) MarkSessionCommitted(ctx context.Context, sessionId strin
 	committedAt := time.Now().UTC()
 	query := "UPDATE sessions SET committed_at=?, updated_at=? WHERE session_id=? AND state=? AND committed_at IS NULL"
 	err = s.execOne(ctx, tx, query, committedAt, committedAt, sessionId, common.RequestStateInitial)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) MarkSessionPrepared(ctx context.Context, sessionId string, preparedAt time.Time) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	query := "SELECT prepared_at FROM sessions WHERE session_id=? AND prepared_at IS NOT NULL"
-	existed, err := s.checkExistence(ctx, tx, query, sessionId)
-	if err != nil || existed {
-		return err
-	}
-
-	query = "UPDATE sessions SET prepared_at=?, updated_at=? WHERE session_id=? AND state=? AND prepared_at IS NULL"
-	err = s.execOne(ctx, tx, query, preparedAt, preparedAt, sessionId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}

@@ -70,14 +70,16 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 		}
 
 		for _, s := range sessions {
-			op := s.AsOperation()
-			err := node.sendSignerPrepareTransaction(ctx, op)
-			logger.Printf("node.sendSignerPrepareTransaction(%v) => %v", op, err)
+			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", s.Id, string(node.id))
+			extra := []byte{OperationTypeSignInput}
+			extra = append(extra, []byte(fmt.Sprintf("%s:%s", PrepareExtra, s.Id))...)
+			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
+			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
 			if err != nil {
 				break
 			}
-			err = node.store.MarkSessionCommitted(ctx, op.Id)
-			logger.Printf("node.MarkSessionCommitted(%v) => %v", op, err)
+			err = node.store.MarkSessionCommitted(ctx, s.Id)
+			logger.Printf("node.MarkSessionCommitted(%v) => %v", s, err)
 			if err != nil {
 				break
 			}
@@ -172,8 +174,13 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			default:
 				panic(op.Id)
 			}
-			err := node.sendSignerResultTransaction(ctx, op)
-			logger.Printf("node.sendSignerResultTransaction(%v) => %v", op, err)
+			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
+
+			extra := []byte{OperationTypeSignOutput}
+			extra = append(extra, op.IdBytes()...)
+			extra = append(extra, op.Extra...)
+			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
+			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
 			if err != nil {
 				break
 			}

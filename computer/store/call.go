@@ -183,6 +183,39 @@ func (s *SQLite3Store) SystemCallRequestSigner(ctx context.Context, call *System
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) AttachSystemCallSignatureWithRequest(ctx context.Context, req *Request, call *SystemCall, sid, signature string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	query := "UPDATE system_calls SET signature=?, updated_at=? WHERE rid=? AND state=? AND signature IS NULL"
+	err = s.execOne(ctx, tx, query, signature, time.Now().UTC(), call.RequestId, common.RequestStatePending)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
+	}
+	query = "UPDATE sessions SET state=?, updated_at=? WHERE session_id=?"
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), sid)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) ReadSystemCallByRequestId(ctx context.Context, rid string, state int64) (*SystemCall, error) {
 	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE request_id=? AND state=?", strings.Join(systemCallCols, ","))
 	row := s.db.QueryRowContext(ctx, query, rid, state)

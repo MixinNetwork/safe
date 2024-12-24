@@ -1,7 +1,6 @@
 package computer
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -102,6 +101,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleObserver
 	case OperationTypeConfirmCall:
 		return RequestRoleObserver
+	case OperationTypeSignInput:
+		return RequestRoleSigner
 	case OperationTypeSignOutput:
 		return RequestRoleSigner
 	default:
@@ -136,6 +137,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processCreateOrUpdateNonceAccount(ctx, req)
 	case OperationTypeConfirmCall:
 		return node.processConfirmCall(ctx, req)
+	case OperationTypeSignInput:
+		return node.processSignerPrepare(ctx, req)
 	case OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)
 	default:
@@ -149,140 +152,6 @@ func (node *Node) timestamp(ctx context.Context) (uint64, error) {
 		return node.conf.MTG.Genesis.Epoch, err
 	}
 	return req.Sequence, nil
-}
-
-func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {
-	if op.Type != common.OperationTypeSignInput {
-		return fmt.Errorf("node.processSignerPrepare(%v) type", op)
-	}
-	if string(op.Extra) != PrepareExtra {
-		panic(string(op.Extra))
-	}
-	s, err := node.store.ReadSession(ctx, op.Id)
-	if err != nil {
-		return fmt.Errorf("store.ReadSession(%s) => %v", op.Id, err)
-	} else if s.PreparedAt.Valid {
-		return nil
-	}
-	err = node.store.PrepareSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], out.SequencerCreatedAt)
-	if err != nil {
-		return fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", op, err)
-	}
-	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
-	if err != nil {
-		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
-	}
-	if len(signers) <= node.threshold {
-		return nil
-	}
-	err = node.store.MarkSessionPrepared(ctx, op.Id, out.SequencerCreatedAt)
-	logger.Printf("node.MarkSessionPrepared(%v) => %v", op, err)
-	return err
-}
-
-func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) ([]*mtg.Transaction, string) {
-	session, err := node.store.ReadSession(ctx, op.Id)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
-	}
-	if op.Type != session.Operation {
-		panic(session.Id)
-	}
-
-	self := len(out.Senders) == 1 && out.Senders[0] == string(node.id)
-	switch session.Operation {
-	case OperationTypeKeygenInput:
-		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
-		if err != nil {
-			panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err))
-		}
-	case common.OperationTypeSignInput:
-		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
-		if err != nil {
-			panic(fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err))
-		}
-	}
-
-	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
-	if err != nil {
-		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err))
-	}
-	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
-	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)
-	if !finished {
-		return nil, ""
-	}
-	if l := len(signers); l <= node.threshold {
-		panic(session.Id)
-	}
-
-	op = &common.Operation{Id: op.Id}
-	switch session.Operation {
-	case OperationTypeKeygenInput:
-		if signers[string(node.id)] != session.Public {
-			panic(session.Public)
-		}
-		valid := node.verifySessionHolder(ctx, session.Public)
-		logger.Printf("node.verifySessionHolder(%v) => %t", session, valid)
-		if !valid {
-			return nil, ""
-		}
-		holder, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(session.Public)))
-		if err != nil {
-			panic(err)
-		}
-		if holder != session.Public {
-			panic(session.Public)
-		}
-		public, chainCode := node.deriveByPath(ctx, share, []byte{0, 0, 0, 0})
-		if hex.EncodeToString(public) != session.Public {
-			panic(session.Public)
-		}
-		op.Type = common.OperationTypeKeygenOutput
-		op.Extra = append([]byte{common.RequestRoleSigner}, chainCode...)
-		op.Extra = append(op.Extra, common.RequestFlagNone)
-		op.Public = session.Public
-	case common.OperationTypeSignInput:
-		extra := common.DecodeHexOrPanic(session.Extra)
-		if !node.checkSignatureAppended(extra) {
-			// this could happen after resync, crash or not commited
-			extra = node.concatMessageAndSignature(extra, sig)
-		}
-		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
-			// this could happend only after crash or not commited
-			err = node.store.MarkSessionPending(ctx, session.Id, session.Public, extra)
-			logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", session, extra, err)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		holder, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
-		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
-		if err != nil {
-			panic(err)
-		}
-		valid, vsig := node.verifySessionSignature(ctx, holder, extra, share, path)
-		logger.Printf("node.verifySessionSignature(%v, %s, %x, %v) => %t", session, holder, extra, path, valid)
-		if !valid || !bytes.Equal(sig, vsig) {
-			panic(hex.EncodeToString(vsig))
-		}
-		op.Type = OperationTypeSignOutput
-		op.Public = holder
-		op.Extra = vsig
-	default:
-		panic(session.Id)
-	}
-
-	repliedToKeeper := node.store.CheckActionResultsBySessionId(ctx, op.Id)
-	if repliedToKeeper {
-		return nil, ""
-	}
-	tx, asset := node.buildSignerResultTransaction(ctx, op, out)
-	if asset != "" {
-		return nil, asset
-	}
-	return []*mtg.Transaction{tx}, ""
 }
 
 func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, []byte, []byte, error) {

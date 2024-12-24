@@ -95,7 +95,7 @@ func (s *SQLite3Store) CountDailyWorks(ctx context.Context, members []party.ID, 
 	return works, nil
 }
 
-func (s *SQLite3Store) PrepareSessionSignerIfNotExist(ctx context.Context, sessionId, signerId string, createdAt time.Time) error {
+func (s *SQLite3Store) PrepareSessionSignerWithRequest(ctx context.Context, req *Request, sufficient bool, sessionId, signerId string, createdAt time.Time) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -107,15 +107,41 @@ func (s *SQLite3Store) PrepareSessionSignerIfNotExist(ctx context.Context, sessi
 
 	query := "SELECT extra FROM session_signers WHERE session_id=? AND signer_id=?"
 	existed, err := s.checkExistence(ctx, tx, query, sessionId, signerId)
-	if err != nil || existed {
+	if err != nil {
 		return err
 	}
+	if !existed {
+		cols := []string{"session_id", "signer_id", "extra", "created_at", "updated_at"}
+		err = s.execOne(ctx, tx, buildInsertionSQL("session_signers", cols),
+			sessionId, signerId, "", createdAt, createdAt)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store INSERT session_signers %v", err)
+		}
+	}
 
-	cols := []string{"session_id", "signer_id", "extra", "created_at", "updated_at"}
-	err = s.execOne(ctx, tx, buildInsertionSQL("session_signers", cols),
-		sessionId, signerId, "", createdAt, createdAt)
+	if sufficient {
+		query := "SELECT prepared_at FROM sessions WHERE session_id=? AND prepared_at IS NOT NULL"
+		existed, err := s.checkExistence(ctx, tx, query, sessionId)
+		if err != nil {
+			return err
+		}
+
+		if !existed {
+			query = "UPDATE sessions SET prepared_at=?, updated_at=? WHERE session_id=? AND state=? AND prepared_at IS NULL"
+			err = s.execOne(ctx, tx, query, createdAt, createdAt, sessionId, common.RequestStateInitial)
+			if err != nil {
+				return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+			}
+		}
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
-		return fmt.Errorf("SQLite3Store INSERT session_signers %v", err)
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit()

@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -438,12 +439,68 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	}
 }
 
+func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleSigner {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeSignInput {
+		panic(req.Action)
+	}
+
+	extra := string(req.ExtraBytes())
+	items := strings.Split(extra, ",")
+	if len(items) != 2 || items[0] != PrepareExtra {
+		return node.failRequest(ctx, req, "")
+	}
+
+	s, err := node.store.ReadSession(ctx, items[1])
+	if err != nil {
+		panic(fmt.Errorf("store.ReadSession(%s) => %v", items[1], err))
+	} else if s.PreparedAt.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
+	if err != nil {
+		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
+	}
+
+	sufficient := len(signers)+1 > node.threshold
+	err = node.store.PrepareSessionSignerWithRequest(ctx, req, sufficient, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt)
+	if err != nil {
+		panic(fmt.Errorf("node.PrepareSessionSignerWithRequest(%t %s %s %s) => %v", sufficient, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt, err))
+	}
+
+	return nil, ""
+}
+
 func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleSigner {
 		panic(req.Role)
 	}
 	if req.Action != OperationTypeSignOutput {
 		panic(req.Action)
+	}
+	extra := req.ExtraBytes()
+	sid := uuid.FromBytesOrNil(extra[:16]).String()
+	signature := extra[16:]
+
+	s, err := node.store.ReadSession(ctx, sid)
+	if err != nil || s == nil {
+		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
+	}
+	call, err := node.store.ReadSystemCallByMessage(ctx, s.Extra)
+	if err != nil || call == nil {
+		panic(fmt.Errorf("store.ReadSystemCallByMessage(%s) => %v %v", s.Extra, call, err))
+	}
+	if call.Signature.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+
+	// TODO verify signature
+
+	err = node.store.AttachSystemCallSignatureWithRequest(ctx, req, call, s.Id, base64.StdEncoding.EncodeToString(signature))
+	if err != nil {
+		panic(fmt.Errorf("store.AttachSystemCallSignatureWithRequest(%s %v) => %v", s.Id, call, err))
 	}
 
 	return nil, ""
