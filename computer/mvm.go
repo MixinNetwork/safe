@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"strings"
 
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
@@ -117,6 +116,7 @@ func (node *Node) systemCall(ctx context.Context, req *store.Request) ([]*mtg.Tr
 	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
 	withdraws := [][2]string{}
 	transfers := []solanaApp.TokenTransfers{}
+	mints := []solana.PrivateKey{}
 	for _, ref := range ver.References {
 		ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
 		if err != nil {
@@ -141,13 +141,26 @@ func (node *Node) systemCall(ctx context.Context, req *store.Request) ([]*mtg.Tr
 			panic(err)
 		}
 		if asset.ChainID != common.SafeSolanaChainId {
-			key, err := node.store.GetSpareKey(ctx)
+			deployedAsset, err := node.store.ReadDeployedAsset(ctx, asset.AssetID)
 			if err != nil {
 				panic(err)
 			}
+			if deployedAsset == nil {
+				key, err := solana.NewRandomPrivateKey()
+				if err != nil {
+					panic(err)
+				}
+				mints = append(mints, key)
+				deployedAsset = &store.DeployedAsset{
+					AssetId: asset.AssetID,
+					Address: key.PublicKey().String(),
+				}
+			}
 			transfers = append(transfers, solanaApp.TokenTransfers{
 				SolanaAsset: false,
-				Mint:        solanaApp.PublicKeyFromEd25519Public(key.Public),
+				AssetId:     asset.AssetID,
+				ChainId:     asset.ChainID,
+				Mint:        deployedAsset.PublicKey(),
 				Destination: destination,
 				Amount:      total.BigInt().Uint64(),
 				Decimals:    uint8(asset.Precision),
@@ -155,8 +168,12 @@ func (node *Node) systemCall(ctx context.Context, req *store.Request) ([]*mtg.Tr
 			continue
 		}
 
+		mint := solana.MustPublicKeyFromBase58(asset.AssetKey)
 		transfers = append(transfers, solanaApp.TokenTransfers{
 			SolanaAsset: true,
+			AssetId:     asset.AssetID,
+			ChainId:     asset.ChainID,
+			Mint:        mint,
 			Destination: destination,
 			Amount:      total.BigInt().Uint64(),
 			Decimals:    uint8(9),
@@ -171,18 +188,23 @@ func (node *Node) systemCall(ctx context.Context, req *store.Request) ([]*mtg.Tr
 		// TODO build withdrawal txs with mtg
 	} else {
 		call.State = store.SystemCallStateWithdrawed
-		tx, mints, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, solanaApp.NonceAccount{
+		tx, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, solanaApp.NonceAccount{
 			Address: solana.MustPublicKeyFromBase58(nonce.Address),
 			Hash:    solana.MustHashFromBase58(nonce.Hash),
 		}, transfers)
 		if err != nil {
 			panic(err)
 		}
+		if len(mints) > 0 {
+			_, err = tx.PartialSign(solanaApp.BuildSignersGetter(mints...))
+			if err != nil {
+				panic(err)
+			}
+		}
 		subCalls = append(subCalls, store.SubCall{
 			Message:   tx.Message.ToBase64(),
 			RequestId: req.Id,
 			UserId:    user.Id().String(),
-			Mints:     strings.Join(mints, ","),
 			Raw:       tx.MustToBase64(),
 			State:     store.SystemCallStateInitial,
 			CreatedAt: req.CreatedAt,
@@ -190,7 +212,7 @@ func (node *Node) systemCall(ctx context.Context, req *store.Request) ([]*mtg.Tr
 		})
 	}
 
-	err = node.store.WriteUnfinishedSystemCallWithRequest(ctx, req, call, subCalls, txs, compaction)
+	err = node.store.WriteUnfinishedSystemCallWithRequest(ctx, req, call, subCalls, store.DeployedAssetsFromTransferTokens(transfers), txs, compaction)
 	logger.Printf("solana.WriteUnfinishedSystemCallWithRequest(%v %d %d %s) => %v", call, len(subCalls), len(txs), compaction, err)
 	if err != nil {
 		panic(err)

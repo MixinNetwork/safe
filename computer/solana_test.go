@@ -73,9 +73,8 @@ func TestComputerSolana(t *testing.T) {
 			Decimals:    8,
 		},
 	}
-	tx, mints, err := rpcClient.TransferTokens(ctx, testPayerPrivKey, testMtgPrivKey, nonce, transfers)
+	tx, err = rpcClient.TransferTokens(ctx, testPayerPrivKey, testMtgPrivKey, nonce, transfers)
 	require.Nil(err)
-	require.Len(mints, 1)
 	_, err = tx.Sign(solanaApp.BuildSignersGetter([]solana.PrivateKey{payer, mtg, mint}...))
 	require.Nil(err)
 	require.Equal(

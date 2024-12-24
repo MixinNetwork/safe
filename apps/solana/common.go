@@ -16,6 +16,8 @@ type NonceAccount struct {
 
 type TokenTransfers struct {
 	SolanaAsset bool
+	AssetId     string
+	ChainId     string
 	Mint        solana.PublicKey
 	Destination solana.PublicKey
 	Amount      uint64

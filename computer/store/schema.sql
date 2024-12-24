@@ -97,6 +97,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_by_address ON users(address);
 CREATE INDEX IF NOT EXISTS users_by_created ON users(created_at);
 
 
+CREATE TABLE IF NOT EXISTS deployed_assets (
+  asset_id        VARCHAR NOT NULL,
+  address         VARCHAR NOT NULL,
+  created_at      TIMESTAMP NOT NULL,
+  PRIMARY KEY ('user_id')
+);
+
+CREATE INDEX IF NOT EXISTS assets_by_address ON deployed_assets(address);
+
+
 CREATE TABLE IF NOT EXISTS system_calls (
   request_id     VARCHAR NOT NULL,
   user_id        VARCHAR NOT NULL,
@@ -115,7 +125,6 @@ CREATE TABLE IF NOT EXISTS sub_calls (
   message        VARCHAR NOT NULL,
   request_id     VARCHAR NOT NULL,
   user_id        VARCHAR NOT NULL,
-  mints          VARCHAR NOT NULL,
   raw            TEXT NOT NULL,
   state          INTEGER NOT NULL,
   created_at     TIMESTAMP NOT NULL,

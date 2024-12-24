@@ -29,7 +29,6 @@ type SubCall struct {
 	Message   string
 	RequestId string
 	UserId    string
-	Mints     string
 	Raw       string
 	State     int64
 	CreatedAt time.Time
@@ -38,9 +37,9 @@ type SubCall struct {
 
 var systemCallCols = []string{"request_id", "user_id", "raw", "state", "created_at", "updated_at"}
 
-var subCallCols = []string{"message", "request_id", "user_id", "mints", "raw", "state", "created_at", "updated_at"}
+var subCallCols = []string{"message", "request_id", "user_id", "raw", "state", "created_at", "updated_at"}
 
-func (s *SQLite3Store) WriteUnfinishedSystemCallWithRequest(ctx context.Context, req *Request, call SystemCall, subCalls []SubCall, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) WriteUnfinishedSystemCallWithRequest(ctx context.Context, req *Request, call SystemCall, subCalls []SubCall, as []*DeployedAsset, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -50,7 +49,10 @@ func (s *SQLite3Store) WriteUnfinishedSystemCallWithRequest(ctx context.Context,
 	}
 	defer common.Rollback(tx)
 
-	// FIXME add assets table and assign key to assets
+	err = s.writeDeployedAssetsIfNorExist(ctx, tx, req, as)
+	if err != nil {
+		return err
+	}
 
 	vals := []any{call.RequestId, call.UserId, call.Raw, call.State, call.CreatedAt, call.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
@@ -58,7 +60,7 @@ func (s *SQLite3Store) WriteUnfinishedSystemCallWithRequest(ctx context.Context,
 		return fmt.Errorf("INSERT system_calls %v", err)
 	}
 	for _, subCall := range subCalls {
-		vals := []any{subCall.Message, subCall.RequestId, subCall.UserId, subCall.Mints, subCall.Raw, subCall.State, subCall.CreatedAt, subCall.UpdatedAt}
+		vals := []any{subCall.Message, subCall.RequestId, subCall.UserId, subCall.Raw, subCall.State, subCall.CreatedAt, subCall.UpdatedAt}
 		err = s.execOne(ctx, tx, buildInsertionSQL("sub_calls", subCallCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT sub_calls %v", err)

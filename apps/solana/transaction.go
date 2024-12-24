@@ -81,29 +81,46 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string
 	return tx, nil
 }
 
-func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, []string, error) {
+func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
 	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
 	mtgAddress := solana.MustPublicKeyFromBase58(mtg)
 
 	var nullFreezeAuthority solana.PublicKey
 	var rent uint64
-	var mints []string
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
-			builder.AddInstruction(
-				system.NewTransferInstruction(
-					transfer.Amount,
-					mtgAddress,
-					transfer.Destination,
-				).Build(),
-			)
+			if transfer.AssetId == transfer.ChainId {
+				builder.AddInstruction(
+					system.NewTransferInstruction(
+						transfer.Amount,
+						mtgAddress,
+						transfer.Destination,
+					).Build(),
+				)
+			} else {
+				ataAddress, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, transfer.Mint)
+				if err != nil {
+					return nil, err
+				}
+				builder.AddInstruction(
+					token.NewTransferCheckedInstruction(
+						transfer.Amount,
+						transfer.Decimals,
+						ataAddress,
+						transfer.Mint,
+						transfer.Destination,
+						mtgAddress,
+						nil,
+					).Build(),
+				)
+			}
 			continue
 		}
 
 		mint := transfer.Mint
 		mintToken, err := c.GetMint(ctx, mint)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if mintToken == nil || common.CheckTestEnvironment(ctx) {
 			if rent == 0 {
@@ -113,7 +130,7 @@ func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce No
 					rpc.CommitmentFinalized,
 				)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get rent exempt balance: %w", err)
+					return nil, fmt.Errorf("failed to get rent exempt balance: %w", err)
 				}
 			}
 			builder.AddInstruction(
@@ -133,16 +150,15 @@ func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce No
 					mint,
 				).Build(),
 			)
-			mints = append(mints, transfer.Mint.String())
 		}
 
 		ataAddress, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, mint)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		ata, err := c.RPCGetAccount(ctx, ataAddress)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if ata == nil || common.CheckTestEnvironment(ctx) {
 			builder.AddInstruction(
@@ -169,7 +185,7 @@ func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce No
 	if err != nil {
 		panic(err)
 	}
-	return tx, mints, nil
+	return tx, nil
 }
 
 func (c *Client) SendAndConfirmTransaction(ctx context.Context, tx *solana.Transaction) error {
