@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -96,13 +95,9 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
 
 	data := req.ExtraBytes()
-	x, n := binary.Varint(data[:4])
-	logger.Printf("systemCall.Varint(%x) => %d %d", data[:4], x, n)
-	if n <= 0 {
-		return node.failRequest(ctx, req, "")
-	}
-	user, err := node.store.ReadUser(ctx, big.NewInt(x))
-	logger.Printf("store.ReadUser(%d) => %v %v", x, user, err)
+	id := new(big.Int).SetBytes(data[:8])
+	user, err := node.store.ReadUser(ctx, id)
+	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadUser() => %v", err))
 	} else if user == nil {

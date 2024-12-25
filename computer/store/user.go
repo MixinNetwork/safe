@@ -67,6 +67,13 @@ func (u *User) Id() *big.Int {
 	return b
 }
 
+func (u *User) IdBytes() []byte {
+	bid := u.Id()
+	data := make([]byte, 8)
+	data = bid.FillBytes(data)
+	return data
+}
+
 func (a *NonceAccount) Account() solanaApp.NonceAccount {
 	return solanaApp.NonceAccount{
 		Address: solana.MustPublicKeyFromBase58(a.Address),
