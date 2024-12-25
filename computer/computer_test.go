@@ -34,119 +34,127 @@ func TestComputer(t *testing.T) {
 	testObserverRequestGenerateKeys(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverRequestInitMpcKey(ctx, require, nodes)
+
 	testUserRequestAddUsers(ctx, require, nodes)
+	testUserRequestSystemCall(ctx, require, nodes)
+}
+
+func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node) {
+
 }
 
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) {
-	node := nodes[0]
 	start := big.NewInt(0).Add(store.StartUserId, big.NewInt(1))
 
-	id := uuid.Must(uuid.NewV4())
-	seed := id.Bytes()
-	seed = append(seed, id.Bytes()...)
-	seed = append(seed, id.Bytes()...)
-	seed = append(seed, id.Bytes()...)
-	mix := mc.NewAddressFromSeed(seed)
-	out := testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
-	testStep(ctx, require, node, out)
-	user1, err := node.store.ReadUserByAddress(ctx, mix.String())
-	require.Nil(err)
-	require.Equal(mix.String(), user1.Address)
-	require.Equal(start.String(), user1.UserId)
-	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
-	require.NotEqual("", user1.NonceAccount)
-	count, err := node.store.CountSpareKeys(ctx)
-	require.Nil(err)
-	require.Equal(8, count)
-	count, err = node.store.CountSpareNonceAccounts(ctx)
-	require.Nil(err)
-	require.Equal(3, count)
+	for _, node := range nodes {
+		id := uuid.Must(uuid.NewV4())
+		seed := id.Bytes()
+		seed = append(seed, id.Bytes()...)
+		seed = append(seed, id.Bytes()...)
+		seed = append(seed, id.Bytes()...)
+		mix := mc.NewAddressFromSeed(seed)
+		out := testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
+		testStep(ctx, require, node, out)
+		user1, err := node.store.ReadUserByAddress(ctx, mix.String())
+		require.Nil(err)
+		require.Equal(mix.String(), user1.Address)
+		require.Equal(start.String(), user1.UserId)
+		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
+		require.NotEqual("", user1.NonceAccount)
+		count, err := node.store.CountSpareKeys(ctx)
+		require.Nil(err)
+		require.Equal(8, count)
+		count, err = node.store.CountSpareNonceAccounts(ctx)
+		require.Nil(err)
+		require.Equal(3, count)
 
-	start = big.NewInt(0).Add(start, big.NewInt(1))
-	id = uuid.Must(uuid.NewV4())
-	seed = id.Bytes()
-	seed = append(seed, id.Bytes()...)
-	seed = append(seed, id.Bytes()...)
-	seed = append(seed, id.Bytes()...)
-	mix = mc.NewAddressFromSeed(seed)
-	out = testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
-	testStep(ctx, require, node, out)
-	user2, err := node.store.ReadUserByAddress(ctx, mix.String())
-	require.Nil(err)
-	require.Equal(mix.String(), user2.Address)
-	require.Equal(start.String(), user2.UserId)
-	require.NotEqual("", user1.Public)
-	require.NotEqual("", user1.NonceAccount)
-	count, err = node.store.CountSpareKeys(ctx)
-	require.Nil(err)
-	require.Equal(7, count)
-	count, err = node.store.CountSpareNonceAccounts(ctx)
-	require.Nil(err)
-	require.Equal(2, count)
+		id = uuid.Must(uuid.NewV4())
+		seed = id.Bytes()
+		seed = append(seed, id.Bytes()...)
+		seed = append(seed, id.Bytes()...)
+		seed = append(seed, id.Bytes()...)
+		mix = mc.NewAddressFromSeed(seed)
+		out = testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
+		testStep(ctx, require, node, out)
+		user2, err := node.store.ReadUserByAddress(ctx, mix.String())
+		require.Nil(err)
+		require.Equal(mix.String(), user2.Address)
+		require.Equal(big.NewInt(0).Add(start, big.NewInt(1)).String(), user2.UserId)
+		require.NotEqual("", user1.Public)
+		require.NotEqual("", user1.NonceAccount)
+		count, err = node.store.CountSpareKeys(ctx)
+		require.Nil(err)
+		require.Equal(7, count)
+		count, err = node.store.CountSpareNonceAccounts(ctx)
+		require.Nil(err)
+		require.Equal(2, count)
+	}
 }
 
 func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
-	node := nodes[0]
-	count, err := node.store.CountSpareNonceAccounts(ctx)
-	require.Nil(err)
-	require.Equal(0, count)
+	for _, node := range nodes {
+		count, err := node.store.CountSpareNonceAccounts(ctx)
+		require.Nil(err)
+		require.Equal(0, count)
 
-	var addr solana.PublicKey
-	for i := range 4 {
-		address, hash := testGenerateRandNonceAccount(require)
-		if i == 0 {
-			addr = address
+		var addr solana.PublicKey
+		for i := range 4 {
+			address, hash := testGenerateRandNonceAccount(require)
+			if i == 0 {
+				addr = address
+			}
+			extra := address.Bytes()
+			extra = append(extra, hash[:]...)
+
+			id := uuid.Must(uuid.NewV4()).String()
+			out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
+			testStep(ctx, require, node, out)
+			account, err := node.store.ReadNonceAccount(ctx, address.String())
+			require.Nil(err)
+			require.Equal(hash.String(), account.Hash)
 		}
-		extra := address.Bytes()
-		extra = append(extra, hash[:]...)
 
+		_, hash := testGenerateRandNonceAccount(require)
+		extra := addr.Bytes()
+		extra = append(extra, hash[:]...)
 		id := uuid.Must(uuid.NewV4()).String()
 		out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
 		testStep(ctx, require, node, out)
-		account, err := node.store.ReadNonceAccount(ctx, address.String())
+		account, err := node.store.ReadNonceAccount(ctx, addr.String())
 		require.Nil(err)
 		require.Equal(hash.String(), account.Hash)
+
+		count, err = node.store.CountSpareNonceAccounts(ctx)
+		require.Nil(err)
+		require.Equal(4, count)
 	}
-
-	_, hash := testGenerateRandNonceAccount(require)
-	extra := addr.Bytes()
-	extra = append(extra, hash[:]...)
-	id := uuid.Must(uuid.NewV4()).String()
-	out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
-	testStep(ctx, require, node, out)
-	account, err := node.store.ReadNonceAccount(ctx, addr.String())
-	require.Nil(err)
-	require.Equal(hash.String(), account.Hash)
-
-	count, err = node.store.CountSpareNonceAccounts(ctx)
-	require.Nil(err)
-	require.Equal(4, count)
 }
 
 func testObserverRequestInitMpcKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
-	node := nodes[0]
-	initialized, err := node.store.CheckMpcKeyInitialized(ctx)
-	require.Nil(err)
-	require.False(initialized)
+	for _, node := range nodes {
+		initialized, err := node.store.CheckMpcKeyInitialized(ctx)
+		require.Nil(err)
+		require.False(initialized)
 
-	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
-	require.Nil(err)
-	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
-	id := common.UniqueId(key, "mpc key init")
-	extra := common.DecodeHexOrPanic(key)
-	out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
-	testStep(ctx, require, node, out)
+		key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
+		require.Nil(err)
+		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
+		id := common.UniqueId(key, "mpc key init")
+		extra := common.DecodeHexOrPanic(key)
+		out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
+		testStep(ctx, require, node, out)
 
-	mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
-	require.Nil(err)
-	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", mtg.Public)
+		mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
+		require.Nil(err)
+		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", mtg.Public)
 
-	count, err := node.store.CountSpareKeys(ctx)
-	require.Nil(err)
-	require.Equal(9, count)
-	initialized, err = node.store.CheckMpcKeyInitialized(ctx)
-	require.Nil(err)
-	require.True(initialized)
+		count, err := node.store.CountSpareKeys(ctx)
+		require.Nil(err)
+		require.Equal(9, count)
+		initialized, err = node.store.CheckMpcKeyInitialized(ctx)
+		require.Nil(err)
+		require.True(initialized)
+	}
 }
 
 func testObserverRequestGenerateKeys(ctx context.Context, require *require.Assertions, nodes []*Node) {
