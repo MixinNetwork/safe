@@ -33,7 +33,7 @@ type Key struct {
 	BackedUpAt  sql.NullTime
 }
 
-func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string, public string, conf []byte, saved bool) error {
+func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, session *Session, public string, conf []byte, saved bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -52,7 +52,7 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
 	cols := []string{"public", "fingerprint", "share", "session_id", "user_id", "created_at", "updated_at"}
-	values := []any{public, fingerprint, share, sessionId, nil, timestamp, timestamp}
+	values := []any{public, fingerprint, share, session.Id, nil, session.CreatedAt, timestamp}
 	if saved {
 		cols = append(cols, "backed_up_at")
 		values = append(values, timestamp)
@@ -64,7 +64,7 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE sessions SET public=?, state=?, updated_at=? WHERE session_id=? AND created_at=updated_at AND state=?",
-		public, common.RequestStateDone, timestamp, sessionId, common.RequestStateInitial)
+		public, common.RequestStateDone, timestamp, session.Id, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}

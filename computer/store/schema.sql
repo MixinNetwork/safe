@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS deployed_assets (
   asset_id        VARCHAR NOT NULL,
   address         VARCHAR NOT NULL,
   created_at      TIMESTAMP NOT NULL,
-  PRIMARY KEY ('user_id')
+  PRIMARY KEY ('asset_id')
 );
 
 CREATE INDEX IF NOT EXISTS assets_by_address ON deployed_assets(address);

@@ -275,6 +275,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 	members := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 	for i := 0; i < int(batch.Int64()); i++ {
+		now := time.Now().UTC()
 		id := common.UniqueId(req.Id, fmt.Sprintf("%8d", i))
 		id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
 		sessions = append(sessions, &store.Session{
@@ -283,7 +284,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 			MixinIndex: req.Output.OutputIndex,
 			Index:      i,
 			Operation:  OperationTypeKeygenInput,
-			CreatedAt:  req.Output.SequencerCreatedAt,
+			CreatedAt:  now,
 		})
 	}
 

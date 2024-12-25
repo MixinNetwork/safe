@@ -322,7 +322,11 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 			panic(err)
 		}
 	}
-	return node.store.WriteKeyIfNotExists(ctx, op.Id, op.Public, res.Share, saved)
+	session, err := node.store.ReadSession(ctx, op.Id)
+	if err != nil {
+		panic(err)
+	}
+	return node.store.WriteKeyIfNotExists(ctx, session, op.Public, res.Share, saved)
 }
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {

@@ -160,7 +160,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 		for _, s := range sessions {
 			op := s.AsOperation()
 			switch op.Type {
-			case common.OperationTypeSignInput:
+			case OperationTypeSignInput:
 				holder, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
 				if err != nil {
 					panic(err)
