@@ -60,7 +60,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	require.Equal(8, count)
 	count, err = node.store.CountSpareNonceAccounts(ctx)
 	require.Nil(err)
-	require.Equal(2, count)
+	require.Equal(3, count)
 
 	start = big.NewInt(0).Add(start, big.NewInt(1))
 	id = uuid.Must(uuid.NewV4())
@@ -82,7 +82,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	require.Equal(7, count)
 	count, err = node.store.CountSpareNonceAccounts(ctx)
 	require.Nil(err)
-	require.Equal(1, count)
+	require.Equal(2, count)
 }
 
 func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
@@ -132,14 +132,8 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
 	require.Nil(err)
 	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
-	account, err := node.store.ReadFirstGeneratedNonceAccount(ctx)
-	require.Nil(err)
-	require.NotEqual("", account)
-	addr, err := solana.PublicKeyFromBase58(account)
-	require.Nil(err)
 	id := common.UniqueId(key, "mpc key init")
 	extra := common.DecodeHexOrPanic(key)
-	extra = append(extra, addr.Bytes()...)
 	out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
 	testStep(ctx, require, node, out)
 

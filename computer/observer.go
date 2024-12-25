@@ -7,7 +7,6 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/gagliardetto/solana-go"
 )
 
 func (node *Node) bootObserver(ctx context.Context) {
@@ -92,21 +91,8 @@ func (node *Node) requestInitMpcKey(ctx context.Context) error {
 	if key == "" {
 		return fmt.Errorf("fail to find first generated key")
 	}
-	account, err := node.store.ReadFirstGeneratedNonceAccount(ctx)
-	if err != nil {
-		return err
-	}
-	if account == "" {
-		return fmt.Errorf("fail to find first generated nonce account")
-	}
-	addr, err := solana.PublicKeyFromBase58(account)
-	if err != nil {
-		return err
-	}
-
-	id := common.UniqueId(key, account)
+	id := common.UniqueId(key, "mtg key init")
 	extra := common.DecodeHexOrPanic(key)
-	extra = append(extra, addr.Bytes()...)
 	return node.sendObserverTransaction(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeInitMPCKey,
