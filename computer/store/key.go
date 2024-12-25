@@ -65,8 +65,8 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, session *Session
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE sessions SET public=?, state=?, updated_at=? WHERE session_id=? AND created_at=updated_at AND state=?",
-		public, common.RequestStateDone, timestamp, session.Id, common.RequestStateInitial)
-	if err != nil && !common.CheckTestEnvironment(ctx) {
+		public, common.RequestStatePending, timestamp, session.Id, common.RequestStateInitial)
+	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}
 

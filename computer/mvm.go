@@ -296,7 +296,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 }
 
 func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
+	if req.Role != RequestRoleSigner {
 		panic(req.Role)
 	}
 	if req.Action != OperationTypeKeygenOutput {
@@ -311,7 +311,7 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 	if err != nil || s == nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
 	}
-	key, _, _, err := node.readKeyByFingerPath(ctx, hex.EncodeToString(public))
+	key, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public))))
 	if err != nil || key != hex.EncodeToString(public) {
 		panic(fmt.Errorf("store.readKeyByFingerPath(%x) => %s %v", public, key, err))
 	}

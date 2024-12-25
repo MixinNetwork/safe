@@ -176,11 +176,17 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	sessionId = common.UniqueId(sessionId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 	for _, node := range nodes {
 		testWaitOperation(ctx, node, sessionId)
+	}
+	time.Sleep(5 * time.Second)
+	for _, node := range nodes {
 		count, err := node.store.CountSpareKeys(ctx)
 		require.Nil(err)
 		require.Equal(10, count)
 
 		sessions, err := node.store.ListPreparedSessions(ctx, 500)
+		require.Nil(err)
+		require.Len(sessions, 0)
+		sessions, err = node.store.ListPendingSessions(ctx, 500)
 		require.Nil(err)
 		require.Len(sessions, 0)
 
@@ -382,11 +388,8 @@ func testFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 		pub, share := parts[0], parts[1]
 		conf, _ := hex.DecodeString(share)
 		require.Equal(public, pub)
-		session := &store.Session{
-			Id:        common.UniqueId("prepare", public),
-			CreatedAt: time.Now().UTC(),
-		}
-		err := node.store.WriteKeyIfNotExists(ctx, session, pub, conf, false)
+		id := common.UniqueId("prepare", public)
+		err := node.store.TestWriteKey(ctx, id, pub, conf, false)
 		require.Nil(err)
 	}
 }

@@ -162,6 +162,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			switch op.Type {
 			case OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)
+				op.Type = OperationTypeKeygenOutput
 			case OperationTypeSignInput:
 				holder, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
 				if err != nil {
@@ -173,6 +174,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				} else {
 					op.Extra = nil
 				}
+				op.Type = OperationTypeSignOutput
 			default:
 				panic(op.Id)
 			}

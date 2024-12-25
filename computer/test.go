@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
@@ -16,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -131,10 +133,14 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 }
 
 func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
+	hash := []byte{byte(node.Index())}
+	hash = append(hash, memo...)
 	out := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			TransactionHash:    crypto.Sha256Hash(hash).String(),
 			AppId:              node.conf.AppId,
+			Amount:             decimal.NewFromInt(1),
 			Senders:            []string{string(node.id)},
 			AssetId:            node.conf.AssetId,
 			SequencerCreatedAt: time.Now(),
