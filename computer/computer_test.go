@@ -29,18 +29,17 @@ var sequence uint64 = 5000000
 
 func TestComputer(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes, _, _ := testPrepare(require)
+	ctx, nodes, mds, _ := testPrepare(require)
 
 	testObserverRequestGenerateKeys(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverRequestInitMpcKey(ctx, require, nodes)
 
 	testUserRequestAddUsers(ctx, require, nodes)
-	testUserRequestSystemCall(ctx, require, nodes)
+	testUserRequestSystemCall(ctx, require, nodes, mds)
 }
 
-func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node) {
-
+func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store) {
 }
 
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) {
@@ -299,8 +298,8 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
 		nodes[i], mds[i] = testBuildNode(ctx, require, root, i, saverStore, port)
-		testInitOutputs(ctx, require, mds[i], nodes[i].conf)
 	}
+	testInitOutputs(ctx, require, nodes, mds)
 
 	network := newTestNetwork(nodes[0].GetPartySlice())
 	for i := 0; i < 4; i++ {
@@ -355,25 +354,35 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	return node, md
 }
 
-func testInitOutputs(ctx context.Context, require *require.Assertions, md *mtg.SQLite3Store, conf *Configuration) {
+func testInitOutputs(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store) {
+	start := sequence - 1
+	conf := nodes[0].conf
 	for i := range 100 {
-		_, err := testWriteOutput(ctx, md, conf.AppId, conf.AssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.AssetId, "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
 	for i := range 100 {
-		_, err := testWriteOutput(ctx, md, conf.AppId, conf.ObserverAssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.ObserverAssetId, "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
 	for i := range 100 {
-		_, err := testWriteOutput(ctx, md, conf.AppId, mtg.StorageAssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, mtg.StorageAssetId, "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
+	}
+	for _, node := range nodes {
+		os := node.group.ListOutputsForAsset(ctx, conf.AppId, conf.AssetId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
+		require.Len(os, 100)
+		os = node.group.ListOutputsForAsset(ctx, conf.AppId, conf.ObserverAssetId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
+		require.Len(os, 100)
+		os = node.group.ListOutputsForAsset(ctx, conf.AppId, mtg.StorageAssetId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
+		require.Len(os, 100)
 	}
 }
 
-func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, appId, assetId, extra string, sequence uint64, amount decimal.Decimal) (*mtg.UnifiedOutput, error) {
+func testWriteOutputForNodes(ctx context.Context, dbs []*mtg.SQLite3Store, appId, assetId, extra string, sequence uint64, amount decimal.Decimal) (*mtg.UnifiedOutput, error) {
 	id := uuid.Must(uuid.NewV4())
 	output := &mtg.UnifiedOutput{
 		OutputId:           id.String(),
@@ -386,8 +395,13 @@ func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, appId, assetId, 
 		State:              mtg.SafeUtxoStateUnspent,
 		Extra:              extra,
 	}
-	err := db.WriteAction(ctx, output, mtg.ActionStateDone)
-	return output, err
+	for _, db := range dbs {
+		err := db.WriteAction(ctx, output, mtg.ActionStateDone)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return output, nil
 }
 
 func testFROSTPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, testKeys map[party.ID]string, public string) {
