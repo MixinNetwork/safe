@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS keys (
 	user_id      VARCHAR,
 	created_at   TIMESTAMP NOT NULL,
 	updated_at   TIMESTAMP NOT NULL,
+  confirmed_at TIMESTAMP,
 	backed_up_at TIMESTAMP,
 	PRIMARY KEY ('public')
 );

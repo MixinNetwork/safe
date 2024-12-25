@@ -12,7 +12,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
@@ -131,6 +130,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSystemCall(ctx, req)
 	case OperationTypeKeygenInput:
 		return node.processSignerKeygenRequests(ctx, req)
+	case OperationTypeKeygenOutput:
+		return node.processSignerKeygenResults(ctx, req)
 	case OperationTypeInitMPCKey:
 		return node.processSignerKeyInitRequests(ctx, req)
 	case OperationTypeCreateNonce:
@@ -162,15 +163,6 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (strin
 	fingerprint := hex.EncodeToString(fingerPath[:8])
 	public, share, err := node.store.ReadKeyByFingerprint(ctx, fingerprint)
 	return public, share, fingerPath[8:], err
-}
-
-func (node *Node) deriveByPath(_ context.Context, share, path []byte) ([]byte, []byte) {
-	conf := frost.EmptyConfig(curve.Edwards25519{})
-	err := conf.UnmarshalBinary(share)
-	if err != nil {
-		panic(err)
-	}
-	return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
 }
 
 func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
@@ -270,24 +262,6 @@ func (node *Node) verifySessionSignerResults(_ context.Context, session *store.S
 	}
 }
 
-func (node *Node) parseSignerMessage(out *mtg.Action) (*common.Operation, error) {
-	a, memo := mtg.DecodeMixinExtraHEX(out.Extra)
-	if a != node.conf.AppId {
-		panic(out.Extra)
-	}
-
-	req := decodeOperation(memo)
-	req.Id = out.OutputId
-
-	switch req.Type {
-	case OperationTypeKeygenInput:
-	case common.OperationTypeSignInput:
-	default:
-		return nil, fmt.Errorf("invalid action %d", req.Type)
-	}
-	return req, nil
-}
-
 func (node *Node) startOperation(ctx context.Context, op *common.Operation, members []party.ID) error {
 	logger.Printf("node.startOperation(%v)", op)
 
@@ -372,23 +346,4 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 		panic(err)
 	}
 	return ver.DepositData() != nil
-}
-
-func (node *Node) parseOperation(_ context.Context, memo string) (*common.Operation, error) {
-	a, m := mtg.DecodeMixinExtraHEX(memo)
-	if a != node.conf.AppId {
-		panic(memo)
-	}
-	if m == nil {
-		return nil, fmt.Errorf("mtg.DecodeMixinExtraHEX(%s)", memo)
-	}
-	op := decodeOperation(m)
-
-	switch op.Type {
-	case common.OperationTypeSignInput:
-	case OperationTypeKeygenInput:
-	default:
-		return nil, fmt.Errorf("invalid action %d", op.Type)
-	}
-	return op, nil
 }

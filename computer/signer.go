@@ -160,6 +160,8 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 		for _, s := range sessions {
 			op := s.AsOperation()
 			switch op.Type {
+			case OperationTypeKeygenInput:
+				op.Extra = common.DecodeHexOrPanic(op.Public)
 			case OperationTypeSignInput:
 				holder, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
 				if err != nil {
@@ -176,7 +178,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			}
 			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
 
-			extra := []byte{OperationTypeSignOutput}
+			extra := []byte{op.Type}
 			extra = append(extra, op.IdBytes()...)
 			extra = append(extra, op.Extra...)
 			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)

@@ -295,6 +295,58 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 	return nil, ""
 }
 
+func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeKeygenOutput {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	sid := uuid.FromBytesOrNil(extra[:16]).String()
+	public := extra[16:]
+
+	s, err := node.store.ReadSession(ctx, sid)
+	if err != nil || s == nil {
+		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
+	}
+	key, _, _, err := node.readKeyByFingerPath(ctx, hex.EncodeToString(public))
+	if err != nil || key != hex.EncodeToString(public) {
+		panic(fmt.Errorf("store.readKeyByFingerPath(%x) => %s %v", public, key, err))
+	}
+
+	sender := req.Output.Senders[0]
+	err = node.store.WriteSessionSignerIfNotExist(ctx, s.Id, sender, public, req.Output.SequencerCreatedAt, sender == string(node.id))
+	if err != nil {
+		panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", s, err))
+	}
+	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
+	if err != nil {
+		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
+	}
+	finished, sig := node.verifySessionSignerResults(ctx, s, signers)
+	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", s, len(signers), finished, sig)
+	if !finished {
+		return node.failRequest(ctx, req, "")
+	}
+	if l := len(signers); l <= node.threshold {
+		panic(s.Id)
+	}
+
+	valid := node.verifySessionHolder(ctx, hex.EncodeToString(public))
+	logger.Printf("node.verifySessionHolder(%x) => %t", public, valid)
+	if !valid {
+		return nil, ""
+	}
+
+	err = node.store.MarkKeyComfirmedWithRequest(ctx, req, hex.EncodeToString(public))
+	if err != nil {
+		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
+	}
+	return nil, ""
+}
+
 func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
