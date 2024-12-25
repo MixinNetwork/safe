@@ -13,6 +13,7 @@ import (
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/saver"
@@ -52,11 +53,11 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	require.Nil(err)
 	require.Equal(mix.String(), user1.Address)
 	require.Equal(start.String(), user1.UserId)
-	require.NotEqual("", user1.Public)
+	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
 	require.NotEqual("", user1.NonceAccount)
 	count, err := node.store.CountSpareKeys(ctx)
 	require.Nil(err)
-	require.Equal(6, count)
+	require.Equal(8, count)
 	count, err = node.store.CountSpareNonceAccounts(ctx)
 	require.Nil(err)
 	require.Equal(2, count)
@@ -78,7 +79,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	require.NotEqual("", user1.NonceAccount)
 	count, err = node.store.CountSpareKeys(ctx)
 	require.Nil(err)
-	require.Equal(5, count)
+	require.Equal(7, count)
 	count, err = node.store.CountSpareNonceAccounts(ctx)
 	require.Nil(err)
 	require.Equal(1, count)
@@ -130,7 +131,7 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 
 	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
 	require.Nil(err)
-	require.NotEqual("", key)
+	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 	account, err := node.store.ReadFirstGeneratedNonceAccount(ctx)
 	require.Nil(err)
 	require.NotEqual("", account)
@@ -142,9 +143,13 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 	out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
 	testStep(ctx, require, node, out)
 
+	mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
+	require.Nil(err)
+	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", mtg.Public)
+
 	count, err := node.store.CountSpareKeys(ctx)
 	require.Nil(err)
-	require.Equal(7, count)
+	require.Equal(9, count)
 	initialized, err = node.store.CheckMpcKeyInitialized(ctx)
 	require.Nil(err)
 	require.True(initialized)
@@ -157,6 +162,10 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	var sessionId string
 
 	for i, node := range nodes {
+		count, err := node.store.CountSpareKeys(ctx)
+		require.Nil(err)
+		require.Equal(2, count)
+
 		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, []byte{batch})
 		if i == 0 {
 			sessionId = out.OutputId
@@ -171,13 +180,20 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	threshold := node.conf.MTG.Genesis.Threshold
 	sessionId = common.UniqueId(sessionId, fmt.Sprintf("%8d", 8-1))
 	sessionId = common.UniqueId(sessionId, fmt.Sprintf("MTG:%v:%d", members, threshold))
-	testWaitOperation(ctx, node, sessionId)
-	count, err := node.store.CountSpareKeys(ctx)
-	require.Nil(err)
-	require.Equal(8, count)
-	sessions, err := node.store.ListPreparedSessions(ctx, 500)
-	require.Nil(err)
-	require.Len(sessions, 0)
+	for _, node := range nodes {
+		testWaitOperation(ctx, node, sessionId)
+		count, err := node.store.CountSpareKeys(ctx)
+		require.Nil(err)
+		require.Equal(10, count)
+
+		sessions, err := node.store.ListPreparedSessions(ctx, 500)
+		require.Nil(err)
+		require.Len(sessions, 0)
+
+		key, err := node.store.GetSpareKey(ctx)
+		require.Nil(err)
+		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key.Public)
+	}
 }
 
 func testBuildUserRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
@@ -289,6 +305,9 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 		go nodes[i].acceptIncomingMessages(ctx)
 	}
 
+	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")
+	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys2, "4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295")
+
 	return ctx, nodes, mds, saverStore
 }
 
@@ -361,6 +380,21 @@ func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, appId, assetId, 
 	}
 	err := db.WriteAction(ctx, output, mtg.ActionStateDone)
 	return output, err
+}
+
+func testFROSTPrepareKeys(ctx context.Context, require *require.Assertions, nodes []*Node, testKeys map[party.ID]string, public string) {
+	for _, node := range nodes {
+		parts := strings.Split(testKeys[node.id], ";")
+		pub, share := parts[0], parts[1]
+		conf, _ := hex.DecodeString(share)
+		require.Equal(public, pub)
+		session := &store.Session{
+			Id:        common.UniqueId("prepare", public),
+			CreatedAt: time.Now().UTC(),
+		}
+		err := node.store.WriteKeyIfNotExists(ctx, session, pub, conf, false)
+		require.Nil(err)
+	}
 }
 
 func testGenerateRandNonceAccount(require *require.Assertions) (solana.PublicKey, solana.Hash) {
