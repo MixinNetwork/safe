@@ -21,6 +21,7 @@ type SystemCall struct {
 	RequestId       string
 	Superior        string
 	Type            string
+	NonceAccount    string
 	Public          string
 	Message         string
 	Raw             string
@@ -33,11 +34,11 @@ type SystemCall struct {
 	UpdatedAt       time.Time
 }
 
-var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "public", "message", "raw", "state", "withdrawal_ids", "withdrawed_at", "signature", "request_signer_at", "created_at", "updated_at"}
+var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "nonce_account", "public", "message", "raw", "state", "withdrawal_ids", "withdrawed_at", "signature", "request_signer_at", "created_at", "updated_at"}
 
 func systemCallFromRow(row Row) (*SystemCall, error) {
 	var c SystemCall
-	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.Public, &c.Message, &c.Raw, &c.State, &c.WithdrawalIds, &c.WithdrawedAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
+	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.NonceAccount, &c.Public, &c.Message, &c.Raw, &c.State, &c.WithdrawalIds, &c.WithdrawedAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -54,7 +55,7 @@ func (c *SystemCall) GetWithdrawalIds() []string {
 	return strings.Split(c.WithdrawalIds, ",")
 }
 
-func (s *SQLite3Store) WriteUnfinishedSystemCallWithRequest(ctx context.Context, req *Request, calls []*SystemCall, as []*DeployedAsset, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -64,17 +65,10 @@ func (s *SQLite3Store) WriteUnfinishedSystemCallWithRequest(ctx context.Context,
 	}
 	defer common.Rollback(tx)
 
-	err = s.writeDeployedAssetsIfNorExist(ctx, tx, req, as)
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrawedAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
-		return err
-	}
-
-	for _, call := range calls {
-		vals := []any{call.RequestId, call.Superior, call.Type, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrawedAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
-		err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
-		if err != nil {
-			return fmt.Errorf("INSERT system_calls %v", err)
-		}
+		return fmt.Errorf("INSERT system_calls %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)

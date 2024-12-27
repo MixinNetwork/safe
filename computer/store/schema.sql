@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS system_calls (
   request_id            VARCHAR NOT NULL,
   superior_request_id   VARCHAR NOT NULL,
   call_type             VARCHAR NOT NULL,
+  nonce_account         VARCHAR NOT NULL,
   public                VARCHAR NOT NULL,
   message               VARCHAR NOT NULL,
   raw                   TEXT NOT NULL,

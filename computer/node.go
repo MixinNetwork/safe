@@ -12,11 +12,12 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	"github.com/MixinNetwork/safe/apps/solana"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	solana "github.com/gagliardetto/solana-go"
 )
 
 type Node struct {
@@ -190,6 +191,10 @@ func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId s
 	return nil, assetId
 }
 
-func (node *Node) solanaClient() *solana.Client {
-	return solana.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
+func (node *Node) solanaClient() *solanaApp.Client {
+	return solanaApp.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
+}
+
+func (node *Node) solanaAccount() solana.PublicKey {
+	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
 }
