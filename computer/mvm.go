@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"slices"
 	"strings"
 	"time"
 
@@ -167,17 +168,22 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		if asset.ChainID != common.SafeSolanaChainId {
 			continue
 		}
-		// TODO build withdrawal txs with mtg
-		// destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
-		if compaction == "" {
-			panic(req)
+		destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
+		id := common.UniqueId(req.Id, asset.AssetID)
+		id = common.UniqueId(id, "withdrawal")
+		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.AssetID, total.String(), nil, destination.String(), "", id)
+		if tx == nil {
+			return node.failRequest(ctx, req, asset.AssetID)
 		}
+		txs = append(txs, tx)
+	}
+	if len(txs) > 0 {
 		ids := []string{}
 		for _, tx := range txs {
 			ids = append(ids, tx.TraceId)
 		}
 		call.WithdrawalIds = strings.Join(ids, ",")
-		call.WithdrawedAt = sql.NullTime{}
+		call.WithdrawedAt = sql.NullTime{Valid: false}
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, txs, compaction)
@@ -186,7 +192,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(err)
 	}
 
-	return txs, compaction
+	return txs, ""
 }
 
 func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
@@ -381,16 +387,18 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 
 	switch flag {
 	case ConfirmFlagMixinWithdrawal:
-		rid := uuid.Must(uuid.FromBytes(extra)).String()
-		call, err := node.store.ReadInitialSystemCallBySuperior(ctx, rid)
+		txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+		outputId := uuid.Must(uuid.FromBytes(extra[16:])).String()
+		call, err := node.store.ReadSystemCallByRequestId(ctx, outputId, common.RequestStateInitial)
+		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", outputId, call, err)
 		if err != nil {
 			panic(err)
 		}
-		if call.WithdrawedAt.Valid {
+		if call == nil || call.WithdrawedAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
 			return node.failRequest(ctx, req, "")
 		}
 
-		err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call)
+		err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId)
 		if err != nil {
 			panic(err)
 		}

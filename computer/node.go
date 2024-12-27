@@ -126,12 +126,12 @@ func (node *Node) GetPartySlice() party.IDSlice {
 }
 
 func (node *Node) bootComputer(ctx context.Context) {
-	go node.pendingSystemCallsLoop(ctx)
+	go node.unfinishedSystemCallsLoop(ctx)
 }
 
-func (node *Node) pendingSystemCallsLoop(ctx context.Context) {
+func (node *Node) unfinishedSystemCallsLoop(ctx context.Context) {
 	for {
-		err := node.processPendingSystemCalls(ctx)
+		err := node.processUnfinishedSystemCalls(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -140,11 +140,11 @@ func (node *Node) pendingSystemCallsLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) processPendingSystemCalls(ctx context.Context) error {
+func (node *Node) processUnfinishedSystemCalls(ctx context.Context) error {
 	members := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 
-	calls, err := node.store.ListPendingSystemCalls(ctx)
+	calls, err := node.store.ListUnfinishedSystemCalls(ctx)
 	if err != nil {
 		return err
 	}
