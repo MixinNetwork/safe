@@ -35,16 +35,38 @@ func TestComputer(t *testing.T) {
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverRequestInitMpcKey(ctx, require, nodes)
 
-	testUserRequestAddUsers(ctx, require, nodes)
-	testUserRequestSystemCall(ctx, require, nodes, mds)
+	user := testUserRequestAddUsers(ctx, require, nodes)
+	testUserRequestSystemCall(ctx, require, nodes, mds, user)
 }
 
-func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store) {
+func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) {
+	conf := nodes[0].conf
+
+	var references []crypto.Hash
+	sequence += 10
+	out, err := testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeBitcoinChainId, "", sequence, decimal.NewFromInt(100000))
+	require.Nil(err)
+	hash, err := crypto.HashFromString(out.TransactionHash)
+	require.Nil(err)
+	references = append(references, hash)
+	sequence += 10
+	out, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "", sequence, decimal.NewFromInt(1000000))
+	require.Nil(err)
+	hash, err = crypto.HashFromString(out.TransactionHash)
+	require.Nil(err)
+	references = append(references, hash)
+
+	// for _, node := range nodes {
+	// id := uuid.Must(uuid.NewV4())
+	// extra := user.IdBytes()
+	// extra = append(extra)
+	// out := testBuildUserRequest(node, id.String(), OperationTypeSystemCall, extra)
+	// }
 }
 
-func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) {
+func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
 	start := big.NewInt(0).Add(store.StartUserId, big.NewInt(1))
-
+	var user *store.User
 	for _, node := range nodes {
 		id := uuid.Must(uuid.NewV4())
 		seed := id.Bytes()
@@ -60,12 +82,13 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(start.String(), user1.UserId)
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
 		require.NotEqual("", user1.NonceAccount)
+		user = user1
 		count, err := node.store.CountSpareKeys(ctx)
 		require.Nil(err)
 		require.Equal(8, count)
 		count, err = node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)
-		require.Equal(3, count)
+		require.Equal(2, count)
 
 		id = uuid.Must(uuid.NewV4())
 		seed = id.Bytes()
@@ -86,8 +109,9 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(7, count)
 		count, err = node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)
-		require.Equal(2, count)
+		require.Equal(1, count)
 	}
+	return user
 }
 
 func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
@@ -138,14 +162,22 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 		key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
 		require.Nil(err)
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
-		id := common.UniqueId(key, "mpc key init")
+		account, err := node.store.ReadSpareNonceAccount(ctx)
+		require.Nil(err)
+		require.NotNil(account)
+		addr, err := solana.PublicKeyFromBase58(account.Address)
+		require.Nil(err)
+
+		id := common.UniqueId(key, addr.String())
 		extra := common.DecodeHexOrPanic(key)
+		extra = append(extra, addr.Bytes()...)
 		out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
 		testStep(ctx, require, node, out)
 
 		mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
 		require.Nil(err)
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", mtg.Public)
+		require.Equal(addr.String(), mtg.NonceAccount)
 
 		count, err := node.store.CountSpareKeys(ctx)
 		require.Nil(err)

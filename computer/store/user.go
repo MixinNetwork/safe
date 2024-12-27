@@ -157,7 +157,7 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, a
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSignerUserWithRequest(ctx context.Context, req *Request, address, key string) error {
+func (s *SQLite3Store) WriteSignerUserWithRequest(ctx context.Context, req *Request, address, key, account string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -172,8 +172,13 @@ func (s *SQLite3Store) WriteSignerUserWithRequest(ctx context.Context, req *Requ
 	if err != nil {
 		return fmt.Errorf("UPDATE keys %v", err)
 	}
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET user_id=?, updated_at=? WHERE address=? AND user_id IS NULL",
+		MPCUserId.String(), req.CreatedAt, account)
+	if err != nil {
+		return fmt.Errorf("UPDATE nonce_accounts %v", err)
+	}
 
-	vals := []any{MPCUserId.String(), req.Id, address, key, "", time.Now()}
+	vals := []any{MPCUserId.String(), req.Id, address, key, account, time.Now()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)
@@ -263,6 +268,13 @@ func (s *SQLite3Store) assignNonceAccountToUser(ctx context.Context, tx *sql.Tx,
 func (s *SQLite3Store) ReadNonceAccount(ctx context.Context, address string) (*NonceAccount, error) {
 	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE address=?", strings.Join(nonceAccountCols, ","))
 	row := s.db.QueryRowContext(ctx, query, address)
+
+	return nonceAccountFromRow(row)
+}
+
+func (s *SQLite3Store) ReadSpareNonceAccount(ctx context.Context) (*NonceAccount, error) {
+	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE user_id IS NULL ORDER BY created_at ASC LIMIT 1", strings.Join(nonceAccountCols, ","))
+	row := s.db.QueryRowContext(ctx, query)
 
 	return nonceAccountFromRow(row)
 }
