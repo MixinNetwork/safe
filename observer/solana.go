@@ -544,6 +544,11 @@ func (node *Node) solanaTransactionSpentLoop(ctx context.Context) {
 				panic(tx.RawTransaction)
 			}
 
+			payer := sg.MustPrivateKeyFromBase58(node.conf.SolanaPayer)
+			if err := solana.Sign(stx, payer); err != nil {
+				panic(err)
+			}
+
 			sig, err := client.SendTransaction(ctx, stx)
 			if err != nil {
 				panic(err)

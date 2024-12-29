@@ -27,6 +27,7 @@ type Configuration struct {
 	EthereumRPC                 string `toml:"ethereum-rpc"`
 	SolanaRPC                   string `toml:"solana-rpc"`
 	SolanaWS                    string `toml:"solana-ws"`
+	SolanaPayer                 string `toml:"solana-payer"`
 	PolygonRPC                  string `toml:"polygon-rpc"`
 	PolygonFactoryAddress       string `toml:"polygon-factory-address"`
 	PolygonObserverDepositEntry string `toml:"polygon-observer-deposit-entry"`
