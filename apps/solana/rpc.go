@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -67,6 +68,57 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.
 	return r, nil
 }
 
+func (c *Client) RPCGetBlockHeight(ctx context.Context) (int64, solana.Hash, error) {
+	client := c.getRPCClient()
+	result, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return 0, solana.Hash{}, err
+	}
+
+	return int64(result.Value.LastValidBlockHeight), result.Value.Blockhash, nil
+}
+
+func (c *Client) RPCGetUnitPrice(ctx context.Context) (uint64, error) {
+	client := c.getRPCClient()
+	// 获取最近的费用数据
+	fees, err := client.GetRecentPrioritizationFees(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("get recent prioritization fees: %w", err)
+	}
+
+	if len(fees) == 0 {
+		// 如果没有最近的费用数据，返回默认的最小费用 (5000 lamports)
+		return 5000, nil
+	}
+
+	// 找出最低的费用
+	minFee := uint64(^uint(0)) // 设置为最大uint64值
+	for _, fee := range fees {
+		if fee.PrioritizationFee < minFee {
+			minFee = fee.PrioritizationFee
+		}
+	}
+
+	return minFee, nil
+}
+
+func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
+	client := c.getRPCClient()
+	block, err := client.GetBlockWithOpts(ctx, height, &rpc.GetBlockOpts{
+		Encoding:                       solana.EncodingBase64,
+		Commitment:                     rpc.CommitmentFinalized,
+		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
+		TransactionDetails:             rpc.TransactionDetailsFull,
+	})
+	if err != nil {
+		if errors.Is(err, rpc.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return block, nil
+}
+
 func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
 	panic("not implemented")
 }
@@ -117,4 +169,13 @@ func (c *Client) processTransactionWithAddressLookups(ctx context.Context, txx *
 	}
 
 	return nil
+}
+
+func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
+	client := c.getRPCClient()
+	sig, err := client.SendTransaction(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	return sig.String(), nil
 }

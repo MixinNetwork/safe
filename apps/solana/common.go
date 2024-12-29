@@ -93,7 +93,12 @@ func (c *Client) VerifyDeposit(ctx context.Context, hash, assetAddress, destinat
 		return nil, nil, fmt.Errorf("malicious solana deposit or node not in sync? %s %v", hash, err)
 	}
 
-	transfers, err := c.ExtractTransfersFromTransaction(ctx, etx)
+	tx, err := etx.Transaction.GetTransaction()
+	if err != nil {
+		panic(err)
+	}
+
+	transfers, err := c.ExtractTransfersFromTransaction(ctx, tx, etx.Meta)
 	logger.Printf("solana.ExtractTransfersFromTransaction(%s) => %v %v", hash, transfers, err)
 	if err != nil {
 		return nil, nil, err
@@ -108,8 +113,7 @@ func (c *Client) VerifyDeposit(ctx context.Context, hash, assetAddress, destinat
 	return nil, nil, nil
 }
 
-func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, result *rpc.GetTransactionResult) ([]*Transfer, error) {
-	meta := result.Meta
+func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) ([]*Transfer, error) {
 	if meta == nil {
 		return nil, fmt.Errorf("meta is nil")
 	}
@@ -117,11 +121,6 @@ func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, result *rp
 	if meta.Err != nil {
 		// Transaction failed, ignore
 		return nil, nil
-	}
-
-	tx, err := result.Transaction.GetTransaction()
-	if err != nil {
-		return nil, err
 	}
 
 	hash := tx.Signatures[0].String()

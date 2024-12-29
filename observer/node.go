@@ -68,6 +68,7 @@ func (node *Node) Boot(ctx context.Context) {
 		common.SafeChainLitecoin,
 		common.SafeChainPolygon,
 		common.SafeChainEthereum,
+		common.SafeChainSolana,
 	} {
 		// send price info for each chain on observer boot up (temporary)
 		err := node.sendPriceInfo(ctx, chain)
@@ -88,10 +89,15 @@ func (node *Node) Boot(ctx context.Context) {
 			go node.ethereumDepositConfirmLoop(ctx, chain)
 			go node.ethereumTransactionApprovalLoop(ctx, chain)
 			go node.ethereumTransactionSpendLoop(ctx, chain)
+		case common.SafeChainSolana:
+			go node.solanaNetworkInfoLoop(ctx)
+			go node.solanaRPCBlocksLoop(ctx)
+			go node.solanaDepositConfirmLoop(ctx)
+			go node.solanaTransactionApprovalLoop(ctx)
+			go node.solanaTransactionSpentLoop(ctx)
 		}
 	}
 
-	/// 安全密钥循环, 作用是添加观察者密钥
 	go node.safeKeyLoop(ctx, common.SafeChainBitcoin)
 	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
 
@@ -111,6 +117,8 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 		_, assetId = node.bitcoinParams(chain)
 	case common.SafeChainPolygon, common.SafeChainEthereum:
 		_, assetId = node.ethereumParams(chain)
+	case common.SafeChainSolana:
+		assetId = common.SafeSolanaChainId
 	default:
 		panic(chain)
 	}
@@ -484,7 +492,7 @@ func (node *Node) handleKeeperResponse(ctx context.Context, s *mixin.SafeSnapsho
 	}
 
 	switch op.Type {
-	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction:
+	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction, common.ActionSolanaSafeProposeTransaction:
 		return true, node.keeperSaveTransactionProposal(ctx, chain, data, s.CreatedAt)
 	case common.ActionBitcoinSafeApproveTransaction:
 		return true, node.keeperCombineBitcoinTransactionSignatures(ctx, data)
@@ -568,6 +576,8 @@ func depositCheckpointDefault(chain byte) int64 {
 		return 52950000
 	case common.SafeChainEthereum:
 		return 19175473
+	case common.SafeChainSolana:
+		return 0
 	default:
 		panic(chain)
 	}
@@ -579,6 +589,8 @@ func depositCheckpointKey(chain byte) string {
 		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
+	case common.SafeChainSolana:
+		return fmt.Sprintf("solana-deposit-checkpoint-%d", chain)
 	default:
 		panic(chain)
 	}
@@ -602,6 +614,8 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 		return 32
 	case common.SafeChainPolygon:
 		return 512
+	case common.SafeChainSolana:
+		return 32
 	default:
 		panic(chain)
 	}

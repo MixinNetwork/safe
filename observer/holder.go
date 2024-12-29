@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	gc "github.com/ethereum/go-ethereum/common"
+	sg "github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -91,6 +92,9 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		t, _ := ethereum.UnmarshalSafeTransaction(extra)
 		txHash = t.TxHash
+	case common.SafeChainSolana:
+		t, _ := sg.TransactionFromBytes(extra)
+		txHash = t.Message.RecentBlockhash.String()
 	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
