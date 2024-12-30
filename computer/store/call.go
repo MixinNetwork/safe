@@ -171,7 +171,7 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) SystemCallRequestSigner(ctx context.Context, call *SystemCall, sessions []*Session) error {
+func (s *SQLite3Store) RequestSignerSignForCall(ctx context.Context, call *SystemCall, sessions []*Session) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -284,12 +284,12 @@ func (s *SQLite3Store) ListInitialSystemCalls(ctx context.Context) ([]*SystemCal
 	return calls, nil
 }
 
-func (s *SQLite3Store) ListUnfinishedSystemCalls(ctx context.Context) ([]*SystemCall, error) {
+func (s *SQLite3Store) ListUnsignedCalls(ctx context.Context) ([]*SystemCall, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state!=? AND withdrawal_ids='' AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", systemCallCols)
-	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateDone)
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND signature IS NULL ORDER BY created_at ASC LIMIT 100", systemCallCols)
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStatePending)
 	if err != nil {
 		return nil, err
 	}

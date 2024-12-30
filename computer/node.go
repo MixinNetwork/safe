@@ -129,12 +129,12 @@ func (node *Node) GetPartySlice() party.IDSlice {
 }
 
 func (node *Node) bootComputer(ctx context.Context) {
-	go node.unfinishedSystemCallsLoop(ctx)
+	go node.unsignedCallsLoop(ctx)
 }
 
-func (node *Node) unfinishedSystemCallsLoop(ctx context.Context) {
+func (node *Node) unsignedCallsLoop(ctx context.Context) {
 	for {
-		err := node.processUnfinishedSystemCalls(ctx)
+		err := node.processUnsignedCalls(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -143,11 +143,11 @@ func (node *Node) unfinishedSystemCallsLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) processUnfinishedSystemCalls(ctx context.Context) error {
+func (node *Node) processUnsignedCalls(ctx context.Context) error {
 	members := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 
-	calls, err := node.store.ListUnfinishedSystemCalls(ctx)
+	calls, err := node.store.ListUnsignedCalls(ctx)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (node *Node) processUnfinishedSystemCalls(ctx context.Context) error {
 			Extra:      call.Message,
 			CreatedAt:  createdAt,
 		}
-		err = node.store.SystemCallRequestSigner(ctx, call, []*store.Session{session})
+		err = node.store.RequestSignerSignForCall(ctx, call, []*store.Session{session})
 		if err != nil {
 			return err
 		}
