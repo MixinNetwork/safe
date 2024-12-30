@@ -135,7 +135,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	}
 }
 
-func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []mixinnet.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 		if err != nil {
@@ -171,6 +171,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		if err != nil {
 			return nil, err
 		}
+		tx.References = references
 		raw, err := tx.Dump()
 		if err != nil {
 			return nil, err
@@ -318,6 +319,47 @@ func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.C
 		logger.Verbosef("common.mixin.SafeReadMultisigRequests(%s) => %v %v", id, req, err)
 		if err == nil {
 			return req, nil
+		}
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if mixin.IsErrorCodes(err, 404) {
+			return nil, nil
+		}
+		return nil, err
+	}
+}
+
+func SafeReadAssetUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeAsset, error) {
+	for {
+		asset, err := client.SafeReadAsset(ctx, id)
+		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)
+		if err == nil {
+			return asset, nil
+		}
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if mixin.IsErrorCodes(err, 404) {
+			return nil, nil
+		}
+		return nil, err
+	}
+}
+
+func SafeReadWithdrawalFeeUntilSufficient(ctx context.Context, su *bot.SafeUser, assetId, feeAssetId, destination string) (*bot.AssetFee, error) {
+	for {
+		fees, err := bot.ReadAssetFee(ctx, assetId, destination, su)
+		logger.Verbosef("common.mixin.ReadAssetFee(%s %s) => %v %v", assetId, destination, fees, err)
+		if err == nil {
+			for _, fee := range fees {
+				if fee.AssetID == feeAssetId {
+					return fee, nil
+				}
+			}
+			return fees[0], nil
 		}
 		if mtg.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)

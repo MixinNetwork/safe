@@ -18,6 +18,12 @@ github.com/MixinNetwork/trusted-group v0.9.7-0.20241226091202-6714472b4239 h1:2X
 github.com/MixinNetwork/trusted-group v0.9.7-0.20241226091202-6714472b4239/go.mod h1:69uIhwprk2hob3K6tvDfBEOYjYXyLKDtlx5UZDhgzvo=
 github.com/MixinNetwork/trusted-group v0.9.7-0.20241227084158-98e86c33acf0 h1:WOdWcCg4GlheS6c7G3gpv4v0mWrUXRZmYb3aHsp0Em4=
 github.com/MixinNetwork/trusted-group v0.9.7-0.20241227084158-98e86c33acf0/go.mod h1:69uIhwprk2hob3K6tvDfBEOYjYXyLKDtlx5UZDhgzvo=
+github.com/MixinNetwork/trusted-group v0.9.7-0.20241230035943-b7fab360245a h1:D36Ax5MAODrT/9EULsiZbMybpIcUH5/n1GumYD6hurM=
+github.com/MixinNetwork/trusted-group v0.9.7-0.20241230035943-b7fab360245a/go.mod h1:69uIhwprk2hob3K6tvDfBEOYjYXyLKDtlx5UZDhgzvo=
+github.com/MixinNetwork/trusted-group v0.9.7-0.20241230060353-59efc51108f7 h1:A54HG+NOEu9ssTwctkbzArN/yODykqa5Gg+nQ+VMvec=
+github.com/MixinNetwork/trusted-group v0.9.7-0.20241230060353-59efc51108f7/go.mod h1:69uIhwprk2hob3K6tvDfBEOYjYXyLKDtlx5UZDhgzvo=
+github.com/MixinNetwork/trusted-group v0.9.7-0.20241230060842-19692de7806e h1:XyuUB8jhBg0DcTjepNZwgZon0vwyN3OIMqV55+RX1O4=
+github.com/MixinNetwork/trusted-group v0.9.7-0.20241230060842-19692de7806e/go.mod h1:69uIhwprk2hob3K6tvDfBEOYjYXyLKDtlx5UZDhgzvo=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=

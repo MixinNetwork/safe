@@ -261,6 +261,28 @@ func (s *SQLite3Store) ListUnfinishedSystemCalls(ctx context.Context) ([]*System
 	return calls, nil
 }
 
+func (s *SQLite3Store) ListUnfinishedSubSystemCalls(ctx context.Context) ([]*SystemCall, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state!=? AND withdrawal_ids='' AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 1", systemCallCols)
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateDone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []*SystemCall
+	for rows.Next() {
+		call, err := systemCallFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		calls = append(calls, call)
+	}
+	return calls, nil
+}
+
 func readSystemCallByRequestId(ctx context.Context, tx *sql.Tx, id string) (*SystemCall, error) {
 	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE request_id=?", strings.Join(systemCallCols, ","))
 	row := tx.QueryRowContext(ctx, query, id)

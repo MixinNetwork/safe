@@ -11,7 +11,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -106,4 +108,14 @@ func Rollback(txn *sql.Tx) {
 	if err != nil && !strings.Contains(err.Error(), already) {
 		panic(err)
 	}
+}
+
+func ToMixinnetHash(hashes []crypto.Hash) []mixinnet.Hash {
+	var hs []mixinnet.Hash
+	for _, hash := range hashes {
+		var h mixinnet.Hash
+		copy(h[:], hash[:])
+		hs = append(hs, h)
+	}
+	return hs
 }

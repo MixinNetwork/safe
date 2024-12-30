@@ -92,6 +92,6 @@ func (node *Node) sendKeeperTransactionWithReferences(ctx context.Context, op *c
 
 func (node *Node) sendTransactionUntilSufficient(ctx context.Context, assetId string, receivers []string, threshold int, amount decimal.Decimal, memo, traceId string, references []crypto.Hash) error {
 	logger.Printf("node.sendTransactionUntilSufficient(%s, %v, %d, %s, %s, %s, %v)", assetId, receivers, threshold, amount, memo, traceId, references)
-	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.App.AppId}, 1, receivers, threshold, amount, traceId, assetId, memo, node.conf.App.SpendPrivateKey)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.App.AppId}, 1, receivers, threshold, amount, traceId, assetId, memo, common.ToMixinnetHash(references), node.conf.App.SpendPrivateKey)
 	return err
 }

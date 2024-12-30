@@ -5,15 +5,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/shopspring/decimal"
 )
 
 func (node *Node) bootObserver(ctx context.Context) {
 	go node.keyLoop(ctx)
 	go node.initMpcKeyLoop(ctx)
 	go node.nonceAccountLoop(ctx)
+	go node.withdrawalFeeLoop(ctx)
 }
 
 func (node *Node) keyLoop(ctx context.Context) {
@@ -58,6 +62,17 @@ func (node *Node) initMpcKeyLoop(ctx context.Context) {
 func (node *Node) nonceAccountLoop(ctx context.Context) {
 	for {
 		err := node.requestNonceAccounts(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(10 * time.Minute)
+	}
+}
+
+func (node *Node) withdrawalFeeLoop(ctx context.Context) {
+	for {
+		err := node.handleWithdrawalsFee(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -141,6 +156,41 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 		return err
 	}
 	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey)
+}
+
+func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
+	txs := node.group.ListUnconfirmedWithdrawalTransactions(ctx, 500)
+	for _, tx := range txs {
+		if !tx.Destination.Valid {
+			panic(tx.TraceId)
+		}
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, tx.AssetId)
+		if err != nil {
+			return err
+		}
+		if asset.ChainID != common.SafeSolanaChainId {
+			continue
+		}
+		fee, err := common.SafeReadWithdrawalFeeUntilSufficient(ctx, node.safeUser(), asset.AssetID, common.SafeSolanaChainId, tx.Destination.String)
+		if err != nil {
+			return err
+		}
+		if fee.AssetID != common.SafeSolanaChainId {
+			panic(fee.AssetID)
+		}
+		rid := common.UniqueId(tx.TraceId, "withdrawal_fee")
+		amount, _ := decimal.NewFromString(fee.Amount)
+		refs := common.ToMixinnetHash([]crypto.Hash{tx.Hash})
+		_, err = common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.MTG.App.AppId}, 1, []string{mtg.MixinFeeUserId}, 1, amount, rid, fee.AssetID, "", refs, node.conf.MTG.App.SpendPrivateKey)
+		if err != nil {
+			return err
+		}
+		err = node.store.WriteWithdrawalFeeIfNotExists(ctx, tx.TraceId, rid)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (node *Node) readRequestTime(ctx context.Context, key string) (time.Time, error) {

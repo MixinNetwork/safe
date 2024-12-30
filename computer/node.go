@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
@@ -197,4 +198,14 @@ func (node *Node) solanaClient() *solanaApp.Client {
 
 func (node *Node) solanaAccount() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
+}
+
+func (node *Node) safeUser() *bot.SafeUser {
+	return &bot.SafeUser{
+		UserId:            node.conf.MTG.App.AppId,
+		SessionId:         node.conf.MTG.App.SessionId,
+		ServerPublicKey:   node.conf.MTG.App.ServerPublicKey,
+		SessionPrivateKey: node.conf.MTG.App.SessionPrivateKey,
+		SpendPrivateKey:   node.conf.MTG.App.SpendPrivateKey,
+	}
 }

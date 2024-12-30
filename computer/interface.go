@@ -20,7 +20,7 @@ type Configuration struct {
 	SaverKey                string             `toml:"saver-key"`
 	MixinMessengerAPI       string             `toml:"mixin-messenger-api"`
 	MixinRPC                string             `toml:"mixin-rpc"`
-	SolanaRPC               string             `toml:"55"`
+	SolanaRPC               string             `toml:"solana-rpc"`
 	SolanaWsRPC             string             `toml:"solana-ws-rpc"`
 	SolanaKey               string             `toml:"solana-key"`
 	SolanaDepositEntry      string             `toml:"solana-deposit-entry"`
