@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -208,4 +209,32 @@ func (node *Node) safeUser() *bot.SafeUser {
 		SessionPrivateKey: node.conf.MTG.App.SessionPrivateKey,
 		SpendPrivateKey:   node.conf.MTG.App.SpendPrivateKey,
 	}
+}
+
+func (node *Node) readRequestTime(ctx context.Context, key string) (time.Time, error) {
+	val, err := node.store.ReadProperty(ctx, key)
+	if err != nil || val == "" {
+		return time.Unix(0, node.conf.Timestamp), err
+	}
+	return time.Parse(time.RFC3339Nano, val)
+}
+
+func (node *Node) writeRequestTime(ctx context.Context, key string) error {
+	return node.store.WriteProperty(ctx, key, time.Now().Format(time.RFC3339Nano))
+}
+
+func (node *Node) readRequestSequence(ctx context.Context, key string) (uint64, error) {
+	val, err := node.store.ReadProperty(ctx, key)
+	if err != nil || val == "" {
+		return 0, err
+	}
+	num, err := strconv.ParseUint(val, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return num, nil
+}
+
+func (node *Node) writeRequestSequence(ctx context.Context, key string, sequence uint64) error {
+	return node.store.WriteProperty(ctx, key, fmt.Sprintf("%d", sequence))
 }

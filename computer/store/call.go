@@ -93,24 +93,8 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	}
 	defer common.Rollback(tx)
 
-	old, err := readSystemCallByRequestId(ctx, tx, call.RequestId)
-	if err != nil {
-		return err
-	}
-	ids := []string{}
-	for _, id := range old.GetWithdrawalIds() {
-		if id == txId {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	call.WithdrawalIds = strings.Join(ids, ",")
-	if len(ids) == 0 {
-		call.WithdrawedAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
-	}
-
-	query := "UPDATE system_calls SET withdrawal_ids=? withdrawed_at=?, updated_at=? WHERE request_id=? AND state=?"
-	_, err = tx.ExecContext(ctx, query, call.WithdrawalIds, call.WithdrawedAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
+	query := "UPDATE system_calls SET state, withdrawal_ids=? withdrawed_at=?, updated_at=? WHERE request_id=? AND state=?"
+	_, err = tx.ExecContext(ctx, query, call.State, call.WithdrawalIds, call.WithdrawedAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}
@@ -237,6 +221,28 @@ func (s *SQLite3Store) ReadSystemCallByMessage(ctx context.Context, message stri
 	row := s.db.QueryRowContext(ctx, query, message)
 
 	return systemCallFromRow(row)
+}
+
+func (s *SQLite3Store) ListInitialSystemCalls(ctx context.Context) ([]*SystemCall, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_ids='' AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", systemCallCols)
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateDone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []*SystemCall
+	for rows.Next() {
+		call, err := systemCallFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		calls = append(calls, call)
+	}
+	return calls, nil
 }
 
 func (s *SQLite3Store) ListUnfinishedSystemCalls(ctx context.Context) ([]*SystemCall, error) {

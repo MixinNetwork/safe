@@ -115,6 +115,13 @@ func (s *SQLite3Store) ReadUserByAddress(ctx context.Context, address string) (*
 	return userFromRow(row)
 }
 
+func (s *SQLite3Store) ReadUserByPublic(ctx context.Context, public string) (*User, error) {
+	query := fmt.Sprintf("SELECT %s FROM users WHERE public=?", strings.Join(userCols, ","))
+	row := s.db.QueryRowContext(ctx, query, public)
+
+	return userFromRow(row)
+}
+
 func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, address string) error {
 	id, err := s.GetNextUserId(ctx)
 	if err != nil {

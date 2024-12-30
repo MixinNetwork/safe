@@ -15,6 +15,8 @@ type DeployedAsset struct {
 	AssetId   string
 	Address   string
 	CreatedAt time.Time
+
+	PrivateKey *solana.PrivateKey
 }
 
 func (a *DeployedAsset) PublicKey() solana.PublicKey {

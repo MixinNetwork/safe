@@ -143,7 +143,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 			continue
 		}
 
-		outputs := node.group.ListOutputsByTransactionHash(ctx, ver.PayloadHash().String(), req.Sequence)
+		outputs := node.group.ListOutputsByTransactionHash(ctx, refVer.PayloadHash().String(), req.Sequence)
 		if len(outputs) == 0 {
 			continue
 		}
@@ -390,6 +390,21 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	if call == nil || call.WithdrawedAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
 		return node.failRequest(ctx, req, "")
 	}
+	ids := []string{}
+	for _, id := range call.GetWithdrawalIds() {
+		if id == txId {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	call.WithdrawalIds = strings.Join(ids, ",")
+	if len(ids) == 0 {
+		call.WithdrawedAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+		_, as := node.mintExternalTokens(ctx, call, nil)
+		if len(as) == 0 {
+			call.State = common.RequestStatePending
+		}
+	}
 
 	err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId)
 	if err != nil {
@@ -521,4 +536,97 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	}
 
 	return nil, ""
+}
+
+func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
+	user, err := node.store.ReadUserByPublic(ctx, call.Public)
+	if err != nil {
+		panic(err)
+	}
+	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+	if err != nil {
+		panic(err)
+	}
+	req, err := node.store.ReadRequest(ctx, call.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	if err != nil || ver == nil {
+		panic(err)
+	}
+
+	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
+	var transfers []solanaApp.TokenTransfers
+	var as []*store.DeployedAsset
+	for _, ref := range ver.References {
+		refVer, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+		if err != nil {
+			panic(err)
+		}
+		if refVer == nil {
+			continue
+		}
+
+		outputs := node.group.ListOutputsByTransactionHash(ctx, refVer.PayloadHash().String(), req.Sequence)
+		if len(outputs) == 0 {
+			continue
+		}
+		total := decimal.NewFromInt(0)
+		for _, output := range outputs {
+			total = total.Add(output.Amount)
+		}
+
+		asset, err := node.mixin.SafeReadAsset(ctx, outputs[0].AssetId)
+		if err != nil {
+			panic(err)
+		}
+		if asset.ChainID == common.SafeSolanaChainId {
+			continue
+		}
+		da, err := node.store.ReadDeployedAsset(ctx, asset.AssetID)
+		if err != nil {
+			panic(err)
+		}
+		if da == nil {
+			key, err := solana.NewRandomPrivateKey()
+			if err != nil {
+				panic(err)
+			}
+			da = &store.DeployedAsset{
+				AssetId:    asset.AssetID,
+				Address:    key.PublicKey().String(),
+				PrivateKey: &key,
+			}
+			as = append(as, da)
+		}
+
+		transfers = append(transfers, solanaApp.TokenTransfers{
+			SolanaAsset: false,
+			AssetId:     asset.AssetID,
+			ChainId:     asset.ChainID,
+			Mint:        da.PublicKey(),
+			Destination: destination,
+			Amount:      total.BigInt().Uint64(),
+			Decimals:    uint8(asset.Precision),
+		})
+	}
+	if len(transfers) == 0 || nonce == nil {
+		return nil, as
+	}
+
+	tx, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, nonce.Account(), transfers)
+	if err != nil {
+		panic(err)
+	}
+	for _, da := range as {
+		if da.PrivateKey == nil {
+			continue
+		}
+		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(*da.PrivateKey))
+		if err != nil {
+			panic(err)
+		}
+	}
+	return tx, as
 }
