@@ -24,10 +24,11 @@ const (
 	OperationTypeKeygenOutput      = 11
 	OperationTypeCreateNonce       = 12
 	OperationTypeInitMPCKey        = 13
-	OperationTypeConfirmWithdrawal = 14
-	OperationTypeConfirmCall       = 15
-	OperationTypeSignInput         = 16
-	OperationTypeSignOutput        = 17
+	OperationTypeCreateSubCall     = 14
+	OperationTypeConfirmWithdrawal = 15
+	OperationTypeConfirmCall       = 16
+	OperationTypeSignInput         = 17
+	OperationTypeSignOutput        = 18
 )
 
 func keyAsOperation(k *store.Key) *common.Operation {

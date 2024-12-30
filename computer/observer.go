@@ -3,7 +3,6 @@ package computer
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -21,6 +20,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.nonceAccountLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
+	go node.initialCallLoop(ctx)
 }
 
 func (node *Node) keyLoop(ctx context.Context) {
@@ -87,6 +87,17 @@ func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 func (node *Node) withdrawalConfirmLoop(ctx context.Context) {
 	for {
 		err := node.handleWithdrawalsConfirm(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(10 * time.Minute)
+	}
+}
+
+func (node *Node) initialCallLoop(ctx context.Context) {
+	for {
+		err := node.handleInitialCalls(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -230,30 +241,46 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 	return nil
 }
 
-func (node *Node) readRequestTime(ctx context.Context, key string) (time.Time, error) {
-	val, err := node.store.ReadProperty(ctx, key)
-	if err != nil || val == "" {
-		return time.Unix(0, node.conf.Timestamp), err
-	}
-	return time.Parse(time.RFC3339Nano, val)
-}
-
-func (node *Node) writeRequestTime(ctx context.Context, key string) error {
-	return node.store.WriteProperty(ctx, key, time.Now().Format(time.RFC3339Nano))
-}
-
-func (node *Node) readRequestSequence(ctx context.Context, key string) (uint64, error) {
-	val, err := node.store.ReadProperty(ctx, key)
-	if err != nil || val == "" {
-		return 0, err
-	}
-	num, err := strconv.ParseUint(val, 10, 64)
+func (node *Node) handleInitialCalls(ctx context.Context) error {
+	calls, err := node.store.ListInitialSystemCalls(ctx)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	return num, nil
-}
-
-func (node *Node) writeRequestSequence(ctx context.Context, key string, sequence uint64) error {
-	return node.store.WriteProperty(ctx, key, fmt.Sprintf("%d", sequence))
+	for _, call := range calls {
+		nonce, err := node.store.ReadSpareNonceAccount(ctx)
+		if err != nil {
+			return err
+		}
+		tx, as := node.mintExternalTokens(ctx, call, nonce)
+		data, err := tx.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		id := common.UniqueId(call.RequestId, "mints-tx-storage")
+		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+		if err != nil {
+			return err
+		}
+		id = common.UniqueId(id, "mints-tx")
+		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
+		extra = append(extra, solana.MustPublicKeyFromBase58(nonce.Address).Bytes()...)
+		extra = append(extra, hash[:]...)
+		for _, asset := range as {
+			if asset.PrivateKey == nil {
+				continue
+			}
+			extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
+			extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
+		}
+		err = node.sendObserverTransaction(ctx, &common.Operation{
+			Id:    id,
+			Type:  OperationTypeCreateSubCall,
+			Extra: extra,
+		})
+		if err != nil {
+			return err
+		}
+		time.Sleep(1 * time.Minute)
+	}
+	return nil
 }
