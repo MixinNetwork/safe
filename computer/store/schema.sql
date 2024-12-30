@@ -137,17 +137,6 @@ CREATE TABLE IF NOT EXISTS nonce_accounts (
 );
 
 
-CREATE TABLE IF NOT EXISTS withdrawal_fees (
-  trace_id       VARCHAR NOT NULL,
-  fee_trace_id   VARCHAR NOT NULL,
-  created_at     TIMESTAMP NOT NULL,
-  confirmed_at   TIMESTAMP,
-  PRIMARY KEY ('trace_id')
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS withdrawal_fees_by_fee_trace_id ON withdrawal_fees(fee_trace_id);
-
-
 CREATE TABLE IF NOT EXISTS action_results (
 	output_id       VARCHAR NOT NULL,
 	compaction      VARCHAR NOT NULL,

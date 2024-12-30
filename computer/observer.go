@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -10,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -18,6 +20,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.initMpcKeyLoop(ctx)
 	go node.nonceAccountLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
+	go node.withdrawalConfirmLoop(ctx)
 }
 
 func (node *Node) keyLoop(ctx context.Context) {
@@ -73,6 +76,17 @@ func (node *Node) nonceAccountLoop(ctx context.Context) {
 func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 	for {
 		err := node.handleWithdrawalsFee(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(10 * time.Minute)
+	}
+}
+
+func (node *Node) withdrawalConfirmLoop(ctx context.Context) {
+	for {
+		err := node.handleWithdrawalsConfirm(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -185,7 +199,30 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = node.store.WriteWithdrawalFeeIfNotExists(ctx, tx.TraceId, rid)
+	}
+	return nil
+}
+
+func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
+	start, err := node.readRequestSequence(ctx, store.WithdrawalConfirmRequestSequence)
+	if err != nil {
+		return err
+	}
+	txs := node.group.ListConfirmedWithdrawalTransactionsBySequence(ctx, start, 100)
+	for _, tx := range txs {
+		id := common.UniqueId(tx.TraceId, "confirm-withdrawal")
+		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
+		extra = append(extra, uuid.Must(uuid.FromString(tx.Memo)).Bytes()...)
+		extra = append(extra, []byte(tx.WithdrawalHash.String)...)
+		err = node.sendObserverTransaction(ctx, &common.Operation{
+			Id:    id,
+			Type:  OperationTypeConfirmWithdrawal,
+			Extra: extra,
+		})
+		if err != nil {
+			return err
+		}
+		err = node.writeRequestSequence(ctx, store.WithdrawalConfirmRequestSequence, tx.Sequence)
 		if err != nil {
 			return err
 		}
@@ -203,4 +240,20 @@ func (node *Node) readRequestTime(ctx context.Context, key string) (time.Time, e
 
 func (node *Node) writeRequestTime(ctx context.Context, key string) error {
 	return node.store.WriteProperty(ctx, key, time.Now().Format(time.RFC3339Nano))
+}
+
+func (node *Node) readRequestSequence(ctx context.Context, key string) (uint64, error) {
+	val, err := node.store.ReadProperty(ctx, key)
+	if err != nil || val == "" {
+		return 0, err
+	}
+	num, err := strconv.ParseUint(val, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return num, nil
+}
+
+func (node *Node) writeRequestSequence(ctx context.Context, key string, sequence uint64) error {
+	return node.store.WriteProperty(ctx, key, fmt.Sprintf("%d", sequence))
 }

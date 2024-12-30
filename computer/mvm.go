@@ -161,7 +161,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		}
 		id := common.UniqueId(req.Id, asset.AssetID)
 		id = common.UniqueId(id, "withdrawal")
-		memo := uuid.Must(uuid.FromString(req.Id)).Bytes()
+		memo := []byte(req.Id)
 		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.AssetID, total.String(), memo, userAccount.String(), "", id)
 		if tx == nil {
 			return node.failRequest(ctx, req, asset.AssetID)
@@ -360,6 +360,40 @@ func (node *Node) processCreateOrUpdateNonceAccount(ctx context.Context, req *st
 	err = node.store.WriteOrUpdateNonceAccount(ctx, req, address, hash)
 	if err != nil {
 		panic(fmt.Errorf("store.WriteOrUpdateNonceAccount(%v %s %s) => %v", req, address, hash, err))
+	}
+	return nil, ""
+}
+
+func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeConfirmWithdrawal {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	reqId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
+	signature := string(extra[32:])
+
+	tx, err := node.solanaClient().RPCGetTransaction(ctx, signature)
+	if err != nil || tx == nil {
+		node.failRequest(ctx, req, "")
+	}
+
+	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, common.RequestStateInitial)
+	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
+	if err != nil {
+		panic(err)
+	}
+	if call == nil || call.WithdrawedAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId)
+	if err != nil {
+		panic(err)
 	}
 	return nil, ""
 }

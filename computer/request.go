@@ -20,13 +20,14 @@ const (
 	OperationTypeAddUser    = 1
 	OperationTypeSystemCall = 2
 
-	OperationTypeKeygenInput  = 10
-	OperationTypeKeygenOutput = 11
-	OperationTypeCreateNonce  = 12
-	OperationTypeInitMPCKey   = 13
-	OperationTypeConfirmCall  = 14
-	OperationTypeSignInput    = 15
-	OperationTypeSignOutput   = 16
+	OperationTypeKeygenInput       = 10
+	OperationTypeKeygenOutput      = 11
+	OperationTypeCreateNonce       = 12
+	OperationTypeInitMPCKey        = 13
+	OperationTypeConfirmWithdrawal = 14
+	OperationTypeConfirmCall       = 15
+	OperationTypeSignInput         = 16
+	OperationTypeSignOutput        = 17
 )
 
 func keyAsOperation(k *store.Key) *common.Operation {

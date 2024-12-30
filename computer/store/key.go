@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	KeygenRequestTimeKey       = "keygen-request-time"
-	NonceAccountRequestTimeKey = "nonce-request-time"
+	KeygenRequestTimeKey             = "keygen-request-time"
+	NonceAccountRequestTimeKey       = "nonce-request-time"
+	WithdrawalConfirmRequestSequence = "withdrawal-request-sequence"
 )
 
 type KeygenResult struct {
