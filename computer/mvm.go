@@ -493,7 +493,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(req)
 	}
 
-	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, call, as, nil, "")
+	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, new, as, nil, "")
 	if err != nil {
 		panic(err)
 	}
