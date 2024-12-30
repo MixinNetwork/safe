@@ -77,18 +77,14 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 // 2 transfer
 // 3 call
 // 4 postprocess
-// only build mtg withdrawals txs and save main system call here
+// only create mtg withdrawals txs and main system call here
+// other calls should be created by observer
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
 	}
 	if req.AssetId != mtg.StorageAssetId {
 		return node.failRequest(ctx, req, "")
-	}
-	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
-	logger.Printf("store.ReadUser(%s) => %v %v", store.MPCUserId.String(), mtgUser, err)
-	if err != nil || mtgUser == nil {
-		panic(err)
 	}
 
 	data := req.ExtraBytes()
@@ -135,7 +131,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	var txs []*mtg.Transaction
 	var compaction string
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
-	if err != nil {
+	if err != nil || ver == nil {
 		panic(err)
 	}
 	for _, ref := range ver.References {
@@ -147,18 +143,13 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 			continue
 		}
 
-		// TODO support in mtg
-		outputs := node.group.ListOutputsForTransaction(ctx, ver.PayloadHash().String(), req.Sequence)
+		outputs := node.group.ListOutputsByTransactionHash(ctx, ver.PayloadHash().String(), req.Sequence)
 		if len(outputs) == 0 {
 			continue
 		}
 		total := decimal.NewFromInt(0)
 		for _, output := range outputs {
-			if output.State == mtg.SafeUtxoStateUnspent {
-				total = total.Add(output.Amount)
-			} else {
-				panic(req.Id)
-			}
+			total = total.Add(output.Amount)
 		}
 
 		asset, err := node.mixin.SafeReadAsset(ctx, outputs[0].AssetId)
@@ -168,10 +159,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		if asset.ChainID != common.SafeSolanaChainId {
 			continue
 		}
-		destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public)
 		id := common.UniqueId(req.Id, asset.AssetID)
 		id = common.UniqueId(id, "withdrawal")
-		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.AssetID, total.String(), nil, destination.String(), "", id)
+		memo := uuid.Must(uuid.FromString(req.Id)).Bytes()
+		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.AssetID, total.String(), memo, userAccount.String(), "", id)
 		if tx == nil {
 			return node.failRequest(ctx, req, asset.AssetID)
 		}
