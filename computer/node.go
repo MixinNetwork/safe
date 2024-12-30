@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"slices"
@@ -193,6 +194,26 @@ func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId s
 	return nil, assetId
 }
 
+func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
+	if common.CheckTestEnvironment(ctx) {
+		val, err := node.store.ReadProperty(ctx, ref.String())
+		if err != nil {
+			panic(ref.String())
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(val)
+		if err != nil {
+			panic(ref.String())
+		}
+		return raw
+	}
+
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+	if err != nil {
+		panic(ref.String())
+	}
+
+	return ver.Extra
+}
 func (node *Node) solanaClient() *solanaApp.Client {
 	return solanaApp.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
 }

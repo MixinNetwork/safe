@@ -83,6 +83,39 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req *Request, call *SystemCall, assets []*DeployedAsset, txs []*mtg.Transaction, compaction string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrawedAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT system_calls %v", err)
+	}
+
+	err = s.writeDeployedAssetsIfNorExist(ctx, tx, req, assets)
+	if err != nil {
+		return err
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, compaction, txs, req.Id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, req *Request, call *SystemCall, txId string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -203,8 +236,14 @@ func (s *SQLite3Store) AttachSystemCallSignatureWithRequest(ctx context.Context,
 }
 
 func (s *SQLite3Store) ReadSystemCallByRequestId(ctx context.Context, rid string, state int64) (*SystemCall, error) {
-	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE request_id=? AND state=?", strings.Join(systemCallCols, ","))
-	row := s.db.QueryRowContext(ctx, query, rid, state)
+	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE request_id=?", strings.Join(systemCallCols, ","))
+	values := []any{rid}
+	if state > 0 {
+		query += " AND state=?"
+		values = append(values, state)
+	}
+
+	row := s.db.QueryRowContext(ctx, query, values...)
 
 	return systemCallFromRow(row)
 }

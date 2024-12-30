@@ -12,6 +12,7 @@ import (
 	"time"
 
 	mc "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/mixin/util/base58"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
@@ -407,6 +408,92 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	}
 
 	err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
+}
+
+func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeCreateSubCall {
+		panic(req.Action)
+	}
+	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+	if err != nil {
+		panic(err)
+	}
+
+	extra := req.ExtraBytes()
+	reqId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	nonceAccount := solana.PublicKeyFromBytes(extra[16:48]).String()
+	hash, err := crypto.HashFromString(hex.EncodeToString(extra[48:80]))
+	if err != nil {
+		panic(err)
+	}
+	extra = extra[80:]
+	var offset int
+	var as []*store.DeployedAsset
+	for {
+		if offset == len(extra) {
+			break
+		}
+		asset := uuid.Must(uuid.FromBytes(extra[offset : offset+16])).String()
+		offset += 16
+		address := solana.PublicKeyFromBytes(extra[offset : offset+32]).String()
+		offset += 32
+		as = append(as, &store.DeployedAsset{
+			AssetId: asset,
+			Address: address,
+		})
+	}
+
+	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, 0)
+	if err != nil {
+		panic(reqId)
+	}
+	if call == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
+	if err != nil {
+		panic(reqId)
+	}
+	if nonce == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	raw := node.readStorageExtraFromObserver(ctx, hash)
+	tx, err := solana.TransactionFromBytes(raw)
+	if err != nil {
+		panic(err)
+	}
+	new := &store.SystemCall{
+		RequestId:       req.Id,
+		Superior:        call.RequestId,
+		NonceAccount:    nonceAccount,
+		Public:          mtgUser.Public,
+		Message:         tx.Message.ToBase64(),
+		Raw:             tx.MustToBase64(),
+		State:           common.RequestStatePending,
+		WithdrawalIds:   "",
+		WithdrawedAt:    sql.NullTime{Valid: true, Time: req.CreatedAt},
+		Signature:       sql.NullString{Valid: false},
+		RequestSignerAt: sql.NullTime{Valid: false},
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+	switch call.State {
+	case common.RequestStateInitial:
+		new.Type = store.CallTypePrepare
+	case common.RequestStateDone:
+		new.Type = store.CallTypePostProcess
+	default:
+		panic(req)
+	}
+
+	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, call, as, nil, "")
 	if err != nil {
 		panic(err)
 	}
