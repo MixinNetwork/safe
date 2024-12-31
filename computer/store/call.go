@@ -306,6 +306,28 @@ func (s *SQLite3Store) ListUnsignedCalls(ctx context.Context) ([]*SystemCall, er
 	return calls, nil
 }
 
+func (s *SQLite3Store) ListSignedCalls(ctx context.Context) ([]*SystemCall, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND signature IS NOT NULL ORDER BY created_at ASC LIMIT 100", systemCallCols)
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStatePending)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []*SystemCall
+	for rows.Next() {
+		call, err := systemCallFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		calls = append(calls, call)
+	}
+	return calls, nil
+}
+
 func (s *SQLite3Store) ListUnfinishedSubSystemCalls(ctx context.Context) ([]*SystemCall, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

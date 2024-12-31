@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -21,6 +22,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
 	go node.initialCallLoop(ctx)
+	go node.signedCallLoop(ctx)
 }
 
 func (node *Node) keyLoop(ctx context.Context) {
@@ -103,6 +105,17 @@ func (node *Node) initialCallLoop(ctx context.Context) {
 		}
 
 		time.Sleep(10 * time.Minute)
+	}
+}
+
+func (node *Node) signedCallLoop(ctx context.Context) {
+	for {
+		err := node.handleSignedCalls(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -277,6 +290,41 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 			Type:  OperationTypeCreateSubCall,
 			Extra: extra,
 		})
+		if err != nil {
+			return err
+		}
+		time.Sleep(1 * time.Minute)
+	}
+	return nil
+}
+
+func (node *Node) handleSignedCalls(ctx context.Context) error {
+	calls, err := node.store.ListSignedCalls(ctx)
+	if err != nil {
+		return err
+	}
+	for _, call := range calls {
+		publicKey := solanaApp.PublicKeyFromEd25519Public(call.Public)
+		tx, err := solana.TransactionFromBase64(call.Raw)
+		if err != nil {
+			return err
+		}
+		accounts, err := tx.AccountMetaList()
+		if err != nil {
+			return err
+		}
+		index := -1
+		for i, account := range accounts {
+			if !account.PublicKey.Equals(publicKey) {
+				continue
+			}
+			index = i
+		}
+		if index == -1 {
+			return fmt.Errorf("invalid solana tx signature: %s", call.RequestId)
+		}
+		tx.Signatures[index] = solana.SignatureFromBytes(common.DecodeHexOrPanic(call.Signature.String))
+		err = node.solanaClient().SendAndConfirmTransaction(ctx, tx)
 		if err != nil {
 			return err
 		}
