@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -133,11 +134,18 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	var txs []*mtg.Transaction
 	var compaction string
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	logger.Printf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", req.MixinHash.String(), ver, err)
 	if err != nil || ver == nil {
 		panic(err)
 	}
+	if common.CheckTestEnvironment(ctx) {
+		h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
+		h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
+		ver.References = []crypto.Hash{h1, h2}
+	}
 	for _, ref := range ver.References {
 		refVer, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+		logger.Printf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", ref.String(), refVer, err)
 		if err != nil {
 			panic(err)
 		}
@@ -145,7 +153,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 			continue
 		}
 
-		outputs := node.group.ListOutputsByTransactionHash(ctx, refVer.PayloadHash().String(), req.Sequence)
+		outputs := node.group.ListOutputsByTransactionHash(ctx, ref.String(), req.Sequence)
 		if len(outputs) == 0 {
 			continue
 		}
@@ -154,7 +162,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 			total = total.Add(output.Amount)
 		}
 
-		asset, err := node.mixin.SafeReadAsset(ctx, outputs[0].AssetId)
+		asset, err := bot.ReadAsset(ctx, outputs[0].AssetId)
 		if err != nil {
 			panic(err)
 		}

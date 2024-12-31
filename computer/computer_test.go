@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -42,26 +43,32 @@ func TestComputer(t *testing.T) {
 func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) {
 	conf := nodes[0].conf
 
-	var references []crypto.Hash
 	sequence += 10
-	out, err := testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeBitcoinChainId, "", sequence, decimal.NewFromInt(100000))
+	_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "", sequence, decimal.NewFromInt(1000000))
 	require.Nil(err)
-	hash, err := crypto.HashFromString(out.TransactionHash)
-	require.Nil(err)
-	references = append(references, hash)
 	sequence += 10
-	out, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "", sequence, decimal.NewFromInt(1000000))
+	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, decimal.NewFromInt(5000000))
 	require.Nil(err)
-	hash, err = crypto.HashFromString(out.TransactionHash)
-	require.Nil(err)
-	references = append(references, hash)
 
-	// for _, node := range nodes {
-	// id := uuid.Must(uuid.NewV4())
-	// extra := user.IdBytes()
-	// extra = append(extra)
-	// out := testBuildUserRequest(node, id.String(), OperationTypeSystemCall, extra)
-	// }
+	id := uuid.Must(uuid.NewV4()).String()
+	hash := "d3b2db9339aee4acb39d0809fc164eb7091621400a9a3d64e338e6ffd035d32f"
+	extra := user.IdBytes()
+	extra = append(extra, common.DecodeHexOrPanic("0002000205cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295bad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ec06a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea94000000000000000000000000000000000000000000000000000000000000000000000dcc859c62859a93c7ca37d6f180d63ba1f1ccadc68373b6605c4358bd77983060204030203000404000000040201010c0200000040420f0000000000")...)
+	for _, node := range nodes {
+		out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra)
+		testStep(ctx, require, node, out)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, out.OutputId, common.RequestStateInitial)
+		require.Nil(err)
+		require.Equal(out.OutputId, call.RequestId)
+		require.Equal(out.OutputId, call.Superior)
+		require.Equal(store.CallTypeMain, call.Type)
+		require.Equal(user.NonceAccount, call.NonceAccount)
+		require.Equal(user.Public, call.Public)
+		require.Len(call.GetWithdrawalIds(), 1)
+		require.False(call.WithdrawedAt.Valid)
+		require.False(call.Signature.Valid)
+		require.False(call.RequestSignerAt.Valid)
+	}
 }
 
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
@@ -74,7 +81,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		seed = append(seed, id.Bytes()...)
 		seed = append(seed, id.Bytes()...)
 		mix := mc.NewAddressFromSeed(seed)
-		out := testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
+		out := testBuildUserRequest(node, id.String(), "", OperationTypeAddUser, []byte(mix.String()))
 		testStep(ctx, require, node, out)
 		user1, err := node.store.ReadUserByAddress(ctx, mix.String())
 		require.Nil(err)
@@ -96,7 +103,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		seed = append(seed, id.Bytes()...)
 		seed = append(seed, id.Bytes()...)
 		mix = mc.NewAddressFromSeed(seed)
-		out = testBuildUserRequest(node, id.String(), OperationTypeAddUser, []byte(mix.String()))
+		out = testBuildUserRequest(node, id.String(), "", OperationTypeAddUser, []byte(mix.String()))
 		testStep(ctx, require, node, out)
 		user2, err := node.store.ReadUserByAddress(ctx, mix.String())
 		require.Nil(err)
@@ -115,17 +122,22 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 }
 
 func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	as := [][2]string{
+		{"DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", "FrqtK1eTYLJtR6mGNaBWF6qyfpjTqk1DJaAQdAm31Xc1"},
+		testGenerateRandNonceAccount(require),
+		testGenerateRandNonceAccount(require),
+		testGenerateRandNonceAccount(require),
+	}
+	addr := solana.MustPublicKeyFromBase58(as[0][0])
+
 	for _, node := range nodes {
 		count, err := node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)
 		require.Equal(0, count)
 
-		var addr solana.PublicKey
-		for i := range 4 {
-			address, hash := testGenerateRandNonceAccount(require)
-			if i == 0 {
-				addr = address
-			}
+		for _, nonce := range as {
+			address := solana.MustPublicKeyFromBase58(nonce[0])
+			hash := solana.MustHashFromBase58(nonce[1])
 			extra := address.Bytes()
 			extra = append(extra, hash[:]...)
 
@@ -137,7 +149,7 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 			require.Equal(hash.String(), account.Hash)
 		}
 
-		_, hash := testGenerateRandNonceAccount(require)
+		hash := solana.MustHashFromBase58("25DfFJbUsDMR7rYpieHhK7diWB1EuWkv5nB3F6CzNFTR")
 		extra := addr.Bytes()
 		extra = append(extra, hash[:]...)
 		id := uuid.Must(uuid.NewV4()).String()
@@ -226,18 +238,22 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	}
 }
 
-func testBuildUserRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
+func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte) *mtg.Action {
 	sequence += 10
 	id = common.UniqueId(id, "output")
+	if hash == "" {
+		hash = crypto.Sha256Hash([]byte(id)).String()
+	}
+
 	memo := []byte{action}
 	memo = append(memo, extra...)
-	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+	memoStr := testEncodeMixinExtra(node.conf.AppId, memo)
 	memoStr = hex.EncodeToString([]byte(memoStr))
 	timestamp := time.Now()
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
-			TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
+			TransactionHash:    hash,
 			AppId:              node.conf.AppId,
 			Senders:            []string{string(node.id)},
 			AssetId:            mtg.StorageAssetId,
@@ -404,17 +420,17 @@ func testInitOutputs(ctx context.Context, require *require.Assertions, nodes []*
 	start := sequence - 1
 	conf := nodes[0].conf
 	for i := range 100 {
-		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.AssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.AssetId, "", "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
 	for i := range 100 {
-		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.ObserverAssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.ObserverAssetId, "", "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
 	for i := range 100 {
-		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, mtg.StorageAssetId, "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, mtg.StorageAssetId, "", "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
@@ -428,8 +444,11 @@ func testInitOutputs(ctx context.Context, require *require.Assertions, nodes []*
 	}
 }
 
-func testWriteOutputForNodes(ctx context.Context, dbs []*mtg.SQLite3Store, appId, assetId, extra string, sequence uint64, amount decimal.Decimal) (*mtg.UnifiedOutput, error) {
+func testWriteOutputForNodes(ctx context.Context, dbs []*mtg.SQLite3Store, appId, assetId, hash, extra string, sequence uint64, amount decimal.Decimal) (*mtg.UnifiedOutput, error) {
 	id := uuid.Must(uuid.NewV4())
+	if hash == "" {
+		hash = crypto.Sha256Hash(id.Bytes()).String()
+	}
 	output := &mtg.UnifiedOutput{
 		OutputId:           id.String(),
 		AppId:              appId,
@@ -437,7 +456,7 @@ func testWriteOutputForNodes(ctx context.Context, dbs []*mtg.SQLite3Store, appId
 		Amount:             amount,
 		Sequence:           sequence,
 		SequencerCreatedAt: time.Now(),
-		TransactionHash:    crypto.Sha256Hash(id.Bytes()).String(),
+		TransactionHash:    hash,
 		State:              mtg.SafeUtxoStateUnspent,
 		Extra:              extra,
 	}
@@ -462,10 +481,21 @@ func testFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 	}
 }
 
-func testGenerateRandNonceAccount(require *require.Assertions) (solana.PublicKey, solana.Hash) {
+func testGenerateRandNonceAccount(require *require.Assertions) [2]string {
 	key1, err := solana.NewRandomPrivateKey()
 	require.Nil(err)
 	key2, err := solana.NewRandomPrivateKey()
 	require.Nil(err)
-	return key1.PublicKey(), solana.HashFromBytes(key2.PublicKey().Bytes())
+	return [2]string{key1.PublicKey().String(), solana.HashFromBytes(key2.PublicKey().Bytes()).String()}
+}
+
+func testEncodeMixinExtra(appId string, extra []byte) string {
+	gid, err := uuid.FromString(appId)
+	if err != nil {
+		panic(err)
+	}
+	data := gid.Bytes()
+	data = append(data, extra...)
+	s := base64.RawURLEncoding.EncodeToString(data)
+	return s
 }
