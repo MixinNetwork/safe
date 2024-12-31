@@ -72,7 +72,8 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 		for _, s := range sessions {
 			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", s.Id, string(node.id))
 			extra := []byte{OperationTypeSignInput}
-			extra = append(extra, []byte(fmt.Sprintf("%s:%s", PrepareExtra, s.Id))...)
+			extra = append(extra, uuid.Must(uuid.FromString(s.Id)).Bytes()...)
+			extra = append(extra, PrepareExtra...)
 			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
 			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
 			if err != nil {

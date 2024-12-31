@@ -169,6 +169,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
 		session := &store.Session{
 			Id:         id,
+			RequestId:  call.RequestId,
 			MixinHash:  req.MixinHash.String(),
 			MixinIndex: req.Output.OutputIndex,
 			Index:      0,

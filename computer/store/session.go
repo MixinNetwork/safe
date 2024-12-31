@@ -13,6 +13,7 @@ import (
 
 type Session struct {
 	Id         string
+	RequestId  string
 	MixinHash  string
 	MixinIndex int
 	Index      int
@@ -43,9 +44,9 @@ func (s *SQLite3Store) ReadSession(ctx context.Context, sessionId string) (*Sess
 	defer s.mutex.Unlock()
 
 	var r Session
-	query := "SELECT session_id, mixin_hash, mixin_index, operation, public, extra, state, created_at, prepared_at FROM sessions WHERE session_id=?"
+	query := "SELECT session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at, prepared_at FROM sessions WHERE session_id=?"
 	row := s.db.QueryRowContext(ctx, query, sessionId)
-	err := row.Scan(&r.Id, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Public, &r.Extra, &r.State, &r.CreatedAt, &r.PreparedAt)
+	err := row.Scan(&r.Id, &r.RequestId, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Public, &r.Extra, &r.State, &r.CreatedAt, &r.PreparedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -68,9 +69,9 @@ func (s *SQLite3Store) WriteSessionsWithRequest(ctx context.Context, req *Reques
 			return err
 		}
 
-		cols := []string{"session_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
+		cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
 			"extra", "state", "created_at", "updated_at"}
-		vals := []any{session.Id, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
+		vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
 			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
 		if !needsCommittment {
 			cols = append(cols, "committed_at", "prepared_at")

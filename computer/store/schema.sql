@@ -26,9 +26,10 @@ CREATE INDEX IF NOT EXISTS keys_by_user_created ON keys(user_id, created_at);
 
 CREATE TABLE IF NOT EXISTS sessions (
 	session_id    VARCHAR NOT NULL,
+  request_id    VARCHAR NOT NULL,
 	mixin_hash    VARCHAR NOT NULL,
 	mixin_index   INTEGER NOT NULL,
-    sub_index     INTEGER NOT NULL,
+  sub_index     INTEGER NOT NULL,
 	operation     INTEGER NOT NULL,
 	public        VARCHAR NOT NULL,
 	extra         VARCHAR NOT NULL,

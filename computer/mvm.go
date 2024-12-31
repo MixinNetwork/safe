@@ -1,6 +1,7 @@
 package computer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -209,6 +210,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 		id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
 		sessions = append(sessions, &store.Session{
 			Id:         id,
+			RequestId:  req.Id,
 			MixinHash:  req.MixinHash.String(),
 			MixinIndex: req.Output.OutputIndex,
 			Index:      i,
@@ -566,29 +568,36 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 		panic(req.Action)
 	}
 
-	extra := string(req.ExtraBytes())
-	items := strings.Split(extra, ",")
-	if len(items) != 2 || items[0] != PrepareExtra {
+	extra := req.ExtraBytes()
+	session := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	extra = extra[16:]
+	if !bytes.Equal(extra, PrepareExtra) {
 		return node.failRequest(ctx, req, "")
 	}
 
-	s, err := node.store.ReadSession(ctx, items[1])
+	s, err := node.store.ReadSession(ctx, session)
 	if err != nil {
-		panic(fmt.Errorf("store.ReadSession(%s) => %v", items[1], err))
-	} else if s.PreparedAt.Valid {
+		panic(fmt.Errorf("store.ReadSession(%s) => %v", session, err))
+	}
+	if s.PreparedAt.Valid {
 		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.PrepareSessionSignerIfNotExist(ctx, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt)
+	if err != nil {
+		panic(fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", s, err))
 	}
 	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
 	if err != nil {
 		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
 	}
-
-	sufficient := len(signers)+1 > node.threshold
-	err = node.store.PrepareSessionSignerWithRequest(ctx, req, sufficient, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt)
-	if err != nil {
-		panic(fmt.Errorf("node.PrepareSessionSignerWithRequest(%t %s %s %s) => %v", sufficient, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt, err))
+	if len(signers) <= node.threshold {
+		return node.failRequest(ctx, req, "")
 	}
-
+	err = node.store.MarkSessionPreparedWithRequest(ctx, req, s.Id, req.Output.SequencerCreatedAt)
+	if err != nil {
+		panic(fmt.Errorf("node.MarkSessionPreparedWithRequest(%s %v) => %v", s.Id, req.Output.SequencerCreatedAt, err))
+	}
 	return nil, ""
 }
 
@@ -602,20 +611,55 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	extra := req.ExtraBytes()
 	sid := uuid.FromBytesOrNil(extra[:16]).String()
 	signature := extra[16:]
-
 	s, err := node.store.ReadSession(ctx, sid)
 	if err != nil || s == nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
 	}
-	call, err := node.store.ReadSystemCallByMessage(ctx, s.Extra)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, common.RequestStatePending)
 	if err != nil || call == nil {
-		panic(fmt.Errorf("store.ReadSystemCallByMessage(%s) => %v %v", s.Extra, call, err))
-	}
-	if call.Signature.Valid {
-		return node.failRequest(ctx, req, "")
+		panic(fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", s.RequestId, call, err))
 	}
 
-	// TODO verify signature
+	self := len(req.Output.Senders) == 1 && req.Output.Senders[0] == string(node.id)
+	err = node.store.UpdateSessionSigner(ctx, s.Id, req.Output.Senders[0], extra, req.Output.SequencerCreatedAt, self)
+	if err != nil {
+		panic(fmt.Errorf("store.UpdateSessionSigner(%s %s) => %v", s.Id, req.Output.Senders[0], err))
+	}
+	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
+	if err != nil {
+		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
+	}
+	finished, sig := node.verifySessionSignerResults(ctx, s, signers)
+	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", s, len(signers), finished, sig)
+	if !finished {
+		return node.failRequest(ctx, req, "")
+	}
+	if l := len(signers); l <= node.threshold {
+		panic(s.Id)
+	}
+	extra = common.DecodeHexOrPanic(s.Extra)
+	if !node.checkSignatureAppended(extra) {
+		// this could happen after resync, crash or not commited
+		extra = node.concatMessageAndSignature(extra, sig)
+	}
+	if s.State == common.RequestStateInitial && s.PreparedAt.Valid {
+		// this could happend only after crash or not commited
+		err = node.store.MarkSessionPending(ctx, s.Id, s.Public, extra)
+		logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", s, extra, err)
+		if err != nil {
+			panic(err)
+		}
+	}
+	holder, share, path, err := node.readKeyByFingerPath(ctx, s.Public)
+	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", s.Public, holder, err)
+	if err != nil {
+		panic(err)
+	}
+	valid, vsig := node.verifySessionSignature(ctx, holder, extra, share, path)
+	logger.Printf("node.verifySessionSignature(%v, %s, %x, %v) => %t", s, holder, extra, path, valid)
+	if !valid || !bytes.Equal(sig, vsig) {
+		panic(hex.EncodeToString(vsig))
+	}
 
 	err = node.store.AttachSystemCallSignatureWithRequest(ctx, req, call, s.Id, base64.StdEncoding.EncodeToString(signature))
 	if err != nil {

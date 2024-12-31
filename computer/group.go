@@ -23,8 +23,9 @@ const (
 	KernelTimeout        = 3 * time.Minute
 	OperationExtraLimit  = 128
 	MPCFirstMessageRound = 2
-	PrepareExtra         = "PREPARE"
 )
+
+var PrepareExtra = []byte("PREPARE")
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	logger.Verbosef("node.ProcessOutput(%v)", out)
