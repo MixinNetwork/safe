@@ -149,18 +149,9 @@ func (node *Node) requestInitMpcKey(ctx context.Context) error {
 	if key == "" {
 		return fmt.Errorf("fail to find first generated key")
 	}
-	account, err := node.store.ReadSpareNonceAccount(ctx)
-	if err != nil {
-		return err
-	}
-	if account == nil {
-		return fmt.Errorf("fail to find first generated nonce account")
-	}
-	addr := solana.MustPublicKeyFromBase58(account.Address)
 
-	id := common.UniqueId(key, account.Address)
+	id := common.UniqueId(key, "mtg key init")
 	extra := common.DecodeHexOrPanic(key)
-	extra = append(extra, addr.Bytes()...)
 	return node.sendObserverTransaction(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeInitMPCKey,
