@@ -549,6 +549,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 	session := uuid.Must(uuid.FromBytes(extra[:16])).String()
 	extra = extra[16:]
 	if !bytes.Equal(extra, PrepareExtra) {
+		logger.Printf("invalid prepare extra: %s", string(extra))
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -557,6 +558,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 		panic(fmt.Errorf("store.ReadSession(%s) => %v", session, err))
 	}
 	if s.PreparedAt.Valid {
+		logger.Printf("session %s is prepared", s.Id)
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -569,6 +571,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
 	}
 	if len(signers) <= node.threshold {
+		logger.Printf("insufficient prepared signers: %d %d", len(signers), node.threshold)
 		return node.failRequest(ctx, req, "")
 	}
 	err = node.store.MarkSessionPreparedWithRequest(ctx, req, s.Id, req.Output.SequencerCreatedAt)
@@ -597,6 +600,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 		panic(fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", s.RequestId, call, err))
 	}
 	if call.State == common.RequestStateDone || call.Signature.Valid {
+		logger.Printf("invalid call %s: %d %s", call.RequestId, call.State, call.Signature.String)
 		return node.failRequest(ctx, req, "")
 	}
 

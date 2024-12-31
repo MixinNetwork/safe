@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"fmt"
 	"testing"
 	"time"
 
@@ -83,7 +82,7 @@ func TestGetNonceAccountHash(t *testing.T) {
 	require.Equal(testNonceAccountHash, hash.String())
 }
 
-func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, nonce, public string, tx *solana.Transaction) []byte {
+func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, nonce, public string, tx *solana.Transaction) {
 	msg, err := tx.Message.MarshalBinary()
 	require.Nil(err)
 	require.Equal(
@@ -128,22 +127,16 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		require.Nil(err)
 	}
 
-	var ops []*common.Operation
 	for _, node := range nodes {
-		op := testWaitOperation(ctx, node, sid)
-		ops = append(ops, op)
+		testWaitOperation(ctx, node, sid)
 	}
 
 	node := nodes[0]
-	for i, op := range ops {
-		id := common.UniqueId(string(node.id), fmt.Sprintf("%d", i))
-		extra := uuid.Must(uuid.FromString(sid)).Bytes()
-		extra = append(extra, op.Extra...)
-		out := testBuildSignerRequest(node, id, op.Type, extra)
-		testStep(ctx, require, node, out)
+	for {
+		s, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStatePending)
+		require.Nil(err)
+		if s != nil && s.Signature.Valid {
+			return
+		}
 	}
-	s, err := node.store.ReadSession(ctx, sid)
-	require.Nil(err)
-	extra := common.DecodeHexOrPanic(s.Extra)
-	return extra
 }

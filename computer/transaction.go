@@ -59,7 +59,7 @@ func (node *Node) sendObserverTransaction(ctx context.Context, op *common.Operat
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
 	}
 
-	traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
+	traceId := fmt.Sprintf("SESSION:%s:OBSERVER:%s", op.Id, string(node.id))
 	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
 }
 

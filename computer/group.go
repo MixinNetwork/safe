@@ -292,7 +292,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 }
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {
-	logger.Printf("node.startSign(%v, %v)\n", op, members)
+	logger.Printf("node.startSign(%v, %v, %s)\n", op, members, string(node.id))
 	if !slices.Contains(members, node.id) {
 		logger.Printf("node.startSign(%v, %v, %s) exit without committement\n", op, members, string(node.id))
 		return nil
