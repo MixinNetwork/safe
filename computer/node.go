@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"slices"
@@ -174,7 +175,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 			MixinIndex: req.Output.OutputIndex,
 			Index:      0,
 			Operation:  OperationTypeSignInput,
-			Public:     call.Public,
+			Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
 			Extra:      call.Message,
 			CreatedAt:  createdAt,
 		}

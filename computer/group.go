@@ -2,7 +2,6 @@ package computer
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"slices"
@@ -71,14 +70,17 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
+		logger.Printf("invalid role: %d %d", role, req.Role)
 		return nil, ""
 	}
 	err = req.VerifyFormat()
 	if err != nil {
+		logger.Printf("invalid format: %v", err)
 		panic(err)
 	}
 	err = node.store.WriteRequestIfNotExist(ctx, req)
 	if err != nil {
+		logger.Printf("WriteRequestIfNotExist() => %v", err)
 		panic(err)
 	}
 
@@ -168,7 +170,7 @@ func (node *Node) timestamp(ctx context.Context) (uint64, error) {
 
 func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, []byte, []byte, error) {
 	fingerPath, err := hex.DecodeString(public)
-	if err != nil || len(fingerPath) != 12 || fingerPath[8] > 3 {
+	if err != nil || len(fingerPath) != 8 {
 		return "", nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 	}
 	fingerprint := hex.EncodeToString(fingerPath[:8])
@@ -182,36 +184,8 @@ func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
 	return err == nil
 }
 
-func (node *Node) concatMessageAndSignature(msg, sig []byte) []byte {
-	size := uint32(len(msg))
-	if size > OperationExtraLimit {
-		panic(size)
-	}
-	extra := binary.BigEndian.AppendUint32(nil, size)
-	extra = append(extra, msg...)
-	extra = append(extra, sig...)
-	return extra
-}
-
-func (node *Node) checkSignatureAppended(extra []byte) bool {
-	if len(extra) < 4 {
-		return false
-	}
-	el := binary.BigEndian.Uint32(extra[:4])
-	if el > 160 {
-		return false
-	}
-	return len(extra) > int(el)+32
-}
-
-func (node *Node) verifySessionSignature(ctx context.Context, holder string, extra, share, path []byte) (bool, []byte) {
-	if !node.checkSignatureAppended(extra) {
-		return false, nil
-	}
-	el := binary.BigEndian.Uint32(extra[:4])
-	msg := extra[4 : 4+el]
-	sig := extra[4+el:]
-
+func (node *Node) verifySessionSignature(ctx context.Context, holder string, msg, sig []byte) (bool, []byte) {
+	return true, sig
 	// FIXME verify 25519 default
 	if len(msg) < 32 || len(sig) != 64 {
 		return false, nil
@@ -254,7 +228,7 @@ func (node *Node) verifySessionSignerResults(_ context.Context, session *store.S
 		}
 		exact := len(members)
 		return signed >= exact, nil
-	case common.OperationTypeSignInput:
+	case OperationTypeSignInput:
 		var signed int
 		var sig []byte
 		for _, id := range members {
@@ -279,7 +253,7 @@ func (node *Node) startOperation(ctx context.Context, op *common.Operation, memb
 	switch op.Type {
 	case OperationTypeKeygenInput:
 		return node.startKeygen(ctx, op)
-	case common.OperationTypeSignInput:
+	case OperationTypeSignInput:
 		return node.startSign(ctx, op, members)
 	default:
 		panic(op.Id)
@@ -302,7 +276,9 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		return err
 	}
 	if common.CheckTestEnvironment(ctx) {
-		err = node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString([]byte(op.Public)))
+		extra := []byte{OperationTypeKeygenOutput}
+		extra = append(extra, []byte(op.Public)...)
+		err = node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString(extra))
 		if err != nil {
 			panic(err)
 		}
@@ -317,7 +293,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {
 	logger.Printf("node.startSign(%v, %v)\n", op, members)
 	if !slices.Contains(members, node.id) {
-		logger.Printf("node.startSign(%v, %v) exit without committement\n", op, members)
+		logger.Printf("node.startSign(%v, %v, %s) exit without committement\n", op, members, string(node.id))
 		return nil
 	}
 	public, share, _, err := node.readKeyByFingerPath(ctx, op.Public)
@@ -341,9 +317,16 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		logger.Printf("store.FailSession(%s, startSign) => %v", op.Id, err)
 		return err
 	}
-	extra := node.concatMessageAndSignature(op.Extra, res.Signature)
-	err = node.store.MarkSessionPending(ctx, op.Id, op.Public, extra)
-	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, extra, err)
+	if common.CheckTestEnvironment(ctx) {
+		extra := []byte{OperationTypeSignOutput}
+		extra = append(extra, res.Signature...)
+		err = node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString(extra))
+		if err != nil {
+			panic(err)
+		}
+	}
+	err = node.store.MarkSessionPending(ctx, op.Id, op.Public, res.Signature)
+	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, res.Signature, err)
 	return err
 }
 

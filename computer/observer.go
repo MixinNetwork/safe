@@ -142,7 +142,7 @@ func (node *Node) requestKeys(ctx context.Context) error {
 }
 
 func (node *Node) requestInitMpcKey(ctx context.Context) error {
-	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
+	key, err := node.store.ReadFirstGeneratedKey(ctx)
 	if err != nil {
 		return err
 	}

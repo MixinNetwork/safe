@@ -51,8 +51,11 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 		if val == "" {
 			continue
 		}
-		_, m := mtg.DecodeMixinExtraHEX(val)
-		op := decodeOperation(m)
+		data, err := hex.DecodeString(val)
+		if err != nil {
+			panic(err)
+		}
+		op := decodeOperation(data)
 		if op != nil {
 			return op
 		}

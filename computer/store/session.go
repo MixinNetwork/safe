@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -26,7 +25,7 @@ type Session struct {
 }
 
 func (r *Session) AsOperation() *common.Operation {
-	extra, err := base64.StdEncoding.DecodeString(r.Extra)
+	extra, err := hex.DecodeString(r.Extra)
 	if err != nil {
 		panic(err)
 	}
@@ -178,7 +177,7 @@ func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*S
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	cols := "session_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
+	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NULL AND prepared_at IS NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
 }
@@ -187,7 +186,7 @@ func (s *SQLite3Store) ListPreparedSessions(ctx context.Context, limit int) ([]*
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	cols := "session_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
+	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NOT NULL AND prepared_at IS NOT NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
 }
@@ -196,7 +195,7 @@ func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*S
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	cols := "session_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
+	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY created_at ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStatePending)
 }
@@ -211,7 +210,7 @@ func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, stat
 	var sessions []*Session
 	for rows.Next() {
 		var r Session
-		err := rows.Scan(&r.Id, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Public, &r.Extra, &r.State, &r.CreatedAt)
+		err := rows.Scan(&r.Id, &r.RequestId, &r.MixinHash, &r.MixinIndex, &r.Operation, &r.Public, &r.Extra, &r.State, &r.CreatedAt)
 		if err != nil {
 			return nil, err
 		}

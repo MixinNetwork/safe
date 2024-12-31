@@ -306,7 +306,7 @@ func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.R
 	} else if old == "" {
 		return node.failRequest(ctx, req, "")
 	}
-	key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
+	key, err := node.store.ReadFirstGeneratedKey(ctx)
 	logger.Printf("store.ReadFirstGeneratedKey() => %s %v", key, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadFirstGeneratedKey() => %v", err))
@@ -596,9 +596,12 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	if err != nil || call == nil {
 		panic(fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", s.RequestId, call, err))
 	}
+	if call.State == common.RequestStateDone || call.Signature.Valid {
+		return node.failRequest(ctx, req, "")
+	}
 
 	self := len(req.Output.Senders) == 1 && req.Output.Senders[0] == string(node.id)
-	err = node.store.UpdateSessionSigner(ctx, s.Id, req.Output.Senders[0], extra, req.Output.SequencerCreatedAt, self)
+	err = node.store.UpdateSessionSigner(ctx, s.Id, req.Output.Senders[0], signature, req.Output.SequencerCreatedAt, self)
 	if err != nil {
 		panic(fmt.Errorf("store.UpdateSessionSigner(%s %s) => %v", s.Id, req.Output.Senders[0], err))
 	}
@@ -615,10 +618,6 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 		panic(s.Id)
 	}
 	extra = common.DecodeHexOrPanic(s.Extra)
-	if !node.checkSignatureAppended(extra) {
-		// this could happen after resync, crash or not commited
-		extra = node.concatMessageAndSignature(extra, sig)
-	}
 	if s.State == common.RequestStateInitial && s.PreparedAt.Valid {
 		// this could happend only after crash or not commited
 		err = node.store.MarkSessionPending(ctx, s.Id, s.Public, extra)
@@ -627,18 +626,18 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 			panic(err)
 		}
 	}
-	holder, share, path, err := node.readKeyByFingerPath(ctx, s.Public)
+	holder, _, _, err := node.readKeyByFingerPath(ctx, s.Public)
 	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", s.Public, holder, err)
 	if err != nil {
 		panic(err)
 	}
-	valid, vsig := node.verifySessionSignature(ctx, holder, extra, share, path)
-	logger.Printf("node.verifySessionSignature(%v, %s, %x, %v) => %t", s, holder, extra, path, valid)
+	valid, vsig := node.verifySessionSignature(ctx, holder, common.DecodeHexOrPanic(call.Message), sig)
+	logger.Printf("node.verifySessionSignature(%v, %s, %x) => %t", s, holder, extra, valid)
 	if !valid || !bytes.Equal(sig, vsig) {
 		panic(hex.EncodeToString(vsig))
 	}
 
-	err = node.store.AttachSystemCallSignatureWithRequest(ctx, req, call, s.Id, base64.StdEncoding.EncodeToString(signature))
+	err = node.store.AttachSystemCallSignatureWithRequest(ctx, req, call, s.Id, base64.StdEncoding.EncodeToString(sig))
 	if err != nil {
 		panic(fmt.Errorf("store.AttachSystemCallSignatureWithRequest(%s %v) => %v", s.Id, call, err))
 	}

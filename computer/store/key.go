@@ -188,17 +188,12 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 	return public, conf, err
 }
 
-func (s *SQLite3Store) ReadFirstGeneratedKey(ctx context.Context, operation byte) (string, error) {
+func (s *SQLite3Store) ReadFirstGeneratedKey(ctx context.Context) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	var public string
-	row := s.db.QueryRowContext(
-		ctx,
-		"SELECT public FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT 1",
-		operation,
-		0,
-	)
+	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT 1")
 	err := row.Scan(&public)
 	if err == sql.ErrNoRows {
 		return "", nil

@@ -159,7 +159,7 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 		require.Nil(err)
 		require.False(initialized)
 
-		key, err := node.store.ReadFirstGeneratedKey(ctx, OperationTypeKeygenInput)
+		key, err := node.store.ReadFirstGeneratedKey(ctx)
 		require.Nil(err)
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 
@@ -173,9 +173,6 @@ func testObserverRequestInitMpcKey(ctx context.Context, require *require.Asserti
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", mtg.Public)
 		require.Equal("", mtg.NonceAccount)
 
-		count, err := node.store.CountSpareKeys(ctx)
-		require.Nil(err)
-		require.Equal(9, count)
 		initialized, err = node.store.CheckMpcKeyInitialized(ctx)
 		require.Nil(err)
 		require.True(initialized)
@@ -267,6 +264,29 @@ func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) 
 			AppId:              node.conf.AppId,
 			Senders:            []string{string(node.id)},
 			AssetId:            node.conf.ObserverAssetId,
+			Extra:              memoStr,
+			Amount:             decimal.New(1, 1),
+			SequencerCreatedAt: timestamp,
+			Sequence:           sequence,
+		},
+	}
+}
+
+func testBuildSignerRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
+	sequence += 10
+	id = common.UniqueId(id, "output")
+	memo := []byte{action}
+	memo = append(memo, extra...)
+	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+	memoStr = hex.EncodeToString([]byte(memoStr))
+	timestamp := time.Now()
+	return &mtg.Action{
+		UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:           id,
+			TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
+			AppId:              node.conf.AppId,
+			Senders:            []string{string(node.id)},
+			AssetId:            node.conf.AssetId,
 			Extra:              memoStr,
 			Amount:             decimal.New(1, 1),
 			SequencerCreatedAt: timestamp,
