@@ -147,7 +147,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, rid string) error {
+func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -158,9 +158,14 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	defer common.Rollback(tx)
 
 	query := "UPDATE system_calls SET state=?, updated_at=? WHERE rid=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateDone, req.CreatedAt, rid, common.RequestStatePending)
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, req.CreatedAt, call.RequestId, common.RequestStatePending)
 	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
+		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
+	}
+	query = "UPDATE nonce_account SET hash=?, call_id=?, updated_at=? WHERE address=? AND call_id=? AND user_id IS NULL"
+	err = s.execOne(ctx, tx, query, hash, nil, req.CreatedAt, call.NonceAccount, call.RequestId)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE nonce_account %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
@@ -352,11 +357,4 @@ func (s *SQLite3Store) ListUnfinishedSubSystemCalls(ctx context.Context) ([]*Sys
 		calls = append(calls, call)
 	}
 	return calls, nil
-}
-
-func readSystemCallByRequestId(ctx context.Context, tx *sql.Tx, id string) (*SystemCall, error) {
-	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE request_id=?", strings.Join(systemCallCols, ","))
-	row := tx.QueryRowContext(ctx, query, id)
-
-	return systemCallFromRow(row)
 }

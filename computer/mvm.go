@@ -516,9 +516,11 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	}
 
 	extra := req.ExtraBytes()
-	hash := base58.Encode(extra)
-	_ = solana.MustSignatureFromBase58(hash)
-	transaction, err := node.solanaClient().RPCGetTransaction(ctx, hash)
+	signature := base58.Encode(extra[:64])
+	_ = solana.MustSignatureFromBase58(signature)
+	updatedHash := solana.PublicKeyFromBytes(extra[64:]).String()
+
+	transaction, err := node.solanaClient().RPCGetTransaction(ctx, signature)
 	if err != nil {
 		panic(err)
 	}
@@ -537,7 +539,15 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	if call.State != common.RequestStatePending {
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.ConfirmSystemCallWithRequest(ctx, req, call.RequestId)
+	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+	if err != nil || nonce == nil {
+		panic(err)
+	}
+	if nonce.Hash == updatedHash || nonce.CallId.String != call.RequestId || nonce.UserId.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, updatedHash)
 	if err != nil {
 		panic(err)
 	}
