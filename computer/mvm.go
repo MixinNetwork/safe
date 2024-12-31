@@ -463,7 +463,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(reqId)
 	}
-	if nonce == nil {
+	if nonce == nil || nonce.UserId.Valid || nonce.CallId.Valid {
 		return node.failRequest(ctx, req, "")
 	}
 	raw := node.readStorageExtraFromObserver(ctx, hash)

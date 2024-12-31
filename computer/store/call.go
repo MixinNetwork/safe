@@ -103,6 +103,10 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 	if err != nil {
 		return err
 	}
+	err = s.assignNonceAccountToCall(ctx, tx, req, call)
+	if err != nil {
+		return err
+	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
