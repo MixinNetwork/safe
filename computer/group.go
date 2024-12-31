@@ -185,6 +185,7 @@ func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
 }
 
 func (node *Node) verifySessionSignature(ctx context.Context, holder string, msg, sig []byte) (bool, []byte) {
+	// FIXME
 	return true, sig
 	// FIXME verify 25519 default
 	if len(msg) < 32 || len(sig) != 64 {
