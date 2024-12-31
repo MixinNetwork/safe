@@ -7,6 +7,7 @@ import (
 
 	solana "github.com/gagliardetto/solana-go"
 	lookup "github.com/gagliardetto/solana-go/programs/address-lookup-table"
+	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gagliardetto/solana-go/rpc/ws"
 )
@@ -120,7 +121,52 @@ func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.G
 }
 
 func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
-	panic("not implemented")
+	client := c.getRPCClient()
+	var mint token.Mint
+	if err := client.GetAccountDataInto(ctx, solana.MPK(address), &mint); err != nil {
+		return nil, err
+	}
+
+	metadata, err := c.getAssetMetadata(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+
+	asset := &Asset{
+		Address:  address,
+		Id:       GenerateAssetId(address),
+		Decimals: uint32(mint.Decimals),
+		Symbol:   metadata.Symbol,
+		Name:     metadata.Name,
+	}
+
+	return asset, nil
+}
+
+type AssetMetadata struct {
+	Symbol      string `json:"symbol"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMetadata, error) {
+	client := c.getRPCClient()
+
+	var resp struct {
+		Content struct {
+			Metadata AssetMetadata `json:"metadata"`
+		} `json:"content"`
+	}
+
+	opt := map[string]any{
+		"id": address,
+	}
+
+	if err := client.RPCCallForInto(ctx, &resp, "getAsset", []any{opt}); err != nil {
+		return nil, err
+	}
+
+	return &resp.Content.Metadata, nil
 }
 
 // processTransactionWithAddressLookups resolves the address lookups in the transaction.
