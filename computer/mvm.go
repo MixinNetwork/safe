@@ -471,6 +471,11 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
+	// TODO check tx instructions:
+	// deposit to mtg
+	// mint to
+	// burn minted token
+
 	new := &store.SystemCall{
 		RequestId:       req.Id,
 		Superior:        call.RequestId,
@@ -506,58 +511,37 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
 	}
-	if req.Action != OperationTypeCreateNonce {
+	if req.Action != OperationTypeConfirmCall {
 		panic(req.Action)
 	}
 
 	extra := req.ExtraBytes()
-	flag, extra := extra[0], extra[1:]
-	// TODO check tx confirmed
-
-	switch flag {
-	case ConfirmFlagMixinWithdrawal:
-		txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-		outputId := uuid.Must(uuid.FromBytes(extra[16:])).String()
-		call, err := node.store.ReadSystemCallByRequestId(ctx, outputId, common.RequestStateInitial)
-		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", outputId, call, err)
-		if err != nil {
-			panic(err)
-		}
-		if call == nil || call.WithdrawedAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
-			return node.failRequest(ctx, req, "")
-		}
-
-		err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId)
-		if err != nil {
-			panic(err)
-		}
-		return nil, ""
-	case ConfirmFlagOnChainTx:
-		hash := base58.Encode(extra)
-		_ = solana.MustSignatureFromBase58(hash)
-		transaction, err := node.solanaClient().RPCGetTransaction(ctx, hash)
-		if err != nil {
-			panic(err)
-		}
-		tx, err := transaction.Transaction.GetTransaction()
-		if err != nil {
-			panic(err)
-		}
-		call, err := node.store.ReadSystemCallByMessage(ctx, tx.Message.ToBase64())
-		if err != nil || call == nil {
-			panic(err)
-		}
-		if call.State != common.RequestStatePending {
-			return node.failRequest(ctx, req, "")
-		}
-		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call.RequestId)
-		if err != nil {
-			panic(err)
-		}
-		return nil, ""
-	default:
+	hash := base58.Encode(extra)
+	_ = solana.MustSignatureFromBase58(hash)
+	transaction, err := node.solanaClient().RPCGetTransaction(ctx, hash)
+	if err != nil {
+		panic(err)
+	}
+	if transaction == nil {
 		return node.failRequest(ctx, req, "")
 	}
+
+	tx, err := transaction.Transaction.GetTransaction()
+	if err != nil {
+		panic(err)
+	}
+	call, err := node.store.ReadSystemCallByMessage(ctx, tx.Message.ToBase64())
+	if err != nil || call == nil {
+		panic(err)
+	}
+	if call.State != common.RequestStatePending {
+		return node.failRequest(ctx, req, "")
+	}
+	err = node.store.ConfirmSystemCallWithRequest(ctx, req, call.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
 }
 
 func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
