@@ -39,10 +39,32 @@ func TestComputer(t *testing.T) {
 	user := testUserRequestAddUsers(ctx, require, nodes)
 	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
 	testConfirmWithdrawal(ctx, require, nodes, call)
-	testObserverCreateSubCall(ctx, require, nodes, call)
+	sub := testObserverCreateSubCall(ctx, require, nodes, call)
+	testOBserverConfirmCall(ctx, require, nodes, sub)
 }
 
-func testObserverCreateSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+func testOBserverConfirmCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+	signature := solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb")
+	hash := solana.MustHashFromBase58("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+
+	id := uuid.Must(uuid.NewV4()).String()
+	var extra []byte
+	extra = append(extra, signature[:]...)
+	extra = append(extra, hash[:]...)
+
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
+		testStep(ctx, require, node, out)
+
+		_, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
+		require.Nil(err)
+		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+		require.Nil(err)
+		require.Equal(hash.String(), nonce.Hash)
+	}
+}
+
+func testObserverCreateSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
 	node := nodes[0]
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
 	require.Nil(err)
@@ -109,7 +131,7 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		s, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
 		require.Nil(err)
 		if s != nil && s.Signature.Valid {
-			return
+			return s
 		}
 	}
 }

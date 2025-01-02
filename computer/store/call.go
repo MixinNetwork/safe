@@ -157,15 +157,15 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE system_calls SET state=?, updated_at=? WHERE rid=? AND state=?"
+	query := "UPDATE system_calls SET state=?, updated_at=? WHERE request_id=? AND state=?"
 	err = s.execOne(ctx, tx, query, common.RequestStateDone, req.CreatedAt, call.RequestId, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
-	query = "UPDATE nonce_account SET hash=?, call_id=?, updated_at=? WHERE address=? AND call_id=? AND user_id IS NULL"
+	query = "UPDATE nonce_accounts SET hash=?, call_id=?, updated_at=? WHERE address=? AND call_id=? AND user_id IS NULL"
 	err = s.execOne(ctx, tx, query, hash, nil, req.CreatedAt, call.NonceAccount, call.RequestId)
 	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE nonce_account %v", err)
+		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
