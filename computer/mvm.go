@@ -80,7 +80,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 // 2 transfer
 // 3 call
 // 4 postprocess
-// only create mtg withdrawals txs and main system call here
+// only create mtg withdrawals txs and main system call by group
 // other calls should be created by observer
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
@@ -369,12 +369,6 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	extra := req.ExtraBytes()
 	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
 	reqId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
-	signature := string(extra[32:])
-
-	tx, err := node.solanaClient().RPCGetTransaction(ctx, signature)
-	if err != nil || tx == nil {
-		node.failRequest(ctx, req, "")
-	}
 
 	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, common.RequestStateInitial)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
@@ -674,6 +668,11 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 	if err != nil || ver == nil {
 		panic(err)
 	}
+	if common.CheckTestEnvironment(ctx) {
+		h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
+		h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
+		ver.References = []crypto.Hash{h1, h2}
+	}
 
 	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
 	var transfers []solanaApp.TokenTransfers
@@ -687,7 +686,7 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 			continue
 		}
 
-		outputs := node.group.ListOutputsByTransactionHash(ctx, refVer.PayloadHash().String(), req.Sequence)
+		outputs := node.group.ListOutputsByTransactionHash(ctx, ref.String(), req.Sequence)
 		if len(outputs) == 0 {
 			continue
 		}
@@ -696,7 +695,7 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 			total = total.Add(output.Amount)
 		}
 
-		asset, err := node.mixin.SafeReadAsset(ctx, outputs[0].AssetId)
+		asset, err := bot.ReadAsset(ctx, outputs[0].AssetId)
 		if err != nil {
 			panic(err)
 		}

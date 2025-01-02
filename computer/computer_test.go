@@ -37,10 +37,29 @@ func TestComputer(t *testing.T) {
 	testObserverRequestInitMpcKey(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
-	testUserRequestSystemCall(ctx, require, nodes, mds, user)
+	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
+	testConfirmWithdrawal(ctx, require, nodes, call)
 }
 
-func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) {
+func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+	tid := call.GetWithdrawalIds()[0]
+	callId := call.RequestId
+
+	id := uuid.Must(uuid.NewV4()).String()
+	var extra []byte
+	extra = append(extra, uuid.Must(uuid.FromString(tid)).Bytes()...)
+	extra = append(extra, uuid.Must(uuid.FromString(callId)).Bytes()...)
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra)
+		testStep(ctx, require, node, out)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
+		require.Nil(err)
+		require.Equal("", call.WithdrawalIds)
+		require.True(call.WithdrawedAt.Valid)
+	}
+}
+
+func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) *store.SystemCall {
 	conf := nodes[0].conf
 
 	sequence += 10
@@ -50,6 +69,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, decimal.NewFromInt(5000000))
 	require.Nil(err)
 
+	var c *store.SystemCall
 	id := uuid.Must(uuid.NewV4()).String()
 	hash := "d3b2db9339aee4acb39d0809fc164eb7091621400a9a3d64e338e6ffd035d32f"
 	extra := user.IdBytes()
@@ -68,7 +88,9 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.False(call.WithdrawedAt.Valid)
 		require.False(call.Signature.Valid)
 		require.False(call.RequestSignerAt.Valid)
+		c = call
 	}
+	return c
 }
 
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {

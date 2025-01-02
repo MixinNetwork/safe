@@ -130,7 +130,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE system_calls SET state, withdrawal_ids=? withdrawed_at=?, updated_at=? WHERE request_id=? AND state=?"
+	query := "UPDATE system_calls SET state=?, withdrawal_ids=?, withdrawed_at=?, updated_at=? WHERE request_id=? AND state=?"
 	_, err = tx.ExecContext(ctx, query, call.State, call.WithdrawalIds, call.WithdrawedAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
