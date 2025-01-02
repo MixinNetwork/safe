@@ -169,6 +169,75 @@ func (c *Client) MintTokens(ctx context.Context, payer, mtg solana.PublicKey, no
 	return tx, nil
 }
 
+func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
+	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
+
+	for _, transfer := range transfers {
+		if transfer.SolanaAsset {
+			if transfer.AssetId == transfer.ChainId {
+				builder.AddInstruction(
+					system.NewTransferInstruction(
+						transfer.Amount,
+						user,
+						transfer.Destination,
+					).Build(),
+				)
+			} else {
+				src, _, err := solana.FindAssociatedTokenAddress(user, transfer.Mint)
+				if err != nil {
+					return nil, err
+				}
+				dst, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, transfer.Mint)
+				if err != nil {
+					return nil, err
+				}
+				ata, err := c.RPCGetAccount(ctx, dst)
+				if err != nil {
+					return nil, err
+				}
+				if ata == nil || common.CheckTestEnvironment(ctx) {
+					builder.AddInstruction(
+						tokenAta.NewCreateInstruction(
+							payerAdress,
+							transfer.Destination,
+							transfer.Mint,
+						).Build(),
+					)
+				}
+				builder.AddInstruction(
+					token.NewTransferCheckedInstruction(
+						transfer.Amount,
+						transfer.Decimals,
+						src,
+						transfer.Mint,
+						dst,
+						user,
+						nil,
+					).Build(),
+				)
+			}
+			continue
+		}
+
+		ataAddress, _, err := solana.FindAssociatedTokenAddress(user, transfer.Mint)
+		if err != nil {
+			return nil, err
+		}
+		builder.AddInstruction(
+			token.NewBurnCheckedInstruction(
+				transfer.Amount,
+				transfer.Decimals,
+				ataAddress,
+				transfer.Mint,
+				user,
+				nil,
+			).Build(),
+		)
+	}
+
+	return builder.Build()
+}
+
 func (c *Client) SendAndConfirmTransaction(ctx context.Context, tx *solana.Transaction) error {
 	client := c.getRPCClient()
 	ws, err := c.connectWs(ctx)
