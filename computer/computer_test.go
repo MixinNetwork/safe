@@ -39,6 +39,52 @@ func TestComputer(t *testing.T) {
 	user := testUserRequestAddUsers(ctx, require, nodes)
 	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
 	testConfirmWithdrawal(ctx, require, nodes, call)
+	testObserverCreateSubCall(ctx, require, nodes, call)
+}
+
+func testObserverCreateSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+	node := nodes[0]
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	require.Nil(err)
+	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
+	stx, as := node.mintExternalTokens(ctx, call, nonce)
+	require.NotNil(stx)
+	require.Len(as, 1)
+	raw, err := stx.MarshalBinary()
+	require.Nil(err)
+	ref := crypto.Sha256Hash(raw)
+	mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
+	require.Nil(err)
+
+	id := uuid.Must(uuid.NewV4()).String()
+	var extra []byte
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+	extra = append(extra, nonce.Account().Address.Bytes()...)
+	extra = append(extra, ref[:]...)
+	for _, asset := range as {
+		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
+		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
+	}
+
+	for _, node := range nodes {
+		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+		require.Nil(err)
+		out := testBuildObserverRequest(node, id, OperationTypeCreateSubCall, extra)
+		testStep(ctx, require, node, out)
+
+		sub, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
+		require.Nil(err)
+		require.Equal(id, sub.RequestId)
+		require.Equal(call.RequestId, sub.Superior)
+		require.Equal(store.CallTypePrepare, sub.Type)
+		require.Equal(nonce.Address, sub.NonceAccount)
+		require.Equal(mtg.Public, sub.Public)
+		require.Equal(stx.MustToBase64(), sub.Raw)
+		require.Len(sub.GetWithdrawalIds(), 0)
+		require.True(sub.WithdrawedAt.Valid)
+		require.False(sub.Signature.Valid)
+		require.False(sub.RequestSignerAt.Valid)
+	}
 }
 
 func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
@@ -110,7 +156,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(mix.String(), user1.Address)
 		require.Equal(start.String(), user1.UserId)
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
-		require.NotEqual("", user1.NonceAccount)
+		require.Equal("DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", user1.NonceAccount)
 		user = user1
 		count, err := node.store.CountSpareKeys(ctx)
 		require.Nil(err)
@@ -147,7 +193,7 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 	as := [][2]string{
 		{"DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", "FrqtK1eTYLJtR6mGNaBWF6qyfpjTqk1DJaAQdAm31Xc1"},
 		testGenerateRandNonceAccount(require),
-		testGenerateRandNonceAccount(require),
+		{"7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", "8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG"},
 		testGenerateRandNonceAccount(require),
 	}
 	addr := solana.MustPublicKeyFromBase58(as[0][0])
@@ -262,7 +308,6 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 
 func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte) *mtg.Action {
 	sequence += 10
-	id = common.UniqueId(id, "output")
 	if hash == "" {
 		hash = crypto.Sha256Hash([]byte(id)).String()
 	}
@@ -289,7 +334,6 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 
 func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
 	sequence += 10
-	id = common.UniqueId(id, "output")
 	memo := []byte{action}
 	memo = append(memo, extra...)
 	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)

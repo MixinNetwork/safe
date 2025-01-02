@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/gagliardetto/solana-go"
 )
 
 var StartUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
@@ -49,6 +51,10 @@ func (u *User) IdBytes() []byte {
 	data := make([]byte, 8)
 	data = bid.FillBytes(data)
 	return data
+}
+
+func (u *User) PublicKey() solana.PublicKey {
+	return solanaApp.PublicKeyFromEd25519Public(u.Public)
 }
 
 func (s *SQLite3Store) GetNextUserId(ctx context.Context) (*big.Int, error) {

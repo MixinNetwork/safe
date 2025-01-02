@@ -35,9 +35,7 @@ func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *s
 	}
 }
 
-func buildInitialTxWithNonceAccount(key string, nonce NonceAccount) (*solana.TransactionBuilder, solana.PublicKey) {
-	payer := solana.MustPublicKeyFromBase58(key)
-
+func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) (*solana.TransactionBuilder, solana.PublicKey) {
 	b := solana.NewTransactionBuilder()
 	b.SetRecentBlockHash(nonce.Hash)
 	b.SetFeePayer(payer)

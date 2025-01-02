@@ -81,39 +81,13 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string
 	return tx, nil
 }
 
-func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
+func (c *Client) MintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
 	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
-	mtgAddress := solana.MustPublicKeyFromBase58(mtg)
 
 	var nullFreezeAuthority solana.PublicKey
 	var rent uint64
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
-			if transfer.AssetId == transfer.ChainId {
-				builder.AddInstruction(
-					system.NewTransferInstruction(
-						transfer.Amount,
-						mtgAddress,
-						transfer.Destination,
-					).Build(),
-				)
-			} else {
-				ataAddress, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, transfer.Mint)
-				if err != nil {
-					return nil, err
-				}
-				builder.AddInstruction(
-					token.NewTransferCheckedInstruction(
-						transfer.Amount,
-						transfer.Decimals,
-						ataAddress,
-						transfer.Mint,
-						transfer.Destination,
-						mtgAddress,
-						nil,
-					).Build(),
-				)
-			}
 			continue
 		}
 
@@ -145,7 +119,7 @@ func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce No
 			builder.AddInstruction(
 				token.NewInitializeMint2Instruction(
 					transfer.Decimals,
-					mtgAddress,
+					mtg,
 					nullFreezeAuthority,
 					mint,
 				).Build(),
@@ -175,7 +149,7 @@ func (c *Client) TransferTokens(ctx context.Context, payer, mtg string, nonce No
 				transfer.Amount,
 				mint,
 				ataAddress,
-				mtgAddress,
+				mtg,
 				nil,
 			).Build(),
 		)

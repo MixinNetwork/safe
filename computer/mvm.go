@@ -438,6 +438,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 
 	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, 0)
+	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
 	if err != nil {
 		panic(reqId)
 	}
@@ -445,6 +446,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		return node.failRequest(ctx, req, "")
 	}
 	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
+	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
 	if err != nil {
 		panic(reqId)
 	}
@@ -453,6 +455,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 	raw := node.readStorageExtraFromObserver(ctx, hash)
 	tx, err := solana.TransactionFromBytes(raw)
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
 	if err != nil {
 		panic(err)
 	}
@@ -733,7 +736,7 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 		return nil, as
 	}
 
-	tx, err := node.solanaClient().TransferTokens(ctx, node.conf.SolanaKey, mtgUser.Public, nonce.Account(), transfers)
+	tx, err := node.solanaClient().MintTokens(ctx, node.solanaAccount(), mtgUser.PublicKey(), nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
