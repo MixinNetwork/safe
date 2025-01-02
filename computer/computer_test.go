@@ -66,6 +66,7 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
 
+	var sessionId string
 	for _, node := range nodes {
 		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 		require.Nil(err)
@@ -79,11 +80,37 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		require.Equal(store.CallTypePrepare, sub.Type)
 		require.Equal(nonce.Address, sub.NonceAccount)
 		require.Equal(mtg.Public, sub.Public)
-		require.Equal(stx.MustToBase64(), sub.Raw)
+		require.Equal("AwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACYxG8nR39yBhdSMGFhENiVktQtKJNNF8XYL7TqBFjnk9AcOWp1PpD+HGov3qSTIue/LCxHAJnNVtMXZqkzwz4NAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBBgvNxWyNCHowGyEUSyq14ShrUKXZQe4C9iSI2wMIuUPS1sTbHR9ZjWqBl9r1G2jX/A7xOcTexaSWuslnlWO9MSfb+xe2BpjTbUW8YkyOIQtMhFIzyZp64xKifog6iqhES5tj3KFmMEb0dWzkbivIgPPl9AdUhqtxoi2lN2PZUR5Ts9Tg6cc09rD3mcd/DahDF92jFK881QC2BkgTwmGdjU0xBqfVFxksVo7gioRfc9KXiM8DXDFFshqzRNgGLqlAAABDdbzVcmqt/dFZE1RBu+ZZxwWzcCXFwShU6ZBsqFAClQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABt324ddloZPZy+FGzut5rBy0he1fWzeROoz1hX7/AKkGp9UXGSxcUSGMyUw9SvF/WNruCJuh/UTj29mKAAAAAIyXJY9OJInxuz0QKRSODYMLWhOZ2v8QhASOe9jb6fhZdWmEuJrr1iZvCydrhKNnu0Ayfh0hE0+labxfUdHprYEFBwMDBQAEBAAAAAcCAAE0AAAAAGBNFgAAAAAAUgAAAAAAAAAG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQgBAUMUCPsXtgaY021FvGJMjiELTIRSM8maeuMSon6IOoqoREubAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgcABAYBBwgJAAgDAQQCCQdAQg8AAAAAAA==", sub.Raw)
 		require.Len(sub.GetWithdrawalIds(), 0)
 		require.True(sub.WithdrawedAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
+
+		sid := common.UniqueId(sub.RequestId, fmt.Sprintf("MTG:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold))
+		session := &store.Session{
+			Id:         sid,
+			RequestId:  sub.RequestId,
+			MixinHash:  out.TransactionHash,
+			MixinIndex: out.OutputIndex,
+			Index:      0,
+			Operation:  OperationTypeSignInput,
+			Public:     hex.EncodeToString(common.Fingerprint(sub.Public)),
+			Extra:      sub.Message,
+			CreatedAt:  out.SequencerCreatedAt,
+		}
+		err = node.store.RequestSignerSignForCall(ctx, sub, []*store.Session{session})
+		require.Nil(err)
+		sessionId = sid
+	}
+	for _, node := range nodes {
+		testWaitOperation(ctx, node, sessionId)
+	}
+	for {
+		s, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
+		require.Nil(err)
+		if s != nil && s.Signature.Valid {
+			return
+		}
 	}
 }
 

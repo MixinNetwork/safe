@@ -113,6 +113,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		logger.Printf("tx.IsSigner(mtg) => %t", hasKey)
 		return node.failRequest(ctx, req, "")
 	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
 
 	call := &store.SystemCall{
 		RequestId:       req.Id,
@@ -120,7 +124,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		Type:            store.CallTypeMain,
 		NonceAccount:    user.NonceAccount,
 		Public:          user.Public,
-		Message:         tx.Message.ToBase64(),
+		Message:         hex.EncodeToString(msg),
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStateInitial,
 		WithdrawalIds:   "",
@@ -459,6 +463,11 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
 	// TODO check tx instructions:
 	// deposit to mtg
 	// mint to
@@ -469,7 +478,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		Superior:        call.RequestId,
 		NonceAccount:    nonceAccount,
 		Public:          mtgUser.Public,
-		Message:         tx.Message.ToBase64(),
+		Message:         hex.EncodeToString(msg),
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStatePending,
 		WithdrawalIds:   "",
@@ -520,7 +529,11 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	if err != nil {
 		panic(err)
 	}
-	call, err := node.store.ReadSystemCallByMessage(ctx, tx.Message.ToBase64())
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
 	if err != nil || call == nil {
 		panic(err)
 	}
@@ -587,6 +600,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 }
 
 func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	logger.Printf("node.processSignerSignatureResponse(%s)", string(node.id))
 	if req.Role != RequestRoleSigner {
 		panic(req.Role)
 	}
@@ -615,6 +629,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 		panic(fmt.Errorf("store.UpdateSessionSigner(%s %s) => %v", s.Id, req.Output.Senders[0], err))
 	}
 	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
+	logger.Printf("store.ListSessionSignerResults(%s) => %d %x", s.Id, len(signers), s.Id)
 	if err != nil {
 		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
 	}

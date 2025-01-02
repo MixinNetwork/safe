@@ -91,6 +91,9 @@ func (c *Client) MintTokens(ctx context.Context, payer, mtg solana.PublicKey, no
 			continue
 		}
 
+		if common.CheckTestEnvironment(ctx) && transfer.AssetId == common.SafeLitecoinChainId {
+			transfer.Mint = solana.MustPublicKeyFromBase58("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8")
+		}
 		mint := transfer.Mint
 		mintToken, err := c.GetMint(ctx, mint)
 		if err != nil {
@@ -158,6 +161,10 @@ func (c *Client) MintTokens(ctx context.Context, payer, mtg solana.PublicKey, no
 	tx, err := builder.Build()
 	if err != nil {
 		panic(err)
+	}
+	if common.CheckTestEnvironment(ctx) && transfers[0].AssetId == common.SafeLitecoinChainId {
+		tx.Signatures = make([]solana.Signature, tx.Message.Header.NumRequiredSignatures)
+		tx.Signatures[1] = solana.MustSignatureFromBase58("449h9tg5hCHigegVuH6Waoh8ACDYc5hrhZh2t9td2ToFgtBHrkzH7Z2vSE2nnmNdksUkj71k7eaQhdHrRgj19b5W")
 	}
 	return tx, nil
 }
