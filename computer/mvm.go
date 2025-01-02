@@ -544,11 +544,12 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	if err != nil || nonce == nil {
 		panic(err)
 	}
-	if nonce.Hash == updatedHash || nonce.CallId.String != call.RequestId || nonce.UserId.Valid {
+	if nonce.Hash == updatedHash {
 		return node.failRequest(ctx, req, "")
 	}
+	nonce.Hash = updatedHash
 
-	err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, updatedHash)
+	err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nonce)
 	if err != nil {
 		panic(err)
 	}

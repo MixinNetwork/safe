@@ -147,7 +147,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, hash string) error {
+func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, nonce *NonceAccount) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -169,8 +169,9 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 			return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 		}
 	}
-	query = "UPDATE nonce_accounts SET hash=?, call_id=?, updated_at=? WHERE address=? AND call_id=? AND user_id IS NULL"
-	err = s.execOne(ctx, tx, query, hash, nil, req.CreatedAt, call.NonceAccount, call.RequestId)
+
+	query = "UPDATE nonce_accounts SET hash=?, call_id=?, updated_at=? WHERE address=?"
+	err = s.execOne(ctx, tx, query, nonce.Hash, nil, req.CreatedAt, nonce.Address)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
 	}
