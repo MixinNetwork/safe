@@ -99,6 +99,26 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.
 	return r, nil
 }
 
+func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner string) ([]token.Account, error) {
+	client := c.getRPCClient()
+	r, err := client.GetTokenAccountsByOwner(ctx, solana.MustPublicKeyFromBase58(owner), &rpc.GetTokenAccountsConfig{
+		ProgramId: &token.ProgramID,
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var as []token.Account
+	for _, account := range r.Value {
+		var balance token.Account
+		if err := bin.NewBinDecoder(account.Account.Data.GetBinary()).Decode(&balance); err != nil {
+			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+		}
+		as = append(as, balance)
+	}
+	return as, nil
+}
+
 // processTransactionWithAddressLookups resolves the address lookups in the transaction.
 func (c *Client) processTransactionWithAddressLookups(ctx context.Context, txx *solana.Transaction) error {
 	if txx.Message.IsResolved() {
