@@ -572,7 +572,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 	}
 
 	s, err := node.store.ReadSession(ctx, session)
-	if err != nil {
+	if err != nil || s == nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v", session, err))
 	}
 	if s.PreparedAt.Valid {

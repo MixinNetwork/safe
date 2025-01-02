@@ -40,10 +40,10 @@ func TestComputer(t *testing.T) {
 	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
 	testConfirmWithdrawal(ctx, require, nodes, call)
 	sub := testObserverCreateSubCall(ctx, require, nodes, call)
-	testOBserverConfirmCall(ctx, require, nodes, sub)
+	testObserverConfirmCall(ctx, require, nodes, sub)
 }
 
-func testOBserverConfirmCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+func testObserverConfirmCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
 	signature := solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb")
 	hash := solana.MustHashFromBase58("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
 
@@ -56,17 +56,53 @@ func testOBserverConfirmCall(ctx context.Context, require *require.Assertions, n
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 
-		c, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
+		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
 		require.Nil(err)
-		require.NotNil(c)
-		c, err = node.store.ReadSystemCallByRequestId(ctx, call.Superior, common.RequestStatePending)
-		require.Nil(err)
-		require.NotNil(c)
-		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+		require.NotNil(sub)
+		nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
 		require.Nil(err)
 		require.Equal(hash.String(), nonce.Hash)
 		require.False(nonce.CallId.Valid)
 		require.False(nonce.UserId.Valid)
+	}
+	var callId, sessionId string
+	for _, node := range nodes {
+		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStatePending)
+		require.Nil(err)
+		require.NotNil(call)
+
+		req, err := node.store.ReadRequest(ctx, call.RequestId)
+		require.Nil(err)
+		sid := common.UniqueId(call.RequestId, fmt.Sprintf("MTG:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold))
+		session := &store.Session{
+			Id:         sid,
+			RequestId:  call.RequestId,
+			MixinHash:  req.MixinHash.String(),
+			MixinIndex: req.MixinIndex,
+			Index:      0,
+			Operation:  OperationTypeSignInput,
+			Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
+			Extra:      call.Message,
+			CreatedAt:  time.Now(),
+		}
+		err = node.store.RequestSignerSignForCall(ctx, call, []*store.Session{session})
+		require.Nil(err)
+		session, err = node.store.ReadSession(ctx, session.Id)
+		require.Nil(err)
+		require.NotNil(session)
+		sessionId = sid
+		callId = call.RequestId
+	}
+	for _, node := range nodes {
+		testWaitOperation(ctx, node, sessionId)
+	}
+	for {
+		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
+		require.Nil(err)
+		if s != nil && s.Signature.Valid {
+			fmt.Println(s.Signature.String)
+			return
+		}
 	}
 }
 
@@ -174,7 +210,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	id := uuid.Must(uuid.NewV4()).String()
 	hash := "d3b2db9339aee4acb39d0809fc164eb7091621400a9a3d64e338e6ffd035d32f"
 	extra := user.IdBytes()
-	extra = append(extra, common.DecodeHexOrPanic("0002000205cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295bad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ec06a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea94000000000000000000000000000000000000000000000000000000000000000000000dcc859c62859a93c7ca37d6f180d63ba1f1ccadc68373b6605c4358bd77983060204030203000404000000040201010c0200000040420f0000000000")...)
+	extra = append(extra, common.DecodeHexOrPanic("02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000810cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca85002953f9517566994f5066c9478a5e6d0466906e7d844b2d971b2e4f86ff72561c6d6405387e0deff4ac3250e4e4d1986f1bc5e805edd8ca4c48b73b92441afdc070b84fed2e0ca7ecb2a18e32bf10885151641616b3fe4447557683ee699247e1f9cbad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ecf6994777d4d13d8bd64679ac9e173a29ea40653734b52eee914ddc43c820f424071d460ef6501203e6656563c4add1638164d5eba1dee13e9085fb60036f98f10000000000000000000000000000000000000000000000000000000000000000816e66630c3bb724dc59e49f6cc4306e603a6aacca06fa3e34e2b40ad5979d8da5d5ca9e04cf5db590b714ba2fe32cb159133fc1c192b72257fd07d39cb0401ec4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f0000000000106a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea940000006a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a0000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a90ff0530009fc7a19cf8d8d0257f1dc2d478f1368aa89f5e546c6e12d8a4015ec020803050d0004040000000a0d0109030c0b020406070f0f080e20e992d18ecf6840bcd564b7ff16977c720000000000000000b992766700000000")...)
 	for _, node := range nodes {
 		out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra)
 		testStep(ctx, require, node, out)
@@ -246,7 +282,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 
 func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	as := [][2]string{
-		{"DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", "FrqtK1eTYLJtR6mGNaBWF6qyfpjTqk1DJaAQdAm31Xc1"},
+		{"DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", "25DfFJbUsDMR7rYpieHhK7diWB1EuWkv5nB3F6CzNFTR"},
 		testGenerateRandNonceAccount(require),
 		{"7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", "8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG"},
 		testGenerateRandNonceAccount(require),
