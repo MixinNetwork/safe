@@ -326,10 +326,11 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	require.Nil(err)
 	require.True(handled)
 	require.Equal("", ar.Compaction)
+	txs2 := ar.Transactions
 	txs3, asset := node.ProcessOutput(ctx, out)
 	require.Equal("", asset)
 	for i, tx1 := range txs1 {
-		tx2 := ar.Transactions[i]
+		tx2 := txs2[i]
 		tx3 := txs3[i]
 		tx1.AppId = out.AppId
 		tx2.AppId = out.AppId
