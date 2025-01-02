@@ -56,11 +56,17 @@ func testOBserverConfirmCall(ctx context.Context, require *require.Assertions, n
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 
-		_, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
+		c, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
 		require.Nil(err)
+		require.NotNil(c)
+		c, err = node.store.ReadSystemCallByRequestId(ctx, call.Superior, common.RequestStatePending)
+		require.Nil(err)
+		require.NotNil(c)
 		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
 		require.Nil(err)
 		require.Equal(hash.String(), nonce.Hash)
+		require.False(nonce.CallId.Valid)
+		require.False(nonce.UserId.Valid)
 	}
 }
 

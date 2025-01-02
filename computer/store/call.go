@@ -162,6 +162,13 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
+	if call.Type == CallTypePrepare {
+		query := "UPDATE system_calls SET state=?, updated_at=? WHERE request_id=? AND state=?"
+		err = s.execOne(ctx, tx, query, common.RequestStatePending, req.CreatedAt, call.Superior, common.RequestStateInitial)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
+		}
+	}
 	query = "UPDATE nonce_accounts SET hash=?, call_id=?, updated_at=? WHERE address=? AND call_id=? AND user_id IS NULL"
 	err = s.execOne(ctx, tx, query, hash, nil, req.CreatedAt, call.NonceAccount, call.RequestId)
 	if err != nil {
