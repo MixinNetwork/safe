@@ -42,6 +42,67 @@ func TestComputer(t *testing.T) {
 	sub := testObserverCreateSubCall(ctx, require, nodes, call)
 	testObserverConfirmSubCall(ctx, require, nodes, sub)
 	testObserverConfirmMainCall(ctx, require, nodes, call)
+	testObserverCreatePostprocessCall(ctx, require, nodes, call)
+}
+
+func testObserverCreatePostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
+	nonce, err := nodes[0].store.ReadNonceAccount(ctx, call.NonceAccount)
+	require.Nil(err)
+	stx := nodes[0].transferRestTokens(ctx, call, nonce)
+	require.NotNil(stx)
+	raw, err := stx.MarshalBinary()
+	require.Nil(err)
+	ref := crypto.Sha256Hash(raw)
+
+	id := uuid.Must(uuid.NewV4()).String()
+	var extra []byte
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+	extra = append(extra, solana.MustPublicKeyFromBase58(call.NonceAccount).Bytes()...)
+	extra = append(extra, ref[:]...)
+
+	var sessionId string
+	for _, node := range nodes {
+		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+		require.Nil(err)
+		out := testBuildObserverRequest(node, id, OperationTypeCreateSubCall, extra)
+		testStep(ctx, require, node, out)
+
+		sub, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
+		require.Nil(err)
+		require.Equal(id, sub.RequestId)
+		require.Equal(call.RequestId, sub.Superior)
+		require.Equal(store.CallTypePostProcess, sub.Type)
+		require.Len(sub.GetWithdrawalIds(), 0)
+		require.True(sub.WithdrawedAt.Valid)
+		require.False(sub.Signature.Valid)
+		require.False(sub.RequestSignerAt.Valid)
+
+		sid := common.UniqueId(sub.RequestId, fmt.Sprintf("MTG:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold))
+		session := &store.Session{
+			Id:         sid,
+			RequestId:  sub.RequestId,
+			MixinHash:  out.TransactionHash,
+			MixinIndex: out.OutputIndex,
+			Index:      0,
+			Operation:  OperationTypeSignInput,
+			Public:     hex.EncodeToString(common.Fingerprint(sub.Public)),
+			Extra:      sub.Message,
+			CreatedAt:  out.SequencerCreatedAt,
+		}
+		err = node.store.RequestSignerSignForCall(ctx, sub, []*store.Session{session})
+		require.Nil(err)
+		sessionId = sid
+	}
+	for _, node := range nodes {
+		testWaitOperation(ctx, node, sessionId)
+	}
+	for {
+		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
+		require.Nil(err)
+		if s != nil && s.Signature.Valid {
+			return s
+		}
+	}
 }
 
 func testObserverConfirmMainCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
@@ -573,6 +634,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.MTG.App.AppId = conf.Computer.MTG.Genesis.Members[i]
 	conf.Computer.MTG.GroupSize = 1
 	conf.Computer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
+	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
 
 	seed := crypto.Sha256Hash([]byte(conf.Computer.MTG.App.AppId))
 	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))

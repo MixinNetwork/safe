@@ -75,3 +75,10 @@ func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string) (*Deplo
 
 	return deployedAssetFromRow(row)
 }
+
+func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address string) (*DeployedAsset, error) {
+	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE address=?", strings.Join(deployedAssetCols, ","))
+	row := s.db.QueryRowContext(ctx, query, address)
+
+	return deployedAssetFromRow(row)
+}

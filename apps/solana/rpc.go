@@ -99,9 +99,9 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.
 	return r, nil
 }
 
-func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner string) ([]token.Account, error) {
+func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.PublicKey) ([]token.Account, error) {
 	client := c.getRPCClient()
-	r, err := client.GetTokenAccountsByOwner(ctx, solana.MustPublicKeyFromBase58(owner), &rpc.GetTokenAccountsConfig{
+	r, err := client.GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
 		ProgramId: &token.ProgramID,
 	}, nil)
 	if err != nil {

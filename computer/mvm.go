@@ -412,10 +412,6 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if req.Action != OperationTypeCreateSubCall {
 		panic(req.Action)
 	}
-	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
-	if err != nil {
-		panic(err)
-	}
 
 	extra := req.ExtraBytes()
 	reqId := uuid.Must(uuid.FromBytes(extra[:16])).String()
@@ -452,9 +448,9 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
 	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
 	if err != nil {
-		panic(reqId)
+		panic(nonceAccount)
 	}
-	if nonce == nil || nonce.UserId.Valid || nonce.CallId.Valid {
+	if nonce == nil {
 		return node.failRequest(ctx, req, "")
 	}
 	raw := node.readStorageExtraFromObserver(ctx, hash)
@@ -477,7 +473,6 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		RequestId:       req.Id,
 		Superior:        call.RequestId,
 		NonceAccount:    nonceAccount,
-		Public:          mtgUser.Public,
 		Message:         hex.EncodeToString(msg),
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStatePending,
@@ -490,8 +485,17 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 	switch call.State {
 	case common.RequestStateInitial:
+		if nonce.UserId.Valid || nonce.CallId.Valid {
+			return node.failRequest(ctx, req, "")
+		}
+		mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+		if err != nil {
+			panic(err)
+		}
+		new.Public = mtgUser.Public
 		new.Type = store.CallTypePrepare
 	case common.RequestStateDone:
+		new.Public = call.Public
 		new.Type = store.CallTypePostProcess
 	default:
 		panic(req)
@@ -766,4 +770,54 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 		}
 	}
 	return tx, as
+}
+
+func (node *Node) transferRestTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) *solana.Transaction {
+	source := solanaApp.PublicKeyFromEd25519Public(call.Public)
+	spls, err := node.solanaClient().RPCGetTokenAccountsByOwner(ctx, source)
+	if err != nil {
+		panic(err)
+	}
+	sol, err := node.solanaClient().RPCGetAccount(ctx, source)
+	if err != nil {
+		panic(err)
+	}
+
+	var transfers []solanaApp.TokenTransfers
+	if sol.Value.Lamports > 0 {
+		transfers = append(transfers, solanaApp.TokenTransfers{
+			SolanaAsset: true,
+			AssetId:     common.SafeSolanaChainId,
+			ChainId:     common.SafeSolanaChainId,
+			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
+			Amount:      sol.Value.Lamports,
+		})
+	}
+	for _, token := range spls {
+		if token.Amount == 0 {
+			continue
+		}
+		transfer := solanaApp.TokenTransfers{
+			Mint:        token.Mint,
+			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
+			Amount:      token.Amount,
+			Decimals:    9,
+		}
+		asset, err := node.store.ReadDeployedAssetByAddress(ctx, token.Mint.String())
+		if err != nil {
+			panic(err)
+		}
+		transfer.SolanaAsset = asset == nil
+		if transfer.SolanaAsset {
+			transfer.AssetId = solanaApp.GenerateAssetId(token.Mint.String())
+			transfer.ChainId = common.SafeSolanaChainId
+		}
+		transfers = append(transfers, transfer)
+	}
+
+	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaAccount(), source, nonce.Account(), transfers)
+	if err != nil {
+		panic(err)
+	}
+	return tx
 }
