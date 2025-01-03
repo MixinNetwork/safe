@@ -2,12 +2,12 @@ package computer
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"slices"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
@@ -185,34 +185,9 @@ func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
 }
 
 func (node *Node) verifySessionSignature(ctx context.Context, holder string, msg, sig []byte) (bool, []byte) {
-	// FIXME
-	return true, sig
-	// FIXME verify 25519 default
-	if len(msg) < 32 || len(sig) != 64 {
-		return false, nil
-	}
-	group := curve.Edwards25519{}
-	r := group.NewScalar()
-	err := r.UnmarshalBinary(msg[:32])
-	if err != nil {
-		return false, nil
-	}
-	pub, _ := hex.DecodeString(holder)
-	P := group.NewPoint()
-	err = P.UnmarshalBinary(pub)
-	if err != nil {
-		return false, nil
-	}
-	P = r.ActOnBase().Add(P)
-	var msig crypto.Signature
-	copy(msig[:], sig)
-	var mpub crypto.Key
-	pub, _ = P.MarshalBinary()
-	copy(mpub[:], pub)
-	var hash crypto.Hash
-	copy(hash[:], msg[32:])
-	res := mpub.Verify(hash, msig)
-	logger.Printf("mixin.Verify(%v, %x) => %t", hash, msig[:], res)
+	pub := ed25519.PublicKey(common.DecodeHexOrPanic(holder))
+	res := ed25519.Verify(pub, msg, sig)
+	logger.Printf("ed25519.Verify(%x, %x) => %t", msg, sig[:], res)
 	return res, sig
 }
 
