@@ -123,7 +123,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 			Extra:      call.Message,
 			CreatedAt:  now,
 		}
-		err = node.store.RequestSignerSignForCall(ctx, call, []*store.Session{session})
+		err = node.store.TestWriteSignSession(ctx, call, []*store.Session{session})
 		require.Nil(err)
 	}
 

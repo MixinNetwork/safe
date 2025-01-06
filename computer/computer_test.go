@@ -60,7 +60,6 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 	extra = append(extra, solana.MustPublicKeyFromBase58(call.NonceAccount).Bytes()...)
 	extra = append(extra, ref[:]...)
 
-	var sessionId string
 	for _, node := range nodes {
 		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 		require.Nil(err)
@@ -76,25 +75,19 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 		require.True(sub.WithdrawedAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
+	}
 
-		sid := common.UniqueId(sub.RequestId, fmt.Sprintf("MTG:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold))
-		session := &store.Session{
-			Id:         sid,
-			RequestId:  sub.RequestId,
-			MixinHash:  out.TransactionHash,
-			MixinIndex: out.OutputIndex,
-			Index:      0,
-			Operation:  OperationTypeSignInput,
-			Public:     hex.EncodeToString(common.Fingerprint(sub.Public)),
-			Extra:      sub.Message,
-			CreatedAt:  out.SequencerCreatedAt,
-		}
-		err = node.store.RequestSignerSignForCall(ctx, sub, []*store.Session{session})
+	tid := common.UniqueId(id, time.Time{}.String())
+	extra = uuid.Must(uuid.FromString(id)).Bytes()
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, tid, OperationTypeSignInput, extra)
+		testStep(ctx, require, node, out)
+		session, err := node.store.ReadSession(ctx, out.OutputId)
 		require.Nil(err)
-		sessionId = sid
+		require.NotNil(session)
 	}
 	for _, node := range nodes {
-		testWaitOperation(ctx, node, sessionId)
+		testWaitOperation(ctx, node, tid)
 	}
 	for {
 		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
@@ -136,6 +129,7 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 	extra = append(extra, signature[:]...)
 	extra = append(extra, hash[:]...)
 
+	var callId string
 	for _, node := range nodes {
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
@@ -148,37 +142,24 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 		require.Equal(hash.String(), nonce.Hash)
 		require.False(nonce.CallId.Valid)
 		require.False(nonce.UserId.Valid)
-	}
-	var callId, sessionId string
-	for _, node := range nodes {
+
 		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStatePending)
 		require.Nil(err)
 		require.NotNil(call)
+		callId = sub.Superior
+	}
 
-		req, err := node.store.ReadRequest(ctx, call.RequestId)
-		require.Nil(err)
-		sid := common.UniqueId(call.RequestId, fmt.Sprintf("MTG:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold))
-		session := &store.Session{
-			Id:         sid,
-			RequestId:  call.RequestId,
-			MixinHash:  req.MixinHash.String(),
-			MixinIndex: req.MixinIndex,
-			Index:      0,
-			Operation:  OperationTypeSignInput,
-			Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
-			Extra:      call.Message,
-			CreatedAt:  time.Now(),
-		}
-		err = node.store.RequestSignerSignForCall(ctx, call, []*store.Session{session})
-		require.Nil(err)
-		session, err = node.store.ReadSession(ctx, session.Id)
+	tid := common.UniqueId(callId, time.Time{}.String())
+	extra = uuid.Must(uuid.FromString(callId)).Bytes()
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, tid, OperationTypeSignInput, extra)
+		testStep(ctx, require, node, out)
+		session, err := node.store.ReadSession(ctx, out.OutputId)
 		require.Nil(err)
 		require.NotNil(session)
-		sessionId = sid
-		callId = call.RequestId
 	}
 	for _, node := range nodes {
-		testWaitOperation(ctx, node, sessionId)
+		testWaitOperation(ctx, node, tid)
 	}
 	for {
 		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
@@ -214,7 +195,6 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
 
-	var sessionId string
 	for _, node := range nodes {
 		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 		require.Nil(err)
@@ -233,25 +213,19 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		require.True(sub.WithdrawedAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
+	}
 
-		sid := common.UniqueId(sub.RequestId, fmt.Sprintf("MTG:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold))
-		session := &store.Session{
-			Id:         sid,
-			RequestId:  sub.RequestId,
-			MixinHash:  out.TransactionHash,
-			MixinIndex: out.OutputIndex,
-			Index:      0,
-			Operation:  OperationTypeSignInput,
-			Public:     hex.EncodeToString(common.Fingerprint(sub.Public)),
-			Extra:      sub.Message,
-			CreatedAt:  out.SequencerCreatedAt,
-		}
-		err = node.store.RequestSignerSignForCall(ctx, sub, []*store.Session{session})
+	tid := common.UniqueId(id, time.Time{}.String())
+	extra = uuid.Must(uuid.FromString(id)).Bytes()
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, tid, OperationTypeSignInput, extra)
+		testStep(ctx, require, node, out)
+		session, err := node.store.ReadSession(ctx, out.OutputId)
 		require.Nil(err)
-		sessionId = sid
+		require.NotNil(session)
 	}
 	for _, node := range nodes {
-		testWaitOperation(ctx, node, sessionId)
+		testWaitOperation(ctx, node, tid)
 	}
 	for {
 		s, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)

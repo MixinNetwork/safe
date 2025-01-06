@@ -376,25 +376,3 @@ func (s *SQLite3Store) ListUnfinishedSubSystemCalls(ctx context.Context) ([]*Sys
 	}
 	return calls, nil
 }
-
-func (s *SQLite3Store) TestWriteCall(ctx context.Context, call *SystemCall) error {
-	if !common.CheckTestEnvironment(ctx) {
-		panic(ctx)
-	}
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrawedAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
-	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
-	if err != nil {
-		return fmt.Errorf("INSERT system_calls %v", err)
-	}
-
-	return tx.Commit()
-}

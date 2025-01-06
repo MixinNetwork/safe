@@ -593,7 +593,7 @@ func (node *Node) processObserverRequestSession(ctx context.Context, req *store.
 		MixinHash:  req.MixinHash.String(),
 		MixinIndex: req.Output.OutputIndex,
 		Index:      0,
-		Operation:  OperationTypeKeygenInput,
+		Operation:  OperationTypeSignInput,
 		Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
 		Extra:      call.Message,
 		CreatedAt:  req.CreatedAt,
