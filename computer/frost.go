@@ -40,7 +40,7 @@ func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve
 	}, nil
 }
 
-func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*store.SignResult, error) {
+func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve) (*store.SignResult, error) {
 	logger.Printf("node.frostSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	conf := frost.EmptyConfig(group)
 	err := conf.UnmarshalBinary(share)
@@ -53,19 +53,7 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 		panic(public)
 	}
 
-	if variant == sign.ProtocolMixinPublic {
-		if len(m) < 32 {
-			return nil, fmt.Errorf("invalid message %d", len(m))
-		}
-		r := group.NewScalar()
-		err = r.UnmarshalBinary(m[:32])
-		if err != nil {
-			return nil, fmt.Errorf("invalid message %x", m[:32])
-		}
-		P = r.ActOnBase().Add(P)
-	}
-
-	start, err := frost.Sign(conf, members, m, variant)(sessionId)
+	start, err := frost.Sign(conf, members, m, sign.ProtocolEd25519SHA512)(sessionId)
 	if err != nil {
 		return nil, fmt.Errorf("frost.Sign(%x, %x) => %v", sessionId, m, err)
 	}
@@ -76,9 +64,6 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 	}
 	signature := signResult.(*frost.Signature)
 	logger.Printf("node.frostSign(%x, %s, %x) => %v", sessionId, public, m, signature)
-	if variant == sign.ProtocolMixinPublic {
-		m = m[32:]
-	}
 	if !signature.VerifyEd25519(P, m) {
 		return nil, fmt.Errorf("node.frostSign(%x, %s, %x) => %v verify", sessionId, public, m, signature)
 	}
