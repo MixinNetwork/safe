@@ -110,6 +110,8 @@ func (node *Node) getActionRole(act byte) byte {
 	case OperationTypeConfirmCall:
 		return RequestRoleObserver
 	case OperationTypeSignInput:
+		return RequestRoleObserver
+	case OperationTypeSignPrepare:
 		return RequestRoleSigner
 	case OperationTypeSignOutput:
 		return RequestRoleSigner
@@ -152,6 +154,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	case OperationTypeConfirmCall:
 		return node.processConfirmCall(ctx, req)
 	case OperationTypeSignInput:
+		return node.processObserverRequestSession(ctx, req)
+	case OperationTypeSignPrepare:
 		return node.processSignerPrepare(ctx, req)
 	case OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)

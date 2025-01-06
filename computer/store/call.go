@@ -190,7 +190,7 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) RequestSignerSignForCall(ctx context.Context, call *SystemCall, sessions []*Session) error {
+func (s *SQLite3Store) WriteSignSessionWithRequest(ctx context.Context, req *Request, call *SystemCall, sessions []*Session) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -200,9 +200,8 @@ func (s *SQLite3Store) RequestSignerSignForCall(ctx context.Context, call *Syste
 	}
 	defer common.Rollback(tx)
 
-	now := time.Now().UTC()
 	query := "UPDATE system_calls SET request_signer_at=?, updated_at=? WHERE request_id=? AND state=? AND signature IS NULL"
-	err = s.execOne(ctx, tx, query, now, now, call.RequestId, common.RequestStatePending)
+	err = s.execOne(ctx, tx, query, req.CreatedAt, req.CreatedAt, call.RequestId, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}
@@ -216,6 +215,15 @@ func (s *SQLite3Store) RequestSignerSignForCall(ctx context.Context, call *Syste
 		if err != nil {
 			return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 		}
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit()

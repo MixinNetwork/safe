@@ -22,6 +22,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
 	go node.initialCallLoop(ctx)
+	go node.unsignedCallLoop(ctx)
 	go node.signedCallLoop(ctx)
 }
 
@@ -105,6 +106,17 @@ func (node *Node) initialCallLoop(ctx context.Context) {
 		}
 
 		time.Sleep(10 * time.Minute)
+	}
+}
+
+func (node *Node) unsignedCallLoop(ctx context.Context) {
+	for {
+		err := node.processUnsignedCalls(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -285,6 +297,34 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 			return err
 		}
 		time.Sleep(1 * time.Minute)
+	}
+	return nil
+}
+
+func (node *Node) processUnsignedCalls(ctx context.Context) error {
+	calls, err := node.store.ListUnsignedCalls(ctx)
+	if err != nil {
+		return err
+	}
+	for _, call := range calls {
+		createdAt := time.Now()
+		if call.RequestSignerAt.Time.Add(20 * time.Minute).After(createdAt) {
+			continue
+		}
+		if call.RequestSignerAt.Valid {
+			createdAt = call.RequestSignerAt.Time
+		}
+		id := common.UniqueId(call.RequestId, createdAt.String())
+		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
+		err = node.sendObserverTransaction(ctx, &common.Operation{
+			Id:    id,
+			Type:  OperationTypeSignInput,
+			Extra: extra,
+		})
+		if err != nil {
+			return err
+		}
+		time.Sleep(5 * time.Second)
 	}
 	return nil
 }

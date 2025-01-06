@@ -28,7 +28,8 @@ const (
 	OperationTypeConfirmWithdrawal = 15
 	OperationTypeConfirmCall       = 16
 	OperationTypeSignInput         = 17
-	OperationTypeSignOutput        = 18
+	OperationTypeSignPrepare       = 18
+	OperationTypeSignOutput        = 19
 )
 
 func keyAsOperation(k *store.Key) *common.Operation {

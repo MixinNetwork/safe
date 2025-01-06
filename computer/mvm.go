@@ -560,11 +560,56 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	return nil, ""
 }
 
+func (node *Node) processObserverRequestSession(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeSignInput {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
+	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
+	if err != nil {
+		panic(err)
+	}
+	if call == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	old, err := node.store.ReadSession(ctx, req.Id)
+	logger.Printf("store.ReadSession(%s) => %v %v", req.Id, old, err)
+	if err != nil {
+		panic(err)
+	}
+	if old != nil {
+		return node.failRequest(ctx, req, "")
+	}
+
+	session := &store.Session{
+		Id:         req.Id,
+		RequestId:  call.RequestId,
+		MixinHash:  req.MixinHash.String(),
+		MixinIndex: req.Output.OutputIndex,
+		Index:      0,
+		Operation:  OperationTypeKeygenInput,
+		Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
+		Extra:      call.Message,
+		CreatedAt:  req.CreatedAt,
+	}
+	err = node.store.WriteSignSessionWithRequest(ctx, req, call, []*store.Session{session})
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
+}
+
 func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleSigner {
 		panic(req.Role)
 	}
-	if req.Action != OperationTypeSignInput {
+	if req.Action != OperationTypeSignPrepare {
 		panic(req.Action)
 	}
 
