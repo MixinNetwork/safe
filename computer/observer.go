@@ -24,6 +24,8 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.initialCallLoop(ctx)
 	go node.unsignedCallLoop(ctx)
 	go node.signedCallLoop(ctx)
+
+	go node.solanaRPCBlocksLoop(ctx)
 }
 
 func (node *Node) keyLoop(ctx context.Context) {

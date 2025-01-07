@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	bin "github.com/gagliardetto/binary"
@@ -27,15 +28,6 @@ type Client struct {
 	rpcClient *rpc.Client
 }
 
-func (c *Client) GetLatestBlockhash(ctx context.Context) (*rpc.GetLatestBlockhashResult, error) {
-	client := c.getRPCClient()
-	blockhash, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
-	}
-	return blockhash, err
-}
-
 func (c *Client) getRPCClient() *rpc.Client {
 	if c.rpcClient == nil {
 		c.rpcClient = rpc.New(c.rpcEndpoint)
@@ -50,6 +42,25 @@ func (c *Client) GetRPCClient() *rpc.Client {
 	return c.rpcClient
 }
 
+func (c *Client) RPCGetBlockHeight(ctx context.Context) (int64, solana.Hash, error) {
+	client := c.getRPCClient()
+	result, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return 0, solana.Hash{}, err
+	}
+
+	return int64(result.Value.LastValidBlockHeight), result.Value.Blockhash, nil
+}
+
+func (c *Client) GetLatestBlockhash(ctx context.Context) (*rpc.GetLatestBlockhashResult, error) {
+	client := c.getRPCClient()
+	blockhash, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+	}
+	return blockhash, err
+}
+
 func (c *Client) connectWs(ctx context.Context) (*ws.Client, error) {
 	return ws.Connect(ctx, c.wsEndpoint)
 }
@@ -62,6 +73,23 @@ func (c *Client) RPCGetBlock(ctx context.Context, slot uint64) (*rpc.GetBlockRes
 		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
 	})
 	if err != nil {
+		return nil, err
+	}
+	return block, nil
+}
+
+func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
+	client := c.getRPCClient()
+	block, err := client.GetBlockWithOpts(ctx, height, &rpc.GetBlockOpts{
+		Encoding:                       solana.EncodingBase64,
+		Commitment:                     rpc.CommitmentFinalized,
+		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
+		TransactionDetails:             rpc.TransactionDetailsFull,
+	})
+	if err != nil {
+		if errors.Is(err, rpc.ErrNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return block, nil
