@@ -374,6 +374,20 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
 	reqId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
 
+	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.safeUser(), txId)
+	logger.Printf("common.SafeReadWithdrawalHashUntilSufficient(%s) => %s %v", txId, withdrawalHash, err)
+	if err != nil {
+		panic(err)
+	}
+	tx, err := node.solanaClient().RPCGetTransaction(ctx, withdrawalHash)
+	logger.Printf("solana.RPCGetTransaction(%s) => %v %v", withdrawalHash, tx, err)
+	if err != nil {
+		panic(err)
+	}
+	if tx == nil {
+		return node.failRequest(ctx, req, "")
+	}
+
 	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, common.RequestStateInitial)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
 	if err != nil {
@@ -398,7 +412,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 		}
 	}
 
-	err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId)
+	err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId, withdrawalHash)
 	if err != nil {
 		panic(err)
 	}

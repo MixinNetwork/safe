@@ -114,7 +114,7 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, req *Request, call *SystemCall, txId string) error {
+func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, req *Request, call *SystemCall, txId, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -130,6 +130,10 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}
 
+	err = s.writeConfirmedWithdrawal(ctx, tx, req, txId, hash, call.RequestId)
+	if err != nil {
+		return err
+	}
 	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
 		return err

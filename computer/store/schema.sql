@@ -139,6 +139,15 @@ CREATE TABLE IF NOT EXISTS nonce_accounts (
 );
 
 
+CREATE TABLE IF NOT EXISTS confirmed_withdrawals (
+  hash           VARCHAR NOT NULL,
+  trace_id       VARCHAR NOT NULL,
+  call_id        VARCHAR NOT NULL,
+  created_at     TIMESTAMP NOT NULL,
+  PRIMARY KEY ('hash')
+);
+
+
 CREATE TABLE IF NOT EXISTS action_results (
 	output_id       VARCHAR NOT NULL,
 	compaction      VARCHAR NOT NULL,

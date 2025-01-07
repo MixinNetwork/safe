@@ -372,6 +372,31 @@ func SafeReadWithdrawalFeeUntilSufficient(ctx context.Context, su *bot.SafeUser,
 	}
 }
 
+func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser, id string) (string, error) {
+	for {
+		req, err := bot.GetTransactionByIdWithSafeUser(ctx, id, su)
+		logger.Verbosef("bot.GetTransactionByIdWithSafeUser(%s) => %v %v", id, err)
+		if err == nil {
+			r := req.Receivers[0]
+			if r.Destination == "" {
+				return "", fmt.Errorf("invalid withdrawal tx: %s", id)
+			}
+			if r.WithdrawalHash == "" {
+				return "", fmt.Errorf("withdrawal tx not confirmed: %s", id)
+			}
+			return r.WithdrawalHash, nil
+		}
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if mixin.IsErrorCodes(err, 404) {
+			return "", nil
+		}
+		return "", err
+	}
+}
+
 func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, error) {
 	utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
 	if err != nil {
