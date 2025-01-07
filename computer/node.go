@@ -15,12 +15,10 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
-	solana "github.com/gagliardetto/solana-go"
 )
 
 type Node struct {
@@ -155,13 +153,6 @@ func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.H
 	}
 
 	return ver.Extra
-}
-func (node *Node) solanaClient() *solanaApp.Client {
-	return solanaApp.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
-}
-
-func (node *Node) solanaAccount() solana.PublicKey {
-	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
 }
 
 func (node *Node) safeUser() *bot.SafeUser {

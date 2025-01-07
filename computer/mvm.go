@@ -459,16 +459,17 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
+
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solanaApp.PublicKeyFromEd25519Public(call.Public))
+	logger.Printf("node.VerifySubSystemCall(%s %s) => %v %v", node.conf.SolanaDepositEntry, call.Public, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+
 	msg, err := tx.Message.MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
-
-	// TODO check tx instructions:
-	// deposit to mtg
-	// mint to
-	// burn minted token
-
 	new := &store.SystemCall{
 		RequestId:       req.Id,
 		Superior:        call.RequestId,

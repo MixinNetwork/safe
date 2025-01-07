@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	solana "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
+	"github.com/gagliardetto/solana-go/programs/token"
 )
 
 const SolanaEmptyAddress = "11111111111111111111111111111111"
@@ -84,4 +85,89 @@ func GenerateAssetId(assetKey string) string {
 	}
 
 	return ethereum.BuildChainAssetId(SolanaChainBase, assetKey)
+}
+
+func DecodeSystemTransfer(accounts solana.AccountMetaSlice, data []byte) (*system.Transfer, bool) {
+	ix, err := system.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	if transfer, ok := ix.Impl.(*system.Transfer); ok {
+		return transfer, true
+	}
+
+	if transferWithSeed, ok := ix.Impl.(*system.TransferWithSeed); ok {
+		t := system.NewTransferInstructionBuilder()
+		t.SetFundingAccount(transferWithSeed.GetFundingAccount().PublicKey)
+		t.SetRecipientAccount(transferWithSeed.GetRecipientAccount().PublicKey)
+		t.SetLamports(*transferWithSeed.Lamports)
+		return t, true
+	}
+
+	return nil, false
+}
+
+func DecodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.Transfer, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	if transfer, ok := ix.Impl.(*token.Transfer); ok {
+		return transfer, true
+	}
+
+	if transferChecked, ok := ix.Impl.(*token.TransferChecked); ok {
+		t := token.NewTransferInstructionBuilder()
+		t.SetSourceAccount(transferChecked.GetSourceAccount().PublicKey)
+		t.SetDestinationAccount(transferChecked.GetDestinationAccount().PublicKey)
+		t.SetAmount(*transferChecked.Amount)
+		return t, true
+	}
+
+	return nil, false
+}
+
+func DecodeTokenBurn(accounts solana.AccountMetaSlice, data []byte) (*token.Burn, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	if burn, ok := ix.Impl.(*token.Burn); ok {
+		return burn, true
+	}
+
+	if burnChecked, ok := ix.Impl.(*token.BurnChecked); ok {
+		b := token.NewBurnInstructionBuilder()
+		b.SetSourceAccount(burnChecked.GetSourceAccount().PublicKey)
+		b.SetMintAccount(burnChecked.GetMintAccount().PublicKey)
+		b.SetAmount(*burnChecked.Amount)
+		return b, true
+	}
+
+	return nil, false
+}
+
+func DecodeTokenMint(accounts solana.AccountMetaSlice, data []byte) (*token.MintTo, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	if mintTo, ok := ix.Impl.(*token.MintTo); ok {
+		return mintTo, true
+	}
+
+	if mintToChecked, ok := ix.Impl.(*token.MintToChecked); ok {
+		m := token.NewMintToInstructionBuilder()
+		m.SetMintAccount(mintToChecked.GetMintAccount().PublicKey)
+		m.SetDestinationAccount(mintToChecked.GetDestinationAccount().PublicKey)
+		m.SetAuthorityAccount(mintToChecked.GetAuthorityAccount().PublicKey)
+		m.SetAmount(*mintToChecked.Amount)
+		return m, true
+	}
+
+	return nil, false
 }
