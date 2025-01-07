@@ -10,6 +10,7 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	solana "github.com/gagliardetto/solana-go"
+	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
 )
@@ -33,7 +34,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 			continue
 		}
 		err = node.solanaReadBlock(ctx, checkpoint)
-		logger.Printf("node.solanaReadBlock(%d, %d) => %v", checkpoint, err)
+		logger.Printf("node.solanaReadBlock(%d) => %v", checkpoint, err)
 		if err != nil {
 			time.Sleep(time.Second * 5)
 			continue
@@ -150,14 +151,24 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 		case solana.TokenProgramID, solana.Token2022ProgramID:
 			if mint, ok := solanaApp.DecodeTokenMint(accounts, ix.Data); ok {
 				to := mint.GetDestinationAccount().PublicKey
-				if !to.Equals(user) {
+				token := mint.GetMintAccount().PublicKey
+				ata, _, err := solana.FindAssociatedTokenAddress(user, token)
+				if err != nil {
+					return err
+				}
+				if !to.Equals(ata) {
 					return fmt.Errorf("invalid mint to destination: %s", to.String())
 				}
 				continue
 			}
 			if transfer, ok := solanaApp.DecodeTokenTransfer(accounts, ix.Data); ok {
 				recipient := transfer.GetDestinationAccount().PublicKey
-				if !recipient.Equals(groupDepositEntry) {
+				token := transfer.GetMintAccount().PublicKey
+				ata, _, err := solana.FindAssociatedTokenAddress(groupDepositEntry, token)
+				if err != nil {
+					return err
+				}
+				if !recipient.Equals(ata) {
 					return fmt.Errorf("invalid token transfer recipient: %s", recipient.String())
 				}
 				continue
@@ -169,6 +180,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 				}
 				continue
 			}
+		case tokenAta.ProgramID:
 		default:
 			return fmt.Errorf("invalid program key: %s", programKey.String())
 		}

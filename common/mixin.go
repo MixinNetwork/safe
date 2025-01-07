@@ -373,9 +373,12 @@ func SafeReadWithdrawalFeeUntilSufficient(ctx context.Context, su *bot.SafeUser,
 }
 
 func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser, id string) (string, error) {
+	if CheckTestEnvironment(ctx) {
+		return "jmHyRpKEuc1PgDjDaqaQqo9GpSM3pp9PhLgwzqpfa2uUbtRYJmbKtWp4onfNFsbk47paBjxz1d6s9n56Y8Na9Hp", nil
+	}
 	for {
 		req, err := bot.GetTransactionByIdWithSafeUser(ctx, id, su)
-		logger.Verbosef("bot.GetTransactionByIdWithSafeUser(%s) => %v %v", id, err)
+		logger.Verbosef("bot.GetTransactionByIdWithSafeUser(%s) => %v %v", id, req, err)
 		if err == nil {
 			r := req.Receivers[0]
 			if r.Destination == "" {

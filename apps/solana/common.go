@@ -108,45 +108,27 @@ func DecodeSystemTransfer(accounts solana.AccountMetaSlice, data []byte) (*syste
 	return nil, false
 }
 
-func DecodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.Transfer, bool) {
+func DecodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.TransferChecked, bool) {
 	ix, err := token.DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, false
 	}
 
-	if transfer, ok := ix.Impl.(*token.Transfer); ok {
+	if transfer, ok := ix.Impl.(*token.TransferChecked); ok {
 		return transfer, true
 	}
-
-	if transferChecked, ok := ix.Impl.(*token.TransferChecked); ok {
-		t := token.NewTransferInstructionBuilder()
-		t.SetSourceAccount(transferChecked.GetSourceAccount().PublicKey)
-		t.SetDestinationAccount(transferChecked.GetDestinationAccount().PublicKey)
-		t.SetAmount(*transferChecked.Amount)
-		return t, true
-	}
-
 	return nil, false
 }
 
-func DecodeTokenBurn(accounts solana.AccountMetaSlice, data []byte) (*token.Burn, bool) {
+func DecodeTokenBurn(accounts solana.AccountMetaSlice, data []byte) (*token.BurnChecked, bool) {
 	ix, err := token.DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, false
 	}
 
-	if burn, ok := ix.Impl.(*token.Burn); ok {
+	if burn, ok := ix.Impl.(*token.BurnChecked); ok {
 		return burn, true
 	}
-
-	if burnChecked, ok := ix.Impl.(*token.BurnChecked); ok {
-		b := token.NewBurnInstructionBuilder()
-		b.SetSourceAccount(burnChecked.GetSourceAccount().PublicKey)
-		b.SetMintAccount(burnChecked.GetMintAccount().PublicKey)
-		b.SetAmount(*burnChecked.Amount)
-		return b, true
-	}
-
 	return nil, false
 }
 
@@ -155,19 +137,9 @@ func DecodeTokenMint(accounts solana.AccountMetaSlice, data []byte) (*token.Mint
 	if err != nil {
 		return nil, false
 	}
-
-	if mintTo, ok := ix.Impl.(*token.MintTo); ok {
+	mintTo, ok := ix.Impl.(*token.MintTo)
+	if ok {
 		return mintTo, true
 	}
-
-	if mintToChecked, ok := ix.Impl.(*token.MintToChecked); ok {
-		m := token.NewMintToInstructionBuilder()
-		m.SetMintAccount(mintToChecked.GetMintAccount().PublicKey)
-		m.SetDestinationAccount(mintToChecked.GetDestinationAccount().PublicKey)
-		m.SetAuthorityAccount(mintToChecked.GetAuthorityAccount().PublicKey)
-		m.SetAmount(*mintToChecked.Amount)
-		return m, true
-	}
-
 	return nil, false
 }
