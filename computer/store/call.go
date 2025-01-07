@@ -71,11 +71,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 		return fmt.Errorf("INSERT system_calls %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, compaction, txs, req.Id)
+	err = s.finishRequest(ctx, tx, req, txs, compaction)
 	if err != nil {
 		return err
 	}
@@ -110,11 +106,7 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 		}
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, compaction, txs, req.Id)
+	err = s.finishRequest(ctx, tx, req, txs, compaction)
 	if err != nil {
 		return err
 	}
@@ -137,11 +129,8 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+
+	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
 		return err
 	}
@@ -178,11 +167,7 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
 		return err
 	}
@@ -217,11 +202,7 @@ func (s *SQLite3Store) WriteSignSessionWithRequest(ctx context.Context, req *Req
 		}
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
 		return err
 	}
@@ -250,11 +231,7 @@ func (s *SQLite3Store) AttachSystemCallSignatureWithRequest(ctx context.Context,
 		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
 		return err
 	}

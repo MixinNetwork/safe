@@ -139,3 +139,11 @@ func (s *SQLite3Store) ReadLatestRequest(ctx context.Context) (*Request, error) 
 
 	return requestFromRow(row)
 }
+
+func (s *SQLite3Store) finishRequest(ctx context.Context, tx *sql.Tx, req *Request, txs []*mtg.Transaction, compaction string) error {
+	err := s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+	return s.writeActionResult(ctx, tx, req.Output.OutputId, compaction, txs, req.Id)
+}

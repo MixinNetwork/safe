@@ -79,11 +79,7 @@ func (s *SQLite3Store) writeOrUpdateNonceAccount(ctx context.Context, tx *sql.Tx
 		}
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?", common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", nil, req.Id)
+	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
 		return err
 	}
