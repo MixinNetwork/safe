@@ -187,7 +187,7 @@ func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
 	return err == nil
 }
 
-func (node *Node) verifySessionSignature(ctx context.Context, holder string, msg, sig []byte) (bool, []byte) {
+func (node *Node) verifySessionSignature(holder string, msg, sig []byte) (bool, []byte) {
 	pub := ed25519.PublicKey(common.DecodeHexOrPanic(holder))
 	res := ed25519.Verify(pub, msg, sig)
 	logger.Printf("ed25519.Verify(%x, %x) => %t", msg, sig[:], res)

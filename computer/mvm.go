@@ -706,7 +706,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	if err != nil {
 		panic(err)
 	}
-	valid, vsig := node.verifySessionSignature(ctx, holder, common.DecodeHexOrPanic(call.Message), sig)
+	valid, vsig := node.verifySessionSignature(holder, common.DecodeHexOrPanic(call.Message), sig)
 	logger.Printf("node.verifySessionSignature(%v, %s, %x) => %t", s, holder, extra, valid)
 	if !valid || !bytes.Equal(sig, vsig) {
 		panic(hex.EncodeToString(vsig))

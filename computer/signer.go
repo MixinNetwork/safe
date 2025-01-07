@@ -173,7 +173,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				if err != nil {
 					panic(err)
 				}
-				signed, sig := node.verifySessionSignature(ctx, holder, common.DecodeHexOrPanic(call.Message), op.Extra)
+				signed, sig := node.verifySessionSignature(holder, common.DecodeHexOrPanic(call.Message), op.Extra)
 				if signed {
 					op.Extra = sig
 				} else {
