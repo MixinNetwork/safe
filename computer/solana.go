@@ -128,7 +128,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *s
 	return &pub, hash, nil
 }
 
-func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
+func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user, nonce solana.PublicKey) error {
 	for _, ix := range tx.Message.Instructions {
 		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
 		if err != nil {
@@ -147,6 +147,12 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 				}
 				continue
+			}
+			if advance, ok := solanaApp.DecodeNonceAdvance(accounts, ix.Data); ok {
+				nonceAccount := advance.GetNonceAccount().PublicKey
+				if !nonceAccount.Equals(nonce) {
+					return fmt.Errorf("invalid nonce account: %s", nonce.String())
+				}
 			}
 		case solana.TokenProgramID, solana.Token2022ProgramID:
 			if mint, ok := solanaApp.DecodeTokenMint(accounts, ix.Data); ok {

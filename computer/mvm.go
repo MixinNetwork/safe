@@ -485,7 +485,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(err)
 	}
 
-	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solanaApp.PublicKeyFromEd25519Public(call.Public))
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solanaApp.PublicKeyFromEd25519Public(call.Public), solana.MustPublicKeyFromBase58(nonceAccount))
 	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, call.Public, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
