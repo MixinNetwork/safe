@@ -114,6 +114,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleSigner
 	case OperationTypeSignOutput:
 		return RequestRoleSigner
+	case OperationTypeDeposit:
+		return RequestRoleObserver
 	default:
 		return 0
 	}
@@ -158,6 +160,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSignerPrepare(ctx, req)
 	case OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)
+	case OperationTypeDeposit:
+		return node.processSignerCreateDepositCall(ctx, req)
 	default:
 		panic(req.Action)
 	}

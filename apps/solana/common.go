@@ -1,7 +1,9 @@
 package solana
 
 import (
+	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/util/base58"
@@ -10,6 +12,7 @@ import (
 	solana "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 )
 
 const SolanaEmptyAddress = "11111111111111111111111111111111"
@@ -30,6 +33,26 @@ type TokenTransfers struct {
 	Destination solana.PublicKey
 	Amount      uint64
 	Decimals    uint8
+}
+
+type Transfer struct {
+	// Signature is the signature of the transaction that contains the transfer.
+	Signature string
+
+	// Index is the index of the transfer in the transaction.
+	Index int64
+
+	// TokenAddress is the address of the token that is being transferred.
+	// If the token is SPL Token, it will be the address of the mint.
+	// If the token is native SOL, it will be 'SolanaMintAddress'.
+	TokenAddress string
+
+	// AssetId is the mixin version asset id
+	AssetId string
+
+	Sender   string
+	Receiver string
+	Value    *big.Int
 }
 
 func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *solana.PrivateKey {
@@ -87,6 +110,58 @@ func GenerateAssetId(assetKey string) string {
 	return ethereum.BuildChainAssetId(SolanaChainBase, assetKey)
 }
 
+func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) ([]*Transfer, error) {
+	if meta == nil {
+		return nil, fmt.Errorf("meta is nil")
+	}
+
+	if meta.Err != nil {
+		// Transaction failed, ignore
+		return nil, nil
+	}
+
+	hash := tx.Signatures[0].String()
+	msg := tx.Message
+
+	var (
+		transfers         = []*Transfer{}
+		innerInstructions = map[uint16][]solana.CompiledInstruction{}
+		tokenAccounts     = map[solana.PublicKey]token.Account{}
+	)
+
+	for _, inner := range meta.InnerInstructions {
+		innerInstructions[inner.Index] = inner.Instructions
+	}
+
+	for _, balance := range meta.PreTokenBalances {
+		if account, err := msg.Account(balance.AccountIndex); err == nil {
+			tokenAccounts[account] = token.Account{
+				Owner: *balance.Owner,
+				Mint:  balance.Mint,
+			}
+		}
+	}
+
+	for index, ix := range msg.Instructions {
+		baseIndex := int64(index+1) * 10000
+		if transfer := extractTransfersFromInstruction(&msg, ix, tokenAccounts); transfer != nil {
+			transfer.Signature = hash
+			transfer.Index = baseIndex
+			transfers = append(transfers, transfer)
+		}
+
+		for innerIndex, inner := range innerInstructions[uint16(index)] {
+			if transfer := extractTransfersFromInstruction(&msg, inner, tokenAccounts); transfer != nil {
+				transfer.Signature = hash
+				transfer.Index = baseIndex + int64(innerIndex) + 1
+				transfers = append(transfers, transfer)
+			}
+		}
+	}
+
+	return transfers, nil
+}
+
 func DecodeSystemTransfer(accounts solana.AccountMetaSlice, data []byte) (*system.Transfer, bool) {
 	ix, err := system.DecodeInstruction(accounts, data)
 	if err != nil {
@@ -108,7 +183,7 @@ func DecodeSystemTransfer(accounts solana.AccountMetaSlice, data []byte) (*syste
 	return nil, false
 }
 
-func DecodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.TransferChecked, bool) {
+func DecodeTokenTransferChecked(accounts solana.AccountMetaSlice, data []byte) (*token.TransferChecked, bool) {
 	ix, err := token.DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, false
@@ -117,6 +192,27 @@ func DecodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.
 	if transfer, ok := ix.Impl.(*token.TransferChecked); ok {
 		return transfer, true
 	}
+	return nil, false
+}
+
+func decodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.Transfer, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	if transfer, ok := ix.Impl.(*token.Transfer); ok {
+		return transfer, true
+	}
+
+	if transferChecked, ok := ix.Impl.(*token.TransferChecked); ok {
+		t := token.NewTransferInstructionBuilder()
+		t.SetSourceAccount(transferChecked.GetSourceAccount().PublicKey)
+		t.SetDestinationAccount(transferChecked.GetDestinationAccount().PublicKey)
+		t.SetAmount(*transferChecked.Amount)
+		return t, true
+	}
+
 	return nil, false
 }
 
@@ -154,4 +250,51 @@ func DecodeNonceAdvance(accounts solana.AccountMetaSlice, data []byte) (*system.
 		return advance, true
 	}
 	return nil, false
+}
+
+func extractTransfersFromInstruction(msg *solana.Message, cix solana.CompiledInstruction, tokenAccounts map[solana.PublicKey]token.Account) *Transfer {
+	programKey, err := msg.Program(cix.ProgramIDIndex)
+	if err != nil {
+		panic(err)
+	}
+
+	accounts, err := cix.ResolveInstructionAccounts(msg)
+	if err != nil {
+		panic(err)
+	}
+
+	switch programKey {
+	case system.ProgramID:
+		if transfer, ok := DecodeSystemTransfer(accounts, cix.Data); ok {
+			return &Transfer{
+				TokenAddress: SolanaEmptyAddress,
+				AssetId:      SolanaChainBase,
+				Sender:       transfer.GetFundingAccount().PublicKey.String(),
+				Receiver:     transfer.GetRecipientAccount().PublicKey.String(),
+				Value:        new(big.Int).SetUint64(*transfer.Lamports),
+			}
+		}
+	case solana.TokenProgramID, solana.Token2022ProgramID:
+		if transfer, ok := decodeTokenTransfer(accounts, cix.Data); ok {
+			from, ok := tokenAccounts[transfer.GetSourceAccount().PublicKey]
+			if !ok {
+				panic(fmt.Sprintf("token account not found: %s", transfer.GetSourceAccount().PublicKey.String()))
+			}
+
+			to, ok := tokenAccounts[transfer.GetDestinationAccount().PublicKey]
+			if !ok {
+				panic(fmt.Sprintf("token account not found: %s", transfer.GetDestinationAccount().PublicKey.String()))
+			}
+
+			return &Transfer{
+				TokenAddress: from.Mint.String(),
+				AssetId:      ethereum.BuildChainAssetId(SolanaChainBase, from.Mint.String()),
+				Sender:       from.Owner.String(),
+				Receiver:     to.Owner.String(),
+				Value:        new(big.Int).SetUint64(*transfer.Amount),
+			}
+		}
+	}
+
+	return nil
 }

@@ -475,7 +475,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(nonceAccount)
 	}
-	if nonce == nil {
+	if nonce == nil || nonce.CallId.Valid || nonce.UserId.Valid {
 		return node.failRequest(ctx, req, "")
 	}
 	raw := node.readStorageExtraFromObserver(ctx, hash)
@@ -745,6 +745,70 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	return nil, ""
 }
 
+func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	logger.Printf("node.processSignerCreateDepositCall(%s)", string(node.id))
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeDeposit {
+		panic(req.Action)
+	}
+	extra := req.ExtraBytes()
+	user := solana.PublicKeyFromBytes(extra[:32])
+	nonceAccount := solana.PublicKeyFromBytes(extra[32:64]).String()
+	hash, err := crypto.HashFromString(hex.EncodeToString(extra[64:96]))
+
+	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
+	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
+	if err != nil {
+		panic(nonceAccount)
+	}
+	if nonce == nil || nonce.CallId.Valid || nonce.UserId.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+
+	raw := node.readStorageExtraFromObserver(ctx, hash)
+	tx, err := solana.TransactionFromBytes(raw)
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
+	if err != nil {
+		panic(err)
+	}
+
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), user, solana.MustPublicKeyFromBase58(nonceAccount))
+	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, user.String(), err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	new := &store.SystemCall{
+		RequestId:       req.Id,
+		Superior:        req.Id,
+		Type:            store.CallTypeMain,
+		Public:          hex.EncodeToString(user.Bytes()),
+		NonceAccount:    nonceAccount,
+		Message:         hex.EncodeToString(msg),
+		Raw:             tx.MustToBase64(),
+		State:           common.RequestStatePending,
+		WithdrawalIds:   "",
+		WithdrawedAt:    sql.NullTime{Valid: true, Time: req.CreatedAt},
+		Signature:       sql.NullString{Valid: false},
+		RequestSignerAt: sql.NullTime{Valid: false},
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+
+	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, new, nil, nil, "")
+	if err != nil {
+		panic(err)
+	}
+
+	return nil, ""
+}
+
 func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
 	user, err := node.store.ReadUserByPublic(ctx, call.Public)
 	if err != nil {
@@ -843,8 +907,7 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 	return tx, as
 }
 
-func (node *Node) transferRestTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) *solana.Transaction {
-	source := solanaApp.PublicKeyFromEd25519Public(call.Public)
+func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
 	spls, err := node.solanaClient().RPCGetTokenAccountsByOwner(ctx, source)
 	if err != nil {
 		panic(err)
@@ -884,6 +947,9 @@ func (node *Node) transferRestTokens(ctx context.Context, call *store.SystemCall
 			transfer.ChainId = common.SafeSolanaChainId
 		}
 		transfers = append(transfers, transfer)
+	}
+	if len(transfers) == 0 {
+		return nil
 	}
 
 	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaAccount(), source, nonce.Account(), transfers)

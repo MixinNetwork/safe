@@ -7,7 +7,6 @@ import (
 
 	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
-	lookup "github.com/gagliardetto/solana-go/programs/address-lookup-table"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -26,6 +25,20 @@ type Client struct {
 	wsEndpoint  string
 
 	rpcClient *rpc.Client
+}
+
+type AssetMetadata struct {
+	Symbol      string `json:"symbol"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type Asset struct {
+	Address  string
+	Id       string
+	Symbol   string
+	Name     string
+	Decimals uint32
 }
 
 func (c *Client) getRPCClient() *rpc.Client {
@@ -95,6 +108,49 @@ func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.G
 	return block, nil
 }
 
+func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMetadata, error) {
+	client := c.getRPCClient()
+
+	var resp struct {
+		Content struct {
+			Metadata AssetMetadata `json:"metadata"`
+		} `json:"content"`
+	}
+
+	opt := map[string]any{
+		"id": address,
+	}
+
+	if err := client.RPCCallForInto(ctx, &resp, "getAsset", []any{opt}); err != nil {
+		return nil, err
+	}
+
+	return &resp.Content.Metadata, nil
+}
+
+func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
+	client := c.getRPCClient()
+	var mint token.Mint
+	if err := client.GetAccountDataInto(ctx, solana.MPK(address), &mint); err != nil {
+		return nil, err
+	}
+
+	metadata, err := c.getAssetMetadata(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+
+	asset := &Asset{
+		Address:  address,
+		Id:       GenerateAssetId(address),
+		Decimals: uint32(mint.Decimals),
+		Symbol:   metadata.Symbol,
+		Name:     metadata.Name,
+	}
+
+	return asset, nil
+}
+
 func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
 	result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
 	if err != nil {
@@ -145,54 +201,6 @@ func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.Pu
 		as = append(as, balance)
 	}
 	return as, nil
-}
-
-// processTransactionWithAddressLookups resolves the address lookups in the transaction.
-func (c *Client) processTransactionWithAddressLookups(ctx context.Context, txx *solana.Transaction) error {
-	if txx.Message.IsResolved() {
-		return nil
-	}
-
-	if !txx.Message.IsVersioned() {
-		// tx is not versioned, ignore
-		return nil
-	}
-
-	tblKeys := txx.Message.GetAddressTableLookups().GetTableIDs()
-	if len(tblKeys) == 0 {
-		return nil
-	}
-	numLookups := txx.Message.GetAddressTableLookups().NumLookups()
-	if numLookups == 0 {
-		return nil
-	}
-
-	rpcClient := c.getRPCClient()
-
-	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
-	for _, key := range tblKeys {
-		info, err := rpcClient.GetAccountInfo(ctx, key)
-		if err != nil {
-			return fmt.Errorf("get account info: %w", err)
-		}
-
-		tableContent, err := lookup.DecodeAddressLookupTableState(info.GetBinary())
-		if err != nil {
-			return fmt.Errorf("decode address lookup table state: %w", err)
-		}
-
-		resolutions[key] = tableContent.Addresses
-	}
-
-	if err := txx.Message.SetAddressTables(resolutions); err != nil {
-		return fmt.Errorf("set address tables: %w", err)
-	}
-
-	if err := txx.Message.ResolveLookups(); err != nil {
-		return fmt.Errorf("resolve lookups: %w", err)
-	}
-
-	return nil
 }
 
 func (c *Client) GetNonceAccountHash(ctx context.Context, nonce solana.PublicKey) (*solana.Hash, error) {

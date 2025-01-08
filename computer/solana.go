@@ -4,15 +4,18 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gofrs/uuid/v5"
 )
 
 const SolanaBlockDelay = 32
@@ -50,16 +53,63 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	}
 
 	for _, tx := range block.Transactions {
-		err := node.solanaProcessTransaction(ctx, tx)
-		if err != nil {
-			return err
-		}
+		return node.solanaProcessTransaction(ctx, tx)
 	}
 
 	return nil
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, rpcTx rpc.TransactionWithMeta) error {
+	err := node.solanaProcessCallTransaction(ctx, rpcTx)
+	if err != nil {
+		return err
+	}
+
+	tx := rpcTx.MustGetTransaction()
+	hash := tx.Signatures[0]
+	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
+	if err != nil {
+		return err
+	}
+	changes, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
+	logger.Printf("node.parseSolanaBlockBalanceChanges(%d) => %d %v", len(transfers), len(changes), err)
+	if err != nil || len(changes) == 0 {
+		return err
+	}
+	tsMap := make(map[string][]*solanaApp.TokenTransfers)
+	for _, transfer := range transfers {
+		key := fmt.Sprintf("%s:%s", transfer.Receiver, transfer.TokenAddress)
+		if _, ok := changes[key]; !ok {
+			continue
+		}
+		decimal := uint8(9)
+		if transfer.TokenAddress == "11111111111111111111111111111111" {
+			asset, err := node.solanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
+			if err != nil {
+				return err
+			}
+			decimal = uint8(asset.Decimals)
+		}
+		tsMap[transfer.Receiver] = append(tsMap[transfer.Receiver], &solanaApp.TokenTransfers{
+			SolanaAsset: true,
+			AssetId:     solanaApp.GenerateAssetId(transfer.TokenAddress),
+			ChainId:     solanaApp.SolanaChainBase,
+			Mint:        solana.MustPublicKeyFromBase58(transfer.TokenAddress),
+			Destination: node.solanaDepositEntry(),
+			Amount:      transfer.Value.Uint64(),
+			Decimals:    decimal,
+		})
+	}
+	for user, ts := range tsMap {
+		err = node.solanaProcessDepositTransaction(ctx, hash, user, ts)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (node *Node) solanaProcessCallTransaction(ctx context.Context, rpcTx rpc.TransactionWithMeta) error {
 	tx := rpcTx.MustGetTransaction()
 	signedBy := tx.Message.IsSigner(node.solanaAccount())
 	if !signedBy {
@@ -99,6 +149,69 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, rpcTx rpc.Transa
 	if err != nil {
 		return err
 	}
+
+	if call.Type == store.CallTypeMain {
+		nonce, err := node.store.ReadSpareNonceAccount(ctx)
+		if err != nil {
+			return err
+		}
+		tx := node.transferRestTokens(ctx, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
+		if tx == nil {
+			return nil
+		}
+		data, err := tx.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		id := common.UniqueId(call.RequestId, "post-tx-storage")
+		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+		if err != nil {
+			return err
+		}
+
+		id = common.UniqueId(id, "craete-post-call")
+		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
+		extra = append(extra, nonce.Account().Address.Bytes()...)
+		extra = append(extra, hash[:]...)
+		err = node.sendObserverTransaction(ctx, &common.Operation{
+			Id:    id,
+			Type:  OperationTypeCreateSubCall,
+			Extra: extra,
+		})
+	}
+
+	return nil
+}
+
+func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfers) error {
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	if err != nil {
+		return err
+	}
+	tx := node.transferRestTokens(ctx, solana.MustPublicKeyFromBase58(user), nonce)
+	if tx == nil {
+		return nil
+	}
+	data, err := tx.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	id := common.UniqueId(depositHash.String(), user)
+	id = common.UniqueId(id, "deposit")
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+	if err != nil {
+		return err
+	}
+
+	id = common.UniqueId(id, "craete-deposit-call")
+	extra := solana.MustPublicKeyFromBase58(user).Bytes()
+	extra = append(extra, nonce.Account().Address.Bytes()...)
+	extra = append(extra, hash[:]...)
+	err = node.sendObserverTransaction(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeDeposit,
+		Extra: extra,
+	})
 
 	return nil
 }
@@ -167,7 +280,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 				}
 				continue
 			}
-			if transfer, ok := solanaApp.DecodeTokenTransfer(accounts, ix.Data); ok {
+			if transfer, ok := solanaApp.DecodeTokenTransferChecked(accounts, ix.Data); ok {
 				recipient := transfer.GetDestinationAccount().PublicKey
 				token := transfer.GetMintAccount().PublicKey
 				ata, _, err := solana.FindAssociatedTokenAddress(groupDepositEntry, token)
@@ -194,10 +307,46 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 	return nil
 }
 
+func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
+	changes := make(map[string]*big.Int)
+	for _, t := range transfers {
+		if t.Receiver == solanaApp.SolanaEmptyAddress {
+			continue
+		}
+
+		user, err := node.store.ReadUserByAddress(ctx, t.Receiver)
+		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Receiver, user, err)
+		if err != nil {
+			return nil, err
+		} else if user == nil {
+			continue
+		}
+		token, err := node.store.ReadDeployedAssetByAddress(ctx, t.TokenAddress)
+		if err != nil {
+			return nil, err
+		} else if token != nil {
+			continue
+		}
+
+		key := fmt.Sprintf("%s:%s", t.Receiver, t.TokenAddress)
+		total := changes[key]
+		if total != nil {
+			changes[key] = new(big.Int).Add(total, t.Value)
+		} else {
+			changes[key] = t.Value
+		}
+	}
+	return changes, nil
+}
+
 func (node *Node) solanaClient() *solanaApp.Client {
 	return solanaApp.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
 }
 
 func (node *Node) solanaAccount() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
+}
+
+func (node *Node) solanaDepositEntry() solana.PublicKey {
+	return solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry)
 }

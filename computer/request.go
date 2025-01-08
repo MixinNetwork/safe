@@ -30,6 +30,7 @@ const (
 	OperationTypeSignInput         = 17
 	OperationTypeSignPrepare       = 18
 	OperationTypeSignOutput        = 19
+	OperationTypeDeposit           = 20
 )
 
 func keyAsOperation(k *store.Key) *common.Operation {
