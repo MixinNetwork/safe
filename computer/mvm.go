@@ -113,11 +113,22 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		logger.Printf("tx.IsSigner(mtg) => %t", hasKey)
 		return node.failRequest(ctx, req, "")
 	}
+
+	ins := tx.Message.Instructions[0]
+	accounts, err := ins.ResolveInstructionAccounts(&tx.Message)
+	if err != nil {
+		panic(err)
+	}
+	advance, flag := solanaApp.DecodeNonceAdvance(accounts, ins.Data)
+	logger.Printf("solana.DecodeNonceAdvance() => %v %t", advance.GetNonceAccount().PublicKey, flag)
+	if !flag || advance.GetNonceAccount().PublicKey.String() != user.NonceAccount {
+		return node.failRequest(ctx, req, "")
+	}
+
 	msg, err := tx.Message.MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
-
 	call := &store.SystemCall{
 		RequestId:       req.Id,
 		Superior:        req.Id,
