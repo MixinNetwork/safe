@@ -88,7 +88,8 @@ CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_
 CREATE TABLE IF NOT EXISTS users (
   user_id        VARCHAR NOT NULL,
   request_id     VARCHAR NOT NULL,
-  address        VARCHAR NOT NULL,
+  MixAddress     VARCHAR NOT NULL,
+  ChainAddress   VARCHAR NOT NULL,
   public         VARCHAR NOT NULL,
   nonce_account  VARCHAR NOT NULL,
   created_at     TIMESTAMP NOT NULL,

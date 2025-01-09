@@ -45,7 +45,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 		return node.failRequest(ctx, req, "")
 	}
 
-	old, err := node.store.ReadUserByAddress(ctx, mix)
+	old, err := node.store.ReadUserByMixAddress(ctx, mix)
 	logger.Printf("store.ReadUserByAddress(%s) => %v %v", mix, old, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadUserByAddress(%s) => %v", mix, err))
@@ -779,6 +779,53 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 	}
 
 	return nil, ""
+}
+
+func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	ver, err := common.VerifyKernelTransaction(ctx, node.group, out, time.Minute)
+	if err != nil {
+		panic(err)
+	}
+	deposit := ver.DepositData()
+	if deposit == nil {
+		return nil, ""
+	}
+
+	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, deposit.Transaction)
+	if err != nil {
+		panic(err)
+	}
+	tx, err := rpcTx.Transaction.GetTransaction()
+	if err != nil {
+		panic(err)
+	}
+	ts, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
+	if err != nil {
+		panic(err)
+	}
+
+	var txs []*mtg.Transaction
+	for i, t := range ts {
+		if t.Receiver != node.solanaDepositEntry().String() {
+			continue
+		}
+		user, err := node.store.ReadUserByChainAddress(ctx, t.Receiver)
+		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Receiver, user, err)
+		if err != nil {
+			panic(err)
+		} else if user == nil {
+			continue
+		}
+		asset := solanaApp.GenerateAssetId(t.TokenAddress)
+		id := common.UniqueId(deposit.Transaction, fmt.Sprintf("deposit-%s", i))
+		id = common.UniqueId(id, t.Receiver)
+		tx := node.buildTransaction(ctx, out, node.conf.AppId, asset, []string{user.MixAddress}, 1, t.Value.String(), []byte("deposit"), id)
+		if tx == nil {
+			return nil, asset
+		}
+		txs = append(txs, tx)
+	}
+	return txs, ""
 }
 
 type ReferencedTxAsset struct {

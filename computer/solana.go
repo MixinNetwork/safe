@@ -321,7 +321,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 			continue
 		}
 
-		user, err := node.store.ReadUserByAddress(ctx, t.Receiver)
+		user, err := node.store.ReadUserByChainAddress(ctx, t.Receiver)
 		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Receiver, user, err)
 		if err != nil {
 			return nil, err

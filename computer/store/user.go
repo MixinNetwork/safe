@@ -19,17 +19,18 @@ var MPCUserId = big.NewInt(10000)
 type User struct {
 	UserId       string
 	RequestId    string
-	Address      string
+	MixAddress   string
+	ChainAddress string
 	Public       string
 	NonceAccount string
 	CreatedAt    time.Time
 }
 
-var userCols = []string{"user_id", "request_id", "address", "public", "nonce_account", "created_at"}
+var userCols = []string{"user_id", "request_id", "mix_address", "chain_address", "public", "nonce_account", "created_at"}
 
 func userFromRow(row *sql.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.UserId, &u.RequestId, &u.Address, &u.Public, &u.NonceAccount, &u.CreatedAt)
+	err := row.Scan(&u.UserId, &u.RequestId, &u.MixAddress, &u.ChainAddress, &u.Public, &u.NonceAccount, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -84,8 +85,15 @@ func (s *SQLite3Store) ReadUser(ctx context.Context, id *big.Int) (*User, error)
 	return userFromRow(row)
 }
 
-func (s *SQLite3Store) ReadUserByAddress(ctx context.Context, address string) (*User, error) {
-	query := fmt.Sprintf("SELECT %s FROM users WHERE address=?", strings.Join(userCols, ","))
+func (s *SQLite3Store) ReadUserByMixAddress(ctx context.Context, address string) (*User, error) {
+	query := fmt.Sprintf("SELECT %s FROM users WHERE mix_address=?", strings.Join(userCols, ","))
+	row := s.db.QueryRowContext(ctx, query, address)
+
+	return userFromRow(row)
+}
+
+func (s *SQLite3Store) ReadUserByChainAddress(ctx context.Context, address string) (*User, error) {
+	query := fmt.Sprintf("SELECT %s FROM users WHERE chain_address=?", strings.Join(userCols, ","))
 	row := s.db.QueryRowContext(ctx, query, address)
 
 	return userFromRow(row)
@@ -122,7 +130,7 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, a
 		return err
 	}
 
-	vals := []any{id.String(), req.Id, address, key, account, time.Now()}
+	vals := []any{id.String(), req.Id, address, solanaApp.PublicKeyFromEd25519Public(key).String(), key, account, time.Now()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)
@@ -152,7 +160,7 @@ func (s *SQLite3Store) WriteSignerUserWithRequest(ctx context.Context, req *Requ
 		return fmt.Errorf("UPDATE keys %v", err)
 	}
 
-	vals := []any{MPCUserId.String(), req.Id, address, key, "", time.Now()}
+	vals := []any{MPCUserId.String(), req.Id, address, solanaApp.PublicKeyFromEd25519Public(key).String(), key, "", time.Now()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)
