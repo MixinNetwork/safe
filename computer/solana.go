@@ -178,6 +178,9 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, rpcTx rpc.Tr
 			Type:  OperationTypeCreateSubCall,
 			Extra: extra,
 		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -212,6 +215,9 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 		Type:  OperationTypeDeposit,
 		Extra: extra,
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
