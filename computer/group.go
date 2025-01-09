@@ -42,7 +42,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	}
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
-		return nil, ""
+		return node.processDeposit(ctx, out)
 	}
 
 	req, err := node.parseRequest(out)

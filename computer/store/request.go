@@ -95,6 +95,35 @@ func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *Request)
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) WriteDepositRequestIfNotExist(ctx context.Context, out *mtg.Action, state int, txs []*mtg.Transaction, compaction string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM requests WHERE request_id=?", out.OutputId)
+	if err != nil || existed {
+		return err
+	}
+
+	vals := []any{out.OutputId, out.TransactionHash, out.OutputIndex, out.AssetId, out.Amount, 0, 0, nil, state, out.SequencerCreatedAt, out.SequencerCreatedAt, out.Sequence}
+	err = s.execOne(ctx, tx, buildInsertionSQL("requests", requestCols), vals...)
+	if err != nil {
+		return fmt.Errorf("INSERT requests %v", err)
+	}
+
+	err = s.writeActionResult(ctx, tx, out.OutputId, compaction, txs, out.OutputId)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE request_id=?", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)

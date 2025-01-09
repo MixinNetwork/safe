@@ -782,14 +782,30 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 }
 
 func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	ar, handled, err := node.store.ReadActionResult(ctx, out.OutputId, out.OutputId)
+	logger.Printf("store.ReadActionResult(%s %s) => %v %t %v", out.OutputId, out.OutputId, ar, handled, err)
+	if err != nil {
+		panic(err)
+	}
+	if ar != nil {
+		return ar.Transactions, ar.Compaction
+	}
+	if handled {
+		err = node.store.FailAction(ctx, &store.Request{
+			Id:     out.OutputId,
+			Output: out,
+		})
+		if err != nil {
+			panic(err)
+		}
+		return nil, ""
+	}
+
 	ver, err := common.VerifyKernelTransaction(ctx, node.group, out, time.Minute)
 	if err != nil {
 		panic(err)
 	}
 	deposit := ver.DepositData()
-	if deposit == nil {
-		return nil, ""
-	}
 
 	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, deposit.Transaction)
 	if err != nil {
@@ -805,6 +821,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	}
 
 	var txs []*mtg.Transaction
+	var compaction string
 	for i, t := range ts {
 		if t.Receiver != node.solanaDepositEntry().String() {
 			continue
@@ -817,15 +834,27 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 			continue
 		}
 		asset := solanaApp.GenerateAssetId(t.TokenAddress)
-		id := common.UniqueId(deposit.Transaction, fmt.Sprintf("deposit-%s", i))
+		id := common.UniqueId(deposit.Transaction, fmt.Sprintf("deposit-%d", i))
 		id = common.UniqueId(id, t.Receiver)
 		tx := node.buildTransaction(ctx, out, node.conf.AppId, asset, []string{user.MixAddress}, 1, t.Value.String(), []byte("deposit"), id)
 		if tx == nil {
-			return nil, asset
+			compaction = asset
+			txs = nil
+			break
 		}
 		txs = append(txs, tx)
 	}
-	return txs, ""
+
+	state := common.RequestStateDone
+	if compaction != "" {
+		state = common.RequestStateFailed
+	}
+	err = node.store.WriteDepositRequestIfNotExist(ctx, out, state, txs, compaction)
+	if err != nil {
+		panic(err)
+	}
+
+	return txs, compaction
 }
 
 type ReferencedTxAsset struct {
