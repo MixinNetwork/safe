@@ -148,48 +148,17 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 
 	var txs []*mtg.Transaction
 	var compaction string
-	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
-	logger.Printf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", req.MixinHash.String(), ver, err)
-	if err != nil || ver == nil {
-		panic(err)
-	}
-	if common.CheckTestEnvironment(ctx) {
-		h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
-		h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
-		ver.References = []crypto.Hash{h1, h2}
-	}
-	for _, ref := range ver.References {
-		refVer, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
-		logger.Printf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", ref.String(), refVer, err)
-		if err != nil {
-			panic(err)
-		}
-		if refVer == nil {
+	as := node.getSystemCallRelatedAsset(ctx, req.Id)
+	for _, asset := range as {
+		if !asset.Solana {
 			continue
 		}
-
-		outputs := node.group.ListOutputsByTransactionHash(ctx, ref.String(), req.Sequence)
-		if len(outputs) == 0 {
-			continue
-		}
-		total := decimal.NewFromInt(0)
-		for _, output := range outputs {
-			total = total.Add(output.Amount)
-		}
-
-		asset, err := bot.ReadAsset(ctx, outputs[0].AssetId)
-		if err != nil {
-			panic(err)
-		}
-		if asset.ChainID != common.SafeSolanaChainId {
-			continue
-		}
-		id := common.UniqueId(req.Id, asset.AssetID)
+		id := common.UniqueId(req.Id, asset.Asset.AssetID)
 		id = common.UniqueId(id, "withdrawal")
 		memo := []byte(req.Id)
-		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.AssetID, total.String(), memo, userAccount.String(), "", id)
+		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, userAccount.String(), "", id)
 		if tx == nil {
-			return node.failRequest(ctx, req, asset.AssetID)
+			return node.failRequest(ctx, req, asset.Asset.AssetID)
 		}
 		txs = append(txs, tx)
 	}
@@ -757,6 +726,9 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 	user := solana.PublicKeyFromBytes(extra[:32])
 	nonceAccount := solana.PublicKeyFromBytes(extra[32:64]).String()
 	hash, err := crypto.HashFromString(hex.EncodeToString(extra[64:96]))
+	if err != nil {
+		panic(err)
+	}
 
 	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
 	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
@@ -807,4 +779,57 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 	}
 
 	return nil, ""
+}
+
+type ReferencedTxAsset struct {
+	Solana bool
+	Amount decimal.Decimal
+	Asset  *bot.AssetNetwork
+}
+
+func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId string) []*ReferencedTxAsset {
+	req, err := node.store.ReadRequest(ctx, requestId)
+	if err != nil || req == nil {
+		panic(fmt.Errorf("store.ReadRequest(%s) => %v %v", requestId, req, err))
+	}
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	if err != nil || ver == nil {
+		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", req.MixinHash.String(), ver, err))
+	}
+	if common.CheckTestEnvironment(ctx) {
+		h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
+		h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
+		ver.References = []crypto.Hash{h1, h2}
+	}
+
+	var as []*ReferencedTxAsset
+	for _, ref := range ver.References {
+		refVer, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+		if err != nil {
+			panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", ref.String(), refVer, err))
+		}
+		if refVer == nil {
+			continue
+		}
+
+		outputs := node.group.ListOutputsByTransactionHash(ctx, ref.String(), req.Sequence)
+		if len(outputs) == 0 {
+			continue
+		}
+		total := decimal.NewFromInt(0)
+		for _, output := range outputs {
+			total = total.Add(output.Amount)
+		}
+
+		asset, err := bot.ReadAsset(ctx, refVer.Asset.String())
+		if err != nil {
+			panic(err)
+		}
+		as = append(as, &ReferencedTxAsset{
+			Solana: asset.ChainID == solanaApp.SolanaChainBase,
+			Amount: total,
+			Asset:  asset,
+		})
+	}
+	return as
 }
