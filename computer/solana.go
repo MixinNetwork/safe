@@ -378,6 +378,10 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 				Address:    key.PublicKey().String(),
 				PrivateKey: &key,
 			}
+			if common.CheckTestEnvironment(ctx) {
+				da.Address = "EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8"
+				da.PrivateKey = nil
+			}
 			as = append(as, da)
 		}
 

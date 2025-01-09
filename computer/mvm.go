@@ -120,7 +120,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(err)
 	}
 	advance, flag := solanaApp.DecodeNonceAdvance(accounts, ins.Data)
-	logger.Printf("solana.DecodeNonceAdvance() => %v %t", advance.GetNonceAccount().PublicKey, flag)
+	logger.Printf("solana.DecodeNonceAdvance() => %v %t", advance, flag)
 	if !flag || advance.GetNonceAccount().PublicKey.String() != user.NonceAccount {
 		return node.failRequest(ctx, req, "")
 	}
@@ -444,7 +444,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(nonceAccount)
 	}
-	if nonce == nil || nonce.CallId.Valid || nonce.UserId.Valid {
+	if nonce == nil {
 		return node.failRequest(ctx, req, "")
 	}
 	raw := node.readStorageExtraFromObserver(ctx, hash)
@@ -897,7 +897,7 @@ func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId strin
 			total = total.Add(output.Amount)
 		}
 
-		asset, err := bot.ReadAsset(ctx, refVer.Asset.String())
+		asset, err := bot.ReadAsset(ctx, outputs[0].AssetId)
 		if err != nil {
 			panic(err)
 		}

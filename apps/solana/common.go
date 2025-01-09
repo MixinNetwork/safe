@@ -241,7 +241,7 @@ func DecodeTokenMint(accounts solana.AccountMetaSlice, data []byte) (*token.Mint
 }
 
 func DecodeNonceAdvance(accounts solana.AccountMetaSlice, data []byte) (*system.AdvanceNonceAccount, bool) {
-	ix, err := token.DecodeInstruction(accounts, data)
+	ix, err := system.DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, false
 	}

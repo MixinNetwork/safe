@@ -88,15 +88,16 @@ CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_
 CREATE TABLE IF NOT EXISTS users (
   user_id        VARCHAR NOT NULL,
   request_id     VARCHAR NOT NULL,
-  MixAddress     VARCHAR NOT NULL,
-  ChainAddress   VARCHAR NOT NULL,
+  mix_address    VARCHAR NOT NULL,
+  chain_address  VARCHAR NOT NULL,
   public         VARCHAR NOT NULL,
   nonce_account  VARCHAR NOT NULL,
   created_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('user_id')
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS users_by_address ON users(address);
+CREATE UNIQUE INDEX IF NOT EXISTS users_by_mix_address ON users(mix_address);
+CREATE UNIQUE INDEX IF NOT EXISTS users_by_chain_address ON users(chain_address);
 CREATE INDEX IF NOT EXISTS users_by_created ON users(created_at);
 
 
