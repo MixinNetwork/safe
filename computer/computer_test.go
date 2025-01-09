@@ -49,7 +49,7 @@ func TestComputer(t *testing.T) {
 func testObserverCreatePostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
 	nonce, err := nodes[0].store.ReadNonceAccount(ctx, call.NonceAccount)
 	require.Nil(err)
-	stx := nodes[0].transferRestTokens(ctx, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
+	stx := nodes[0].burnRestTokens(ctx, call, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)

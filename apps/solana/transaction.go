@@ -169,7 +169,7 @@ func (c *Client) MintTokens(ctx context.Context, payer, mtg solana.PublicKey, no
 	return tx, nil
 }
 
-func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
+func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []*TokenTransfers) (*solana.Transaction, error) {
 	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
 
 	for _, transfer := range transfers {

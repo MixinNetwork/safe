@@ -195,7 +195,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	if err != nil {
 		return err
 	}
-	tx := node.transferRestTokens(ctx, solana.MustPublicKeyFromBase58(user), nonce)
+	tx := node.transferRestTokens(ctx, solana.MustPublicKeyFromBase58(user), nonce, ts)
 	if tx == nil {
 		return nil
 	}
@@ -486,12 +486,12 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 	if err != nil {
 		panic(err)
 	}
-	var transfers []solanaApp.TokenTransfers
+	var transfers []*solanaApp.TokenTransfers
 	for _, token := range spls {
 		if !slices.Contains(as, token.Mint.String()) || token.Amount == 0 {
 			continue
 		}
-		transfer := solanaApp.TokenTransfers{
+		transfer := &solanaApp.TokenTransfers{
 			Mint:        token.Mint,
 			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
 			Amount:      token.Amount,
@@ -510,51 +510,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 	return tx
 }
 
-func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
-	spls, err := node.solanaClient().RPCGetTokenAccountsByOwner(ctx, source)
-	if err != nil {
-		panic(err)
-	}
-	sol, err := node.solanaClient().RPCGetAccount(ctx, source)
-	if err != nil {
-		panic(err)
-	}
-
-	var transfers []solanaApp.TokenTransfers
-	if sol.Value.Lamports > 0 {
-		transfers = append(transfers, solanaApp.TokenTransfers{
-			SolanaAsset: true,
-			AssetId:     common.SafeSolanaChainId,
-			ChainId:     common.SafeSolanaChainId,
-			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-			Amount:      sol.Value.Lamports,
-		})
-	}
-	for _, token := range spls {
-		if token.Amount == 0 {
-			continue
-		}
-		transfer := solanaApp.TokenTransfers{
-			Mint:        token.Mint,
-			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-			Amount:      token.Amount,
-			Decimals:    9,
-		}
-		asset, err := node.store.ReadDeployedAssetByAddress(ctx, token.Mint.String())
-		if err != nil {
-			panic(err)
-		}
-		transfer.SolanaAsset = asset == nil
-		if transfer.SolanaAsset {
-			transfer.AssetId = solanaApp.GenerateAssetId(token.Mint.String())
-			transfer.ChainId = common.SafeSolanaChainId
-		}
-		transfers = append(transfers, transfer)
-	}
-	if len(transfers) == 0 {
-		return nil
-	}
-
+func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKey, nonce *store.NonceAccount, transfers []*solanaApp.TokenTransfers) *solana.Transaction {
 	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaAccount(), source, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
