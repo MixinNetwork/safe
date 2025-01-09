@@ -418,6 +418,19 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "computer",
+				Usage:  "Run the computer node",
+				Action: cmd.ComputerBootCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Value:   "~/.mixin/safe/config.toml",
+						Usage:   "The configuration file path",
+					},
+				},
+			},
 		},
 	}
 

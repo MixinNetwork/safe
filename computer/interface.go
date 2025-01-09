@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 
+	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/trusted-group/mtg"
 )
@@ -41,4 +42,8 @@ func (c *Configuration) Messenger() *messenger.MixinConfiguration {
 type Network interface {
 	ReceiveMessage(context.Context) (*messenger.MixinMessage, error)
 	QueueMessage(ctx context.Context, receiver string, b []byte) error
+}
+
+func OpenSQLite3Store(path string) (*store.SQLite3Store, error) {
+	return store.OpenSQLite3Store(path)
 }
