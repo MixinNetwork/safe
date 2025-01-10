@@ -54,21 +54,20 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	}
 
 	for _, tx := range block.Transactions {
-		return node.solanaProcessTransaction(ctx, tx)
+		return node.solanaProcessTransaction(ctx, tx.MustGetTransaction(), tx.Meta)
 	}
 
 	return nil
 }
 
-func (node *Node) solanaProcessTransaction(ctx context.Context, rpcTx rpc.TransactionWithMeta) error {
-	err := node.solanaProcessCallTransaction(ctx, rpcTx)
+func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
+	err := node.solanaProcessCallTransaction(ctx, tx)
 	if err != nil {
 		return err
 	}
 
-	tx := rpcTx.MustGetTransaction()
 	hash := tx.Signatures[0]
-	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
+	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, meta)
 	if err != nil {
 		return err
 	}
@@ -110,8 +109,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, rpcTx rpc.Transa
 	return nil
 }
 
-func (node *Node) solanaProcessCallTransaction(ctx context.Context, rpcTx rpc.TransactionWithMeta) error {
-	tx := rpcTx.MustGetTransaction()
+func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.Transaction) error {
 	signedBy := tx.Message.IsSigner(node.solanaAccount())
 	if !signedBy {
 		return nil

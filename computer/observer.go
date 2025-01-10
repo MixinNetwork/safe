@@ -382,6 +382,19 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		hash := tx.Signatures[0]
+		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash.String())
+		if err != nil {
+			panic(err)
+		}
+		ttx, err := rpcTx.Transaction.GetTransaction()
+		if err != nil {
+			panic(err)
+		}
+		err = node.solanaProcessTransaction(ctx, ttx, rpcTx.Meta)
+		if err != nil {
+			return err
+		}
 		time.Sleep(1 * time.Minute)
 	}
 	return nil
