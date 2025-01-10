@@ -603,7 +603,38 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		}
 		nonce.Hash = updatedHash
 
-		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, nonce)
+		var txs []*mtg.Transaction
+		var compaction string
+		if call.Type == store.CallTypePostProcess {
+			bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
+			if len(bs) == 0 {
+				panic(fmt.Errorf("invalid burned assets length: %s %d", call.RequestId, len(bs)))
+			}
+			user, err := node.store.ReadUserByPublic(ctx, call.Public)
+			if err != nil {
+				panic(err)
+			}
+			for _, burn := range bs {
+				address := burn.GetMintAccount().PublicKey.String()
+				assetId := solanaApp.GenerateAssetId(address)
+				asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, assetId)
+				if err != nil {
+					panic(err)
+				}
+				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision))
+				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", assetId))
+				id = common.UniqueId(id, user.MixAddress)
+				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, assetId, []string{user.MixAddress}, 1, amount.String(), []byte("refund"), id)
+				if tx == nil {
+					compaction = assetId
+					txs = nil
+					break
+				}
+				txs = append(txs, tx)
+			}
+		}
+
+		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, nonce, txs, compaction)
 		if err != nil {
 			panic(err)
 		}

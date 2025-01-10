@@ -142,7 +142,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, req *Request, call *SystemCall, nonce *NonceAccount) error {
+func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, req *Request, call *SystemCall, nonce *NonceAccount, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -171,7 +171,7 @@ func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, 
 		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
 	}
 
-	err = s.finishRequest(ctx, tx, req, nil, "")
+	err = s.finishRequest(ctx, tx, req, txs, compaction)
 	if err != nil {
 		return err
 	}

@@ -162,6 +162,31 @@ func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction
 	return transfers, nil
 }
 
+func ExtractBurnsFromTransaction(ctx context.Context, tx *solana.Transaction) []*token.BurnChecked {
+	var bs []*token.BurnChecked
+	msg := tx.Message
+	for _, cix := range msg.Instructions {
+		programKey, err := msg.Program(cix.ProgramIDIndex)
+		if err != nil {
+			panic(err)
+		}
+		if programKey != token.ProgramID {
+			continue
+		}
+		accounts, err := cix.ResolveInstructionAccounts(&msg)
+		if err != nil {
+			panic(err)
+		}
+		burn, ok := DecodeTokenBurn(accounts, cix.Data)
+		if !ok {
+			continue
+		}
+		bs = append(bs, burn)
+	}
+
+	return bs
+}
+
 func DecodeSystemTransfer(accounts solana.AccountMetaSlice, data []byte) (*system.Transfer, bool) {
 	ix, err := system.DecodeInstruction(accounts, data)
 	if err != nil {
