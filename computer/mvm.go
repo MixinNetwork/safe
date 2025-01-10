@@ -616,17 +616,20 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 			for _, burn := range bs {
 				address := burn.GetMintAccount().PublicKey.String()
-				assetId := solanaApp.GenerateAssetId(address)
-				asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, assetId)
+				da, err := node.store.ReadDeployedAssetByAddress(ctx, address)
+				if err != nil || da == nil {
+					panic(err)
+				}
+				asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, da.AssetId)
 				if err != nil {
 					panic(err)
 				}
 				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision))
-				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", assetId))
+				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
 				id = common.UniqueId(id, user.MixAddress)
-				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, assetId, []string{user.MixAddress}, 1, amount.String(), []byte("refund"), id)
+				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, []string{user.MixAddress}, 1, amount.String(), []byte("refund"), id)
 				if tx == nil {
-					compaction = assetId
+					compaction = da.AssetId
 					txs = nil
 					break
 				}
@@ -638,7 +641,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if err != nil {
 			panic(err)
 		}
-		return nil, ""
+		return txs, compaction
 	case FlagConfirmCallFail:
 		callId := uuid.Must(uuid.FromBytes(extra)).String()
 		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)

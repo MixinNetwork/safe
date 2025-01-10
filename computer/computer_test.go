@@ -45,7 +45,39 @@ func TestComputer(t *testing.T) {
 	sub := testObserverCreateSubCall(ctx, require, nodes, call)
 	testObserverConfirmSubCall(ctx, require, nodes, sub)
 	testObserverConfirmMainCall(ctx, require, nodes, call)
-	testObserverCreatePostprocessCall(ctx, require, nodes, call)
+	postprocess := testObserverCreatePostprocessCall(ctx, require, nodes, call)
+	testObserverConfirmPostprocessCall(ctx, require, nodes, postprocess)
+}
+
+func testObserverConfirmPostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
+	signature := solana.MustSignatureFromBase58("5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR")
+	hash := solana.MustHashFromBase58("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+
+	id := uuid.Must(uuid.NewV4()).String()
+	extra := []byte{FlagConfirmCallSuccess}
+	extra = append(extra, signature[:]...)
+	extra = append(extra, hash[:]...)
+
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
+		testStep(ctx, require, node, out)
+
+		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
+		require.Nil(err)
+		require.NotNil(sub)
+		nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
+		require.Nil(err)
+		require.Equal(hash.String(), nonce.Hash)
+
+		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStateDone)
+		require.Nil(err)
+		require.NotNil(call)
+
+		ar, _, err := node.store.ReadActionResult(ctx, id, id)
+		require.Nil(err)
+		require.Len(ar.Transactions, 1)
+		require.Equal(common.SafeLitecoinChainId, ar.Transactions[0].AssetId)
+	}
 }
 
 func testObserverCreatePostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {

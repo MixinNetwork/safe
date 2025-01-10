@@ -15,6 +15,7 @@ import (
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
+	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gofrs/uuid/v5"
 )
@@ -486,6 +487,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
 	assets := node.getSystemCallRelatedAsset(ctx, main.RequestId)
 	var externals []string
+	as := make(map[string]string)
 	for _, asset := range assets {
 		if asset.Solana {
 			continue
@@ -495,6 +497,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 			panic(err)
 		}
 		externals = append(externals, a.Address)
+		as[a.Address] = a.AssetId
 	}
 	if len(externals) == 0 {
 		return nil
@@ -504,16 +507,29 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 	if err != nil {
 		panic(err)
 	}
+	if common.CheckTestEnvironment(ctx) {
+		spls = []token.Account{
+			{
+				Mint:   solana.MustPublicKeyFromBase58("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8"),
+				Amount: 1000000,
+			},
+		}
+	}
 	var transfers []*solanaApp.TokenTransfers
-	for _, token := range spls {
-		if !slices.Contains(externals, token.Mint.String()) || token.Amount == 0 {
+	for _, t := range spls {
+		address := t.Mint.String()
+		if !slices.Contains(externals, address) || t.Amount == 0 {
 			continue
 		}
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, as[address])
+		if err != nil {
+			panic(err)
+		}
 		transfer := &solanaApp.TokenTransfers{
-			Mint:        token.Mint,
+			Mint:        t.Mint,
 			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-			Amount:      token.Amount,
-			Decimals:    9,
+			Amount:      t.Amount,
+			Decimals:    uint8(asset.Precision),
 		}
 		transfers = append(transfers, transfer)
 	}
