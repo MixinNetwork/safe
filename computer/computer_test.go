@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -36,6 +37,7 @@ func TestComputer(t *testing.T) {
 	testObserverRequestGenerateKeys(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverRequestInitMpcKey(ctx, require, nodes)
+	testObserverSetPriceParams(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
 	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
@@ -380,6 +382,34 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 		count, err = node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)
 		require.Equal(4, count)
+	}
+}
+
+func testObserverSetPriceParams(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	for _, node := range nodes {
+		params, err := node.store.ReadLatestOperationParams(ctx, time.Now())
+		require.Nil(err)
+		require.Nil(params)
+
+		amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
+		logger.Printf("node.sendPriceInfo(%s, %s)", node.conf.OperationPriceAssetId, amount)
+		amount = amount.Mul(decimal.New(1, 8))
+		if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
+			panic(node.conf.OperationPriceAmount)
+		}
+		id := common.UniqueId("OperationTypeSetOperationParams", node.conf.OperationPriceAssetId)
+		id = common.UniqueId(id, amount.String())
+		extra := uuid.Must(uuid.FromString(node.conf.OperationPriceAssetId)).Bytes()
+		extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
+
+		out := testBuildObserverRequest(node, id, OperationTypeSetOperationParams, extra)
+		testStep(ctx, require, node, out)
+
+		params, err = node.store.ReadLatestOperationParams(ctx, time.Now())
+		require.Nil(err)
+		require.NotNil(params)
+		require.Equal(node.conf.OperationPriceAssetId, params.OperationPriceAsset)
+		require.Equal(node.conf.OperationPriceAmount, params.OperationPriceAmount.String())
 	}
 }
 

@@ -21,7 +21,7 @@ type OperationParams struct {
 var paramsCols = []string{"request_id", "price_asset", "price_amount", "created_at"}
 
 func (s *SQLite3Store) ReadLatestOperationParams(ctx context.Context, offset time.Time) (*OperationParams, error) {
-	query := fmt.Sprintf("SELECT %s FROM operation_params WHEREcreated_at<=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(paramsCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM operation_params WHERE created_at<=? ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(paramsCols, ","))
 	row := s.db.QueryRowContext(ctx, query, offset)
 
 	var p OperationParams
