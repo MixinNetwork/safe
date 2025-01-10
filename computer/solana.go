@@ -261,7 +261,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 		case system.ProgramID:
 			if transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data); ok {
 				recipient := transfer.GetRecipientAccount().PublicKey
-				if !recipient.Equals(groupDepositEntry) {
+				if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
 					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 				}
 				continue
@@ -288,11 +288,15 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			if transfer, ok := solanaApp.DecodeTokenTransferChecked(accounts, ix.Data); ok {
 				recipient := transfer.GetDestinationAccount().PublicKey
 				token := transfer.GetMintAccount().PublicKey
-				ata, _, err := solana.FindAssociatedTokenAddress(groupDepositEntry, token)
+				entryAta, _, err := solana.FindAssociatedTokenAddress(groupDepositEntry, token)
 				if err != nil {
 					return err
 				}
-				if !recipient.Equals(ata) {
+				userAta, _, err := solana.FindAssociatedTokenAddress(user, token)
+				if err != nil {
+					return err
+				}
+				if !recipient.Equals(entryAta) && !recipient.Equals(userAta) {
 					return fmt.Errorf("invalid token transfer recipient: %s", recipient.String())
 				}
 				continue
