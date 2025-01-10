@@ -315,9 +315,15 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 }
 
 func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
+	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+	if err != nil || mtgUser == nil {
+		panic(err)
+	}
+	mtgAddress := solana.MustPublicKeyFromBase58(mtgUser.Public).String()
+
 	changes := make(map[string]*big.Int)
 	for _, t := range transfers {
-		if t.Receiver == solanaApp.SolanaEmptyAddress {
+		if t.Receiver == solanaApp.SolanaEmptyAddress || t.Sender == mtgAddress {
 			continue
 		}
 
