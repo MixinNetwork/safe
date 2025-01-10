@@ -290,7 +290,7 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tx, as := node.mintExternalTokens(ctx, call, nonce)
+		tx, as := node.transferOrMintTokens(ctx, call, nonce)
 		data, err := tx.MarshalBinary()
 		if err != nil {
 			panic(err)

@@ -81,13 +81,18 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string
 	return tx, nil
 }
 
-func (c *Client) MintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
+func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
 	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
 
 	var nullFreezeAuthority solana.PublicKey
 	var rent uint64
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
+			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, &transfer, payerAdress, mtg)
+			if err != nil {
+				return nil, err
+			}
+			builder = b
 			continue
 		}
 
@@ -250,4 +255,54 @@ func (c *Client) SendAndConfirmTransaction(ctx context.Context, tx *solana.Trans
 		return fmt.Errorf("solana.SendAndConfirmTransaction() => %v", err)
 	}
 	return nil
+}
+
+func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder *solana.TransactionBuilder, transfer *TokenTransfers, payer, source solana.PublicKey) (*solana.TransactionBuilder, error) {
+	if !transfer.SolanaAsset {
+		return builder, nil
+	}
+	if transfer.AssetId == transfer.ChainId {
+		builder.AddInstruction(
+			system.NewTransferInstruction(
+				transfer.Amount,
+				source,
+				transfer.Destination,
+			).Build(),
+		)
+		return builder, nil
+	}
+
+	src, _, err := solana.FindAssociatedTokenAddress(source, transfer.Mint)
+	if err != nil {
+		return nil, err
+	}
+	dst, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, transfer.Mint)
+	if err != nil {
+		return nil, err
+	}
+	ata, err := c.RPCGetAccount(ctx, dst)
+	if err != nil {
+		return nil, err
+	}
+	if ata == nil || common.CheckTestEnvironment(ctx) {
+		builder.AddInstruction(
+			tokenAta.NewCreateInstruction(
+				payer,
+				transfer.Destination,
+				transfer.Mint,
+			).Build(),
+		)
+	}
+	builder.AddInstruction(
+		token.NewTransferCheckedInstruction(
+			transfer.Amount,
+			transfer.Decimals,
+			src,
+			transfer.Mint,
+			dst,
+			source,
+			nil,
+		).Build(),
+	)
+	return builder, nil
 }

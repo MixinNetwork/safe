@@ -179,7 +179,7 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
 	require.Nil(err)
 	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
-	stx, as := node.mintExternalTokens(ctx, call, nonce)
+	stx, as := node.transferOrMintTokens(ctx, call, nonce)
 	require.NotNil(stx)
 	require.Len(as, 1)
 	raw, err := stx.MarshalBinary()

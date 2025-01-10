@@ -435,7 +435,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	call.WithdrawalIds = strings.Join(ids, ",")
 	if len(ids) == 0 {
 		call.WithdrawedAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
-		_, as := node.mintExternalTokens(ctx, call, nil)
+		_, as := node.transferOrMintTokens(ctx, call, nil)
 		if len(as) == 0 {
 			call.State = common.RequestStatePending
 		}

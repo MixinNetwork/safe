@@ -346,7 +346,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 	return changes, nil
 }
 
-func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
+func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
 	user, err := node.store.ReadUserByPublic(ctx, call.Public)
 	if err != nil {
 		panic(err)
@@ -362,6 +362,16 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 	assets := node.getSystemCallRelatedAsset(ctx, call.RequestId)
 	for _, asset := range assets {
 		if asset.Solana {
+			mint := solana.MustPublicKeyFromBase58(asset.Asset.AssetKey)
+			transfers = append(transfers, solanaApp.TokenTransfers{
+				SolanaAsset: true,
+				AssetId:     asset.Asset.AssetID,
+				ChainId:     asset.Asset.ChainID,
+				Mint:        mint,
+				Destination: destination,
+				Amount:      asset.Amount.BigInt().Uint64(),
+				Decimals:    uint8(asset.Asset.Precision),
+			})
 			continue
 		}
 		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID)
@@ -399,7 +409,7 @@ func (node *Node) mintExternalTokens(ctx context.Context, call *store.SystemCall
 		return nil, as
 	}
 
-	tx, err := node.solanaClient().MintTokens(ctx, node.solanaAccount(), mtgUser.PublicKey(), nonce.Account(), transfers)
+	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaAccount(), mtgUser.PublicKey(), nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
