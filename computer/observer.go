@@ -2,10 +2,12 @@ package computer
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
@@ -16,6 +18,7 @@ import (
 )
 
 func (node *Node) bootObserver(ctx context.Context) {
+	go node.sendPriceInfo(ctx)
 	go node.keyLoop(ctx)
 	go node.initMpcKeyLoop(ctx)
 	go node.nonceAccountLoop(ctx)
@@ -26,6 +29,24 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.signedCallLoop(ctx)
 
 	go node.solanaRPCBlocksLoop(ctx)
+}
+
+func (node *Node) sendPriceInfo(ctx context.Context) error {
+	amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
+	logger.Printf("node.sendPriceInfo(%s, %s)", node.conf.OperationPriceAssetId, amount)
+	amount = amount.Mul(decimal.New(1, 8))
+	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
+		panic(node.conf.OperationPriceAmount)
+	}
+	id := common.UniqueId("OperationTypeSetOperationParams", node.conf.OperationPriceAssetId)
+	id = common.UniqueId(id, amount.String())
+	extra := uuid.Must(uuid.FromString(node.conf.OperationPriceAssetId)).Bytes()
+	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
+	return node.sendObserverTransaction(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeSetOperationParams,
+		Extra: extra,
+	})
 }
 
 func (node *Node) keyLoop(ctx context.Context) {

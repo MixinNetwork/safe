@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -86,9 +87,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
 	}
-	if req.AssetId != mtg.StorageAssetId {
-		return node.failRequest(ctx, req, "")
-	}
 
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
@@ -99,8 +97,22 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	} else if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	userAccount := solanaApp.PublicKeyFromEd25519Public(user.Public)
+	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
+	if err != nil {
+		panic(err)
+	}
+	if plan == nil || !plan.OperationPriceAmount.IsPositive() {
+		mix, err := bot.NewMixAddressFromString(user.MixAddress)
+		if err != nil {
+			panic(err)
+		}
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold))
+	}
+	if req.AssetId != plan.OperationPriceAsset || req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
+		return node.failRequest(ctx, req, "")
+	}
 
+	userAccount := solanaApp.PublicKeyFromEd25519Public(user.Public)
 	tx, err := solana.TransactionFromBytes(data[8:])
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", data[8:], tx, err)
 	if err != nil {
@@ -178,6 +190,35 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 
 	return txs, ""
+}
+
+func (node *Node) processSetOperationParams(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeSetOperationParams {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	if len(extra) != 24 {
+		return node.failRequest(ctx, req, "")
+	}
+
+	assetId := uuid.Must(uuid.FromBytes(extra[:16]))
+	abu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[16:24]))
+	amount := decimal.NewFromBigInt(abu, -8)
+	params := &store.OperationParams{
+		RequestId:            req.Id,
+		OperationPriceAsset:  assetId.String(),
+		OperationPriceAmount: amount,
+		CreatedAt:            req.CreatedAt,
+	}
+	err := node.store.WriteOperationParamsFromRequest(ctx, params, req)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
 }
 
 func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

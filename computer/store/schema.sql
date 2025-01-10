@@ -85,6 +85,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS requests_by_mixin_hash_index ON requests(mixin
 CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_at);
 
 
+
+CREATE TABLE IF NOT EXISTS operation_params (
+  request_id           VARCHAR NOT NULL,
+  price_asset          VARCHAR NOT NULL,
+  price_amount         VARCHAR NOT NULL,
+  created_at           TIMESTAMP NOT NULL,
+  PRIMARY KEY ('request_id')
+);
+
+CREATE INDEX IF NOT EXISTS operation_params_by_created ON operation_params(created_at);
+
+
 CREATE TABLE IF NOT EXISTS users (
   user_id        VARCHAR NOT NULL,
   request_id     VARCHAR NOT NULL,

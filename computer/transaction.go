@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
@@ -70,6 +71,19 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.A
 		return act.BuildTransactionWithReference(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold, tx)
 	}
 	return act.BuildTransaction(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold)
+}
+
+func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, receivers []string, threshold int) ([]*mtg.Transaction, string) {
+	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
+	t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
+	if t == nil {
+		return node.failRequest(ctx, req, req.AssetId)
+	}
+	err := node.store.FailRequest(ctx, req, "", []*mtg.Transaction{t})
+	if err != nil {
+		panic(err)
+	}
+	return []*mtg.Transaction{t}, ""
 }
 
 func (node *Node) sendObserverTransaction(ctx context.Context, op *common.Operation) error {
