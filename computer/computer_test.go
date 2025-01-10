@@ -611,6 +611,10 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
 	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
 
+	if rpc := os.Getenv("SOLANARPC"); rpc != "" {
+		conf.Computer.SolanaRPC = rpc
+	}
+
 	seed := crypto.Sha256Hash([]byte(conf.Computer.MTG.App.AppId))
 	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
 	conf.Computer.SaverKey = priv.String()

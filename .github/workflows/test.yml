@@ -7,6 +7,7 @@ on:
     branches: [ "main" ]
 env:
   POLYGONRPC: ${{ vars.POLYGONRPC }}
+  SOLANARPC: ${{ vars.SOLANARPC }}
 
 jobs:
   test:
