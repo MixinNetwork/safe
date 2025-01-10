@@ -331,7 +331,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Receiver, user, err)
 		if err != nil {
 			return nil, err
-		} else if user == nil {
+		} else if user == nil || user.UserId == mtgUser.UserId {
 			continue
 		}
 		token, err := node.store.ReadDeployedAssetByAddress(ctx, t.TokenAddress)
