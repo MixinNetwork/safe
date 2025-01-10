@@ -106,7 +106,7 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	hash := solana.MustHashFromBase58("E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX")
 
 	id := uuid.Must(uuid.NewV4()).String()
-	var extra []byte
+	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
 	extra = append(extra, hash[:]...)
 
@@ -128,7 +128,7 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 	hash := solana.MustHashFromBase58("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
 
 	id := uuid.Must(uuid.NewV4()).String()
-	var extra []byte
+	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
 	extra = append(extra, hash[:]...)
 

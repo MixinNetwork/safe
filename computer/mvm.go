@@ -538,7 +538,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		}
 		new.Public = mtgUser.Public
 		new.Type = store.CallTypePrepare
-	case common.RequestStateDone:
+	case common.RequestStateDone, common.RequestStateFailed:
 		new.Public = call.Public
 		new.Type = store.CallTypePostProcess
 	default:
@@ -561,50 +561,67 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	}
 
 	extra := req.ExtraBytes()
-	signature := base58.Encode(extra[:64])
-	_ = solana.MustSignatureFromBase58(signature)
-	updatedHash := solana.PublicKeyFromBytes(extra[64:]).String()
+	flag, extra := extra[0], extra[1:]
+	switch flag {
+	case FlagConfirmCallSuccess:
+		signature := base58.Encode(extra[:64])
+		_ = solana.MustSignatureFromBase58(signature)
+		updatedHash := solana.PublicKeyFromBytes(extra[64:]).String()
 
-	transaction, err := node.solanaClient().RPCGetTransaction(ctx, signature)
-	if err != nil {
-		panic(err)
-	}
-	if transaction == nil {
+		transaction, err := node.solanaClient().RPCGetTransaction(ctx, signature)
+		if err != nil {
+			panic(err)
+		}
+		if transaction == nil {
+			return node.failRequest(ctx, req, "")
+		}
+
+		tx, err := transaction.Transaction.GetTransaction()
+		if err != nil {
+			panic(err)
+		}
+		msg, err := tx.Message.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		if common.CheckTestEnvironment(ctx) && signature == "2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb" {
+			msg = common.DecodeHexOrPanic("0300050bcdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d6c4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127dbfb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b63dca1663046f4756ce46e2bc880f3e5f4075486ab71a22da53763d9511e53b3d4e0e9c734f6b0f799c77f0da84317dda314af3cd500b6064813c2619d8d4d314375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca850029506a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea9400000000000000000000000000000000000000000000000000000000000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a906a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a000000008c97258f4e2489f1bb3d1029148e0d830b5a1399daff1084048e7bd8dbe9f859756984b89aebd6266f0b276b84a367bb40327e1d21134fa569bc5f51d1e9ad810607030306000404000000070200013400000000604d160000000000520000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9080101431408fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b0100000000000000000000000000000000000000000000000000000000000000000a0700040501070809000803010402090740420f0000000000070202050c02000000404b4c0000000000")
+		}
+		call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
+		if err != nil || call == nil {
+			panic(err)
+		}
+		if call.State != common.RequestStatePending {
+			return node.failRequest(ctx, req, "")
+		}
+		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+		if err != nil || nonce == nil {
+			panic(err)
+		}
+		if nonce.Hash == updatedHash {
+			return node.failRequest(ctx, req, "")
+		}
+		nonce.Hash = updatedHash
+
+		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, nonce)
+		if err != nil {
+			panic(err)
+		}
+		return nil, ""
+	case FlagConfirmCallFail:
+		callId := uuid.Must(uuid.FromBytes(extra)).String()
+		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
+		if err != nil || call == nil {
+			panic(err)
+		}
+		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call)
+		if err != nil {
+			panic(err)
+		}
+		return nil, ""
+	default:
 		return node.failRequest(ctx, req, "")
 	}
-
-	tx, err := transaction.Transaction.GetTransaction()
-	if err != nil {
-		panic(err)
-	}
-	msg, err := tx.Message.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	if common.CheckTestEnvironment(ctx) && signature == "2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb" {
-		msg = common.DecodeHexOrPanic("0300050bcdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d6c4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127dbfb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b63dca1663046f4756ce46e2bc880f3e5f4075486ab71a22da53763d9511e53b3d4e0e9c734f6b0f799c77f0da84317dda314af3cd500b6064813c2619d8d4d314375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca850029506a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea9400000000000000000000000000000000000000000000000000000000000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a906a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a000000008c97258f4e2489f1bb3d1029148e0d830b5a1399daff1084048e7bd8dbe9f859756984b89aebd6266f0b276b84a367bb40327e1d21134fa569bc5f51d1e9ad810607030306000404000000070200013400000000604d160000000000520000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9080101431408fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b0100000000000000000000000000000000000000000000000000000000000000000a0700040501070809000803010402090740420f0000000000070202050c02000000404b4c0000000000")
-	}
-	call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
-	if err != nil || call == nil {
-		panic(err)
-	}
-	if call.State != common.RequestStatePending {
-		return node.failRequest(ctx, req, "")
-	}
-	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
-	if err != nil || nonce == nil {
-		panic(err)
-	}
-	if nonce.Hash == updatedHash {
-		return node.failRequest(ctx, req, "")
-	}
-	nonce.Hash = updatedHash
-
-	err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nonce)
-	if err != nil {
-		panic(err)
-	}
-	return nil, ""
 }
 
 func (node *Node) processObserverRequestSession(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

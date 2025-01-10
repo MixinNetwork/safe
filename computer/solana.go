@@ -138,7 +138,8 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	}
 
 	id := common.UniqueId(txId.String(), "confirm-call")
-	extra := txId[:]
+	extra := []byte{FlagConfirmCallSuccess}
+	extra = append(extra, txId[:]...)
 	extra = append(extra, newNonceHash[:]...)
 	err = node.sendObserverTransaction(ctx, &common.Operation{
 		Id:    id,
@@ -151,6 +152,55 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 
 	if call.Type == store.CallTypeMain {
 		nonce, err := node.store.ReadSpareNonceAccount(ctx)
+		if err != nil {
+			return err
+		}
+		tx := node.burnRestTokens(ctx, call, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
+		if tx == nil {
+			return nil
+		}
+		data, err := tx.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		id := common.UniqueId(call.RequestId, "post-tx-storage")
+		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+		if err != nil {
+			return err
+		}
+
+		id = common.UniqueId(id, "craete-post-call")
+		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
+		extra = append(extra, nonce.Account().Address.Bytes()...)
+		extra = append(extra, hash[:]...)
+		err = node.sendObserverTransaction(ctx, &common.Operation{
+			Id:    id,
+			Type:  OperationTypeCreateSubCall,
+			Extra: extra,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (node *Node) solanaProcessFailedCallTransaction(ctx context.Context, call *store.SystemCall) error {
+	id := common.UniqueId(call.RequestId, "confirm-call-failed")
+	extra := []byte{FlagConfirmCallFail}
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+	err := node.sendObserverTransaction(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeConfirmCall,
+		Extra: extra,
+	})
+	if err != nil {
+		return err
+	}
+
+	if call.Type == store.CallTypeMain {
+		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
 		if err != nil {
 			return err
 		}

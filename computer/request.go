@@ -17,6 +17,9 @@ const (
 	RequestRoleSigner   = 2
 	RequestRoleObserver = 3
 
+	FlagConfirmCallSuccess = 1
+	FlagConfirmCallFail    = 2
+
 	OperationTypeAddUser    = 1
 	OperationTypeSystemCall = 2
 

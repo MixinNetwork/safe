@@ -380,7 +380,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		tx.Signatures[index] = solana.SignatureFromBytes(common.DecodeHexOrPanic(call.Signature.String))
 		err = node.solanaClient().SendAndConfirmTransaction(ctx, tx)
 		if err != nil {
-			return err
+			return node.solanaProcessFailedCallTransaction(ctx, call)
 		}
 		hash := tx.Signatures[0]
 		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash.String())

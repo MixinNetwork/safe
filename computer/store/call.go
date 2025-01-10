@@ -142,7 +142,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, nonce *NonceAccount) error {
+func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, req *Request, call *SystemCall, nonce *NonceAccount) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -169,6 +169,30 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 	err = s.execOne(ctx, tx, query, nonce.Hash, nil, req.CreatedAt, nonce.Address)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
+	}
+
+	err = s.finishRequest(ctx, tx, req, nil, "")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req *Request, call *SystemCall) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	query := "UPDATE system_calls SET state=?, updated_at=? WHERE request_id=? AND state=?"
+	err = s.execOne(ctx, tx, query, common.RequestStateFailed, req.CreatedAt, call.RequestId, common.RequestStatePending)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
 
 	err = s.finishRequest(ctx, tx, req, nil, "")
