@@ -97,6 +97,13 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	} else if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
+	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+	logger.Printf("store.ReadUser(mtg) => %v %v", mtgUser, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadUser() => %v", err))
+	} else if mtgUser == nil {
+		return node.failRequest(ctx, req, "")
+	}
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
 	if err != nil {
 		panic(err)
@@ -161,6 +168,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	var txs []*mtg.Transaction
 	var compaction string
 	as := node.getSystemCallRelatedAsset(ctx, req.Id)
+	destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public).String()
 	for _, asset := range as {
 		if !asset.Solana {
 			continue
@@ -168,7 +176,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		id := common.UniqueId(req.Id, asset.Asset.AssetID)
 		id = common.UniqueId(id, "withdrawal")
 		memo := []byte(req.Id)
-		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, userAccount.String(), "", id)
+		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, destination, "", id)
 		if tx == nil {
 			return node.failRequest(ctx, req, asset.Asset.AssetID)
 		}
