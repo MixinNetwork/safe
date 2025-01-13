@@ -18,6 +18,10 @@ import (
 )
 
 func (node *Node) bootObserver(ctx context.Context) {
+	if string(node.id) != node.conf.ObserverId {
+		return
+	}
+
 	go node.sendPriceInfo(ctx)
 	go node.keyLoop(ctx)
 	go node.initMpcKeyLoop(ctx)

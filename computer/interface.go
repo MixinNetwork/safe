@@ -16,6 +16,7 @@ type Configuration struct {
 	Timestamp               int64              `toml:"timestamp"`
 	Threshold               int                `toml:"threshold"`
 	AssetId                 string             `toml:"asset-id"`
+	ObserverId              string             `toml:"observer_id"`
 	ObserverAssetId         string             `toml:"observer-asset-id"`
 	OperationPriceAssetId   string             `toml:"operation-price-asset-id"`
 	OperationPriceAmount    string             `toml:"operation-price-amount"`
