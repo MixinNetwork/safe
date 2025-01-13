@@ -41,8 +41,6 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 	handleDevConfig(conf.Dev)
 	conf.checkMainnet(role)
 	conf.checkTestnet(role)
-	sort.Strings(conf.Keeper.MTG.Genesis.Members)
-	sort.Strings(conf.Signer.MTG.Genesis.Members)
 	return &conf, nil
 }
 
@@ -111,6 +109,8 @@ func (c *Configuration) checkMainnet(role string) {
 		if !slices.Equal(s.MTG.Genesis.Members, signers) {
 			panic("signers")
 		}
+		sort.Strings(c.Keeper.MTG.Genesis.Members)
+		sort.Strings(c.Signer.MTG.Genesis.Members)
 	}
 
 	k := c.Keeper
@@ -181,6 +181,8 @@ func (c *Configuration) checkTestnet(role string) {
 		if !slices.Equal(s.MTG.Genesis.Members, signers) {
 			panic("signers")
 		}
+		sort.Strings(c.Keeper.MTG.Genesis.Members)
+		sort.Strings(c.Signer.MTG.Genesis.Members)
 	}
 
 	k := c.Keeper
