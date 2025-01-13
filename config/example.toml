@@ -156,8 +156,9 @@ monitor-conversation-id = ""
 timestamp = 1721930640000000000
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
-asset-id = "5473950f-8b08-40b3-96e9-a270fc68edc3"
-observer-asset-id = "8291dc92-c390-41f4-969a-88ddf887cb8f"
+asset-id = "a946936b-1b52-3e02-aec6-4fbccf284d5f"
+observer-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
+observer-asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
 operation-price-asset-id = "c94ac88f-4671-3976-b60a-09064f1811e8"
 operation-price-amount = "0.001"
 # the http api to receive all keygen backup, must be private accessible
@@ -170,7 +171,7 @@ solana-rpc = "https://api.mainnet-beta.solana.com"
 solana-ws-rpc = "wss://api.mainnet-beta.solana.com"
 # solana private key to sign and send transaction
 solana-key = "56HtVW5YQ9Xi8MTeQFAWdSuzV17mrDAr1AUCYzTdx36VLvsodA89eSuZd6axrufzo4tyoUNdgjDpm4fnLJLRcXmF"
-solana-deposit-entry = ""
+solana-deposit-entry = "HT7X7p5XPERge4ZShYALRKzkgxua1fW7rVMfwChRrG9V"
 
 
 [computer.mtg.genesis]
