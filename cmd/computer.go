@@ -68,7 +68,7 @@ func ComputerBootCmd(c *cli.Context) error {
 		return err
 	}
 
-	kd, err := computer.OpenSQLite3Store(mc.Computer.StoreDir + "/safe.sqlite3")
+	kd, err := computer.OpenSQLite3Store(mc.Computer.StoreDir + "/computer.sqlite3")
 	if err != nil {
 		return err
 	}
