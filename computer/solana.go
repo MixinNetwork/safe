@@ -26,8 +26,10 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 	client := node.solanaClient()
 
 	for {
-		// FIXME synchronous block height checkpoint between observers
-		var checkpoint int64
+		checkpoint, err := node.readRequestInt64(ctx, store.BlockScanHeight)
+		if err != nil {
+			panic(err)
+		}
 		height, _, err := client.RPCGetBlockHeight(ctx)
 		if err != nil {
 			logger.Printf("solana.RPCGetBlockHeight => %v", err)
@@ -43,6 +45,10 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		if err != nil {
 			time.Sleep(time.Second * 5)
 			continue
+		}
+		err = node.writeRequestInt64(ctx, store.BlockScanHeight, checkpoint+1)
+		if err != nil {
+			panic(err)
 		}
 	}
 }

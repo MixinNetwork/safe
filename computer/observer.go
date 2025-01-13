@@ -258,11 +258,11 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 }
 
 func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
-	start, err := node.readRequestSequence(ctx, store.WithdrawalConfirmRequestSequence)
+	start, err := node.readRequestInt64(ctx, store.WithdrawalConfirmRequestSequence)
 	if err != nil {
 		return err
 	}
-	txs := node.group.ListConfirmedWithdrawalTransactionsBySequence(ctx, start, 100)
+	txs := node.group.ListConfirmedWithdrawalTransactionsBySequence(ctx, uint64(start), 100)
 	for _, tx := range txs {
 		id := common.UniqueId(tx.TraceId, "confirm-withdrawal")
 		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
@@ -276,7 +276,7 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = node.writeRequestSequence(ctx, store.WithdrawalConfirmRequestSequence, tx.Sequence)
+		err = node.writeRequestInt64(ctx, store.WithdrawalConfirmRequestSequence, int64(tx.Sequence))
 		if err != nil {
 			return err
 		}

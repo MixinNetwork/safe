@@ -177,18 +177,18 @@ func (node *Node) writeRequestTime(ctx context.Context, key string) error {
 	return node.store.WriteProperty(ctx, key, time.Now().Format(time.RFC3339Nano))
 }
 
-func (node *Node) readRequestSequence(ctx context.Context, key string) (uint64, error) {
+func (node *Node) readRequestInt64(ctx context.Context, key string) (int64, error) {
 	val, err := node.store.ReadProperty(ctx, key)
 	if err != nil || val == "" {
 		return 0, err
 	}
-	num, err := strconv.ParseUint(val, 10, 64)
+	num, err := strconv.ParseInt(val, 10, 64)
 	if err != nil {
 		panic(err)
 	}
 	return num, nil
 }
 
-func (node *Node) writeRequestSequence(ctx context.Context, key string, sequence uint64) error {
+func (node *Node) writeRequestInt64(ctx context.Context, key string, sequence int64) error {
 	return node.store.WriteProperty(ctx, key, fmt.Sprintf("%d", sequence))
 }
