@@ -93,10 +93,10 @@ func (node *Node) sendObserverTransaction(ctx context.Context, op *common.Operat
 	}
 
 	traceId := fmt.Sprintf("SESSION:%s:OBSERVER:%s", op.Id, string(node.id))
-	return node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.ObserverAssetId, traceId)
 }
 
-func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, traceId string) error {
+func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, assetId, traceId string) error {
 	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 	amount := decimal.NewFromInt(1)

@@ -74,7 +74,7 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 			extra := []byte{OperationTypeSignPrepare}
 			extra = append(extra, uuid.Must(uuid.FromString(s.Id)).Bytes()...)
 			extra = append(extra, PrepareExtra...)
-			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
+			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.AssetId, traceId)
 			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
 			if err != nil {
 				break
@@ -188,7 +188,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			extra := []byte{op.Type}
 			extra = append(extra, op.IdBytes()...)
 			extra = append(extra, op.Extra...)
-			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, traceId)
+			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.AssetId, traceId)
 			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
 			if err != nil {
 				break
