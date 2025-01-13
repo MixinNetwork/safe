@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS properties (
 	key           VARCHAR NOT NULL,
 	value         VARCHAR NOT NULL,
 	created_at    TIMESTAMP NOT NULL,
+  updated_at    TIMESTAMP NOT NULL,
 	PRIMARY KEY ('key')
 );
 

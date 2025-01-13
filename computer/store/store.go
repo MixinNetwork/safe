@@ -405,22 +405,25 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	}
 	defer common.Rollback(tx)
 
-	var ov string
-	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
-	err = row.Scan(&ov)
-	if err == sql.ErrNoRows {
-	} else if err != nil {
-		return fmt.Errorf("SQLite3Store INSERT properties %v", err)
-	} else if ov != v {
-		return fmt.Errorf("SQLite3Store INSERT properties %s", k)
-	} else {
-		return nil
+	existed, err := s.checkExistence(ctx, tx, "SELECT value FROM properties WHERE key=?", k)
+	if err != nil {
+		return err
 	}
 
-	err = s.execOne(ctx, tx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", k, v, time.Now().UTC())
-	if err != nil {
-		return fmt.Errorf("SQLite3Store INSERT properties %v", err)
+	createdAt := time.Now().UTC()
+	if existed {
+		err = s.execOne(ctx, tx, "UPDATE properties SET value=?, updated_at=? WHERE key=?", v, createdAt, k)
+		if err != nil {
+			return fmt.Errorf("UPDATE properties %v", err)
+		}
+	} else {
+		cols := []string{"key", "value", "created_at", "updated_at"}
+		err = s.execOne(ctx, tx, buildInsertionSQL("properties", cols), k, v, createdAt, createdAt)
+		if err != nil {
+			return fmt.Errorf("INSERT properties %v", err)
+		}
 	}
+
 	return tx.Commit()
 }
 
