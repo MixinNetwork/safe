@@ -96,25 +96,24 @@ func (c *Configuration) checkMainnet(role string) {
 	}
 	keepers := append(signers, "c91eb626-eb89-4fbd-ae21-76f0bd763da5")
 
-	s := c.Signer
 	if role == "signer" {
+		s := c.Signer
 		assert(s.AppId, SignerAppId, "signer.app-id")
 		assert(s.KeeperAppId, KeeperAppId, "signer.keeper-app-id")
 		assert(s.AssetId, SignerToken, "signer.asset-id")
 		assert(s.KeeperAssetId, KeeperToken, "signer.keeper-asset-id")
-	}
-	if role == "signer" || role == "keeper" {
+
 		assert(s.MTG.Genesis.Epoch, uint64(15903300), "signer.genesis.epoch")
 		assert(s.MTG.Genesis.Threshold, int(19), "signer.genesis.threshold")
 		if !slices.Equal(s.MTG.Genesis.Members, signers) {
 			panic("signers")
 		}
-		sort.Strings(c.Keeper.MTG.Genesis.Members)
+
 		sort.Strings(c.Signer.MTG.Genesis.Members)
 	}
 
-	k := c.Keeper
 	if role == "keeper" {
+		k := c.Keeper
 		assert(k.AppId, KeeperAppId, "keeper.app-id")
 		assert(k.SignerAppId, SignerAppId, "keeper.signer-app-id")
 		assert(k.AssetId, KeeperToken, "keeper.asset-id")
@@ -122,13 +121,14 @@ func (c *Configuration) checkMainnet(role string) {
 		assert(k.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "keeper.polygon-factory-address")
 		assert(k.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12", "keeper.polygon-observer-deposit-entry")
 		assert(k.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "keeper.polygon-keeper-deposity-entry")
-	}
-	if role == "keeper" || role == "observer" {
+
 		assert(k.MTG.Genesis.Epoch, uint64(15903300), "keeper.genesis.epoch")
 		assert(k.MTG.Genesis.Threshold, int(19), "keeper.genesis.threshold")
 		if !slices.Equal(k.MTG.Genesis.Members, keepers) {
 			panic("keepers")
 		}
+
+		sort.Strings(c.Keeper.MTG.Genesis.Members)
 	}
 
 	if role == "observer" {
@@ -168,25 +168,24 @@ func (c *Configuration) checkTestnet(role string) {
 	}
 	keepers := append(signers, "fcb87491-4fa0-4c2f-b387-262b63cbc112")
 
-	s := c.Signer
 	if role == "signer" {
+		s := c.Signer
 		assert(s.AppId, SignerAppId, "signer.app-id")
 		assert(s.KeeperAppId, KeeperAppId, "signer.keeper-app-id")
 		assert(s.AssetId, SignerToken, "signer.asset-id")
 		assert(s.KeeperAssetId, KeeperToken, "signer.keeper-asset-id")
-	}
-	if role == "signer" || role == "keeper" {
+
 		assert(s.MTG.Genesis.Epoch, uint64(9877485), "signer.genesis.epoch")
 		assert(s.MTG.Genesis.Threshold, int(4), "signer.genesis.threshold")
 		if !slices.Equal(s.MTG.Genesis.Members, signers) {
 			panic("signers")
 		}
-		sort.Strings(c.Keeper.MTG.Genesis.Members)
+
 		sort.Strings(c.Signer.MTG.Genesis.Members)
 	}
 
-	k := c.Keeper
 	if role == "keeper" {
+		k := c.Keeper
 		assert(k.AppId, KeeperAppId, "keeper.app-id")
 		assert(k.SignerAppId, SignerAppId, "keeper.signer-app-id")
 		assert(k.AssetId, KeeperToken, "keeper.asset-id")
@@ -194,13 +193,14 @@ func (c *Configuration) checkTestnet(role string) {
 		assert(k.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "keeper.polygon-factory-address")
 		assert(k.PolygonObserverDepositEntry, "0x9d04735aaEB73535672200950fA77C2dFC86eB21", "keeper.polygon-observer-deposit-entry")
 		assert(k.PolygonKeeperDepositEntry, "0x11EC02748116A983deeD59235302C3139D6e8cdD", "keeper.polygon-keeper-deposity-entry")
-	}
-	if role == "keeper" || role == "observer" {
+
 		assert(k.MTG.Genesis.Epoch, uint64(9877485), "keeper.genesis.epoch")
 		assert(k.MTG.Genesis.Threshold, int(4), "keeper.genesis.threshold")
 		if !slices.Equal(k.MTG.Genesis.Members, keepers) {
 			panic("keepers")
 		}
+
+		sort.Strings(c.Keeper.MTG.Genesis.Members)
 	}
 
 	if role == "observer" {
