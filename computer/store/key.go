@@ -15,7 +15,7 @@ const (
 	KeygenRequestTimeKey             = "keygen-request-time"
 	NonceAccountRequestTimeKey       = "nonce-request-time"
 	WithdrawalConfirmRequestSequence = "withdrawal-request-sequence"
-	BlockScanHeight                  = "block-scan-height"
+	SolanaScanHeight                 = "solana-scan-height"
 )
 
 type KeygenResult struct {

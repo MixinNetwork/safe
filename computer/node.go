@@ -177,7 +177,7 @@ func (node *Node) writeRequestTime(ctx context.Context, key string) error {
 	return node.store.WriteProperty(ctx, key, time.Now().Format(time.RFC3339Nano))
 }
 
-func (node *Node) readRequestInt64(ctx context.Context, key string) (int64, error) {
+func (node *Node) readRequestNumber(ctx context.Context, key string) (int64, error) {
 	val, err := node.store.ReadProperty(ctx, key)
 	if err != nil || val == "" {
 		return 0, err
@@ -189,6 +189,14 @@ func (node *Node) readRequestInt64(ctx context.Context, key string) (int64, erro
 	return num, nil
 }
 
-func (node *Node) writeRequestInt64(ctx context.Context, key string, sequence int64) error {
+func (node *Node) writeRequestNumber(ctx context.Context, key string, sequence int64) error {
 	return node.store.WriteProperty(ctx, key, fmt.Sprintf("%d", sequence))
+}
+
+func (node *Node) readSolanaBlockCheckpoint(ctx context.Context) (int64, error) {
+	height, err := node.readRequestNumber(ctx, store.SolanaScanHeight)
+	if err != nil || height == 0 {
+		return 313743624, err
+	}
+	return height, nil
 }

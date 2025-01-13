@@ -26,7 +26,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 	client := node.solanaClient()
 
 	for {
-		checkpoint, err := node.readRequestInt64(ctx, store.BlockScanHeight)
+		checkpoint, err := node.readSolanaBlockCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -46,7 +46,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		err = node.writeRequestInt64(ctx, store.BlockScanHeight, checkpoint+1)
+		err = node.writeRequestNumber(ctx, store.SolanaScanHeight, checkpoint+1)
 		if err != nil {
 			panic(err)
 		}

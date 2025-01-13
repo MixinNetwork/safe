@@ -258,7 +258,7 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 }
 
 func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
-	start, err := node.readRequestInt64(ctx, store.WithdrawalConfirmRequestSequence)
+	start, err := node.readRequestNumber(ctx, store.WithdrawalConfirmRequestSequence)
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = node.writeRequestInt64(ctx, store.WithdrawalConfirmRequestSequence, int64(tx.Sequence))
+		err = node.writeRequestNumber(ctx, store.WithdrawalConfirmRequestSequence, int64(tx.Sequence))
 		if err != nil {
 			return err
 		}
