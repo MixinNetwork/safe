@@ -435,7 +435,7 @@ func (node *Node) processSolanaSafeApproveAccount(ctx context.Context, req *comm
 	}
 	txs := []*mtg.Transaction{stx}
 
-	typ := byte(common.ActionBitcoinSafeApproveAccount)
+	typ := byte(common.ActionSolanaSafeApproveAccount)
 	crv := common.SafeChainCurve(sp.Chain)
 	t := node.buildObserverResponseWithAssetAndStorageTraceId(ctx, req.Id, req.Output, typ, crv, spr.AssetId, spr.Amount.String(), stx.TraceId)
 	if t == nil {
@@ -455,7 +455,7 @@ func (node *Node) processSolanaSafeApproveAccount(ctx context.Context, req *comm
 		Receivers:   sp.Receivers,
 		Threshold:   sp.Threshold,
 		RequestId:   req.Id,
-		State:       SafeStatePending,
+		State:       SafeStateApproved,
 		Nonce:       0,
 		SafeAssetId: safeAssetId,
 		CreatedAt:   req.CreatedAt,

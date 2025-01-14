@@ -890,6 +890,10 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 		params, _ := node.store.ReadLatestOperationParams(ctx, common.SafeChainPolygon, time.Now())
 		require.Equal(params.OperationPriceAsset, om["asset_id"])
 		require.Equal(params.OperationPriceAmount.String(), om["amount"])
+	case common.ActionSolanaSafeApproveAccount:
+		params, _ := node.store.ReadLatestOperationParams(ctx, common.SafeChainSolana, time.Now())
+		require.Equal(params.OperationPriceAsset, om["asset_id"])
+		require.Equal(params.OperationPriceAmount.String(), om["amount"])
 	default:
 		require.Equal(node.conf.ObserverAssetId, om["asset_id"])
 		require.Equal("1", om["amount"])

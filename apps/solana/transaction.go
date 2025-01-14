@@ -545,3 +545,29 @@ func CheckTransactionSignedBy(tx *solana.Transaction, pub solana.PublicKey) bool
 
 	return false
 }
+
+// ValidateTransactionSignatures validates the signatures of the transaction
+// 1. the length of signatures must be equal to the number of required signatures
+// 2. the signature must be non-zero
+func ValidateTransactionSignatures(tx *solana.Transaction) error {
+	if len(tx.Signatures) != int(tx.Message.Header.NumRequiredSignatures) {
+		return fmt.Errorf("invalid signatures length, expected %d, actual %d", tx.Message.Header.NumRequiredSignatures, len(tx.Signatures))
+	}
+
+	content, err := tx.Message.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("solana.Transaction.Message.MarshalBinary() => %v", err)
+	}
+
+	for i, sig := range tx.Signatures {
+		if sig.IsZero() {
+			return fmt.Errorf("signature at index %d is zero", i)
+		}
+
+		if !tx.Message.AccountKeys[i].Verify(content, sig) {
+			return fmt.Errorf("signature at index %d verification failed", i)
+		}
+	}
+
+	return nil
+}
