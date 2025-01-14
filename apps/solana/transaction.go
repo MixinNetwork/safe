@@ -3,6 +3,7 @@ package solana
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/MixinNetwork/safe/common"
 	solana "github.com/gagliardetto/solana-go"
@@ -251,7 +252,14 @@ func (c *Client) SendAndConfirmTransaction(ctx context.Context, tx *solana.Trans
 	}
 	defer ws.Close()
 
-	if _, err := confirm.SendAndConfirmTransaction(ctx, client, ws, tx); err != nil {
+	_, err = confirm.SendAndConfirmTransactionWithOpts(ctx, client, ws, tx, rpc.TransactionOpts{
+		SkipPreflight:       false,
+		PreflightCommitment: rpc.CommitmentConfirmed,
+	}, nil)
+	if err != nil {
+		if strings.Contains(err.Error(), "timeout") {
+			return c.SendAndConfirmTransaction(ctx, tx)
+		}
 		return fmt.Errorf("solana.SendAndConfirmTransaction() => %v", err)
 	}
 	return nil
