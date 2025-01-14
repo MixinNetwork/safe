@@ -47,7 +47,7 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string
 	if hash != "" {
 		blockhash = solana.MustHashFromBase58(hash)
 	} else {
-		block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+		block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
 		if err != nil {
 			return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 		}
