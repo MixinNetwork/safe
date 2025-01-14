@@ -252,9 +252,11 @@ func (c *Client) SendAndConfirmTransaction(ctx context.Context, tx *solana.Trans
 	}
 	defer ws.Close()
 
+	retry := uint(5)
 	_, err = confirm.SendAndConfirmTransactionWithOpts(ctx, client, ws, tx, rpc.TransactionOpts{
 		SkipPreflight:       false,
 		PreflightCommitment: rpc.CommitmentConfirmed,
+		MaxRetries:          &retry,
 	}, nil)
 	if err != nil {
 		if strings.Contains(err.Error(), "timeout") {
