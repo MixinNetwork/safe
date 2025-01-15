@@ -40,3 +40,6 @@ jobs:
 
     - name: TestSigner
       run: go test -v ./signer/...
+
+    - name: TestComputer
+      run: go test -v ./computer/...
