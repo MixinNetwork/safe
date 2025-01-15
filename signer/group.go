@@ -326,6 +326,9 @@ func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) 
 		}
 		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
 	case common.CurveSecp256k1SchnorrBitcoin:
+		if checkPathDeriveNeeded(path) {
+			panic(hex.EncodeToString(path))
+		}
 		group := curve.Secp256k1{}
 		conf := &frost.TaprootConfig{PrivateShare: group.NewScalar()}
 		err := conf.UnmarshalBinary(share)
@@ -339,10 +342,37 @@ func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) 
 		if err != nil {
 			panic(err)
 		}
-		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
+		pub := common.MarshalPanic(conf.PublicPoint())
+		if checkPathDeriveNeeded(path) {
+			adjust := conf.Curve().NewScalar()
+			seed := crypto.Sha256Hash(append(pub, path...))
+			for {
+				priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
+				err = adjust.UnmarshalBinary(priv[:])
+				if err == nil {
+					break
+				}
+				seed = crypto.Sha256Hash(priv[:])
+			}
+			cc, err := conf.Derive(adjust, nil)
+			if err != nil {
+				panic(err)
+			}
+			pub = common.MarshalPanic(cc.PublicPoint())
+		}
+		return pub, conf.ChainKey
 	default:
 		panic(crv)
 	}
+}
+
+func checkPathDeriveNeeded(path []byte) bool {
+	for _, b := range path {
+		if b > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (node *Node) verifySessionHolder(_ context.Context, crv byte, holder string) bool {
