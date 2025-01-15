@@ -811,6 +811,21 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 		panic(hex.EncodeToString(vsig))
 	}
 
+	if common.CheckTestEnvironment(ctx) {
+		key := "SIGNER:" + sid
+		val, err := node.store.ReadProperty(ctx, key)
+		if err != nil {
+			panic(err)
+		}
+		if val == "" {
+			extra := []byte{OperationTypeSignOutput}
+			extra = append(extra, signature...)
+			err = node.store.WriteProperty(ctx, key, hex.EncodeToString(extra))
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
 	err = node.store.AttachSystemCallSignatureWithRequest(ctx, req, call, s.Id, base64.StdEncoding.EncodeToString(sig))
 	if err != nil {
 		panic(fmt.Errorf("store.AttachSystemCallSignatureWithRequest(%s %v) => %v", s.Id, call, err))
