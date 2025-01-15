@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	KeygenRequestTimeKey             = "keygen-request-time"
-	NonceAccountRequestTimeKey       = "nonce-request-time"
-	WithdrawalConfirmRequestSequence = "withdrawal-request-sequence"
-	SolanaScanHeight                 = "solana-scan-height"
+	KeygenRequestTimeKey            = "keygen-request-time"
+	NonceAccountRequestTimeKey      = "nonce-request-time"
+	WithdrawalConfirmRequestTimeKey = "withdrawal-request-time"
+	SolanaScanHeightKey             = "solana-scan-height"
 )
 
 type KeygenResult struct {

@@ -729,12 +729,14 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 	}
 
 	err = node.store.PrepareSessionSignerIfNotExist(ctx, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt)
+	logger.Printf("store.PrepareSessionSignerIfNotExist(%s %s %s) => %v", s.Id, node.id, req.Output.Senders[0], err)
 	if err != nil {
 		panic(fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", s, err))
 	}
 	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
+	logger.Printf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err)
 	if err != nil {
-		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
+		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %v", s.Id, err))
 	}
 	if len(signers) <= node.threshold {
 		logger.Printf("insufficient prepared signers: %d %d", len(signers), node.threshold)
@@ -777,7 +779,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 		panic(fmt.Errorf("store.UpdateSessionSigner(%s %s) => %v", s.Id, req.Output.Senders[0], err))
 	}
 	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
-	logger.Printf("store.ListSessionSignerResults(%s) => %d %x", s.Id, len(signers), s.Id)
+	logger.Printf("store.ListSessionSignerResults(%s) => %d", s.Id, len(signers))
 	if err != nil {
 		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
 	}

@@ -177,7 +177,7 @@ func (node *Node) requestKeys(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return node.writeRequestTime(ctx, store.KeygenRequestTimeKey)
+	return node.writeRequestTime(ctx, store.KeygenRequestTimeKey, time.Now())
 }
 
 func (node *Node) requestInitMpcKey(ctx context.Context) error {
@@ -223,7 +223,7 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey)
+	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey, time.Now())
 }
 
 func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
@@ -258,11 +258,11 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 }
 
 func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
-	start, err := node.readRequestNumber(ctx, store.WithdrawalConfirmRequestSequence)
+	start, err := node.readRequestTime(ctx, store.WithdrawalConfirmRequestTimeKey)
 	if err != nil {
 		return err
 	}
-	txs := node.group.ListConfirmedWithdrawalTransactionsBySequence(ctx, uint64(start), 100)
+	txs := node.group.ListConfirmedWithdrawalTransactionsAfter(ctx, start, 100)
 	for _, tx := range txs {
 		id := common.UniqueId(tx.TraceId, "confirm-withdrawal")
 		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
@@ -276,7 +276,7 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = node.writeRequestNumber(ctx, store.WithdrawalConfirmRequestSequence, int64(tx.Sequence))
+		err = node.writeRequestTime(ctx, store.WithdrawalConfirmRequestTimeKey, tx.UpdatedAt)
 		if err != nil {
 			return err
 		}

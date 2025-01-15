@@ -173,8 +173,8 @@ func (node *Node) readRequestTime(ctx context.Context, key string) (time.Time, e
 	return time.Parse(time.RFC3339Nano, val)
 }
 
-func (node *Node) writeRequestTime(ctx context.Context, key string) error {
-	return node.store.WriteProperty(ctx, key, time.Now().Format(time.RFC3339Nano))
+func (node *Node) writeRequestTime(ctx context.Context, key string, offset time.Time) error {
+	return node.store.WriteProperty(ctx, key, offset.Format(time.RFC3339Nano))
 }
 
 func (node *Node) readRequestNumber(ctx context.Context, key string) (int64, error) {
@@ -194,7 +194,7 @@ func (node *Node) writeRequestNumber(ctx context.Context, key string, sequence i
 }
 
 func (node *Node) readSolanaBlockCheckpoint(ctx context.Context) (int64, error) {
-	height, err := node.readRequestNumber(ctx, store.SolanaScanHeight)
+	height, err := node.readRequestNumber(ctx, store.SolanaScanHeightKey)
 	if err != nil || height == 0 {
 		return 313743624, err
 	}
