@@ -20,6 +20,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -309,7 +310,7 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, crv byte, public stri
 	path := fingerPath[8:]
 
 	switch crv {
-	case common.CurveEdwards25519Default:
+	case common.CurveEdwards25519Default, common.CurveEdwards25519Mixin:
 		if len(fingerPath) != 16 {
 			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 		}
@@ -338,7 +339,7 @@ func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) 
 		}
 		return common.MarshalPanic(conf.PublicPoint()), conf.ChainKey
 	case common.CurveSecp256k1SchnorrBitcoin:
-		if checkPathDeriveNeeded(path) {
+		if mixin.CheckEd25519ValidChildPath(path) {
 			panic(hex.EncodeToString(path))
 		}
 		group := curve.Secp256k1{}
@@ -355,36 +356,14 @@ func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) 
 			panic(err)
 		}
 		pub := common.MarshalPanic(conf.PublicPoint())
-		if checkPathDeriveNeeded(path) {
-			adjust := conf.Curve().NewScalar()
-			seed := crypto.Sha256Hash(append(pub, path...))
-			for {
-				priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
-				err = adjust.UnmarshalBinary(priv[:])
-				if err == nil {
-					break
-				}
-				seed = crypto.Sha256Hash(priv[:])
-			}
-			cc, err := conf.Derive(adjust, nil)
-			if err != nil {
-				panic(err)
-			}
-			pub = common.MarshalPanic(cc.PublicPoint())
+		if mixin.CheckEd25519ValidChildPath(path) {
+			conf = deriveEd25519Child(conf, pub, path)
+			pub = common.MarshalPanic(conf.PublicPoint())
 		}
 		return pub, conf.ChainKey
 	default:
 		panic(crv)
 	}
-}
-
-func checkPathDeriveNeeded(path []byte) bool {
-	for _, b := range path {
-		if b > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 func (node *Node) verifySessionHolder(_ context.Context, crv byte, holder string) bool {
