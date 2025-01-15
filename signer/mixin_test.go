@@ -45,15 +45,17 @@ func TestFROSTMixinSign(t *testing.T) {
 	var sig0, sig1 crypto.Signature
 	hash := ver.PayloadHash()
 
+	path := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+
 	msk := crypto.HashScalar(crypto.KeyMultPubPriv(&R0, &addr.PrivateViewKey), 0).Bytes()
 	msk = append(msk, hash[:]...)
-	fsb := testFROSTSign(ctx, require, nodes, public, msk, CurveEdwards25519Mixin)
+	fsb := testFROSTSign(ctx, require, nodes, public, msk, path, CurveEdwards25519Mixin)
 	require.Len(fsb, 64)
 	copy(sig0[:], fsb)
 
 	msk = crypto.HashScalar(crypto.KeyMultPubPriv(&R1, &addr.PrivateViewKey), 0).Bytes()
 	msk = append(msk, hash[:]...)
-	fsb = testFROSTSign(ctx, require, nodes, public, msk, CurveEdwards25519Mixin)
+	fsb = testFROSTSign(ctx, require, nodes, public, msk, path, CurveEdwards25519Mixin)
 	require.Len(fsb, 64)
 	copy(sig1[:], fsb)
 

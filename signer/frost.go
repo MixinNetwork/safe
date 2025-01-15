@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
@@ -39,7 +40,7 @@ func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve
 	}, nil
 }
 
-func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*SignResult, error) {
+func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int, path []byte) (*SignResult, error) {
 	logger.Printf("node.frostSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	conf := frost.EmptyConfig(group)
 	err := conf.UnmarshalBinary(share)
@@ -50,6 +51,25 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 	pb := common.MarshalPanic(P)
 	if hex.EncodeToString(pb) != public {
 		panic(public)
+	}
+
+	if variant == sign.ProtocolEd25519SHA512 && checkPathDeriveNeeded(path) {
+		adjust := conf.Curve().NewScalar()
+		seed := crypto.Sha256Hash(append(pb, path...))
+		for {
+			priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
+			err = adjust.UnmarshalBinary(priv[:])
+			if err == nil {
+				break
+			}
+			seed = crypto.Sha256Hash(priv[:])
+		}
+		cc, err := conf.Derive(adjust, nil)
+		if err != nil {
+			panic(err)
+		}
+		conf = cc
+		P = cc.PublicPoint()
 	}
 
 	if variant == sign.ProtocolMixinPublic {

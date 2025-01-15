@@ -31,6 +31,8 @@ type partyContextTyp string
 
 const partyContextKey = partyContextTyp("party")
 
+var sequence uint64 = 5000000
+
 func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.SQLite3Store) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
@@ -39,11 +41,12 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 	saverStore, port := testStartSaver(require)
 
 	nodes := make([]*Node, 4)
+	mds := make([]*mtg.SQLite3Store, 4)
 	for i := 0; i < 4; i++ {
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
-		nodes[i] = testBuildNode(ctx, require, root, i, saverStore, port)
+		nodes[i], mds[i] = testBuildNode(ctx, require, root, i, saverStore, port)
 	}
 
 	network := newTestNetwork(nodes[0].GetPartySlice())
@@ -55,6 +58,22 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 		go nodes[i].loopPreparedSessions(ctx)
 		go nodes[i].loopPendingSessions(ctx)
 		go nodes[i].acceptIncomingMessages(ctx)
+
+		id := common.UniqueId("initial-outputs", "1")
+		_, err := testWriteOutput(ctx, mds[i], id, nodes[i].conf.AppId, nodes[i].conf.KeeperAssetId, "", sequence, decimal.NewFromInt(1))
+		require.Nil(err)
+		id = common.UniqueId("initial-outputs", "2")
+		sequence += 1
+		_, err = testWriteOutput(ctx, mds[i], id, nodes[i].conf.AppId, nodes[i].conf.KeeperAssetId, "", sequence, decimal.NewFromInt(1))
+		require.Nil(err)
+		id = common.UniqueId("initial-outputs", "3")
+		sequence += 1
+		_, err = testWriteOutput(ctx, mds[i], id, nodes[i].conf.AppId, nodes[i].conf.KeeperAssetId, "", sequence, decimal.NewFromInt(1))
+		require.Nil(err)
+		id = common.UniqueId("initial-outputs", "4")
+		sequence += 1
+		_, err = testWriteOutput(ctx, mds[i], id, nodes[i].conf.AppId, nodes[i].conf.KeeperAssetId, "", sequence, decimal.NewFromInt(1))
+		require.Nil(err)
 	}
 
 	return ctx, nodes, saverStore
@@ -165,6 +184,22 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	return op.Extra
 }
 
+func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, id, appId, assetId, extra string, sequence uint64, amount decimal.Decimal) (*mtg.UnifiedOutput, error) {
+	output := &mtg.UnifiedOutput{
+		OutputId:           id,
+		AppId:              appId,
+		AssetId:            assetId,
+		Amount:             amount,
+		Sequence:           sequence,
+		SequencerCreatedAt: time.Now(),
+		TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
+		State:              mtg.SafeUtxoStateUnspent,
+		Extra:              extra,
+	}
+	err := db.WriteAction(ctx, output, mtg.ActionStateDone)
+	return output, err
+}
+
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	out.TestAttachActionToGroup(nodes[0].group)
 	network := nodes[0].network.(*testNetwork)
@@ -181,7 +216,7 @@ func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes [
 	return op
 }
 
-func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store, port int) *Node {
+func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store, port int) (*Node, *mtg.SQLite3Store) {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Signer *Configuration `toml:"signer"`
@@ -216,7 +251,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 
 	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil)
 	group.AttachWorker(node.conf.AppId, node)
-	return node
+	return node, md
 }
 
 func testWaitOperation(ctx context.Context, node *Node, sessionId string) *common.Operation {
@@ -316,12 +351,14 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 }
 
 func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
+	sequence += 1
 	out := &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           uuid.Must(uuid.NewV4()).String(),
 			AppId:              node.conf.AppId,
 			Senders:            []string{string(node.id)},
 			AssetId:            node.conf.AssetId,
+			Sequence:           sequence,
 			SequencerCreatedAt: time.Now(),
 		},
 	}

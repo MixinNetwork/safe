@@ -3,6 +3,7 @@ package signer
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
@@ -88,7 +89,6 @@ func (r *Session) asOperation() *common.Operation {
 }
 
 func (node *Node) ProcessOutput(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
-	logger.Verbosef("node.ProcessOutput(%v)", out)
 	if out.SequencerCreatedAt.IsZero() {
 		panic(out.OutputId)
 	}
@@ -269,7 +269,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 			}
 		}
 
-		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, session.Public)
+		holder, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Curve, session.Public)
 		logger.Printf("node.readKeyByFingerPath(%s) => %s %v", session.Public, holder, err)
 		if err != nil {
 			panic(err)
@@ -300,14 +300,26 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	return []*mtg.Transaction{tx}, ""
 }
 
-func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, byte, []byte, []byte, error) {
+func (node *Node) readKeyByFingerPath(ctx context.Context, crv byte, public string) (string, byte, []byte, []byte, error) {
 	fingerPath, err := hex.DecodeString(public)
-	if err != nil || len(fingerPath) != 12 || fingerPath[8] > 3 {
+	if err != nil {
 		return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 	}
 	fingerprint := hex.EncodeToString(fingerPath[:8])
+	path := fingerPath[8:]
+
+	switch crv {
+	case common.CurveEdwards25519Default:
+		if len(fingerPath) != 16 {
+			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
+		}
+	default:
+		if len(fingerPath) != 12 || fingerPath[8] > 3 {
+			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
+		}
+	}
 	public, crv, share, err := node.store.ReadKeyByFingerprint(ctx, fingerprint)
-	return public, crv, share, fingerPath[8:], err
+	return public, crv, share, path, err
 }
 
 func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) ([]byte, []byte) {
@@ -466,8 +478,12 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		res := mpub.Verify(hash, msig)
 		logger.Printf("mixin.Verify(%v, %x) => %t", hash, msig[:], res)
 		return res, sig
-	case common.CurveEdwards25519Default,
-		common.CurveSecp256k1SchnorrBitcoin:
+	case common.CurveEdwards25519Default:
+		pub := ed25519.PublicKey(public)
+		res := ed25519.Verify(pub, msg, sig)
+		logger.Printf("ed25519.Verify(%x, %x) => %t", msg, sig[:], res)
+		return res, sig
+	case common.CurveSecp256k1SchnorrBitcoin:
 		return common.CheckTestEnvironment(ctx), sig // TODO
 	default:
 		panic(crv)
@@ -578,7 +594,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		logger.Printf("node.startSign(%v, %v) exit without committement\n", op, members)
 		return nil
 	}
-	public, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+	public, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Curve, op.Public)
 	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
 	if err != nil {
 		return fmt.Errorf("node.readKeyByFingerPath(%s) => %v", op.Public, err)
@@ -603,10 +619,10 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		res, err = node.taprootSign(ctx, members, public, share, op.Extra, op.IdBytes())
 		logger.Printf("node.taprootSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Default:
-		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512)
+		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolEd25519SHA512, path)
 		logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
 	case common.CurveEdwards25519Mixin:
-		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic)
+		res, err = node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, sign.ProtocolMixinPublic, path)
 		logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
 	default:
 		panic(op.Id)

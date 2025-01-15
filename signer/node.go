@@ -229,7 +229,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			case common.OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 			case common.OperationTypeSignInput:
-				holder, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+				holder, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Curve, op.Public)
 				if err != nil || crv != op.Curve {
 					panic(err)
 				}
