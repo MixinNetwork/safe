@@ -107,7 +107,7 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 			if len(signers) != threshold && s.Operation != OperationTypeKeygenInput {
 				panic(fmt.Sprintf("ListSessionPreparedMember(%s, %d) => %d", s.Id, threshold, len(signers)))
 			}
-			results[i] = node.queueOperation(ctx, s.AsOperation(), node.GetPartySlice())
+			results[i] = node.queueOperation(ctx, s.AsOperation(), signers)
 		}
 		for _, res := range results {
 			if res == nil {
