@@ -106,12 +106,7 @@ func (s *SQLite3Store) ReadUserByPublic(ctx context.Context, public string) (*Us
 	return userFromRow(row)
 }
 
-func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, address string) error {
-	id, err := s.GetNextUserId(ctx)
-	if err != nil {
-		return err
-	}
-
+func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, id, mixAddress, chainAddress, key string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -121,16 +116,12 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, a
 	}
 	defer common.Rollback(tx)
 
-	key, err := s.assignKeyToUser(ctx, tx, req, id.String())
-	if err != nil {
-		return err
-	}
-	account, err := s.assignNonceAccountToUser(ctx, tx, req, id.String())
+	account, err := s.assignNonceAccountToUser(ctx, tx, req, id)
 	if err != nil {
 		return err
 	}
 
-	vals := []any{id.String(), req.Id, address, solanaApp.PublicKeyFromEd25519Public(key).String(), key, account, time.Now()}
+	vals := []any{id, req.Id, mixAddress, chainAddress, key, account, time.Now()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)

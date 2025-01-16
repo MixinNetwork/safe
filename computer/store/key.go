@@ -212,6 +212,21 @@ func (s *SQLite3Store) ReadFirstGeneratedKey(ctx context.Context) (string, error
 	return public, err
 }
 
+func (s *SQLite3Store) ReadLatestKey(ctx context.Context) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	var public string
+	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE confirmed_at IS NOT NULL ORDER BY confirmed_at DESC LIMIT 1")
+	err := row.Scan(&public)
+	if err == sql.ErrNoRows {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return public, err
+}
+
 func (s *SQLite3Store) CheckMpcKeyInitialized(ctx context.Context) (bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

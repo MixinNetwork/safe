@@ -53,15 +53,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	} else if old != nil {
 		return node.failRequest(ctx, req, "")
 	}
-
-	count, err := node.store.CountSpareKeys(ctx)
-	logger.Printf("store.CountSpareKeys(%v) => %d %v", req, count, err)
-	if err != nil {
-		panic(fmt.Errorf("store.CountSpareKeys() => %v", err))
-	} else if count == 0 {
-		return node.failRequest(ctx, req, "")
-	}
-	count, err = node.store.CountSpareNonceAccounts(ctx)
+	count, err := node.store.CountSpareNonceAccounts(ctx)
 	logger.Printf("store.CountSpareNonceAccounts(%v) => %d %v", req, count, err)
 	if err != nil {
 		panic(fmt.Errorf("store.CountSpareNonceAccounts() => %v", err))
@@ -69,7 +61,21 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.WriteUserWithRequest(ctx, req, mix)
+	id, err := node.store.GetNextUserId(ctx)
+	logger.Printf("store.GetNextUserId() => %s %v", id.String(), err)
+	if err != nil {
+		panic(err)
+	}
+	key, err := node.store.ReadLatestKey(ctx)
+	logger.Printf("store.ReadLatestKey() => %s %v", key, err)
+	if err != nil || key == "" {
+		panic(fmt.Errorf("store.ReadLatestKey() => %s %v", key, err))
+	}
+	path := id.FillBytes(make([]byte, 8))
+	public := common.DeriveEd25519Child(key, path)
+	chainAddress := solana.PublicKeyFromBytes(public[:])
+
+	err = node.store.WriteUserWithRequest(ctx, req, id.String(), mix, chainAddress, key)
 	if err != nil {
 		panic(fmt.Errorf("store.WriteUserWithRequest(%v %s) => %v", req, mix, err))
 	}
