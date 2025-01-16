@@ -469,10 +469,6 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 		sessions, err = node.store.ListPendingSessions(ctx, 500)
 		require.Nil(err)
 		require.Len(sessions, 0)
-
-		key, err := node.store.GetSpareKey(ctx)
-		require.Nil(err)
-		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key.Public)
 	}
 }
 

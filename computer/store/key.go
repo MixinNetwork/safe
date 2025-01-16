@@ -74,57 +74,6 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, session *Session
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([]*Key, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "backed_up_at"}
-	query := fmt.Sprintf("SELECT %s FROM keys WHERE confirmed_at IS NOT NULL AND backed_up_at IS NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
-	rows, err := s.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var keys []*Key
-	for rows.Next() {
-		var k Key
-		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt, &k.BackedUpAt)
-		if err != nil {
-			return nil, err
-		}
-		keys = append(keys, &k)
-	}
-	return keys, nil
-}
-
-func (s *SQLite3Store) CountKeys(ctx context.Context) (int, error) {
-	query := "SELECT COUNT(*) FROM keys WHERE confirmed_at IS NOT NULL"
-	row := s.db.QueryRowContext(ctx, query)
-
-	var count int
-	err := row.Scan(&count)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return count, err
-}
-
-func (s *SQLite3Store) GetSpareKey(ctx context.Context) (*Key, error) {
-	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at"}
-	query := fmt.Sprintf("SELECT %s FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT 1", strings.Join(cols, ","))
-	row := s.db.QueryRowContext(ctx, query)
-
-	var k Key
-	err := row.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	return &k, nil
-}
-
 func (s *SQLite3Store) MarkKeyBackuped(ctx context.Context, public string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -197,4 +146,40 @@ func (s *SQLite3Store) ReadLatestKey(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return public, err
+}
+
+func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([]*Key, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "backed_up_at"}
+	query := fmt.Sprintf("SELECT %s FROM keys WHERE confirmed_at IS NOT NULL AND backed_up_at IS NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []*Key
+	for rows.Next() {
+		var k Key
+		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt, &k.BackedUpAt)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, &k)
+	}
+	return keys, nil
+}
+
+func (s *SQLite3Store) CountKeys(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM keys WHERE confirmed_at IS NOT NULL"
+	row := s.db.QueryRowContext(ctx, query)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
 }
