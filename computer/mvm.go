@@ -237,30 +237,33 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 		panic(req.Action)
 	}
 
-	batch, ok := new(big.Int).SetString(req.ExtraHEX, 16)
-	if !ok || batch.Cmp(big.NewInt(1)) < 0 || batch.Cmp(big.NewInt(SignerKeygenMaximum)) > 0 {
+	extra := req.ExtraBytes()
+	if len(extra) != 1 {
+		return node.failRequest(ctx, req, "")
+	}
+	count, err := node.store.CountKeys(ctx)
+	logger.Printf("store.CountKeys() => %v %d:%d", err, count, extra[0])
+	if err != nil {
+		panic(err)
+	}
+	if int(extra[0]) != count {
 		return node.failRequest(ctx, req, "")
 	}
 
-	var sessions []*store.Session
 	members := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
-	for i := 0; i < int(batch.Int64()); i++ {
-		now := time.Now().UTC()
-		id := common.UniqueId(req.Id, fmt.Sprintf("%8d", i))
-		id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
-		sessions = append(sessions, &store.Session{
-			Id:         id,
-			RequestId:  req.Id,
-			MixinHash:  req.MixinHash.String(),
-			MixinIndex: req.Output.OutputIndex,
-			Index:      i,
-			Operation:  OperationTypeKeygenInput,
-			CreatedAt:  now,
-		})
-	}
-
-	err := node.store.WriteSessionsWithRequest(ctx, req, sessions, false)
+	id := common.UniqueId(req.Id, fmt.Sprintf("OperationTypeKeygenInput:%d", count))
+	id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
+	sessions := []*store.Session{{
+		Id:         id,
+		RequestId:  req.Id,
+		MixinHash:  req.MixinHash.String(),
+		MixinIndex: req.Output.OutputIndex,
+		Index:      0,
+		Operation:  OperationTypeKeygenInput,
+		CreatedAt:  req.CreatedAt,
+	}}
+	err = node.store.WriteSessionsWithRequest(ctx, req, sessions, false)
 	if err != nil {
 		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
 	}

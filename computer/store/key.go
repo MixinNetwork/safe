@@ -99,6 +99,18 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	return keys, nil
 }
 
+func (s *SQLite3Store) CountKeys(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM keys WHERE confirmed_at IS NOT NULL"
+	row := s.db.QueryRowContext(ctx, query)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}
+
 func (s *SQLite3Store) CountSpareKeys(ctx context.Context) (int, error) {
 	query := "SELECT COUNT(*) FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL"
 	row := s.db.QueryRowContext(ctx, query)

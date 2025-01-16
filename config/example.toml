@@ -12,6 +12,8 @@ monitor-conversation-id = ""
 observer-user-id = "observer-id"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
+# the number of base mpc key
+mpc-key-number = 1
 # a shared ed25519 private key to do ecdh with the keeper
 shared-key = "9057a91fb0492a10dc2041610c9eeb110859d86ffb97345e9f675f30df5e9a03"
 # the asset id that each signer node send result to signer mtg

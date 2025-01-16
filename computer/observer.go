@@ -21,10 +21,12 @@ func (node *Node) bootObserver(ctx context.Context) {
 	if string(node.id) != node.conf.ObserverId {
 		return
 	}
+	err := node.initMpcKeys(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	go node.sendPriceInfo(ctx)
-	go node.keyLoop(ctx)
-	go node.initMpcKeyLoop(ctx)
 	go node.nonceAccountLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
@@ -33,6 +35,29 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.signedCallLoop(ctx)
 
 	go node.solanaRPCBlocksLoop(ctx)
+}
+
+func (node *Node) initMpcKeys(ctx context.Context) error {
+	count, err := node.store.CountKeys(ctx)
+	if err != nil {
+		return err
+	}
+	if count >= node.conf.MpcKeyNumber {
+		return nil
+	}
+	for i := count; i < node.conf.MpcKeyNumber; i++ {
+		id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
+		extra := []byte{byte(i)}
+		err = node.sendObserverTransaction(ctx, &common.Operation{
+			Id:    id,
+			Type:  OperationTypeKeygenInput,
+			Extra: extra,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (node *Node) sendPriceInfo(ctx context.Context) error {
@@ -51,45 +76,6 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 		Type:  OperationTypeSetOperationParams,
 		Extra: extra,
 	})
-}
-
-func (node *Node) keyLoop(ctx context.Context) {
-	for {
-		err := node.requestKeys(ctx)
-		if err != nil {
-			panic(err)
-		}
-
-		time.Sleep(10 * time.Minute)
-	}
-}
-
-func (node *Node) initMpcKeyLoop(ctx context.Context) {
-	for {
-		initialized, err := node.store.CheckMpcKeyInitialized(ctx)
-		if err != nil {
-			panic(err)
-		}
-		if initialized {
-			break
-		}
-
-		countKey, err := node.store.CountSpareKeys(ctx)
-		if err != nil {
-			panic(err)
-		}
-		countNonce, err := node.store.CountSpareNonceAccounts(ctx)
-		if err != nil {
-			panic(err)
-		}
-		if countKey > 0 && countNonce > 0 {
-			err = node.requestInitMpcKey(ctx)
-			if err != nil {
-				panic(err)
-			}
-		}
-		time.Sleep(10 * time.Minute)
-	}
 }
 
 func (node *Node) nonceAccountLoop(ctx context.Context) {
@@ -156,46 +142,6 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 
 		time.Sleep(1 * time.Minute)
 	}
-}
-
-func (node *Node) requestKeys(ctx context.Context) error {
-	count, err := node.store.CountSpareKeys(ctx)
-	if err != nil || count > 1000 {
-		return err
-	}
-	requested, err := node.readRequestTime(ctx, store.KeygenRequestTimeKey)
-	if err != nil || requested.Add(60*time.Minute).After(time.Now()) {
-		return err
-	}
-	id := common.UniqueId(requested.String(), requested.String())
-	keysCount := []byte{16}
-	err = node.sendObserverTransaction(ctx, &common.Operation{
-		Id:    id,
-		Type:  OperationTypeKeygenInput,
-		Extra: keysCount,
-	})
-	if err != nil {
-		return err
-	}
-	return node.writeRequestTime(ctx, store.KeygenRequestTimeKey, time.Now())
-}
-
-func (node *Node) requestInitMpcKey(ctx context.Context) error {
-	key, err := node.store.ReadFirstGeneratedKey(ctx)
-	if err != nil {
-		return err
-	}
-	if key == "" {
-		return fmt.Errorf("fail to find first generated key")
-	}
-
-	id := common.UniqueId(key, "mtg key init")
-	extra := common.DecodeHexOrPanic(key)
-	return node.sendObserverTransaction(ctx, &common.Operation{
-		Id:    id,
-		Type:  OperationTypeInitMPCKey,
-		Extra: extra,
-	})
 }
 
 func (node *Node) requestNonceAccounts(ctx context.Context) error {
