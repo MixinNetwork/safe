@@ -11,6 +11,8 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -191,8 +193,9 @@ func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
 	return err == nil
 }
 
-func (node *Node) verifySessionSignature(holder string, msg, sig []byte) (bool, []byte) {
-	pub := ed25519.PublicKey(common.DecodeHexOrPanic(holder))
+func (node *Node) verifySessionSignature(msg, sig, share, path []byte) (bool, []byte) {
+	public, _ := node.deriveByPath(share, path)
+	pub := ed25519.PublicKey(public)
 	res := ed25519.Verify(pub, msg, sig)
 	logger.Printf("ed25519.Verify(%x, %x) => %t", msg, sig[:], res)
 	return res, sig
@@ -311,6 +314,20 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	err = node.store.MarkSessionPending(ctx, op.Id, op.Public, res.Signature)
 	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, res.Signature, err)
 	return err
+}
+
+func (node *Node) deriveByPath(share, path []byte) ([]byte, []byte) {
+	conf := frost.EmptyConfig(curve.Edwards25519{})
+	err := conf.UnmarshalBinary(share)
+	if err != nil {
+		panic(err)
+	}
+	pub := common.MarshalPanic(conf.PublicPoint())
+	if mixin.CheckEd25519ValidChildPath(path) {
+		conf = deriveEd25519Child(conf, pub, path)
+		pub = common.MarshalPanic(conf.PublicPoint())
+	}
+	return pub, conf.ChainKey
 }
 
 func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) bool {

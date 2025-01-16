@@ -165,7 +165,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 				op.Type = OperationTypeKeygenOutput
 			case OperationTypeSignInput:
-				holder, _, _, err := node.readKeyByFingerPath(ctx, op.Public)
+				_, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
 				if err != nil {
 					panic(err)
 				}
@@ -173,7 +173,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				if err != nil {
 					panic(err)
 				}
-				signed, sig := node.verifySessionSignature(holder, common.DecodeHexOrPanic(call.Message), op.Extra)
+				signed, sig := node.verifySessionSignature(common.DecodeHexOrPanic(call.Message), op.Extra, share, path)
 				if signed {
 					op.Extra = sig
 				} else {

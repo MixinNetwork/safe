@@ -767,13 +767,13 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 			panic(err)
 		}
 	}
-	holder, _, _, err := node.readKeyByFingerPath(ctx, s.Public)
-	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", s.Public, holder, err)
+	_, share, path, err := node.readKeyByFingerPath(ctx, s.Public)
+	logger.Printf("node.readKeyByFingerPath(%s) => %v", s.Public, err)
 	if err != nil {
 		panic(err)
 	}
-	valid, vsig := node.verifySessionSignature(holder, common.DecodeHexOrPanic(call.Message), sig)
-	logger.Printf("node.verifySessionSignature(%v, %s, %x) => %t", s, holder, extra, valid)
+	valid, vsig := node.verifySessionSignature(common.DecodeHexOrPanic(call.Message), sig, share, path)
+	logger.Printf("node.verifySessionSignature(%v, %x) => %t", s, sig, valid)
 	if !valid || !bytes.Equal(sig, vsig) {
 		panic(hex.EncodeToString(vsig))
 	}
