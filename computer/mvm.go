@@ -18,6 +18,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/mixin/util/base58"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
@@ -72,8 +73,8 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 		panic(fmt.Errorf("store.ReadLatestKey() => %s %v", key, err))
 	}
 	path := id.FillBytes(make([]byte, 8))
-	public := common.DeriveEd25519Child(key, path)
-	chainAddress := solana.PublicKeyFromBytes(public[:])
+	public := mixin.DeriveEd25519Child(key, path)
+	chainAddress := solana.PublicKeyFromBytes(public[:]).String()
 
 	err = node.store.WriteUserWithRequest(ctx, req, id.String(), mix, chainAddress, key)
 	if err != nil {
@@ -324,49 +325,6 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 	err = node.store.MarkKeyComfirmedWithRequest(ctx, req, hex.EncodeToString(public))
 	if err != nil {
 		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
-	}
-	return nil, ""
-}
-
-func (node *Node) processSignerKeyInitRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeInitMPCKey {
-		panic(req.Action)
-	}
-	initialized, err := node.store.CheckMpcKeyInitialized(ctx)
-	logger.Printf("store.CheckMpcKeyInitialized() => %t %v", initialized, err)
-	if err != nil {
-		panic(fmt.Errorf("store.CheckMpcKeyInitialized() => %v", err))
-	} else if initialized {
-		return node.failRequest(ctx, req, "")
-	}
-
-	publicKey := req.ExtraBytes()
-	if len(publicKey) != 32 {
-		return node.failRequest(ctx, req, "")
-	}
-
-	public := hex.EncodeToString(publicKey)
-	old, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(public)))
-	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", public, old, err)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadKeyByFingerprint() => %v", err))
-	} else if old == "" {
-		return node.failRequest(ctx, req, "")
-	}
-	key, err := node.store.ReadFirstGeneratedKey(ctx)
-	logger.Printf("store.ReadFirstGeneratedKey() => %s %v", key, err)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadFirstGeneratedKey() => %v", err))
-	} else if key == "" || old != key {
-		return node.failRequest(ctx, req, "")
-	}
-
-	err = node.store.WriteSignerUserWithRequest(ctx, req, node.conf.SolanaDepositEntry, key)
-	if err != nil {
-		panic(fmt.Errorf("store.WriteSignerUserWithRequest(%v) => %v", req, err))
 	}
 	return nil, ""
 }

@@ -29,7 +29,6 @@ type Key struct {
 	Fingerprint string
 	Share       string
 	SessionId   string
-	UserId      sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ConfirmedAt sql.NullTime
@@ -101,18 +100,6 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 
 func (s *SQLite3Store) CountKeys(ctx context.Context) (int, error) {
 	query := "SELECT COUNT(*) FROM keys WHERE confirmed_at IS NOT NULL"
-	row := s.db.QueryRowContext(ctx, query)
-
-	var count int
-	err := row.Scan(&count)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return count, err
-}
-
-func (s *SQLite3Store) CountSpareKeys(ctx context.Context) (int, error) {
-	query := "SELECT COUNT(*) FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL"
 	row := s.db.QueryRowContext(ctx, query)
 
 	var count int
@@ -197,21 +184,6 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 	return public, conf, err
 }
 
-func (s *SQLite3Store) ReadFirstGeneratedKey(ctx context.Context) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	var public string
-	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT 1")
-	err := row.Scan(&public)
-	if err == sql.ErrNoRows {
-		return "", nil
-	} else if err != nil {
-		return "", err
-	}
-	return public, err
-}
-
 func (s *SQLite3Store) ReadLatestKey(ctx context.Context) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -223,50 +195,6 @@ func (s *SQLite3Store) ReadLatestKey(ctx context.Context) (string, error) {
 		return "", nil
 	} else if err != nil {
 		return "", err
-	}
-	return public, err
-}
-
-func (s *SQLite3Store) CheckMpcKeyInitialized(ctx context.Context) (bool, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer common.Rollback(tx)
-
-	return s.checkExistence(ctx, tx, "SELECT public FROM keys WHERE user_id=?", MPCUserId.String())
-}
-
-func (s *SQLite3Store) assignKeyToUser(ctx context.Context, tx *sql.Tx, req *Request, uid string) (string, error) {
-	existed, err := s.checkExistence(ctx, tx, "SELECT public FROM keys WHERE user_id=? AND confirmed_at IS NOT NULL", uid)
-	if err != nil || existed {
-		return "", fmt.Errorf("store.checkKeyWithPublic(%s) => %t %v", uid, existed, err)
-	}
-
-	key, err := readSpareKey(ctx, tx)
-	if err != nil || key == "" {
-		return "", fmt.Errorf("store.readSpareKey() => %s %v", key, err)
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE keys SET user_id=?, updated_at=? WHERE public=? AND user_id IS NULL AND confirmed_at IS NOT NULL",
-		uid, req.CreatedAt, key)
-	if err != nil {
-		return "", fmt.Errorf("UPDATE keys %v", err)
-	}
-
-	return key, nil
-}
-
-func readSpareKey(ctx context.Context, tx *sql.Tx) (string, error) {
-	var public string
-	query := "SELECT public FROM keys WHERE user_id IS NULL AND confirmed_at IS NOT NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT 1"
-	row := tx.QueryRowContext(ctx, query)
-	err := row.Scan(&public)
-	if err == sql.ErrNoRows {
-		return "", nil
 	}
 	return public, err
 }

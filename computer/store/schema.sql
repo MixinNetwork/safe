@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS keys (
 	fingerprint  VARCHAR NOT NULL,
 	share        VARCHAR NOT NULL,
 	session_id   VARCHAR NOT NULL,
-	user_id      VARCHAR,
 	created_at   TIMESTAMP NOT NULL,
 	updated_at   TIMESTAMP NOT NULL,
   confirmed_at TIMESTAMP,

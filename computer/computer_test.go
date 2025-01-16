@@ -36,7 +36,6 @@ func TestComputer(t *testing.T) {
 
 	testObserverRequestGenerateKeys(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
-	testObserverRequestInitMpcKey(ctx, require, nodes)
 	testObserverSetPriceParams(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
@@ -341,10 +340,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
 		require.Equal("DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", user1.NonceAccount)
 		user = user1
-		count, err := node.store.CountSpareKeys(ctx)
-		require.Nil(err)
-		require.Equal(8, count)
-		count, err = node.store.CountSpareNonceAccounts(ctx)
+		count, err := node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)
 		require.Equal(3, count)
 
@@ -362,9 +358,6 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(big.NewInt(0).Add(start, big.NewInt(1)).String(), user2.UserId)
 		require.NotEqual("", user1.Public)
 		require.NotEqual("", user1.NonceAccount)
-		count, err = node.store.CountSpareKeys(ctx)
-		require.Nil(err)
-		require.Equal(7, count)
 		count, err = node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)
 		require.Equal(2, count)
@@ -444,32 +437,6 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 	}
 }
 
-func testObserverRequestInitMpcKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
-	for _, node := range nodes {
-		initialized, err := node.store.CheckMpcKeyInitialized(ctx)
-		require.Nil(err)
-		require.False(initialized)
-
-		key, err := node.store.ReadFirstGeneratedKey(ctx)
-		require.Nil(err)
-		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
-
-		id := common.UniqueId(key, "mpc init key")
-		extra := common.DecodeHexOrPanic(key)
-		out := testBuildObserverRequest(node, id, OperationTypeInitMPCKey, extra)
-		testStep(ctx, require, node, out)
-
-		mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
-		require.Nil(err)
-		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", mtg.Public)
-		require.Equal("", mtg.NonceAccount)
-
-		initialized, err = node.store.CheckMpcKeyInitialized(ctx)
-		require.Nil(err)
-		require.True(initialized)
-	}
-}
-
 func testObserverRequestGenerateKeys(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	node := nodes[0]
 	batch := byte(8)
@@ -477,10 +444,6 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	var sessionId string
 
 	for i, node := range nodes {
-		count, err := node.store.CountSpareKeys(ctx)
-		require.Nil(err)
-		require.Equal(2, count)
-
 		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, []byte{batch})
 		if i == 0 {
 			sessionId = out.OutputId
@@ -500,10 +463,6 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 	}
 	time.Sleep(5 * time.Second)
 	for _, node := range nodes {
-		count, err := node.store.CountSpareKeys(ctx)
-		require.Nil(err)
-		require.Equal(10, count)
-
 		sessions, err := node.store.ListPreparedSessions(ctx, 500)
 		require.Nil(err)
 		require.Len(sessions, 0)

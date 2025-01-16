@@ -33,9 +33,8 @@ func TestComputerSolana(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes, _, _ := testPrepare(require)
 	node := nodes[0]
-	testObserverRequestInitMpcKey(ctx, require, nodes)
 
-	key, err := node.store.ReadFirstGeneratedKey(ctx)
+	key, err := node.store.ReadLatestKey(ctx)
 	require.Nil(err)
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
 	payer, err := solana.PrivateKeyFromBase58(testPayerPrivKey)

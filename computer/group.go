@@ -102,8 +102,6 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleSigner
 	case OperationTypeCreateNonce:
 		return RequestRoleObserver
-	case OperationTypeInitMPCKey:
-		return RequestRoleObserver
 	case OperationTypeCreateSubCall:
 		return RequestRoleObserver
 	case OperationTypeConfirmWithdrawal:
@@ -125,14 +123,14 @@ func (node *Node) getActionRole(act byte) byte {
 
 func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	switch req.Action {
-	case OperationTypeKeygenInput, OperationTypeKeygenOutput, OperationTypeInitMPCKey, OperationTypeCreateNonce:
+	case OperationTypeKeygenInput, OperationTypeKeygenOutput, OperationTypeCreateNonce:
 	default:
-		initialized, err := node.store.CheckMpcKeyInitialized(ctx)
+		count, err := node.store.CountKeys(ctx)
 		if err != nil {
 			panic(err)
 		}
-		if !initialized {
-			logger.Printf("processRequest (%v) => store.CheckMpcKeyInitialized() => %t", req, initialized)
+		if count == 0 {
+			logger.Printf("processRequest (%v) => store.CountKeys() => %d", req, count)
 			return node.failRequest(ctx, req, "")
 		}
 	}
@@ -150,8 +148,6 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSignerKeygenResults(ctx, req)
 	case OperationTypeCreateNonce:
 		return node.processCreateOrUpdateNonceAccount(ctx, req)
-	case OperationTypeInitMPCKey:
-		return node.processSignerKeyInitRequests(ctx, req)
 	case OperationTypeCreateSubCall:
 		return node.processCreateSubCall(ctx, req)
 	case OperationTypeConfirmWithdrawal:
