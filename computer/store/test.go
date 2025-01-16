@@ -31,8 +31,8 @@ func (s *SQLite3Store) TestWriteKey(ctx context.Context, id, public string, conf
 	timestamp := time.Now().UTC()
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
-	cols := []string{"public", "fingerprint", "share", "session_id", "user_id", "created_at", "updated_at", "confirmed_at"}
-	values := []any{public, fingerprint, share, id, nil, timestamp, timestamp, timestamp}
+	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "confirmed_at"}
+	values := []any{public, fingerprint, share, id, timestamp, timestamp, timestamp}
 	if saved {
 		cols = append(cols, "backed_up_at")
 		values = append(values, timestamp)

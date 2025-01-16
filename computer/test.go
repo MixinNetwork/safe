@@ -146,7 +146,7 @@ func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
 			Amount:             decimal.NewFromInt(1),
 			Senders:            []string{string(node.id)},
 			AssetId:            node.conf.AssetId,
-			SequencerCreatedAt: time.Now(),
+			SequencerCreatedAt: time.Now().UTC(),
 		},
 	}
 	out.Extra = mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
@@ -163,7 +163,7 @@ func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessa
 	return &messenger.MixinMessage{
 		Peer:      string(msg.From),
 		Data:      msb,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}, nil
 }
 

@@ -53,8 +53,8 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, session *Session
 	timestamp := time.Now().UTC()
 	share := common.Base91Encode(conf)
 	fingerprint := hex.EncodeToString(common.Fingerprint(public))
-	cols := []string{"public", "fingerprint", "share", "session_id", "user_id", "created_at", "updated_at"}
-	values := []any{public, fingerprint, share, session.Id, nil, session.CreatedAt, timestamp}
+	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at"}
+	values := []any{public, fingerprint, share, session.Id, session.CreatedAt, timestamp}
 	if saved {
 		cols = append(cols, "backed_up_at")
 		values = append(values, timestamp)
@@ -152,8 +152,8 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "backed_up_at"}
-	query := fmt.Sprintf("SELECT %s FROM keys WHERE confirmed_at IS NOT NULL AND backed_up_at IS NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
+	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "confirmed_at", "backed_up_at"}
+	query := fmt.Sprintf("SELECT %s FROM keys WHERE confirmed_at IS NOT NULL  ORDER BY created_at ASC, confirmed_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	var keys []*Key
 	for rows.Next() {
 		var k Key
-		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt, &k.BackedUpAt)
+		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Share, &k.SessionId, &k.CreatedAt, &k.UpdatedAt, &k.ConfirmedAt, &k.BackedUpAt)
 		if err != nil {
 			return nil, err
 		}

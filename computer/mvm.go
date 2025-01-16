@@ -249,11 +249,11 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Re
 		return node.failRequest(ctx, req, "")
 	}
 	count, err := node.store.CountKeys(ctx)
-	logger.Printf("store.CountKeys() => %v %d:%d", err, count, extra[0])
+	logger.Printf("store.CountKeys() => %v %d:%d:%d", err, count, extra[0], node.conf.MpcKeyNumber)
 	if err != nil {
 		panic(err)
 	}
-	if int(extra[0]) != count {
+	if int(extra[0]) != count || count >= node.conf.MpcKeyNumber {
 		return node.failRequest(ctx, req, "")
 	}
 

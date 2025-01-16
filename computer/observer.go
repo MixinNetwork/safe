@@ -150,7 +150,7 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 		return err
 	}
 	requested, err := node.readRequestTime(ctx, store.NonceAccountRequestTimeKey)
-	if err != nil || requested.Add(60*time.Minute).After(time.Now()) {
+	if err != nil || requested.Add(60*time.Minute).After(time.Now().UTC()) {
 		return err
 	}
 	id := common.UniqueId(requested.String(), requested.String())
@@ -169,7 +169,7 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey, time.Now())
+	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey, time.Now().UTC())
 }
 
 func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
@@ -280,7 +280,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
-		createdAt := time.Now()
+		createdAt := time.Now().UTC()
 		if call.RequestSignerAt.Time.Add(20 * time.Minute).After(createdAt) {
 			continue
 		}

@@ -34,7 +34,7 @@ func TestComputer(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes, mds, _ := testPrepare(require)
 
-	testObserverRequestGenerateKeys(ctx, require, nodes)
+	testObserverRequestGenerateKey(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverSetPriceParams(ctx, require, nodes)
 
@@ -411,7 +411,7 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 
 func testObserverSetPriceParams(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	for _, node := range nodes {
-		params, err := node.store.ReadLatestOperationParams(ctx, time.Now())
+		params, err := node.store.ReadLatestOperationParams(ctx, time.Now().UTC())
 		require.Nil(err)
 		require.Nil(params)
 
@@ -429,7 +429,7 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 		out := testBuildObserverRequest(node, id, OperationTypeSetOperationParams, extra)
 		testStep(ctx, require, node, out)
 
-		params, err = node.store.ReadLatestOperationParams(ctx, time.Now())
+		params, err = node.store.ReadLatestOperationParams(ctx, time.Now().UTC())
 		require.Nil(err)
 		require.NotNil(params)
 		require.Equal(node.conf.OperationPriceAssetId, params.OperationPriceAsset)
@@ -437,26 +437,23 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 	}
 }
 
-func testObserverRequestGenerateKeys(ctx context.Context, require *require.Assertions, nodes []*Node) {
+func testObserverRequestGenerateKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	node := nodes[0]
-	batch := byte(8)
+	extra := []byte{0}
 	id := uuid.Must(uuid.NewV4()).String()
 	var sessionId string
-
-	for i, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, []byte{batch})
-		if i == 0 {
-			sessionId = out.OutputId
-		}
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, extra)
+		sessionId = out.OutputId
 		testStep(ctx, require, node, out)
 		sessions, err := node.store.ListPreparedSessions(ctx, 500)
 		require.Nil(err)
-		require.Len(sessions, 8)
+		require.Len(sessions, 1)
 	}
 
 	members := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
-	sessionId = common.UniqueId(sessionId, fmt.Sprintf("%8d", 8-1))
+	sessionId = common.UniqueId(sessionId, fmt.Sprintf("OperationTypeKeygenInput:%d", 0))
 	sessionId = common.UniqueId(sessionId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 	for _, node := range nodes {
 		testWaitOperation(ctx, node, sessionId)
@@ -469,7 +466,18 @@ func testObserverRequestGenerateKeys(ctx context.Context, require *require.Asser
 		sessions, err = node.store.ListPendingSessions(ctx, 500)
 		require.Nil(err)
 		require.Len(sessions, 0)
+		count, err := node.store.CountKeys(ctx)
+		require.Nil(err)
+		require.Equal(1, count)
 	}
+
+	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")
+	count, err := node.store.CountKeys(ctx)
+	require.Nil(err)
+	require.Equal(2, count)
+	key, err := node.store.ReadLatestKey(ctx)
+	require.Nil(err)
+	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 }
 
 func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte) *mtg.Action {
@@ -482,7 +490,7 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 	memo = append(memo, extra...)
 	memoStr := testEncodeMixinExtra(node.conf.AppId, memo)
 	memoStr = hex.EncodeToString([]byte(memoStr))
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
@@ -504,7 +512,7 @@ func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) 
 	memo = append(memo, extra...)
 	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	memoStr = hex.EncodeToString([]byte(memoStr))
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
@@ -527,7 +535,7 @@ func testBuildSignerRequest(node *Node, id string, action byte, extra []byte) *m
 	memo = append(memo, extra...)
 	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	memoStr = hex.EncodeToString([]byte(memoStr))
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
@@ -607,9 +615,6 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 		go nodes[i].acceptIncomingMessages(ctx)
 	}
 
-	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")
-	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys2, "4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295")
-
 	return ctx, nodes, mds, saverStore
 }
 
@@ -626,6 +631,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.MTG.GroupSize = 1
 	conf.Computer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
 	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
+	conf.Computer.MpcKeyNumber = 2
 
 	if rpc := os.Getenv("SOLANARPC"); rpc != "" {
 		conf.Computer.SolanaRPC = rpc
@@ -693,7 +699,7 @@ func testWriteOutputForNodes(ctx context.Context, dbs []*mtg.SQLite3Store, appId
 		AssetId:            assetId,
 		Amount:             amount,
 		Sequence:           sequence,
-		SequencerCreatedAt: time.Now(),
+		SequencerCreatedAt: time.Now().UTC(),
 		TransactionHash:    hash,
 		State:              mtg.SafeUtxoStateUnspent,
 		Extra:              extra,

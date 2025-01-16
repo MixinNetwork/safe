@@ -89,7 +89,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		hex.EncodeToString(msg),
 	)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	id := uuid.Must(uuid.NewV4()).String()
 	sid := common.UniqueId(id, now.String())
 	call := &store.SystemCall{

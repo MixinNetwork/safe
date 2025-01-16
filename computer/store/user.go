@@ -121,7 +121,7 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, i
 		return err
 	}
 
-	vals := []any{id, req.Id, mixAddress, chainAddress, key, account, time.Now()}
+	vals := []any{id, req.Id, mixAddress, chainAddress, key, account, time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)
@@ -151,7 +151,7 @@ func (s *SQLite3Store) WriteSignerUserWithRequest(ctx context.Context, req *Requ
 		return fmt.Errorf("UPDATE keys %v", err)
 	}
 
-	vals := []any{MPCUserId.String(), req.Id, address, solanaApp.PublicKeyFromEd25519Public(key).String(), key, "", time.Now()}
+	vals := []any{MPCUserId.String(), req.Id, address, solanaApp.PublicKeyFromEd25519Public(key).String(), key, "", time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS keys (
 
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_session_id ON keys(session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS keys_by_fingerprint ON keys(fingerprint);
-CREATE INDEX IF NOT EXISTS keys_by_user_created ON keys(user_id, created_at);
+CREATE INDEX IF NOT EXISTS keys_by_confirmed ON keys(confirmed_at);
 
 
 CREATE TABLE IF NOT EXISTS sessions (
