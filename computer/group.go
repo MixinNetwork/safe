@@ -177,7 +177,7 @@ func (node *Node) timestamp(ctx context.Context) (uint64, error) {
 
 func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, []byte, []byte, error) {
 	fingerPath, err := hex.DecodeString(public)
-	if err != nil || len(fingerPath) != 8 {
+	if err != nil || len(fingerPath) != 16 {
 		return "", nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 	}
 	fingerprint := hex.EncodeToString(fingerPath[:8])
@@ -279,7 +279,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		logger.Printf("node.startSign(%v, %v, %s) exit without committement\n", op, members, string(node.id))
 		return nil
 	}
-	public, share, _, err := node.readKeyByFingerPath(ctx, op.Public)
+	public, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
 	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
 	if err != nil {
 		return fmt.Errorf("node.readKeyByFingerPath(%s) => %v", op.Public, err)
@@ -292,7 +292,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), fingerprint)
 	}
 
-	res, err := node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{})
+	res, err := node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, path)
 	logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
 
 	if err != nil {
