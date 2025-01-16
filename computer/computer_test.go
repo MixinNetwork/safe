@@ -337,7 +337,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Nil(err)
 		require.Equal(mix.String(), user1.MixAddress)
 		require.Equal(start.String(), user1.UserId)
-		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
+		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", user1.Public)
 		require.Equal("DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", user1.NonceAccount)
 		user = user1
 		count, err := node.store.CountSpareNonceAccounts(ctx)
@@ -356,7 +356,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Nil(err)
 		require.Equal(mix.String(), user2.MixAddress)
 		require.Equal(big.NewInt(0).Add(start, big.NewInt(1)).String(), user2.UserId)
-		require.NotEqual("", user1.Public)
+		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", user1.Public)
 		require.NotEqual("", user1.NonceAccount)
 		count, err = node.store.CountSpareNonceAccounts(ctx)
 		require.Nil(err)

@@ -32,8 +32,13 @@ const (
 func TestComputerSolana(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes, _, _ := testPrepare(require)
-	node := nodes[0]
+	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")
+	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys2, "4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295")
 
+	node := nodes[0]
+	count, err := node.store.CountKeys(ctx)
+	require.Nil(err)
+	require.Equal(2, count)
 	key, err := node.store.ReadLatestKey(ctx)
 	require.Nil(err)
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
@@ -108,6 +113,8 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+	pub := common.Fingerprint(call.Public)
+	pub = append(pub, []byte{0, 0, 0, 0, 0, 0, 0, 0}...)
 	for _, node := range nodes {
 		err := node.store.TestWriteCall(ctx, call)
 		require.Nil(err)
@@ -118,7 +125,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 			MixinIndex: 0,
 			Index:      0,
 			Operation:  OperationTypeSignInput,
-			Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
+			Public:     hex.EncodeToString(pub),
 			Extra:      call.Message,
 			CreatedAt:  now,
 		}
