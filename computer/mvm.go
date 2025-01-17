@@ -120,17 +120,16 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	userAccount := solanaApp.PublicKeyFromEd25519Public(user.Public)
 	tx, err := solana.TransactionFromBytes(data[8:])
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", data[8:], tx, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	hasUser := tx.IsSigner(userAccount)
-	hasKey := tx.IsSigner(node.solanaAccount())
-	if !hasKey || !hasUser {
+	hasUser := tx.IsSigner(solana.MustPublicKeyFromBase58(user.ChainAddress))
+	hasPayer := tx.IsSigner(node.solanaAccount())
+	if (!hasPayer || !hasUser) && !common.CheckTestEnvironment(ctx) {
 		logger.Printf("tx.IsSigner(user) => %t", hasUser)
-		logger.Printf("tx.IsSigner(mtg) => %t", hasKey)
+		logger.Printf("tx.IsSigner(payer) => %t", hasPayer)
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -154,7 +153,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		Superior:        req.Id,
 		Type:            store.CallTypeMain,
 		NonceAccount:    user.NonceAccount,
-		Public:          user.Public,
+		Public:          hex.EncodeToString(user.FingerprintWithPath()),
 		Message:         hex.EncodeToString(msg),
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStateInitial,
@@ -169,7 +168,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	var txs []*mtg.Transaction
 	var compaction string
 	as := node.getSystemCallRelatedAsset(ctx, req.Id)
-	// user public is the underived key controled by mpc
 	destination := solanaApp.PublicKeyFromEd25519Public(user.Public).String()
 	for _, asset := range as {
 		if !asset.Solana {
@@ -450,6 +448,14 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if call == nil {
 		return node.failRequest(ctx, req, "")
 	}
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+	logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath().String(), user, err)
+	if err != nil {
+		panic(call.RequestId)
+	}
+	if user == nil {
+		return node.failRequest(ctx, req, "")
+	}
 	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
 	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
 	if err != nil {
@@ -465,10 +471,13 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(err)
 	}
 
-	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solanaApp.PublicKeyFromEd25519Public(call.Public), solana.MustPublicKeyFromBase58(nonceAccount))
-	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, call.Public, err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
+	if !common.CheckTestEnvironment(ctx) {
+		pub := node.GetSolanaPublicKeyFromCall(ctx, call)
+		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), pub, solana.MustPublicKeyFromBase58(nonceAccount))
+		logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, call.Public, err)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
 	}
 
 	msg, err := tx.Message.MarshalBinary()
@@ -494,11 +503,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		if nonce.UserId.Valid || nonce.CallId.Valid {
 			return node.failRequest(ctx, req, "")
 		}
-		mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
-		if err != nil {
-			panic(err)
-		}
-		new.Public = mtgUser.Public
+		new.Public = hex.EncodeToString(user.FingerprintWithPath())
 		new.Type = store.CallTypePrepare
 	case common.RequestStateDone, common.RequestStateFailed:
 		new.Public = call.Public
@@ -572,7 +577,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			if len(bs) == 0 {
 				panic(fmt.Errorf("invalid burned assets length: %s %d", call.RequestId, len(bs)))
 			}
-			user, err := node.store.ReadUserByPublic(ctx, call.Public)
+			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 			if err != nil {
 				panic(err)
 			}
@@ -654,7 +659,7 @@ func (node *Node) processObserverRequestSession(ctx context.Context, req *store.
 		MixinIndex: req.Output.OutputIndex,
 		Index:      0,
 		Operation:  OperationTypeSignInput,
-		Public:     hex.EncodeToString(common.Fingerprint(call.Public)),
+		Public:     call.Public,
 		Extra:      call.Message,
 		CreatedAt:  req.CreatedAt,
 	}

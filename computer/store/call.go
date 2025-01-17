@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -53,6 +54,15 @@ func (c *SystemCall) GetWithdrawalIds() []string {
 		return ids
 	}
 	return strings.Split(c.WithdrawalIds, ",")
+}
+
+func (c *SystemCall) UserIdFromPublicPath() *big.Int {
+	data := common.DecodeHexOrPanic(c.Public)
+	if len(data) != 16 {
+		panic(fmt.Errorf("invalid public of system call: %v", c))
+	}
+	id := new(big.Int).SetBytes(data[8:])
+	return id
 }
 
 func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction, compaction string) error {

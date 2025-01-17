@@ -216,8 +216,6 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
 	ref := crypto.Sha256Hash(raw)
-	mtg, err := node.store.ReadUser(ctx, store.MPCUserId)
-	require.Nil(err)
 
 	id := uuid.Must(uuid.NewV4()).String()
 	var extra []byte
@@ -241,7 +239,6 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		require.Equal(call.RequestId, sub.Superior)
 		require.Equal(store.CallTypePrepare, sub.Type)
 		require.Equal(nonce.Address, sub.NonceAccount)
-		require.Equal(mtg.Public, sub.Public)
 		require.Len(sub.GetWithdrawalIds(), 0)
 		require.True(sub.WithdrawedAt.Valid)
 		require.False(sub.Signature.Valid)
@@ -311,7 +308,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(out.OutputId, call.Superior)
 		require.Equal(store.CallTypeMain, call.Type)
 		require.Equal(user.NonceAccount, call.NonceAccount)
-		require.Equal(user.Public, call.Public)
+		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
 		require.Len(call.GetWithdrawalIds(), 1)
 		require.False(call.WithdrawedAt.Valid)
 		require.False(call.Signature.Valid)

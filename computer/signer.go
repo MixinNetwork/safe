@@ -165,9 +165,10 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 				op.Type = OperationTypeKeygenOutput
 			case OperationTypeSignInput:
-				_, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
-				if err != nil {
-					panic(err)
+				public, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+				logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
+				if err != nil || public == "" {
+					panic(fmt.Errorf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err))
 				}
 				call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, 0)
 				if err != nil {
@@ -434,4 +435,12 @@ func unmarshalSessionMessage(b []byte) ([]byte, *protocol.Message, error) {
 	var msg protocol.Message
 	err := msg.UnmarshalBinary(b[1+b[0]:])
 	return sessionId, &msg, err
+}
+
+func getFingerPrintFromPublicWithPath(session *store.Session) string {
+	data := common.DecodeHexOrPanic(session.Public)
+	if len(data) == 40 {
+		panic(fmt.Errorf("invalid session: %v", session))
+	}
+	return hex.EncodeToString(common.Fingerprint(hex.EncodeToString(data[:32])))
 }

@@ -374,15 +374,12 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 }
 
 func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
-	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
-	if err != nil || mtgUser == nil {
-		panic(err)
-	}
-	mtgAddress := solana.MustPublicKeyFromBase58(mtgUser.Public).String()
+	// FIXME
+	mtgAddress := ""
 
 	changes := make(map[string]*big.Int)
 	for _, t := range transfers {
-		if t.Receiver == solanaApp.SolanaEmptyAddress || t.Sender == mtgAddress {
+		if t.Receiver == solanaApp.SolanaEmptyAddress || t.Sender == mtgAddress || t.Receiver == mtgAddress {
 			continue
 		}
 
@@ -390,7 +387,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Receiver, user, err)
 		if err != nil {
 			return nil, err
-		} else if user == nil || user.UserId == mtgUser.UserId {
+		} else if user == nil {
 			continue
 		}
 		token, err := node.store.ReadDeployedAssetByAddress(ctx, t.TokenAddress)
@@ -412,11 +409,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 }
 
 func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
-	user, err := node.store.ReadUserByPublic(ctx, call.Public)
-	if err != nil {
-		panic(err)
-	}
-	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 	if err != nil {
 		panic(err)
 	}
@@ -474,7 +467,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 		return nil, as
 	}
 
-	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaAccount(), mtgUser.PublicKey(), nonce.Account(), transfers)
+	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaAccount(), user.MtgSolanaPublicKey(), nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -556,6 +549,20 @@ func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKe
 		panic(err)
 	}
 	return tx
+}
+
+func (node *Node) GetSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
+	data := common.DecodeHexOrPanic(c.Public)
+	if len(data) != 40 {
+		panic(fmt.Errorf("invalid public of system call: %v", c))
+	}
+	public, path := data[:32], data[32:]
+	_, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public))))
+	if err != nil {
+		panic(err)
+	}
+	pub, _ := node.deriveByPath(share, path)
+	return solana.PublicKeyFromBytes(pub)
 }
 
 func (node *Node) solanaClient() *solanaApp.Client {
