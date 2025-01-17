@@ -342,8 +342,8 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 
 		_, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(user1.Public)))
 		require.Nil(err)
-		public, _ := node.deriveByPath(share, start.FillBytes(make([]byte, 8)))
-		require.Equal(user1.ChainAddress, solana.PublicKeyFromBytes(public).String())
+		public, _ := node.deriveByPath(share, user.IdBytes())
+		require.Equal(solana.PublicKeyFromBytes(public).String(), user1.ChainAddress)
 		user = user1
 
 		id = uuid.Must(uuid.NewV4())

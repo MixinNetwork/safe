@@ -74,7 +74,6 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		return err
 	}
 
-	hash := tx.Signatures[0]
 	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, meta)
 	if err != nil {
 		return err
@@ -91,7 +90,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			continue
 		}
 		decimal := uint8(9)
-		if transfer.TokenAddress == "11111111111111111111111111111111" {
+		if transfer.TokenAddress != "11111111111111111111111111111111" {
 			asset, err := node.solanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
 			if err != nil {
 				return err
@@ -108,6 +107,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			Decimals:    decimal,
 		})
 	}
+	hash := tx.Signatures[0]
 	for user, ts := range tsMap {
 		err = node.solanaProcessDepositTransaction(ctx, hash, user, ts)
 		if err != nil {
@@ -416,7 +416,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	if err != nil || user == nil {
 		panic(fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err))
 	}
-	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
+	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
 
 	var transfers []solanaApp.TokenTransfers
 	var as []*store.DeployedAsset

@@ -168,7 +168,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	var txs []*mtg.Transaction
 	var compaction string
 	as := node.getSystemCallRelatedAsset(ctx, req.Id)
-	destination := solanaApp.PublicKeyFromEd25519Public(user.Public).String()
+	destination := node.getMtgAddress(ctx).String()
 	for _, asset := range as {
 		if !asset.Solana {
 			continue
@@ -472,9 +472,8 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 
 	if !common.CheckTestEnvironment(ctx) {
-		pub := node.GetUserSolanaPublicKeyFromCall(ctx, call)
-		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), pub, solana.MustPublicKeyFromBase58(nonceAccount))
-		logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, call.Public, err)
+		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress), solana.MustPublicKeyFromBase58(nonceAccount))
+		logger.Printf("node.VerifySubSystemCall(%s %s) => %v", user.ChainAddress, nonceAccount, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
@@ -561,14 +560,14 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		}
 		call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
 		if err != nil || call == nil {
-			panic(err)
+			panic(fmt.Errorf("store.ReadSystemCallByMessage(%x) => %v %v", msg, call, err))
 		}
 		if call.State != common.RequestStatePending {
 			return node.failRequest(ctx, req, "")
 		}
 		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
 		if err != nil || nonce == nil {
-			panic(err)
+			panic(fmt.Errorf("store.ReadNonceAccount(%s) => %v %v", call.NonceAccount, nonce, err))
 		}
 		if nonce.Hash == updatedHash {
 			return node.failRequest(ctx, req, "")
@@ -630,7 +629,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	}
 }
 
-func (node *Node) processObserverRequestSession(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -806,8 +805,8 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	return nil, ""
 }
 
-func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	logger.Printf("node.processSignerCreateDepositCall(%s)", string(node.id))
+func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	logger.Printf("node.processObserverCreateDepositCall(%s)", string(node.id))
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -815,7 +814,7 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 		panic(req.Action)
 	}
 	extra := req.ExtraBytes()
-	user := solana.PublicKeyFromBytes(extra[:32])
+	userAddress := solana.PublicKeyFromBytes(extra[:32])
 	nonceAccount := solana.PublicKeyFromBytes(extra[32:64]).String()
 	hash, err := crypto.HashFromString(hex.EncodeToString(extra[64:96]))
 	if err != nil {
@@ -825,9 +824,17 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
 	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
 	if err != nil {
-		panic(nonceAccount)
+		panic(err)
 	}
 	if nonce == nil || nonce.CallId.Valid || nonce.UserId.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+	user, err := node.store.ReadUserByChainAddress(ctx, userAddress.String())
+	logger.Printf("store.ReadUserByChainAddress(%s) => %v %v", userAddress.String(), user, err)
+	if err != nil {
+		panic(err)
+	}
+	if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -838,8 +845,8 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 		panic(err)
 	}
 
-	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), user, solana.MustPublicKeyFromBase58(nonceAccount))
-	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, user.String(), err)
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), userAddress, solana.MustPublicKeyFromBase58(nonceAccount))
+	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, userAddress, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -852,7 +859,7 @@ func (node *Node) processSignerCreateDepositCall(ctx context.Context, req *store
 		RequestId:       req.Id,
 		Superior:        req.Id,
 		Type:            store.CallTypeMain,
-		Public:          hex.EncodeToString(user.Bytes()),
+		Public:          hex.EncodeToString(user.FingerprintWithPath()),
 		NonceAccount:    nonceAccount,
 		Message:         hex.EncodeToString(msg),
 		Raw:             tx.MustToBase64(),

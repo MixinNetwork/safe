@@ -157,13 +157,13 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	case OperationTypeConfirmCall:
 		return node.processConfirmCall(ctx, req)
 	case OperationTypeSignInput:
-		return node.processObserverRequestSession(ctx, req)
+		return node.processObserverRequestSign(ctx, req)
 	case OperationTypeSignPrepare:
 		return node.processSignerPrepare(ctx, req)
 	case OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)
 	case OperationTypeDeposit:
-		return node.processSignerCreateDepositCall(ctx, req)
+		return node.processObserverCreateDepositCall(ctx, req)
 	default:
 		panic(req.Action)
 	}
