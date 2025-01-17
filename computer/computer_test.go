@@ -441,10 +441,22 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 
 func testObserverRequestGenerateKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	node := nodes[0]
-	extra := []byte{0}
+	count, err := node.store.CountKeys(ctx)
+	require.Nil(err)
+	require.Equal(0, count)
+	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")
+
+	extra := []byte{1}
 	id := uuid.Must(uuid.NewV4()).String()
 	var sessionId string
 	for _, node := range nodes {
+		count, err = node.store.CountKeys(ctx)
+		require.Nil(err)
+		require.Equal(1, count)
+		key, err := node.store.ReadLatestKey(ctx)
+		require.Nil(err)
+		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
+
 		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, extra)
 		sessionId = out.OutputId
 		testStep(ctx, require, node, out)
@@ -455,7 +467,7 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 
 	members := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
-	sessionId = common.UniqueId(sessionId, fmt.Sprintf("OperationTypeKeygenInput:%d", 0))
+	sessionId = common.UniqueId(sessionId, fmt.Sprintf("OperationTypeKeygenInput:%d", 1))
 	sessionId = common.UniqueId(sessionId, fmt.Sprintf("MTG:%v:%d", members, threshold))
 	for _, node := range nodes {
 		testWaitOperation(ctx, node, sessionId)
@@ -470,21 +482,14 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 		require.Len(sessions, 0)
 		count, err := node.store.CountKeys(ctx)
 		require.Nil(err)
-		require.Equal(1, count)
+		require.Equal(2, count)
 	}
 
-	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")
-	count, err := node.store.CountKeys(ctx)
-	require.Nil(err)
-	require.Equal(2, count)
-	key, err := node.store.ReadLatestKey(ctx)
-	require.Nil(err)
-	require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys2, "4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295")
 	count, err = node.store.CountKeys(ctx)
 	require.Nil(err)
 	require.Equal(3, count)
-	key, err = node.store.ReadLatestKey(ctx)
+	key, err := node.store.ReadLatestKey(ctx)
 	require.Nil(err)
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
 }
@@ -640,7 +645,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.MTG.GroupSize = 1
 	conf.Computer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
 	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
-	conf.Computer.MpcKeyNumber = 2
+	conf.Computer.MpcKeyNumber = 3
 
 	if rpc := os.Getenv("SOLANARPC"); rpc != "" {
 		conf.Computer.SolanaRPC = rpc
