@@ -436,11 +436,3 @@ func unmarshalSessionMessage(b []byte) ([]byte, *protocol.Message, error) {
 	err := msg.UnmarshalBinary(b[1+b[0]:])
 	return sessionId, &msg, err
 }
-
-func getFingerPrintFromPublicWithPath(session *store.Session) string {
-	data := common.DecodeHexOrPanic(session.Public)
-	if len(data) == 40 {
-		panic(fmt.Errorf("invalid session: %v", session))
-	}
-	return hex.EncodeToString(common.Fingerprint(hex.EncodeToString(data[:32])))
-}

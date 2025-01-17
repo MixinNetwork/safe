@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -60,6 +61,9 @@ func (c *SystemCall) UserIdFromPublicPath() *big.Int {
 	data := common.DecodeHexOrPanic(c.Public)
 	if len(data) != 16 {
 		panic(fmt.Errorf("invalid public of system call: %v", c))
+	}
+	if bytes.Equal(data[8:], defaultPath) {
+		panic(fmt.Errorf("invalid user id"))
 	}
 	id := new(big.Int).SetBytes(data[8:])
 	return id

@@ -503,7 +503,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		if nonce.UserId.Valid || nonce.CallId.Valid {
 			return node.failRequest(ctx, req, "")
 		}
-		new.Public = hex.EncodeToString(user.FingerprintWithPath())
+		new.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
 		new.Type = store.CallTypePrepare
 	case common.RequestStateDone, common.RequestStateFailed:
 		new.Public = call.Public
