@@ -126,7 +126,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 	hasUser := tx.IsSigner(solana.MustPublicKeyFromBase58(user.ChainAddress))
-	hasPayer := tx.IsSigner(node.solanaAccount())
+	hasPayer := tx.IsSigner(node.solanaPayer())
 	if (!hasPayer || !hasUser) && !common.CheckTestEnvironment(ctx) {
 		logger.Printf("tx.IsSigner(user) => %t", hasUser)
 		logger.Printf("tx.IsSigner(payer) => %t", hasPayer)

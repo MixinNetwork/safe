@@ -118,7 +118,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 }
 
 func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.Transaction) error {
-	signedBy := tx.Message.IsSigner(node.solanaAccount())
+	signedBy := tx.Message.IsSigner(node.solanaPayer())
 	if !signedBy {
 		return nil
 	}
@@ -377,8 +377,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 }
 
 func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
-	// FIXME
-	mtgAddress := ""
+	mtgAddress := node.getMtgAddress(ctx).String()
 
 	changes := make(map[string]*big.Int)
 	for _, t := range transfers {
@@ -471,7 +470,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 		return nil, as
 	}
 
-	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaAccount(), mtg, nonce.Account(), transfers)
+	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -540,7 +539,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 		return nil
 	}
 
-	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaAccount(), source, nonce.Account(), transfers)
+	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), source, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -548,7 +547,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 }
 
 func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKey, nonce *store.NonceAccount, transfers []*solanaApp.TokenTransfers) *solana.Transaction {
-	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaAccount(), source, nonce.Account(), transfers)
+	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), source, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -576,7 +575,7 @@ func (node *Node) solanaClient() *solanaApp.Client {
 	return solanaApp.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
 }
 
-func (node *Node) solanaAccount() solana.PublicKey {
+func (node *Node) solanaPayer() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
 }
 
