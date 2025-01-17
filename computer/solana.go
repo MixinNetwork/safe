@@ -162,7 +162,8 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 		if err != nil {
 			return err
 		}
-		tx := node.burnRestTokens(ctx, call, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
+		source := node.GetSolanaPublicKeyFromCall(ctx, call)
+		tx := node.burnRestTokens(ctx, call, source, nonce)
 		if tx == nil {
 			return nil
 		}
@@ -211,7 +212,8 @@ func (node *Node) solanaProcessFailedCallTransaction(ctx context.Context, call *
 		if err != nil {
 			return err
 		}
-		tx := node.burnRestTokens(ctx, call, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
+		source := node.GetSolanaPublicKeyFromCall(ctx, call)
+		tx := node.burnRestTokens(ctx, call, source, nonce)
 		if tx == nil {
 			return nil
 		}
@@ -553,11 +555,12 @@ func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKe
 
 func (node *Node) GetSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
 	data := common.DecodeHexOrPanic(c.Public)
-	if len(data) != 40 {
-		panic(fmt.Errorf("invalid public of system call: %v", c))
+	if len(data) != 16 {
+		panic(fmt.Errorf("invalid public of system call: %s %s", c.RequestId, c.Public))
 	}
-	public, path := data[:32], data[32:]
-	_, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public))))
+	fp := hex.EncodeToString(data[:8])
+	path := data[:8]
+	_, share, err := node.store.ReadKeyByFingerprint(ctx, fp)
 	if err != nil {
 		panic(err)
 	}

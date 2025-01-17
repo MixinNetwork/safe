@@ -16,7 +16,6 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/saver"
@@ -82,7 +81,8 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 func testObserverCreatePostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
 	nonce, err := nodes[0].store.ReadNonceAccount(ctx, call.NonceAccount)
 	require.Nil(err)
-	stx := nodes[0].burnRestTokens(ctx, call, solanaApp.PublicKeyFromEd25519Public(call.Public), nonce)
+	source := nodes[0].GetSolanaPublicKeyFromCall(ctx, call)
+	stx := nodes[0].burnRestTokens(ctx, call, source, nonce)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
