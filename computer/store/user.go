@@ -8,13 +8,11 @@ import (
 	"strings"
 	"time"
 
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/gagliardetto/solana-go"
 )
 
 var StartUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
-var defaultPath = []byte{0, 0, 0, 0, 0, 0, 0, 0}
+var DefaultPath = []byte{0, 0, 0, 0, 0, 0, 0, 0}
 
 // Public is the underived key with defaultPath controled by mpc
 type User struct {
@@ -55,13 +53,9 @@ func (u *User) IdBytes() []byte {
 	return data
 }
 
-func (u *User) MtgSolanaPublicKey() solana.PublicKey {
-	return solanaApp.PublicKeyFromEd25519Public(u.Public)
-}
-
 func (u *User) FingerprintWithEmptyPath() []byte {
 	fp := common.Fingerprint(u.Public)
-	fp = append(fp, defaultPath...)
+	fp = append(fp, DefaultPath...)
 	return fp
 }
 

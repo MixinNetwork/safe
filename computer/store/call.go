@@ -62,7 +62,7 @@ func (c *SystemCall) UserIdFromPublicPath() *big.Int {
 	if len(data) != 16 {
 		panic(fmt.Errorf("invalid public of system call: %v", c))
 	}
-	if bytes.Equal(data[8:], defaultPath) {
+	if bytes.Equal(data[8:], DefaultPath) {
 		panic(fmt.Errorf("invalid user id"))
 	}
 	id := new(big.Int).SetBytes(data[8:])

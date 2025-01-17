@@ -1,6 +1,7 @@
 package computer
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -162,7 +163,7 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 		if err != nil {
 			return err
 		}
-		source := node.GetSolanaPublicKeyFromCall(ctx, call)
+		source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
 		tx := node.burnRestTokens(ctx, call, source, nonce)
 		if tx == nil {
 			return nil
@@ -212,7 +213,7 @@ func (node *Node) solanaProcessFailedCallTransaction(ctx context.Context, call *
 		if err != nil {
 			return err
 		}
-		source := node.GetSolanaPublicKeyFromCall(ctx, call)
+		source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
 		tx := node.burnRestTokens(ctx, call, source, nonce)
 		if tx == nil {
 			return nil
@@ -411,9 +412,10 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 }
 
 func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
+	mtg := node.getMtgAddress(ctx)
 	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-	if err != nil {
-		panic(err)
+	if err != nil || user == nil {
+		panic(fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err))
 	}
 	destination := solanaApp.PublicKeyFromEd25519Public(user.Public)
 
@@ -469,7 +471,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 		return nil, as
 	}
 
-	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaAccount(), user.MtgSolanaPublicKey(), nonce.Account(), transfers)
+	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaAccount(), mtg, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -553,13 +555,15 @@ func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKe
 	return tx
 }
 
-func (node *Node) GetSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
+func (node *Node) GetUserSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
 	data := common.DecodeHexOrPanic(c.Public)
 	if len(data) != 16 {
 		panic(fmt.Errorf("invalid public of system call: %s %s", c.RequestId, c.Public))
 	}
-	fp := hex.EncodeToString(data[:8])
-	path := data[:8]
+	fp, path := hex.EncodeToString(data[:8]), data[:8]
+	if bytes.Equal(store.DefaultPath, path) {
+		panic(fmt.Errorf("invalid empty path"))
+	}
 	_, share, err := node.store.ReadKeyByFingerprint(ctx, fp)
 	if err != nil {
 		panic(err)
@@ -574,6 +578,14 @@ func (node *Node) solanaClient() *solanaApp.Client {
 
 func (node *Node) solanaAccount() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
+}
+
+func (node *Node) getMtgAddress(ctx context.Context) solana.PublicKey {
+	key, err := node.store.ReadFirstKey(ctx)
+	if err != nil || key == "" {
+		panic(fmt.Errorf("store.ReadFirstKey() => %s %v", key, err))
+	}
+	return solana.PublicKeyFromBytes(common.DecodeHexOrPanic(key))
 }
 
 func (node *Node) solanaDepositEntry() solana.PublicKey {
