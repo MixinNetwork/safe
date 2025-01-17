@@ -104,13 +104,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	} else if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	mtgUser, err := node.store.ReadUser(ctx, store.MPCUserId)
-	logger.Printf("store.ReadUser(mtg) => %v %v", mtgUser, err)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadUser() => %v", err))
-	} else if mtgUser == nil {
-		return node.failRequest(ctx, req, "")
-	}
+
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
 	if err != nil {
 		panic(err)
@@ -175,7 +169,8 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	var txs []*mtg.Transaction
 	var compaction string
 	as := node.getSystemCallRelatedAsset(ctx, req.Id)
-	destination := solanaApp.PublicKeyFromEd25519Public(mtgUser.Public).String()
+	// user public is the underived key controled by mpc
+	destination := solanaApp.PublicKeyFromEd25519Public(user.Public).String()
 	for _, asset := range as {
 		if !asset.Solana {
 			continue
