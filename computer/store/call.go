@@ -309,7 +309,7 @@ func (s *SQLite3Store) ListInitialSystemCalls(ctx context.Context) ([]*SystemCal
 	defer s.mutex.Unlock()
 
 	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_ids='' AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
-	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateDone)
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateInitial)
 	if err != nil {
 		return nil, err
 	}
