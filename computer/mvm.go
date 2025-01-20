@@ -286,9 +286,14 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 	if err != nil || s == nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
 	}
-	key, _, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public))))
-	if err != nil || key != hex.EncodeToString(public) {
-		panic(fmt.Errorf("store.readKeyByFingerPath(%x) => %s %v", public, key, err))
+	fp := hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public)))
+	key, _, err := node.store.ReadKeyByFingerprint(ctx, fp)
+	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", fp, key, err)
+	if err != nil {
+		panic(err)
+	}
+	if key != hex.EncodeToString(public) {
+		return node.failRequest(ctx, req, "")
 	}
 
 	sender := req.Output.Senders[0]
