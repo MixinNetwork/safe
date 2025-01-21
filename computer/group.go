@@ -258,13 +258,6 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 		return node.store.FailSession(ctx, op.Id)
 	}
 	op.Public = hex.EncodeToString(res.Public)
-	saved, err := node.sendKeygenBackup(ctx, op, res.Share)
-	logger.Printf("node.sendKeygenBackup(%v, %d) => %t %v", op, len(res.Share), saved, err)
-	if err != nil {
-		err = node.store.FailSession(ctx, op.Id)
-		logger.Printf("store.FailSession(%s, startKeygen) => %v", op.Id, err)
-		return err
-	}
 	if common.CheckTestEnvironment(ctx) {
 		extra := []byte{OperationTypeKeygenOutput}
 		extra = append(extra, []byte(op.Public)...)
@@ -277,7 +270,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	if err != nil {
 		panic(err)
 	}
-	return node.store.WriteKeyIfNotExists(ctx, session, op.Public, res.Share, saved)
+	return node.store.WriteKeyIfNotExists(ctx, session, op.Public, res.Share, false)
 }
 
 func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {
