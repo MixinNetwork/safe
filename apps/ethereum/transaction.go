@@ -59,7 +59,7 @@ func CreateTransactionFromOutputs(ctx context.Context, typ int, chainId int64, i
 
 func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddress, destination, tokenAddress, amount string, nonce *big.Int) (*SafeTransaction, error) {
 	if nonce == nil || tokenAddress == "" {
-		return nil, fmt.Errorf("Invalid ethereum transaction nonce or token address %s %s", nonce, tokenAddress)
+		return nil, fmt.Errorf("invalid ethereum transaction nonce or token address %s %s", nonce, tokenAddress)
 	}
 	value, ok := new(big.Int).SetString(amount, 10)
 	if !ok {
@@ -99,7 +99,7 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 
 func CreateMultiSendTransaction(ctx context.Context, chainID int64, id, safeAddress string, outputs []*Output, nonce *big.Int) (*SafeTransaction, error) {
 	if nonce == nil {
-		return nil, fmt.Errorf("Invalid ethereum transaction nonce")
+		return nil, fmt.Errorf("invalid ethereum transaction nonce")
 	}
 	tx := &SafeTransaction{
 		ChainID:        chainID,

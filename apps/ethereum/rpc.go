@@ -241,7 +241,7 @@ func rpcGetEtherBalanceAtBlock(rpc, address string, blockNumber uint64) (*big.In
 	}
 	balance, success := new(big.Int).SetString(b[2:], 16)
 	if !success {
-		return nil, fmt.Errorf("Failed to parse address balance")
+		return nil, fmt.Errorf("failed to parse address balance")
 	}
 	return balance, err
 }

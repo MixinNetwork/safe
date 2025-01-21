@@ -36,14 +36,6 @@ const (
 	OperationTypeDeposit            = 20
 )
 
-func keyAsOperation(k *store.Key) *common.Operation {
-	return &common.Operation{
-		Id:     k.SessionId,
-		Type:   OperationTypeKeygenInput,
-		Public: k.Public,
-	}
-}
-
 func DecodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, error) {
 	h, err := crypto.HashFromString(out.TransactionHash)
 	if err != nil {

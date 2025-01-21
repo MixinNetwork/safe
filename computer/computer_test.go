@@ -542,29 +542,6 @@ func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) 
 	}
 }
 
-func testBuildSignerRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
-	sequence += 10
-	id = common.UniqueId(id, "output")
-	memo := []byte{action}
-	memo = append(memo, extra...)
-	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	memoStr = hex.EncodeToString([]byte(memoStr))
-	timestamp := time.Now().UTC()
-	return &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           id,
-			TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
-			AppId:              node.conf.AppId,
-			Senders:            []string{string(node.id)},
-			AssetId:            node.conf.AssetId,
-			Extra:              memoStr,
-			Amount:             decimal.New(1, 1),
-			SequencerCreatedAt: timestamp,
-			Sequence:           sequence,
-		},
-	}
-}
-
 func testStep(ctx context.Context, require *require.Assertions, node *Node, out *mtg.Action) {
 	txs1, asset := node.ProcessOutput(ctx, out)
 	require.Equal("", asset)

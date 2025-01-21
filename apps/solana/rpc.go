@@ -10,7 +10,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/ws"
 )
 
 func NewClient(rpcEndpoint, wsEndpoint string) *Client {
@@ -72,10 +71,6 @@ func (c *Client) GetLatestBlockhash(ctx context.Context) (*rpc.GetLatestBlockhas
 		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
 	return blockhash, err
-}
-
-func (c *Client) connectWs(ctx context.Context) (*ws.Client, error) {
-	return ws.Connect(ctx, c.wsEndpoint)
 }
 
 func (c *Client) RPCGetBlock(ctx context.Context, slot uint64) (*rpc.GetBlockResult, error) {
