@@ -3,7 +3,6 @@ package solana
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/MixinNetwork/safe/common"
 	solana "github.com/gagliardetto/solana-go"
@@ -11,7 +10,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
-	confirm "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
 )
 
 const (
@@ -242,29 +240,6 @@ func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.Pu
 	}
 
 	return builder.Build()
-}
-
-func (c *Client) SendAndConfirmTransaction(ctx context.Context, tx *solana.Transaction) error {
-	client := c.getRPCClient()
-	ws, err := c.connectWs(ctx)
-	if err != nil {
-		return fmt.Errorf("solana.connectWs() => %v", err)
-	}
-	defer ws.Close()
-
-	retry := uint(5)
-	_, err = confirm.SendAndConfirmTransactionWithOpts(ctx, client, ws, tx, rpc.TransactionOpts{
-		SkipPreflight:       false,
-		PreflightCommitment: rpc.CommitmentConfirmed,
-		MaxRetries:          &retry,
-	}, nil)
-	if err != nil {
-		if strings.Contains(err.Error(), "timeout") {
-			return c.SendAndConfirmTransaction(ctx, tx)
-		}
-		return fmt.Errorf("solana.SendAndConfirmTransaction() => %v", err)
-	}
-	return nil
 }
 
 func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder *solana.TransactionBuilder, transfer *TokenTransfers, payer, source solana.PublicKey) (*solana.TransactionBuilder, error) {

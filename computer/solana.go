@@ -292,9 +292,13 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *s
 	if err != nil {
 		return nil, nil, err
 	}
-	err = client.SendAndConfirmTransaction(ctx, tx)
+	sig, err := client.SendTransaction(ctx, tx)
 	if err != nil {
 		return nil, nil, err
+	}
+	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, sig)
+	if err != nil || rpcTx == nil {
+		return nil, nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", sig, rpcTx, err)
 	}
 
 	hash, err := client.GetNonceAccountHash(ctx, nonce.PublicKey())

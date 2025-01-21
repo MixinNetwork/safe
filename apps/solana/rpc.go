@@ -233,3 +233,12 @@ func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Min
 	}
 	return &token, nil
 }
+
+func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
+	client := c.getRPCClient()
+	sig, err := client.SendTransaction(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	return sig.String(), nil
+}

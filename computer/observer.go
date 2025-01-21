@@ -328,12 +328,11 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			return fmt.Errorf("invalid solana tx signature: %s", call.RequestId)
 		}
 		tx.Signatures[index] = solana.SignatureFromBytes(common.DecodeHexOrPanic(call.Signature.String))
-		err = node.solanaClient().SendAndConfirmTransaction(ctx, tx)
+		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
-			return node.solanaProcessFailedCallTransaction(ctx, call)
+			panic(err)
 		}
-		hash := tx.Signatures[0]
-		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash.String())
+		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
 		if err != nil {
 			panic(err)
 		}
