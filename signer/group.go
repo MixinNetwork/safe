@@ -315,7 +315,7 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, crv byte, public stri
 			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 		}
 	default:
-		if len(path) != 4 || fingerPath[0] > 3 {
+		if len(path) != 4 || path[0] > 3 {
 			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 		}
 	}
