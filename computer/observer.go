@@ -23,7 +23,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	}
 	logger.Printf("bootObserver(%s)", node.id)
 
-	err := node.initMpcKeys(ctx, time.Time{})
+	err := node.initMpcKeys(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -39,44 +39,41 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.solanaRPCBlocksLoop(ctx)
 }
 
-func (node *Node) initMpcKeys(ctx context.Context, offset time.Time) error {
-	count, err := node.store.CountKeys(ctx)
-	if err != nil {
-		return err
-	}
-	if count >= node.conf.MpcKeyNumber {
-		return nil
-	}
-
-	requestAt := time.Now().UTC()
-	for i := count; i < node.conf.MpcKeyNumber; i++ {
-		id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
-		id = common.UniqueId(id, offset.String())
-		extra := []byte{byte(i)}
-		err = node.sendObserverTransaction(ctx, &common.Operation{
-			Id:    id,
-			Type:  OperationTypeKeygenInput,
-			Extra: extra,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
+func (node *Node) initMpcKeys(ctx context.Context) error {
 	for {
-		now := time.Now().UTC()
-		if now.After(requestAt.Add(frostKeygenRoundTimeout)) {
-			return node.initMpcKeys(ctx, now)
+		count, err := node.store.CountKeys(ctx)
+		if err != nil || count >= node.conf.MpcKeyNumber {
+			return err
 		}
 
-		count, err := node.store.CountKeys(ctx)
+		now := time.Now().UTC()
+		requestAt, err := node.readRequestTime(ctx, store.KeygenRequestTimeKey)
 		if err != nil {
 			return err
 		}
-		if count >= node.conf.MpcKeyNumber {
-			return nil
+		if now.Before(requestAt.Add(frostKeygenRoundTimeout + 1*time.Minute)) {
+			time.Sleep(1 * time.Minute)
+			continue
 		}
-		time.Sleep(1 * time.Minute)
+
+		for i := count; i < node.conf.MpcKeyNumber; i++ {
+			id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
+			id = common.UniqueId(id, now.String())
+			extra := []byte{byte(i)}
+			err = node.sendObserverTransaction(ctx, &common.Operation{
+				Id:    id,
+				Type:  OperationTypeKeygenInput,
+				Extra: extra,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		err = node.writeRequestTime(ctx, store.KeygenRequestTimeKey, now)
+		if err != nil {
+			return err
+		}
 	}
 }
 
