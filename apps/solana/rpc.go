@@ -170,7 +170,7 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.
 		&rpc.GetTransactionOpts{
 			Encoding:                       solana.EncodingBase58,
 			MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
-			Commitment:                     rpc.CommitmentFinalized,
+			Commitment:                     rpc.CommitmentConfirmed,
 		})
 	if err != nil {
 		return nil, err
