@@ -42,6 +42,10 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if common.CheckTestEnvironment(ctx) {
 		out.TestAttachActionToGroup(node.group)
 	}
+	if out.Sequence < node.conf.MTG.Genesis.Epoch {
+		return nil, ""
+	}
+
 	isDeposit := node.verifyKernelTransaction(ctx, out)
 	if isDeposit {
 		return node.processDeposit(ctx, out)
