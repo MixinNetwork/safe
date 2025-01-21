@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -287,21 +288,29 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *s
 		panic(err)
 	}
 
-	client := node.solanaClient()
-	tx, err := client.CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String(), "", 0)
+	tx, err := node.solanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String(), "", 0)
 	if err != nil {
 		return nil, nil, err
-	}
-	sig, err := client.SendTransaction(ctx, tx)
-	if err != nil {
-		return nil, nil, err
-	}
-	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, sig)
-	if err != nil || rpcTx == nil {
-		return nil, nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", sig, rpcTx, err)
 	}
 
-	hash, err := client.GetNonceAccountHash(ctx, nonce.PublicKey())
+	var h string
+	for {
+		sig, err := node.solanaClient().SendTransaction(ctx, tx)
+		if err == nil {
+			h = sig
+			break
+		}
+		if strings.Contains(err.Error(), "Blockhash not found") {
+			continue
+		}
+		return nil, nil, err
+	}
+	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
+	if err != nil || rpcTx == nil {
+		return nil, nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", h, rpcTx, err)
+	}
+
+	hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
 	if err != nil {
 		return nil, nil, err
 	}
