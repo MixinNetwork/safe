@@ -111,11 +111,9 @@ func Rollback(txn *sql.Tx) {
 }
 
 func ToMixinnetHash(hashes []crypto.Hash) []mixinnet.Hash {
-	var hs []mixinnet.Hash
-	for _, hash := range hashes {
-		var h mixinnet.Hash
-		copy(h[:], hash[:])
-		hs = append(hs, h)
+	hs := make([]mixinnet.Hash, len(hashes))
+	for i, hash := range hashes {
+		copy(hs[i][:], hash[:])
 	}
 	return hs
 }

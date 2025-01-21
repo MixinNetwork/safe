@@ -2,6 +2,7 @@ package mixin
 
 import (
 	"crypto/ed25519"
+	"slices"
 
 	"filippo.io/edwards25519"
 	"github.com/MixinNetwork/mixin/crypto"
@@ -10,12 +11,9 @@ import (
 const OutputTypeWithdrawalClaim = 0xa9
 
 func CheckEd25519ValidChildPath(path []byte) bool {
-	for _, b := range path {
-		if b > 0 {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(path, func(b byte) bool {
+		return b > 0
+	})
 }
 
 func DeriveEd25519Child(public string, path []byte) ed25519.PublicKey {
