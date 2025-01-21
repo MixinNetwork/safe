@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/messenger"
-	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -74,16 +72,6 @@ func getFreePort() int {
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port
-}
-
-func testStartSaver(require *require.Assertions) (*saver.SQLite3Store, int) {
-	dir, err := os.MkdirTemp("", "safe-saver-test-")
-	require.Nil(err)
-	store, err := saver.OpenSQLite3Store(dir + "/data.sqlite3")
-	require.Nil(err)
-	port := getFreePort()
-	go saver.StartHTTP(store, port)
-	return store, port
 }
 
 type testNetwork struct {

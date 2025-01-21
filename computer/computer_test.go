@@ -18,7 +18,6 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
@@ -31,7 +30,7 @@ var sequence uint64 = 5000000
 
 func TestComputer(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes, mds, _ := testPrepare(require)
+	ctx, nodes, mds := testPrepare(require)
 
 	testObserverRequestGenerateKey(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
@@ -578,12 +577,10 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	}
 }
 
-func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.SQLite3Store, *saver.SQLite3Store) {
+func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.SQLite3Store) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
 	ctx = common.EnableTestEnvironment(ctx)
-
-	saverStore, port := testStartSaver(require)
 
 	nodes := make([]*Node, 4)
 	mds := make([]*mtg.SQLite3Store, 4)
@@ -591,7 +588,7 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
-		nodes[i], mds[i] = testBuildNode(ctx, require, root, i, saverStore, port)
+		nodes[i], mds[i] = testBuildNode(ctx, require, root, i)
 	}
 	testInitOutputs(ctx, require, nodes, mds)
 
@@ -606,10 +603,10 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 		go nodes[i].acceptIncomingMessages(ctx)
 	}
 
-	return ctx, nodes, mds, saverStore
+	return ctx, nodes, mds
 }
 
-func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int, saverStore *saver.SQLite3Store, port int) (*Node, *mtg.SQLite3Store) {
+func testBuildNode(ctx context.Context, require *require.Assertions, root string, i int) (*Node, *mtg.SQLite3Store) {
 	f, _ := os.ReadFile("../config/example.toml")
 	var conf struct {
 		Computer *Configuration `toml:"computer"`
@@ -620,19 +617,12 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.StoreDir = root
 	conf.Computer.MTG.App.AppId = conf.Computer.MTG.Genesis.Members[i]
 	conf.Computer.MTG.GroupSize = 1
-	conf.Computer.SaverAPI = fmt.Sprintf("http://localhost:%d", port)
 	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
 	conf.Computer.MpcKeyNumber = 3
 
 	if rpc := os.Getenv("SOLANARPC"); rpc != "" {
 		conf.Computer.SolanaRPC = rpc
 	}
-
-	seed := crypto.Sha256Hash([]byte(conf.Computer.MTG.App.AppId))
-	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
-	conf.Computer.SaverKey = priv.String()
-	err = saverStore.WriteNodePublicKey(ctx, conf.Computer.MTG.App.AppId, priv.Public().String())
-	require.Nil(err)
 
 	if !(strings.HasPrefix(conf.Computer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Computer.StoreDir, "/var/folders")) {
 		panic(root)

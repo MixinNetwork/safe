@@ -28,7 +28,10 @@ func (node *Node) bootObserver(ctx context.Context) {
 		panic(err)
 	}
 
-	go node.sendPriceInfo(ctx)
+	err = node.sendPriceInfo(ctx)
+	if err != nil {
+		panic(err)
+	}
 	go node.nonceAccountLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)

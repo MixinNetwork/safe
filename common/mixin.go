@@ -3,10 +3,7 @@ package common
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -20,8 +17,6 @@ import (
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
 )
-
-var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 type KernelTransactionReader interface {
 	ReadKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error)
@@ -436,50 +431,4 @@ func ReadUsers(ctx context.Context, client *mixin.Client, ids []string) ([]*mixi
 		}
 		return nil, err
 	}
-}
-
-type MixinTransaction struct {
-	Hash       string `json:"hash"`
-	Asset      string `json:"asset"`
-	Amount     string `json:"amount"`
-	Withdrawal struct {
-		Hash           string `json:"hash"`
-		Index          int64  `json:"index"`
-		Address        string `json:"address"`
-		Tag            string `json:"tag"`
-		WithdrawalHash string `json:"withdrawal_hash"`
-	} `json:"withdrawal"`
-}
-
-func CheckWithdrawalTransaction(ctx context.Context, hash string) (*MixinTransaction, error) {
-	req, err := http.NewRequest("GET", "https://kernel.mixin.space/transactions/withdrawal/"+hash, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 500 {
-		return nil, fmt.Errorf("response status code %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	var response struct {
-		Data  *MixinTransaction `json:"data"`
-		Error bot.Error         `json:"error"`
-	}
-	err = json.Unmarshal(body, &resp)
-	if err != nil {
-		return nil, err
-	}
-	if response.Error.Code > 0 {
-		return nil, response.Error
-	}
-	return response.Data, nil
 }

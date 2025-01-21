@@ -21,8 +21,6 @@ type Configuration struct {
 	OperationPriceAssetId   string             `toml:"operation-price-asset-id"`
 	OperationPriceAmount    string             `toml:"operation-price-amount"`
 	MpcKeyNumber            int                `toml:"mpc-key-number"`
-	SaverAPI                string             `toml:"saver-api"`
-	SaverKey                string             `toml:"saver-key"`
 	MixinMessengerAPI       string             `toml:"mixin-messenger-api"`
 	MixinRPC                string             `toml:"mixin-rpc"`
 	SolanaRPC               string             `toml:"solana-rpc"`

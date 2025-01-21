@@ -54,12 +54,6 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 			Timeout: 5 * time.Second,
 		},
 	}
-	priv, err := crypto.KeyFromString(conf.SaverKey)
-	if err != nil {
-		panic(conf.SaverKey)
-	}
-	logger.Printf("node.saverKey %s", priv.Public())
-	node.saverKey = &priv
 
 	members := node.GetMembers()
 	if mgt := conf.MTG.Genesis.Threshold; mgt < conf.Threshold || mgt < len(members)*2/3+1 {
