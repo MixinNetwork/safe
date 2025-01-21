@@ -301,13 +301,21 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *s
 			break
 		}
 		if strings.Contains(err.Error(), "Blockhash not found") {
+			time.Sleep(1 * time.Second)
 			continue
 		}
 		return nil, nil, err
 	}
-	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
-	if err != nil || rpcTx == nil {
-		return nil, nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", h, rpcTx, err)
+
+	for {
+		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
+		if err != nil {
+			return nil, nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", h, rpcTx, err)
+		}
+		if rpcTx != nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
 
 	hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
