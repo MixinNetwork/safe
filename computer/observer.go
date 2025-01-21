@@ -21,6 +21,8 @@ func (node *Node) bootObserver(ctx context.Context) {
 	if string(node.id) != node.conf.ObserverId {
 		return
 	}
+	logger.Printf("bootObserver(%s)", node.id)
+
 	err := node.initMpcKeys(ctx)
 	if err != nil {
 		panic(err)
@@ -85,7 +87,7 @@ func (node *Node) nonceAccountLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Minute)
+		time.Sleep(2 * time.Minute)
 	}
 }
 
@@ -107,7 +109,7 @@ func (node *Node) withdrawalConfirmLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -118,7 +120,7 @@ func (node *Node) initialCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -150,7 +152,7 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 		return err
 	}
 	requested, err := node.readRequestTime(ctx, store.NonceAccountRequestTimeKey)
-	if err != nil || requested.Add(60*time.Minute).After(time.Now().UTC()) {
+	if err != nil || requested.Add(2*time.Minute).After(time.Now().UTC()) {
 		return err
 	}
 	id := common.UniqueId(requested.String(), requested.String())

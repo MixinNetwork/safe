@@ -283,8 +283,12 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 	public := extra[16:]
 
 	s, err := node.store.ReadSession(ctx, sid)
-	if err != nil || s == nil {
-		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
+	logger.Printf("store.ReadSession(%s) => %v %v", sid, s, err)
+	if err != nil {
+		panic(err)
+	}
+	if s == nil {
+		return node.failRequest(ctx, req, "")
 	}
 	fp := hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public)))
 	key, _, err := node.store.ReadKeyByFingerprint(ctx, fp)
