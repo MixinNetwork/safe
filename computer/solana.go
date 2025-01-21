@@ -307,6 +307,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *s
 		return nil, nil, err
 	}
 
+	time.Sleep(30 * time.Second)
 	for {
 		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
 		if err != nil {
