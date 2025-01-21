@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"os"
 	"testing"
 	"time"
 
@@ -78,7 +79,11 @@ func TestComputerSolana(t *testing.T) {
 func TestGetNonceAccountHash(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
-	rpcClient := solanaApp.NewClient(testRpcEndpoint, testWsEndpoint)
+	rpc := testRpcEndpoint
+	if er := os.Getenv("SOLANARPC"); er != "" {
+		rpc = er
+	}
+	rpcClient := solanaApp.NewClient(rpc, testWsEndpoint)
 
 	key := solana.MustPublicKeyFromBase58(testNonceAccountAddress)
 	hash, err := rpcClient.GetNonceAccountHash(ctx, key)
