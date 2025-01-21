@@ -170,7 +170,7 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	defer s.mutex.Unlock()
 
 	cols := []string{"public", "fingerprint", "share", "session_id", "created_at", "updated_at", "confirmed_at", "backed_up_at"}
-	query := fmt.Sprintf("SELECT %s FROM keys WHERE confirmed_at IS NOT NULL  ORDER BY created_at ASC, confirmed_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
+	query := fmt.Sprintf("SELECT %s FROM keys WHERE backed_up_at IS NULL AND confirmed_at IS NOT NULL ORDER BY created_at ASC, confirmed_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
