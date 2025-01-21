@@ -23,7 +23,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	}
 	logger.Printf("bootObserver(%s)", node.id)
 
-	err := node.initMpcKeys(ctx)
+	err := node.initMpcKeys(ctx, time.Time{})
 	if err != nil {
 		panic(err)
 	}
@@ -39,7 +39,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.solanaRPCBlocksLoop(ctx)
 }
 
-func (node *Node) initMpcKeys(ctx context.Context) error {
+func (node *Node) initMpcKeys(ctx context.Context, offset time.Time) error {
 	count, err := node.store.CountKeys(ctx)
 	if err != nil {
 		return err
@@ -47,8 +47,11 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 	if count >= node.conf.MpcKeyNumber {
 		return nil
 	}
+
+	requestAt := time.Now().UTC()
 	for i := count; i < node.conf.MpcKeyNumber; i++ {
 		id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
+		id = common.UniqueId(id, offset.String())
 		extra := []byte{byte(i)}
 		err = node.sendObserverTransaction(ctx, &common.Operation{
 			Id:    id,
@@ -61,6 +64,11 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 	}
 
 	for {
+		now := time.Now().UTC()
+		if now.After(requestAt.Add(frostKeygenRoundTimeout)) {
+			return node.initMpcKeys(ctx, now)
+		}
+
 		count, err := node.store.CountKeys(ctx)
 		if err != nil {
 			return err
@@ -68,6 +76,7 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 		if count >= node.conf.MpcKeyNumber {
 			return nil
 		}
+		time.Sleep(1 * time.Minute)
 	}
 }
 

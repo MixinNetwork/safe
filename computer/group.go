@@ -42,7 +42,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if common.CheckTestEnvironment(ctx) {
 		out.TestAttachActionToGroup(node.group)
 	}
-	if out.Sequence < node.conf.MTG.Genesis.Epoch {
+	if out.Sequence < node.conf.MTG.Genesis.Epoch && !common.CheckTestEnvironment(ctx) {
 		return nil, ""
 	}
 
