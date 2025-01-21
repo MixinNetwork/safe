@@ -303,7 +303,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 
 func (node *Node) readKeyByFingerPath(ctx context.Context, crv byte, public string) (string, byte, []byte, []byte, error) {
 	fingerPath, err := hex.DecodeString(public)
-	if err != nil {
+	if err != nil || len(fingerPath) < 12 {
 		return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 	}
 	fingerprint := hex.EncodeToString(fingerPath[:8])
@@ -311,11 +311,11 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, crv byte, public stri
 
 	switch crv {
 	case common.CurveEdwards25519Default, common.CurveEdwards25519Mixin:
-		if len(fingerPath) != 16 {
+		if len(path) != 8 {
 			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 		}
 	default:
-		if len(fingerPath) != 12 || fingerPath[8] > 3 {
+		if len(path) != 4 || fingerPath[0] > 3 {
 			return "", 0, nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
 		}
 	}
