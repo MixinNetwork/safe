@@ -59,7 +59,16 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+
+	for {
+		count, err := node.store.CountKeys(ctx)
+		if err != nil {
+			return err
+		}
+		if count >= node.conf.MpcKeyNumber {
+			return nil
+		}
+	}
 }
 
 func (node *Node) sendPriceInfo(ctx context.Context) error {

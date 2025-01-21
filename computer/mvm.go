@@ -296,7 +296,7 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 	if err != nil {
 		panic(err)
 	}
-	if key != hex.EncodeToString(public) {
+	if key != hex.EncodeToString(public) || key == "" {
 		return node.failRequest(ctx, req, "")
 	}
 
