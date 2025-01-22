@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"net"
 	"sync"
 	"time"
 
@@ -59,19 +58,6 @@ func testWaitOperation(ctx context.Context, node *Node, sessionId string) *commo
 		}
 	}
 	return nil
-}
-
-func getFreePort() int {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		panic(err)
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
 }
 
 type testNetwork struct {

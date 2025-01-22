@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	bin "github.com/gagliardetto/binary"
-	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -124,7 +124,7 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.
 			Commitment:                     rpc.CommitmentConfirmed,
 		},
 	)
-	if err != nil || r.Meta == nil || r.Meta.Err != nil {
+	if err != nil || r.Meta == nil {
 		return nil, fmt.Errorf("solana.GetTransaction(%s) => %v", signature, err)
 	}
 

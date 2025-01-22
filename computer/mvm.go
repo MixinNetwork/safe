@@ -923,10 +923,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	if err != nil {
 		panic(err)
 	}
-	ts, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
-	if err != nil {
-		panic(err)
-	}
+	ts := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
 
 	var txs []*mtg.Transaction
 	var compaction string
@@ -1005,7 +1002,7 @@ func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId strin
 			total = total.Add(output.Amount)
 		}
 
-		asset, err := bot.ReadAsset(ctx, outputs[0].AssetId)
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, outputs[0].AssetId)
 		if err != nil {
 			panic(err)
 		}

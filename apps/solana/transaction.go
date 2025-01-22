@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/MixinNetwork/safe/common"
-	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
@@ -17,7 +17,7 @@ const (
 	mintSize         uint64 = 82
 )
 
-func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string, rent uint64) (*solana.Transaction, error) {
+func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
 	client := c.getRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
 	if err != nil {
@@ -28,29 +28,19 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string
 		panic(err)
 	}
 
-	var rentExemptBalance uint64
-	if rent > 0 {
-		rentExemptBalance = rent
-	} else {
-		rentExemptBalance, err = client.GetMinimumBalanceForRentExemption(
-			ctx,
-			nonceAccountSize,
-			rpc.CommitmentFinalized,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get rent exempt balance: %w", err)
-		}
+	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
+		ctx,
+		nonceAccountSize,
+		rpc.CommitmentFinalized,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
 	}
-	var blockhash solana.Hash
-	if hash != "" {
-		blockhash = solana.MustHashFromBase58(hash)
-	} else {
-		block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
-		if err != nil {
-			return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
-		}
-		blockhash = block.Value.Blockhash
+	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
+	blockhash := block.Value.Blockhash
 
 	tx, err := solana.NewTransaction(
 		[]solana.Instruction{
@@ -74,20 +64,20 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce, hash string
 	if err != nil {
 		panic(err)
 	}
-	if _, err := tx.Sign(BuildSignersGetter(nonceKey, payer)); err != nil {
+	_, err = tx.Sign(BuildSignersGetter(nonceKey, payer))
+	if err != nil {
 		panic(err)
 	}
 	return tx, nil
 }
 
 func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
-	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
+	builder := buildInitialTxWithNonceAccount(payer, nonce)
 
 	var nullFreezeAuthority solana.PublicKey
-	var rent uint64
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
-			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, &transfer, payerAdress, mtg)
+			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, &transfer, payer, mtg)
 			if err != nil {
 				return nil, err
 			}
@@ -104,22 +94,20 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 			return nil, err
 		}
 		if mintToken == nil || common.CheckTestEnvironment(ctx) {
-			if rent == 0 {
-				rent, err = c.getRPCClient().GetMinimumBalanceForRentExemption(
-					ctx,
-					mintSize,
-					rpc.CommitmentFinalized,
-				)
-				if err != nil {
-					return nil, fmt.Errorf("failed to get rent exempt balance: %w", err)
-				}
+			rent, err := c.getRPCClient().GetMinimumBalanceForRentExemption(
+				ctx,
+				mintSize,
+				rpc.CommitmentFinalized,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
 			}
 			builder.AddInstruction(
 				system.NewCreateAccountInstruction(
 					rent,
 					mintSize,
 					token.ProgramID,
-					payerAdress,
+					payer,
 					mint,
 				).Build(),
 			)
@@ -144,7 +132,7 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 		if ata == nil || common.CheckTestEnvironment(ctx) {
 			builder.AddInstruction(
 				tokenAta.NewCreateInstruction(
-					payerAdress,
+					payer,
 					transfer.Destination,
 					mint,
 				).Build(),
@@ -174,52 +162,15 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 }
 
 func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []*TokenTransfers) (*solana.Transaction, error) {
-	builder, payerAdress := buildInitialTxWithNonceAccount(payer, nonce)
+	builder := buildInitialTxWithNonceAccount(payer, nonce)
 
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
-			if transfer.AssetId == transfer.ChainId {
-				builder.AddInstruction(
-					system.NewTransferInstruction(
-						transfer.Amount,
-						user,
-						transfer.Destination,
-					).Build(),
-				)
-			} else {
-				src, _, err := solana.FindAssociatedTokenAddress(user, transfer.Mint)
-				if err != nil {
-					return nil, err
-				}
-				dst, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, transfer.Mint)
-				if err != nil {
-					return nil, err
-				}
-				ata, err := c.RPCGetAccount(ctx, dst)
-				if err != nil {
-					return nil, err
-				}
-				if ata == nil || common.CheckTestEnvironment(ctx) {
-					builder.AddInstruction(
-						tokenAta.NewCreateInstruction(
-							payerAdress,
-							transfer.Destination,
-							transfer.Mint,
-						).Build(),
-					)
-				}
-				builder.AddInstruction(
-					token.NewTransferCheckedInstruction(
-						transfer.Amount,
-						transfer.Decimals,
-						src,
-						transfer.Mint,
-						dst,
-						user,
-						nil,
-					).Build(),
-				)
+			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, transfer, payer, user)
+			if err != nil {
+				return nil, err
 			}
+			builder = b
 			continue
 		}
 
@@ -244,7 +195,7 @@ func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.Pu
 
 func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder *solana.TransactionBuilder, transfer *TokenTransfers, payer, source solana.PublicKey) (*solana.TransactionBuilder, error) {
 	if !transfer.SolanaAsset {
-		return builder, nil
+		panic(transfer.AssetId)
 	}
 	if transfer.AssetId == transfer.ChainId {
 		builder.AddInstruction(

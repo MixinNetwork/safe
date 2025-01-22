@@ -75,10 +75,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		return err
 	}
 
-	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, meta)
-	if err != nil {
-		return err
-	}
+	transfers := solanaApp.ExtractTransfersFromTransaction(ctx, tx, meta)
 	changes, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
 	logger.Printf("node.parseSolanaBlockBalanceChanges(%d) => %d %v", len(transfers), len(changes), err)
 	if err != nil || len(changes) == 0 {
@@ -238,7 +235,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *s
 		panic(err)
 	}
 
-	tx, err := node.solanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String(), "", 0)
+	tx, err := node.solanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
 	if err != nil {
 		return nil, nil, err
 	}

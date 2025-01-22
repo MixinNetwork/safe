@@ -9,16 +9,16 @@ import (
 	"github.com/MixinNetwork/mixin/util/base58"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
-	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-const SolanaEmptyAddress = "11111111111111111111111111111111"
-const SolanaChainBase = "64692c23-8971-4cf4-84a7-4dd1271dd887"
-
-var SolanaEmptyAddressPublic = solana.MustPublicKeyFromBase58(SolanaEmptyAddress)
+const (
+	SolanaEmptyAddress = "11111111111111111111111111111111"
+	SolanaChainBase    = "64692c23-8971-4cf4-84a7-4dd1271dd887"
+)
 
 type NonceAccount struct {
 	Address solana.PublicKey
@@ -66,7 +66,7 @@ func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *s
 	}
 }
 
-func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) (*solana.TransactionBuilder, solana.PublicKey) {
+func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) *solana.TransactionBuilder {
 	b := solana.NewTransactionBuilder()
 	b.SetRecentBlockHash(nonce.Hash)
 	b.SetFeePayer(payer)
@@ -75,7 +75,11 @@ func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) 
 		solana.SysVarRecentBlockHashesPubkey,
 		payer,
 	).Build())
-	return b, payer
+	return b
+}
+
+func PublicKeyFromEd25519Public(pub string) solana.PublicKey {
+	return solana.PublicKeyFromBytes(common.DecodeHexOrPanic(pub))
 }
 
 func VerifyAssetKey(assetKey string) error {
@@ -110,14 +114,10 @@ func GenerateAssetId(assetKey string) string {
 	return ethereum.BuildChainAssetId(SolanaChainBase, assetKey)
 }
 
-func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) ([]*Transfer, error) {
-	if meta == nil {
-		return nil, fmt.Errorf("meta is nil")
-	}
-
+func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) []*Transfer {
 	if meta.Err != nil {
 		// Transaction failed, ignore
-		return nil, nil
+		return nil
 	}
 
 	hash := tx.Signatures[0].String()
@@ -159,7 +159,7 @@ func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction
 		}
 	}
 
-	return transfers, nil
+	return transfers
 }
 
 func ExtractBurnsFromTransaction(ctx context.Context, tx *solana.Transaction) []*token.BurnChecked {
