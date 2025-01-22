@@ -22,6 +22,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 		return
 	}
 	logger.Printf("bootObserver(%s)", node.id)
+	go node.StartHTTP()
 
 	err := node.initMpcKeys(ctx)
 	if err != nil {
