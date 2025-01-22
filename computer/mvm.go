@@ -158,7 +158,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStateInitial,
 		WithdrawalIds:   "",
-		WithdrawedAt:    sql.NullTime{Valid: true, Time: req.CreatedAt},
+		WithdrewAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
 		Signature:       sql.NullString{Valid: false},
 		RequestSignerAt: sql.NullTime{Valid: false},
 		CreatedAt:       req.CreatedAt,
@@ -188,7 +188,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 			ids = append(ids, tx.TraceId)
 		}
 		call.WithdrawalIds = strings.Join(ids, ",")
-		call.WithdrawedAt = sql.NullTime{Valid: false}
+		call.WithdrewAt = sql.NullTime{Valid: false}
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, txs, compaction)
@@ -324,9 +324,9 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 		return nil, ""
 	}
 
-	err = node.store.MarkKeyComfirmedWithRequest(ctx, req, hex.EncodeToString(public))
+	err = node.store.MarkKeyConfirmedWithRequest(ctx, req, hex.EncodeToString(public))
 	if err != nil {
-		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
+		panic(fmt.Errorf("store.MarkKeyConfirmedWithRequest(%v) => %v", req, err))
 	}
 	return nil, ""
 }
@@ -391,7 +391,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	if err != nil {
 		panic(err)
 	}
-	if call == nil || call.WithdrawedAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
+	if call == nil || call.WithdrewAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
 		return node.failRequest(ctx, req, "")
 	}
 	ids := []string{}
@@ -403,14 +403,14 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	}
 	call.WithdrawalIds = strings.Join(ids, ",")
 	if len(ids) == 0 {
-		call.WithdrawedAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+		call.WithdrewAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 		_, as := node.transferOrMintTokens(ctx, call, nil)
 		if len(as) == 0 {
 			call.State = common.RequestStatePending
 		}
 	}
 
-	err = node.store.MarkSystemCallWithdrawedWithRequest(ctx, req, call, txId, withdrawalHash)
+	err = node.store.MarkSystemCallWithdrewWithRequest(ctx, req, call, txId, withdrawalHash)
 	if err != nil {
 		panic(err)
 	}
@@ -500,7 +500,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStatePending,
 		WithdrawalIds:   "",
-		WithdrawedAt:    sql.NullTime{Valid: true, Time: req.CreatedAt},
+		WithdrewAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
 		Signature:       sql.NullString{Valid: false},
 		RequestSignerAt: sql.NullTime{Valid: false},
 		CreatedAt:       req.CreatedAt,
@@ -874,7 +874,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStatePending,
 		WithdrawalIds:   "",
-		WithdrawedAt:    sql.NullTime{Valid: true, Time: req.CreatedAt},
+		WithdrewAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
 		Signature:       sql.NullString{Valid: false},
 		RequestSignerAt: sql.NullTime{Valid: false},
 		CreatedAt:       req.CreatedAt,

@@ -29,32 +29,26 @@ type SystemCall struct {
 	Raw             string
 	State           int64
 	WithdrawalIds   string
-	WithdrawedAt    sql.NullTime
+	WithdrewAt      sql.NullTime
 	Signature       sql.NullString
 	RequestSignerAt sql.NullTime
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
 
-var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "nonce_account", "public", "message", "raw", "state", "withdrawal_ids", "withdrawed_at", "signature", "request_signer_at", "created_at", "updated_at"}
+var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "nonce_account", "public", "message", "raw", "state", "withdrawal_ids", "withdrew_at", "signature", "request_signer_at", "created_at", "updated_at"}
 
 func systemCallFromRow(row Row) (*SystemCall, error) {
 	var c SystemCall
-	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.NonceAccount, &c.Public, &c.Message, &c.Raw, &c.State, &c.WithdrawalIds, &c.WithdrawedAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
+	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.NonceAccount, &c.Public, &c.Message, &c.Raw, &c.State, &c.WithdrawalIds, &c.WithdrewAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
-	} else if err != nil {
-		return nil, err
 	}
 	return &c, err
 }
 
 func (c *SystemCall) GetWithdrawalIds() []string {
-	var ids []string
-	if c.WithdrawalIds == "" {
-		return ids
-	}
-	return strings.Split(c.WithdrawalIds, ",")
+	return mtg.SplitIds(c.WithdrawalIds)
 }
 
 func (c *SystemCall) UserIdFromPublicPath() *big.Int {
@@ -79,7 +73,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	}
 	defer common.Rollback(tx)
 
-	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrawedAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrewAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
@@ -103,7 +97,7 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 	}
 	defer common.Rollback(tx)
 
-	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrawedAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalIds, call.WithdrewAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
@@ -128,7 +122,7 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, req *Request, call *SystemCall, txId, hash string) error {
+func (s *SQLite3Store) MarkSystemCallWithdrewWithRequest(ctx context.Context, req *Request, call *SystemCall, txId, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -138,8 +132,8 @@ func (s *SQLite3Store) MarkSystemCallWithdrawedWithRequest(ctx context.Context, 
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE system_calls SET state=?, withdrawal_ids=?, withdrawed_at=?, updated_at=? WHERE request_id=? AND state=?"
-	_, err = tx.ExecContext(ctx, query, call.State, call.WithdrawalIds, call.WithdrawedAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
+	query := "UPDATE system_calls SET state=?, withdrawal_ids=?, withdrew_at=?, updated_at=? WHERE request_id=? AND state=?"
+	_, err = tx.ExecContext(ctx, query, call.State, call.WithdrawalIds, call.WithdrewAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE keys %v", err)
 	}
@@ -312,7 +306,7 @@ func (s *SQLite3Store) ListInitialSystemCalls(ctx context.Context) ([]*SystemCal
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_ids='' AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_ids='' AND withdrew_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateInitial)
 	if err != nil {
 		return nil, err
@@ -378,7 +372,7 @@ func (s *SQLite3Store) ListUnfinishedSubSystemCalls(ctx context.Context) ([]*Sys
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state!=? AND withdrawal_ids='' AND withdrawed_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 1", strings.Join(systemCallCols, ","))
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state!=? AND withdrawal_ids='' AND withdrew_at IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 1", strings.Join(systemCallCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateDone)
 	if err != nil {
 		return nil, err

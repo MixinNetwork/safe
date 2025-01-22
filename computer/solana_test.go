@@ -111,7 +111,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStatePending,
 		WithdrawalIds:   "",
-		WithdrawedAt:    sql.NullTime{Valid: true, Time: now},
+		WithdrewAt:      sql.NullTime{Valid: true, Time: now},
 		Signature:       sql.NullString{Valid: false},
 		RequestSignerAt: sql.NullTime{Valid: false},
 		CreatedAt:       now,

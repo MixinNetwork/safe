@@ -105,7 +105,7 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 		require.Equal(call.RequestId, sub.Superior)
 		require.Equal(store.CallTypePostProcess, sub.Type)
 		require.Len(sub.GetWithdrawalIds(), 0)
-		require.True(sub.WithdrawedAt.Valid)
+		require.True(sub.WithdrewAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
 	}
@@ -239,7 +239,7 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		require.Equal(store.CallTypePrepare, sub.Type)
 		require.Equal(nonce.Address, sub.NonceAccount)
 		require.Len(sub.GetWithdrawalIds(), 0)
-		require.True(sub.WithdrawedAt.Valid)
+		require.True(sub.WithdrewAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
 	}
@@ -279,7 +279,7 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
 		require.Nil(err)
 		require.Equal("", call.WithdrawalIds)
-		require.True(call.WithdrawedAt.Valid)
+		require.True(call.WithdrewAt.Valid)
 	}
 }
 
@@ -309,7 +309,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(user.NonceAccount, call.NonceAccount)
 		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
 		require.Len(call.GetWithdrawalIds(), 1)
-		require.False(call.WithdrawedAt.Valid)
+		require.False(call.WithdrewAt.Valid)
 		require.False(call.Signature.Valid)
 		require.False(call.RequestSignerAt.Valid)
 		c = call

@@ -28,8 +28,6 @@ func nonceAccountFromRow(row *sql.Row) (*NonceAccount, error) {
 	err := row.Scan(&a.Address, &a.Hash, &a.UserId, &a.CallId, &a.CreatedAt, &a.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
-	} else if err != nil {
-		return nil, err
 	}
 	return &a, err
 }

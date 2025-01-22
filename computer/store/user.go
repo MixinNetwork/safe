@@ -32,15 +32,16 @@ func userFromRow(row *sql.Row) (*User, error) {
 	err := row.Scan(&u.UserId, &u.RequestId, &u.MixAddress, &u.ChainAddress, &u.Public, &u.NonceAccount, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
-	} else if err != nil {
-		return nil, err
 	}
 	return &u, err
 }
 
 func (u *User) Id() *big.Int {
 	b, ok := new(big.Int).SetString(u.UserId, 10)
-	if !ok || b.Sign() < 0 {
+	if !ok || b.Sign() <= 0 {
+		panic(u.UserId)
+	}
+	if b.Cmp(StartUserId) < 0 {
 		panic(u.UserId)
 	}
 	return b

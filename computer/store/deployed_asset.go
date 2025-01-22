@@ -44,8 +44,6 @@ func deployedAssetFromRow(row *sql.Row) (*DeployedAsset, error) {
 	err := row.Scan(&a.AssetId, &a.Address, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
-	} else if err != nil {
-		return nil, err
 	}
 	return &a, err
 }
