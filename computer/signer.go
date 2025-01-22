@@ -13,8 +13,8 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/common/round"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/computer/protocol"
 	"github.com/MixinNetwork/safe/computer/store"
+	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/gofrs/uuid/v5"
 )
 
