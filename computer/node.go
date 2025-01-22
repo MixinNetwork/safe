@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/http"
 	"slices"
 	"sort"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
@@ -33,8 +31,7 @@ type Node struct {
 	operations map[string]bool
 	store      *store.SQLite3Store
 
-	mixin        *mixin.Client
-	backupClient *http.Client
+	mixin *mixin.Client
 }
 
 func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf *Configuration, mixin *mixin.Client) *Node {
@@ -49,13 +46,11 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 		operations: make(map[string]bool),
 		store:      store,
 		mixin:      mixin,
-		backupClient: &http.Client{
-			Timeout: 5 * time.Second,
-		},
 	}
 
 	members := node.GetMembers()
-	if mgt := conf.MTG.Genesis.Threshold; mgt < conf.Threshold || mgt < len(members)*2/3+1 {
+	mgt := conf.MTG.Genesis.Threshold
+	if mgt < conf.Threshold || mgt < len(members)*2/3+1 {
 		panic(fmt.Errorf("%d/%d/%d", conf.Threshold, mgt, len(members)))
 	}
 
@@ -158,18 +153,6 @@ func (node *Node) safeUser() *bot.SafeUser {
 	}
 }
 
-func (node *Node) readRequestTime(ctx context.Context, key string) (time.Time, error) {
-	val, err := node.store.ReadProperty(ctx, key)
-	if err != nil || val == "" {
-		return time.Unix(0, node.conf.Timestamp), err
-	}
-	return time.Parse(time.RFC3339Nano, val)
-}
-
-func (node *Node) writeRequestTime(ctx context.Context, key string, offset time.Time) error {
-	return node.store.WriteProperty(ctx, key, offset.Format(time.RFC3339Nano))
-}
-
 func (node *Node) readRequestNumber(ctx context.Context, key string) (int64, error) {
 	val, err := node.store.ReadProperty(ctx, key)
 	if err != nil || val == "" {
@@ -189,7 +172,7 @@ func (node *Node) writeRequestNumber(ctx context.Context, key string, sequence i
 func (node *Node) readSolanaBlockCheckpoint(ctx context.Context) (int64, error) {
 	height, err := node.readRequestNumber(ctx, store.SolanaScanHeightKey)
 	if err != nil || height == 0 {
-		return 313743624, err
+		return 315360000, err
 	}
 	return height, nil
 }

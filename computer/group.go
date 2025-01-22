@@ -257,6 +257,7 @@ func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
 	if err != nil {
 		return node.store.FailSession(ctx, op.Id)
 	}
+
 	op.Public = hex.EncodeToString(res.Public)
 	if common.CheckTestEnvironment(ctx) {
 		extra := []byte{OperationTypeKeygenOutput}
@@ -294,12 +295,12 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 
 	res, err := node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, path)
 	logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
-
 	if err != nil {
 		err = node.store.FailSession(ctx, op.Id)
 		logger.Printf("store.FailSession(%s, startSign) => %v", op.Id, err)
 		return err
 	}
+
 	if common.CheckTestEnvironment(ctx) {
 		extra := []byte{OperationTypeSignOutput}
 		extra = append(extra, res.Signature...)

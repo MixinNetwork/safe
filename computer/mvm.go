@@ -492,7 +492,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
-	new := &store.SystemCall{
+	sub := &store.SystemCall{
 		RequestId:       req.Id,
 		Superior:        call.RequestId,
 		NonceAccount:    nonceAccount,
@@ -511,16 +511,16 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		if nonce.UserId.Valid || nonce.CallId.Valid {
 			return node.failRequest(ctx, req, "")
 		}
-		new.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
-		new.Type = store.CallTypePrepare
+		sub.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
+		sub.Type = store.CallTypePrepare
 	case common.RequestStateDone, common.RequestStateFailed:
-		new.Public = call.Public
-		new.Type = store.CallTypePostProcess
+		sub.Public = call.Public
+		sub.Type = store.CallTypePostProcess
 	default:
 		panic(req)
 	}
 
-	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, new, as, nil, "")
+	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, sub, as, nil, "")
 	if err != nil {
 		panic(err)
 	}

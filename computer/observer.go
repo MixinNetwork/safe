@@ -50,10 +50,7 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 		}
 
 		now := time.Now().UTC()
-		requestAt, err := node.readRequestTime(ctx, store.KeygenRequestTimeKey)
-		if err != nil {
-			return err
-		}
+		requestAt := node.readPropertyAsTime(ctx, store.KeygenRequestTimeKey)
 		if now.Before(requestAt.Add(frostKeygenRoundTimeout + 1*time.Minute)) {
 			time.Sleep(1 * time.Minute)
 			continue
@@ -169,9 +166,9 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 	if err != nil || count > 1000 {
 		return err
 	}
-	requested, err := node.readRequestTime(ctx, store.NonceAccountRequestTimeKey)
-	if err != nil || requested.Add(2*time.Minute).After(time.Now().UTC()) {
-		return err
+	requested := node.readPropertyAsTime(ctx, store.NonceAccountRequestTimeKey)
+	if requested.Add(2 * time.Minute).After(time.Now().UTC()) {
+		return nil
 	}
 	id := common.UniqueId(requested.String(), requested.String())
 
@@ -224,17 +221,14 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 }
 
 func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
-	start, err := node.readRequestTime(ctx, store.WithdrawalConfirmRequestTimeKey)
-	if err != nil {
-		return err
-	}
+	start := node.readPropertyAsTime(ctx, store.WithdrawalConfirmRequestTimeKey)
 	txs := node.group.ListConfirmedWithdrawalTransactionsAfter(ctx, start, 100)
 	for _, tx := range txs {
 		id := common.UniqueId(tx.TraceId, "confirm-withdrawal")
 		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
 		extra = append(extra, uuid.Must(uuid.FromString(tx.Memo)).Bytes()...)
 		extra = append(extra, []byte(tx.WithdrawalHash.String)...)
-		err = node.sendObserverTransaction(ctx, &common.Operation{
+		err := node.sendObserverTransaction(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeConfirmWithdrawal,
 			Extra: extra,
@@ -367,4 +361,23 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		time.Sleep(1 * time.Minute)
 	}
 	return nil
+}
+
+func (node *Node) readPropertyAsTime(ctx context.Context, key string) time.Time {
+	val, err := node.store.ReadProperty(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+	if val == "" {
+		return time.Unix(0, node.conf.Timestamp)
+	}
+	ts, err := time.Parse(time.RFC3339Nano, val)
+	if err != nil {
+		panic(val)
+	}
+	return ts
+}
+
+func (node *Node) writeRequestTime(ctx context.Context, key string, offset time.Time) error {
+	return node.store.WriteProperty(ctx, key, offset.Format(time.RFC3339Nano))
 }

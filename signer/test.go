@@ -293,7 +293,12 @@ func testStartSaver(require *require.Assertions) (*saver.SQLite3Store, int) {
 	store, err := saver.OpenSQLite3Store(dir + "/data.sqlite3")
 	require.Nil(err)
 	port := getFreePort()
-	go saver.StartHTTP(store, port)
+	go func() {
+		err := saver.StartHTTP(store, port)
+		if err != nil {
+			panic(err)
+		}
+	}()
 	return store, port
 }
 
