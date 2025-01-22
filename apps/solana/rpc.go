@@ -12,16 +12,14 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-func NewClient(rpcEndpoint, wsEndpoint string) *Client {
+func NewClient(rpcEndpoint string) *Client {
 	return &Client{
 		rpcEndpoint: rpcEndpoint,
-		wsEndpoint:  wsEndpoint,
 	}
 }
 
 type Client struct {
 	rpcEndpoint string
-	wsEndpoint  string
 
 	rpcClient *rpc.Client
 }
@@ -47,43 +45,13 @@ func (c *Client) getRPCClient() *rpc.Client {
 	return c.rpcClient
 }
 
-func (c *Client) GetRPCClient() *rpc.Client {
-	if c.rpcClient == nil {
-		c.rpcClient = rpc.New(c.rpcEndpoint)
-	}
-	return c.rpcClient
-}
-
-func (c *Client) RPCGetBlockHeight(ctx context.Context) (int64, solana.Hash, error) {
-	client := c.getRPCClient()
-	result, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		return 0, solana.Hash{}, err
-	}
-
-	return int64(result.Value.LastValidBlockHeight), result.Value.Blockhash, nil
-}
-
-func (c *Client) GetLatestBlockhash(ctx context.Context) (*rpc.GetLatestBlockhashResult, error) {
+func (c *Client) GetLatestBlockhash(ctx context.Context) (*rpc.LatestBlockhashResult, error) {
 	client := c.getRPCClient()
 	blockhash, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
-	return blockhash, err
-}
-
-func (c *Client) RPCGetBlock(ctx context.Context, slot uint64) (*rpc.GetBlockResult, error) {
-	client := c.getRPCClient()
-	block, err := client.GetBlockWithOpts(ctx, slot, &rpc.GetBlockOpts{
-		Encoding:                       solana.EncodingBase64,
-		Commitment:                     rpc.CommitmentFinalized,
-		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return block, nil
+	return blockhash.Value, err
 }
 
 func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
@@ -94,39 +62,32 @@ func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.G
 		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
 		TransactionDetails:             rpc.TransactionDetailsFull,
 	})
-	if err != nil {
-		if errors.Is(err, rpc.ErrNotFound) {
-			return nil, nil
-		}
+	if err != nil && !errors.Is(err, rpc.ErrNotFound) {
 		return nil, err
 	}
 	return block, nil
 }
 
 func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMetadata, error) {
-	client := c.getRPCClient()
-
 	var resp struct {
 		Content struct {
 			Metadata AssetMetadata `json:"metadata"`
 		} `json:"content"`
 	}
-
 	opt := map[string]any{
 		"id": address,
 	}
-
-	if err := client.RPCCallForInto(ctx, &resp, "getAsset", []any{opt}); err != nil {
+	err := c.getRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{opt})
+	if err != nil {
 		return nil, err
 	}
-
 	return &resp.Content.Metadata, nil
 }
 
 func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
-	client := c.getRPCClient()
 	var mint token.Mint
-	if err := client.GetAccountDataInto(ctx, solana.MPK(address), &mint); err != nil {
+	err := c.getRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
+	if err != nil {
 		return nil, err
 	}
 
@@ -147,53 +108,45 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 }
 
 func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
-	if err != nil {
-		if err.Error() == "not found" {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
+	result, err := c.getRPCClient().GetAccountInfo(ctx, account)
+	if err != nil && !errors.Is(err, rpc.ErrNotFound) {
+		return nil, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
 	}
 	return result, nil
 }
 
 func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
-	client := c.getRPCClient()
-	r, err := client.GetTransaction(
-		ctx,
+	r, err := c.getRPCClient().GetTransaction(ctx,
 		solana.MustSignatureFromBase58(signature),
 		&rpc.GetTransactionOpts{
 			Encoding:                       solana.EncodingBase58,
 			MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
 			Commitment:                     rpc.CommitmentConfirmed,
-		})
-	if err != nil {
-		return nil, err
-	}
-
-	if r.Meta == nil {
-		return nil, fmt.Errorf("meta is nil")
+		},
+	)
+	if err != nil || r.Meta == nil || r.Meta.Err != nil {
+		return nil, fmt.Errorf("solana.GetTransaction(%s) => %v", signature, err)
 	}
 
 	return r, nil
 }
 
-func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.PublicKey) ([]token.Account, error) {
-	client := c.getRPCClient()
-	r, err := client.GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
+func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.PublicKey) ([]*token.Account, error) {
+	r, err := c.getRPCClient().GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
 		ProgramId: &token.ProgramID,
 	}, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var as []token.Account
-	for _, account := range r.Value {
-		var balance token.Account
-		if err := bin.NewBinDecoder(account.Account.Data.GetBinary()).Decode(&balance); err != nil {
+	as := make([]*token.Account, len(r.Value))
+	for i, account := range r.Value {
+		var a token.Account
+		err := bin.NewBinDecoder(account.Account.Data.GetBinary()).Decode(&a)
+		if err != nil {
 			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
 		}
-		as = append(as, balance)
+		as[i] = &a
 	}
 	return as, nil
 }
@@ -207,10 +160,11 @@ func (c *Client) GetNonceAccountHash(ctx context.Context, nonce solana.PublicKey
 		return nil, nil
 	}
 	var nonceAccountData system.NonceAccount
-	if err := bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData); err != nil {
+	err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData)
+	if err != nil {
 		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
 	}
-	hash := (solana.Hash)(nonceAccountData.Nonce)
+	hash := solana.Hash(nonceAccountData.Nonce)
 	return &hash, nil
 }
 
@@ -223,7 +177,8 @@ func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Min
 		return nil, nil
 	}
 	var token token.Mint
-	if err := bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token); err != nil {
+	err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token)
+	if err != nil {
 		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
 	}
 	return &token, nil

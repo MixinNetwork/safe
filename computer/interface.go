@@ -24,7 +24,6 @@ type Configuration struct {
 	MixinMessengerAPI       string             `toml:"mixin-messenger-api"`
 	MixinRPC                string             `toml:"mixin-rpc"`
 	SolanaRPC               string             `toml:"solana-rpc"`
-	SolanaWsRPC             string             `toml:"solana-ws-rpc"`
 	SolanaKey               string             `toml:"solana-key"`
 	SolanaDepositEntry      string             `toml:"solana-deposit-entry"`
 	MTG                     *mtg.Configuration `toml:"mtg"`

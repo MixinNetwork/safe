@@ -32,13 +32,13 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		height, _, err := client.RPCGetBlockHeight(ctx)
+		block, err := client.GetLatestBlockhash(ctx)
 		if err != nil {
 			logger.Printf("solana.RPCGetBlockHeight => %v", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		if checkpoint+SolanaBlockDelay > height+1 {
+		if checkpoint+SolanaBlockDelay > int64(block.LastValidBlockHeight)+1 {
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -482,7 +482,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 		panic(err)
 	}
 	if common.CheckTestEnvironment(ctx) {
-		spls = []token.Account{
+		spls = []*token.Account{
 			{
 				Mint:   solana.MustPublicKeyFromBase58("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8"),
 				Amount: 1000000,
@@ -544,7 +544,7 @@ func (node *Node) GetUserSolanaPublicKeyFromCall(ctx context.Context, c *store.S
 }
 
 func (node *Node) solanaClient() *solanaApp.Client {
-	return solanaApp.NewClient(node.conf.SolanaRPC, node.conf.SolanaWsRPC)
+	return solanaApp.NewClient(node.conf.SolanaRPC)
 }
 
 func (node *Node) solanaPayer() solana.PublicKey {

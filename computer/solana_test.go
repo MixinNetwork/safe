@@ -21,7 +21,6 @@ import (
 
 const (
 	testRpcEndpoint         = "https://api.mainnet-beta.solana.com"
-	testWsEndpoint          = "wss://api.mainnet-beta.solana.com"
 	testNonceAccountAddress = "FLq1XqAbaFjib59q6mRDRFEzoQnTShWu1Vis7q57HKtd"
 	testNonceAccountHash    = "8j6J9Z8GdbkY1VsJKuKk799nGfkNchMGZ9LY2bdvtYrZ"
 
@@ -83,7 +82,7 @@ func TestGetNonceAccountHash(t *testing.T) {
 	if er := os.Getenv("SOLANARPC"); er != "" {
 		rpc = er
 	}
-	rpcClient := solanaApp.NewClient(rpc, testWsEndpoint)
+	rpcClient := solanaApp.NewClient(rpc)
 
 	key := solana.MustPublicKeyFromBase58(testNonceAccountAddress)
 	hash, err := rpcClient.GetNonceAccountHash(ctx, key)
