@@ -36,6 +36,12 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		common.RenderError(w, r, err)
 		return
 	}
+	height, err := node.readSolanaBlockCheckpoint(r.Context())
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"version":  VERSION,
 		"observer": node.conf.ObserverId,
@@ -49,7 +55,8 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 				"price": plan.OperationPriceAmount.String(),
 			},
 		},
-		"payer": node.solanaPayer().String(),
+		"height": height,
+		"payer":  node.solanaPayer().String(),
 	})
 }
 
