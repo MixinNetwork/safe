@@ -22,6 +22,7 @@ func (node *Node) StartHTTP() {
 	router.NotFoundHandler = common.HandleNotFound
 
 	router.GET("/", node.httpIndex)
+	router.GET("/users/:addr", node.httpGetUser)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7080), handler)
 	if err != nil {
@@ -38,7 +39,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"version":  VERSION,
 		"observer": node.conf.ObserverId,
-		"keeper": map[string]any{
+		"members": map[string]any{
 			"members":   node.GetMembers(),
 			"threshold": node.conf.Threshold,
 		},
@@ -48,6 +49,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 				"price": plan.OperationPriceAmount.String(),
 			},
 		},
+		"payer": node.solanaPayer().String(),
 	})
 }
 
@@ -55,4 +57,36 @@ func (node *Node) httpFavicon(w http.ResponseWriter, r *http.Request, params map
 	w.Header().Set("Content-Type", "image/vnd.microsoft.icon")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(FAVICON)
+}
+
+func (node *Node) httpGetUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	ctx := r.Context()
+	user, err := node.store.ReadUserByMixAddress(ctx, params["addr"])
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if user == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "user"})
+		return
+	}
+	nonce, err := node.store.ReadNonceAccount(ctx, user.NonceAccount)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if nonce == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "nonce"})
+		return
+	}
+
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"id":            user.UserId,
+		"mix_address":   user.MixAddress,
+		"chain_address": user.ChainAddress,
+		"nonce": map[string]any{
+			"address": nonce.Address,
+			"hash":    nonce.Hash,
+		},
+	})
 }
