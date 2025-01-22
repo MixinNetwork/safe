@@ -150,6 +150,36 @@ func (s *SQLite3Store) MarkSessionCommitted(ctx context.Context, sessionId strin
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) MarkSessionPreparedWithRequest(ctx context.Context, req *Request, sessionId string, preparedAt time.Time) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	query := "SELECT prepared_at FROM sessions WHERE session_id=? AND prepared_at IS NOT NULL"
+	existed, err := s.checkExistence(ctx, tx, query, sessionId)
+	if err != nil || existed {
+		return err
+	}
+
+	query = "UPDATE sessions SET prepared_at=?, updated_at=? WHERE session_id=? AND state=? AND prepared_at IS NULL"
+	err = s.execOne(ctx, tx, query, preparedAt, preparedAt, sessionId, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE sessions %v", err)
+	}
+
+	err = s.finishRequest(ctx, tx, req, nil, "")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -213,4 +243,49 @@ func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, stat
 		sessions = append(sessions, &r)
 	}
 	return sessions, nil
+}
+
+type State struct {
+	Initial int
+	Pending int
+	Done    int
+	Keys    int
+}
+
+func (s *SQLite3Store) SessionsState(ctx context.Context) (*State, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer common.Rollback(tx)
+
+	var state State
+	row := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStateInitial)
+	err = row.Scan(&state.Initial)
+	if err != nil {
+		return nil, err
+	}
+
+	row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStatePending)
+	err = row.Scan(&state.Pending)
+	if err != nil {
+		return nil, err
+	}
+
+	row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE state=?", common.RequestStateDone)
+	err = row.Scan(&state.Done)
+	if err != nil {
+		return nil, err
+	}
+
+	row = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys")
+	err = row.Scan(&state.Keys)
+	if err != nil {
+		return nil, err
+	}
+
+	return &state, nil
 }

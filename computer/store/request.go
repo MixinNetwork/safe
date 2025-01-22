@@ -155,13 +155,6 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, req *Request, compaction
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadPendingRequest(ctx context.Context) (*Request, error) {
-	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC, request_id ASC LIMIT 1", strings.Join(requestCols, ","))
-	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)
-
-	return requestFromRow(row)
-}
-
 func (s *SQLite3Store) ReadLatestRequest(ctx context.Context) (*Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests ORDER BY created_at DESC, request_id DESC LIMIT 1", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query)

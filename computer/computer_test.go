@@ -547,7 +547,7 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	timestamp, err := node.timestamp(ctx)
 	require.Nil(err)
 	require.Equal(out.Sequence, timestamp)
-	req, err := node.store.ReadPendingRequest(ctx)
+	req, err := node.store.TestReadPendingRequest(ctx)
 	require.Nil(err)
 	require.Nil(req)
 	req, err = node.store.ReadLatestRequest(ctx)

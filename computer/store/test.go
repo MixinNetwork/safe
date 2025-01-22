@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
@@ -100,4 +101,11 @@ func (s *SQLite3Store) TestWriteSignSession(ctx context.Context, call *SystemCal
 	}
 
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) TestReadPendingRequest(ctx context.Context) (*Request, error) {
+	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC, request_id ASC LIMIT 1", strings.Join(requestCols, ","))
+	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)
+
+	return requestFromRow(row)
 }
