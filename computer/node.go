@@ -2,7 +2,6 @@ package computer
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"slices"
 	"sort"
@@ -10,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
@@ -111,36 +109,6 @@ func (node *Node) GetPartySlice() party.IDSlice {
 		ms[i] = party.ID(id)
 	}
 	return ms
-}
-
-func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId string) ([]*mtg.Transaction, string) {
-	logger.Printf("node.failRequest(%v, %s)", req, assetId)
-	err := node.store.FailRequest(ctx, req, assetId, nil)
-	if err != nil {
-		panic(err)
-	}
-	return nil, assetId
-}
-
-func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
-	if common.CheckTestEnvironment(ctx) {
-		val, err := node.store.ReadProperty(ctx, ref.String())
-		if err != nil {
-			panic(ref.String())
-		}
-		raw, err := base64.RawURLEncoding.DecodeString(val)
-		if err != nil {
-			panic(ref.String())
-		}
-		return raw
-	}
-
-	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
-	if err != nil {
-		panic(ref.String())
-	}
-
-	return ver.Extra
 }
 
 func (node *Node) safeUser() *bot.SafeUser {

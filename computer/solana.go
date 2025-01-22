@@ -147,7 +147,7 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, txId[:]...)
 	extra = append(extra, newNonceHash[:]...)
-	err = node.sendObserverTransaction(ctx, &common.Operation{
+	err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeConfirmCall,
 		Extra: extra,
@@ -180,7 +180,7 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
 		extra = append(extra, nonce.Account().Address.Bytes()...)
 		extra = append(extra, hash[:]...)
-		err = node.sendObserverTransaction(ctx, &common.Operation{
+		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeCreateSubCall,
 			Extra: extra,
@@ -217,16 +217,11 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	extra := solana.MustPublicKeyFromBase58(user).Bytes()
 	extra = append(extra, nonce.Account().Address.Bytes()...)
 	extra = append(extra, hash[:]...)
-	err = node.sendObserverTransaction(ctx, &common.Operation{
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeDeposit,
 		Extra: extra,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (node *Node) CreateNonceAccount(ctx context.Context) (*solana.PublicKey, *solana.Hash, error) {

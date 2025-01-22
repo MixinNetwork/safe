@@ -2,16 +2,37 @@ package computer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/shopspring/decimal"
 )
+
+func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {
+	if common.CheckTestEnvironment(ctx) {
+		val, err := node.store.ReadProperty(ctx, ref.String())
+		if err != nil {
+			panic(ref.String())
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(val)
+		if err != nil {
+			panic(ref.String())
+		}
+		return raw
+	}
+
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
+	if err != nil {
+		panic(ref.String())
+	}
+
+	return ver.Extra
+}
 
 func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId string, receivers []string, threshold int, destination, tag, amount string, memo []byte, traceId string) string {
 	if common.CheckTestEnvironment(ctx) {
@@ -73,20 +94,7 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.A
 	return act.BuildTransaction(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold)
 }
 
-func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, receivers []string, threshold int) ([]*mtg.Transaction, string) {
-	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
-	if t == nil {
-		return node.failRequest(ctx, req, req.AssetId)
-	}
-	err := node.store.FailRequest(ctx, req, "", []*mtg.Transaction{t})
-	if err != nil {
-		panic(err)
-	}
-	return []*mtg.Transaction{t}, ""
-}
-
-func (node *Node) sendObserverTransaction(ctx context.Context, op *common.Operation) error {
+func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common.Operation) error {
 	extra := encodeOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))

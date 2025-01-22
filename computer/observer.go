@@ -60,7 +60,7 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 			id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
 			id = common.UniqueId(id, now.String())
 			extra := []byte{byte(i)}
-			err = node.sendObserverTransaction(ctx, &common.Operation{
+			err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 				Id:    id,
 				Type:  OperationTypeKeygenInput,
 				Extra: extra,
@@ -88,7 +88,7 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 	id = common.UniqueId(id, amount.String())
 	extra := uuid.Must(uuid.FromString(node.conf.OperationPriceAssetId)).Bytes()
 	extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
-	return node.sendObserverTransaction(ctx, &common.Operation{
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeSetOperationParams,
 		Extra: extra,
@@ -178,7 +178,7 @@ func (node *Node) requestNonceAccounts(ctx context.Context) error {
 	}
 	extra := nonceAccountPublic.Bytes()
 	extra = append(extra, nonceAccountHash[:]...)
-	err = node.sendObserverTransaction(ctx, &common.Operation{
+	err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeCreateNonce,
 		Extra: extra,
@@ -228,7 +228,7 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
 		extra = append(extra, uuid.Must(uuid.FromString(tx.Memo)).Bytes()...)
 		extra = append(extra, []byte(tx.WithdrawalHash.String)...)
-		err := node.sendObserverTransaction(ctx, &common.Operation{
+		err := node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeConfirmWithdrawal,
 			Extra: extra,
@@ -275,7 +275,7 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 			extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 			extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 		}
-		err = node.sendObserverTransaction(ctx, &common.Operation{
+		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeCreateSubCall,
 			Extra: extra,
@@ -303,7 +303,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		}
 		id := common.UniqueId(call.RequestId, createdAt.String())
 		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
-		err = node.sendObserverTransaction(ctx, &common.Operation{
+		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeSignInput,
 			Extra: extra,

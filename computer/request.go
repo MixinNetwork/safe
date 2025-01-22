@@ -1,11 +1,13 @@
 package computer
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -124,4 +126,26 @@ func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {
 	}
 	role := node.requestRole(out.AssetId)
 	return DecodeRequest(out, m, role)
+}
+
+func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, receivers []string, threshold int) ([]*mtg.Transaction, string) {
+	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
+	t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
+	if t == nil {
+		return node.failRequest(ctx, req, req.AssetId)
+	}
+	err := node.store.FailRequest(ctx, req, "", []*mtg.Transaction{t})
+	if err != nil {
+		panic(err)
+	}
+	return []*mtg.Transaction{t}, ""
+}
+
+func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId string) ([]*mtg.Transaction, string) {
+	logger.Printf("node.failRequest(%v, %s)", req, assetId)
+	err := node.store.FailRequest(ctx, req, assetId, nil)
+	if err != nil {
+		panic(err)
+	}
+	return nil, assetId
 }
