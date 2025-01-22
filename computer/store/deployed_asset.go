@@ -39,7 +39,7 @@ func DeployedAssetsFromTransferTokens(transfers []solanaApp.TokenTransfers) []*D
 
 var deployedAssetCols = []string{"asset_id", "address", "created_at"}
 
-func deployedAssetFromRow(row *sql.Row) (*DeployedAsset, error) {
+func deployedAssetFromRow(row Row) (*DeployedAsset, error) {
 	var a DeployedAsset
 	err := row.Scan(&a.AssetId, &a.Address, &a.CreatedAt)
 	if err == sql.ErrNoRows {
@@ -79,4 +79,26 @@ func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address s
 	row := s.db.QueryRowContext(ctx, query, address)
 
 	return deployedAssetFromRow(row)
+}
+
+func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*DeployedAsset, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	query := fmt.Sprintf("SELECT %s FROM deployed_assets LIMIT 500", strings.Join(deployedAssetCols, ","))
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var as []*DeployedAsset
+	for rows.Next() {
+		asset, err := deployedAssetFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		as = append(as, asset)
+	}
+	return as, nil
 }
