@@ -13,19 +13,19 @@ import (
 )
 
 type NonceAccount struct {
-	Address   string
-	Hash      string
-	UserId    sql.NullString
-	CallId    sql.NullString
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Address    string
+	Hash       string
+	OccupiedBy sql.NullString
+	OccupiedAt sql.NullTime
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
-var nonceAccountCols = []string{"address", "hash", "user_id", "call_id", "created_at", "updated_at"}
+var nonceAccountCols = []string{"address", "hash", "occupied_by", "occupied_at", "call_id", "created_at", "updated_at"}
 
 func nonceAccountFromRow(row *sql.Row) (*NonceAccount, error) {
 	var a NonceAccount
-	err := row.Scan(&a.Address, &a.Hash, &a.UserId, &a.CallId, &a.CreatedAt, &a.UpdatedAt)
+	err := row.Scan(&a.Address, &a.Hash, &a.OccupiedBy, &a.OccupiedAt, &a.CreatedAt, &a.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -102,16 +102,6 @@ func (s *SQLite3Store) assignNonceAccountToUser(ctx context.Context, tx *sql.Tx,
 	}
 
 	return account, nil
-}
-
-func (s *SQLite3Store) assignNonceAccountToCall(ctx context.Context, tx *sql.Tx, req *Request, call *SystemCall) error {
-	err := s.execOne(ctx, tx, "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=? AND call_id IS NULL AND user_id IS NULL",
-		call.RequestId, req.CreatedAt, call.NonceAccount)
-	if err != nil {
-		return fmt.Errorf("UPDATE nonce_accounts %v", err)
-	}
-
-	return nil
 }
 
 func (s *SQLite3Store) ReadNonceAccount(ctx context.Context, address string) (*NonceAccount, error) {

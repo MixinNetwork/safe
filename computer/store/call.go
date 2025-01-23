@@ -107,12 +107,6 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 	if err != nil {
 		return err
 	}
-	if call.Type == CallTypePrepare {
-		err = s.assignNonceAccountToCall(ctx, tx, req, call)
-		if err != nil {
-			return err
-		}
-	}
 
 	err = s.finishRequest(ctx, tx, req, txs, compaction)
 	if err != nil {
@@ -173,12 +167,6 @@ func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, 
 		}
 	}
 
-	query = "UPDATE nonce_accounts SET hash=?, call_id=?, updated_at=? WHERE address=?"
-	err = s.execOne(ctx, tx, query, nonce.Hash, nil, req.CreatedAt, nonce.Address)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
-	}
-
 	err = s.finishRequest(ctx, tx, req, txs, compaction)
 	if err != nil {
 		return err
@@ -201,11 +189,6 @@ func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req
 	err = s.execOne(ctx, tx, query, common.RequestStateFailed, req.CreatedAt, call.RequestId, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
-	}
-	query = "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=?"
-	err = s.execOne(ctx, tx, query, nil, req.CreatedAt, call.NonceAccount)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
 	}
 
 	err = s.finishRequest(ctx, tx, req, nil, "")

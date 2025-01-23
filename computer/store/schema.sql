@@ -103,7 +103,6 @@ CREATE TABLE IF NOT EXISTS users (
   mix_address    VARCHAR NOT NULL,
   chain_address  VARCHAR NOT NULL,
   public         VARCHAR NOT NULL,
-  nonce_account  VARCHAR NOT NULL,
   created_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('user_id')
 );
@@ -145,8 +144,8 @@ CREATE TABLE IF NOT EXISTS system_calls (
 CREATE TABLE IF NOT EXISTS nonce_accounts (
   address        VARCHAR NOT NULL,
   hash           VARCHAR NOT NULL,
-  user_id        VARCHAR,
-  call_id        VARCHAR,
+  occupied_by    VARCHAR,
+  occupied_at    TIMESTAMP,
   created_at     TIMESTAMP NOT NULL,
   updated_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('address')

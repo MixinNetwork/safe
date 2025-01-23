@@ -14,22 +14,21 @@ import (
 var StartUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
 var DefaultPath = []byte{0, 0, 0, 0, 0, 0, 0, 0}
 
-// Public is the underived key with defaultPath controled by mpc
+// Public is the underived key with defaultPath controlled by mpc
 type User struct {
 	UserId       string
 	RequestId    string
 	MixAddress   string
 	ChainAddress string
 	Public       string
-	NonceAccount string
 	CreatedAt    time.Time
 }
 
-var userCols = []string{"user_id", "request_id", "mix_address", "chain_address", "public", "nonce_account", "created_at"}
+var userCols = []string{"user_id", "request_id", "mix_address", "chain_address", "public", "created_at"}
 
 func userFromRow(row *sql.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.UserId, &u.RequestId, &u.MixAddress, &u.ChainAddress, &u.Public, &u.NonceAccount, &u.CreatedAt)
+	err := row.Scan(&u.UserId, &u.RequestId, &u.MixAddress, &u.ChainAddress, &u.Public, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -80,7 +79,7 @@ func (s *SQLite3Store) GetNextUserId(ctx context.Context) (*big.Int, error) {
 }
 
 func (s *SQLite3Store) ReadLatestUser(ctx context.Context) (*User, error) {
-	query := fmt.Sprintf("SELECT %s FROM users WHERE user_id!='10000' ORDER BY created_at DESC LIMIT 1", strings.Join(userCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM users ORDER BY created_at DESC LIMIT 1", strings.Join(userCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
 	return userFromRow(row)
