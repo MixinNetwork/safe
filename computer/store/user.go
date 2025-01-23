@@ -116,12 +116,7 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, i
 	}
 	defer common.Rollback(tx)
 
-	account, err := s.assignNonceAccountToUser(ctx, tx, req, id)
-	if err != nil {
-		return err
-	}
-
-	vals := []any{id, req.Id, mixAddress, chainAddress, key, account, time.Now().UTC()}
+	vals := []any{id, req.Id, mixAddress, chainAddress, key, time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)

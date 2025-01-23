@@ -54,13 +54,6 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	} else if old != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	count, err := node.store.CountSpareNonceAccounts(ctx)
-	logger.Printf("store.CountSpareNonceAccounts(%v) => %d %v", req, count, err)
-	if err != nil {
-		panic(fmt.Errorf("store.CountSpareNonceAccounts() => %v", err))
-	} else if count == 0 {
-		return node.failRequest(ctx, req, "")
-	}
 
 	id, err := node.store.GetNextUserId(ctx)
 	logger.Printf("store.GetNextUserId() => %s %v", id.String(), err)
@@ -88,8 +81,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 // 2 transfer
 // 3 call
 // 4 postprocess
-// only create mtg withdrawals txs and main system call by group
-// other calls should be created by observer
+// sub calls should all be created by observer
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
@@ -140,7 +132,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 	advance, flag := solanaApp.DecodeNonceAdvance(accounts, ins.Data)
 	logger.Printf("solana.DecodeNonceAdvance() => %v %t", advance, flag)
-	if !flag || advance.GetNonceAccount().PublicKey.String() != user.NonceAccount {
+	if !flag {
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -152,7 +144,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		RequestId:       req.Id,
 		Superior:        req.Id,
 		Type:            store.CallTypeMain,
-		NonceAccount:    user.NonceAccount,
 		Public:          hex.EncodeToString(user.FingerprintWithPath()),
 		Message:         hex.EncodeToString(msg),
 		Raw:             tx.MustToBase64(),
@@ -327,35 +318,6 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 	err = node.store.MarkKeyConfirmedWithRequest(ctx, req, hex.EncodeToString(public))
 	if err != nil {
 		panic(fmt.Errorf("store.MarkKeyConfirmedWithRequest(%v) => %v", req, err))
-	}
-	return nil, ""
-}
-
-func (node *Node) processCreateOrUpdateNonceAccount(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeCreateNonce {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	if len(extra) != 64 {
-		return node.failRequest(ctx, req, "")
-	}
-	address := solana.PublicKeyFromBytes(extra[0:32]).String()
-	hash := solana.HashFromBytes(extra[32:]).String()
-
-	old, err := node.store.ReadNonceAccount(ctx, address)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadNonceAccount(%s) => %v", address, err))
-	} else if old != nil && old.Hash == hash {
-		return node.failRequest(ctx, req, "")
-	}
-
-	err = node.store.WriteOrUpdateNonceAccount(ctx, req, address, hash)
-	if err != nil {
-		panic(fmt.Errorf("store.WriteOrUpdateNonceAccount(%v %s %s) => %v", req, address, hash, err))
 	}
 	return nil, ""
 }

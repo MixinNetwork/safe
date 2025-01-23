@@ -28,15 +28,17 @@ func (node *Node) bootObserver(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-
 	err = node.sendPriceInfo(ctx)
 	if err != nil {
 		panic(err)
 	}
+
 	go node.createNonceAccountLoop(ctx)
 	go node.releaseNonceAccountLoop(ctx)
+
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
+
 	go node.initialCallLoop(ctx)
 	go node.unsignedCallLoop(ctx)
 	go node.signedCallLoop(ctx)
