@@ -149,15 +149,16 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(err)
 	}
 	call := &store.SystemCall{
-		RequestId: req.Id,
-		Superior:  req.Id,
-		Type:      store.CallTypeMain,
-		Public:    hex.EncodeToString(user.FingerprintWithPath()),
-		Message:   hex.EncodeToString(msg),
-		Raw:       tx.MustToBase64(),
-		State:     common.RequestStateInitial,
-		CreatedAt: req.CreatedAt,
-		UpdatedAt: req.CreatedAt,
+		RequestId:    req.Id,
+		Superior:     req.Id,
+		Type:         store.CallTypeMain,
+		NonceAccount: advance.GetNonceAccount().PublicKey.String(),
+		Public:       hex.EncodeToString(user.FingerprintWithPath()),
+		Message:      hex.EncodeToString(msg),
+		Raw:          tx.MustToBase64(),
+		State:        common.RequestStateInitial,
+		CreatedAt:    req.CreatedAt,
+		UpdatedAt:    req.CreatedAt,
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, nil, "")
@@ -531,7 +532,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	case FlagConfirmCallSuccess:
 		signature := base58.Encode(extra[:64])
 		_ = solana.MustSignatureFromBase58(signature)
-		updatedHash := solana.PublicKeyFromBytes(extra[64:]).String()
 
 		transaction, err := node.solanaClient().RPCGetTransaction(ctx, signature)
 		if err != nil {
@@ -564,14 +564,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if call.State != common.RequestStatePending {
 			return node.failRequest(ctx, req, "")
 		}
-		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
-		if err != nil || nonce == nil {
-			panic(fmt.Errorf("store.ReadNonceAccount(%s) => %v %v", call.NonceAccount, nonce, err))
-		}
-		if nonce.Hash == updatedHash {
-			return node.failRequest(ctx, req, "")
-		}
-		nonce.Hash = updatedHash
 
 		var txs []*mtg.Transaction
 		var compaction string
@@ -607,7 +599,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 		}
 
-		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, nonce, txs, compaction)
+		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, txs, compaction)
 		if err != nil {
 			panic(err)
 		}

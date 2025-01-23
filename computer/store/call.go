@@ -170,7 +170,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrewWithRequest(ctx context.Context, re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, req *Request, call *SystemCall, nonce *NonceAccount, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

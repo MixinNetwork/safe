@@ -189,9 +189,9 @@ func (node *Node) createNonceAccounts(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("node.CreateNonceAccount() => %v", err)
 	}
-	err = node.store.WriteOrUpdateNonceAccount(ctx, address, hash)
+	err = node.store.WriteNonceAccount(ctx, address, hash)
 	if err != nil {
-		return fmt.Errorf("store.WriteOrUpdateNonceAccount(%s %s) => %v", address, hash, err)
+		return fmt.Errorf("store.WriteNonceAccount(%s %s) => %v", address, hash, err)
 	}
 	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey, time.Now().UTC())
 }

@@ -55,17 +55,21 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 	extra = append(extra, signature[:]...)
 	extra = append(extra, hash[:]...)
 
-	for _, node := range nodes {
+	for index, node := range nodes {
+		if index == 0 {
+			err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+			require.Nil(err)
+			nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
+			require.Nil(err)
+			require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
+			require.False(nonce.CallId.Valid)
+		}
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
 		require.Nil(err)
 		require.NotNil(sub)
-		nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
-		require.Nil(err)
-		require.Equal(hash.String(), nonce.Hash)
-
 		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStateDone)
 		require.Nil(err)
 		require.NotNil(call)
@@ -78,10 +82,11 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 }
 
 func testObserverCreatePostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
-	nonce, err := nodes[0].store.ReadNonceAccount(ctx, call.NonceAccount)
+	node := nodes[0]
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
 	require.Nil(err)
-	source := nodes[0].GetUserSolanaPublicKeyFromCall(ctx, call)
-	stx := nodes[0].burnRestTokens(ctx, call, source, nonce)
+	source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
+	stx := node.burnRestTokens(ctx, call, source, nonce)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
@@ -90,10 +95,16 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 	id := uuid.Must(uuid.NewV4()).String()
 	var extra []byte
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	extra = append(extra, solana.MustPublicKeyFromBase58(call.NonceAccount).Bytes()...)
 	extra = append(extra, ref[:]...)
 
-	for _, node := range nodes {
+	for index, node := range nodes {
+		if index == 0 {
+			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
+			require.Nil(err)
+			nonce, err := node.store.ReadNonceAccount(ctx, nonce.Address)
+			require.Nil(err)
+			require.True(nonce.CallId.Valid)
+		}
 		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 		require.Nil(err)
 		out := testBuildObserverRequest(node, id, OperationTypeCreateSubCall, extra)
@@ -133,47 +144,53 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 
 func testObserverConfirmMainCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
 	signature := solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW")
-	hash := solana.MustHashFromBase58("E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX")
 
 	id := uuid.Must(uuid.NewV4()).String()
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
-	extra = append(extra, hash[:]...)
 
-	for _, node := range nodes {
+	for index, node := range nodes {
+		if index == 0 {
+			err := node.store.UpdateNonceAccount(ctx, call.NonceAccount, "E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX")
+			require.Nil(err)
+			nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+			require.Nil(err)
+			require.Equal("E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX", nonce.Hash)
+			require.False(nonce.CallId.Valid)
+			require.False(nonce.Mix.Valid)
+		}
+
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
 		require.Nil(err)
 		require.NotNil(sub)
-		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
-		require.Nil(err)
-		require.Equal(hash.String(), nonce.Hash)
 	}
 }
 
 func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
 	signature := solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb")
-	hash := solana.MustHashFromBase58("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
 
 	id := uuid.Must(uuid.NewV4()).String()
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
-	extra = append(extra, hash[:]...)
 
 	var callId string
-	for _, node := range nodes {
+	for index, node := range nodes {
+		if index == 0 {
+			err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+			require.Nil(err)
+			nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
+			require.Nil(err)
+			require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
+			require.False(nonce.CallId.Valid)
+		}
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
 		require.Nil(err)
 		require.NotNil(sub)
-		nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
-		require.Nil(err)
-		require.Equal(hash.String(), nonce.Hash)
-		require.False(nonce.CallId.Valid)
-
 		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStatePending)
 		require.Nil(err)
 		require.NotNil(call)
@@ -196,7 +213,6 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
 		require.Nil(err)
 		if s != nil && s.Signature.Valid {
-			fmt.Println(s.Signature.String)
 			return
 		}
 	}
@@ -217,14 +233,20 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 	id := uuid.Must(uuid.NewV4()).String()
 	var extra []byte
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	extra = append(extra, nonce.Account().Address.Bytes()...)
 	extra = append(extra, ref[:]...)
 	for _, asset := range as {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
 
-	for _, node := range nodes {
+	for index, node := range nodes {
+		if index == 0 {
+			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
+			require.Nil(err)
+			nonce, err = node.store.ReadNonceAccount(ctx, nonce.Address)
+			require.Nil(err)
+			require.Equal(id, nonce.CallId.String)
+		}
 		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 		require.Nil(err)
 		out := testBuildObserverRequest(node, id, OperationTypeCreateSubCall, extra)
@@ -320,14 +342,23 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	cs, err := node.store.ListUnconfirmedSystemCalls(ctx)
 	require.Nil(err)
 	require.Len(cs, 1)
-	var c *store.SystemCall
+	c := cs[0]
+	nonce, err = node.store.ReadNonceAccount(ctx, c.NonceAccount)
+	require.Nil(err)
+	require.True(nonce.Mix.Valid)
+	user, err = node.store.ReadUser(ctx, c.UserIdFromPublicPath())
+	require.Nil(err)
+	require.Equal(user.MixAddress, nonce.Mix.String)
+	err = node.store.OccupyNonceAccountByCall(ctx, c.NonceAccount, c.RequestId)
+	require.Nil(err)
+
 	id = uuid.Must(uuid.NewV4()).String()
 	extra = []byte{ConfirmFlagNonceAvailable}
-	extra = append(extra, uuid.Must(uuid.FromString(cs[0].RequestId)).Bytes()...)
+	extra = append(extra, uuid.Must(uuid.FromString(c.RequestId)).Bytes()...)
 	for _, node := range nodes {
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra)
 		testStep(ctx, require, node, out)
-		call, err := node.store.ReadSystemCallByRequestId(ctx, cs[0].RequestId, common.RequestStateInitial)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, c.RequestId, common.RequestStateInitial)
 		require.Nil(err)
 		require.Len(call.GetWithdrawalIds(), 1)
 		require.False(call.WithdrawnAt.Valid)
@@ -339,8 +370,8 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
 	start := big.NewInt(0).Add(store.StartUserId, big.NewInt(1))
 	var user *store.User
+	id := uuid.Must(uuid.NewV4())
 	for _, node := range nodes {
-		id := uuid.Must(uuid.NewV4())
 		seed := id.Bytes()
 		seed = append(seed, id.Bytes()...)
 		seed = append(seed, id.Bytes()...)
@@ -360,13 +391,13 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(solana.PublicKeyFromBytes(public).String(), user1.ChainAddress)
 		user = user1
 
-		id = uuid.Must(uuid.NewV4())
-		seed = id.Bytes()
-		seed = append(seed, id.Bytes()...)
-		seed = append(seed, id.Bytes()...)
-		seed = append(seed, id.Bytes()...)
+		uid := uuid.Must(uuid.FromString(common.UniqueId(id.String(), "second")))
+		seed = uid.Bytes()
+		seed = append(seed, uid.Bytes()...)
+		seed = append(seed, uid.Bytes()...)
+		seed = append(seed, uid.Bytes()...)
 		mix = mc.NewAddressFromSeed(seed)
-		out = testBuildUserRequest(node, id.String(), "", OperationTypeAddUser, []byte(mix.String()))
+		out = testBuildUserRequest(node, uid.String(), "", OperationTypeAddUser, []byte(mix.String()))
 		testStep(ctx, require, node, out)
 		user2, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -380,14 +411,14 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 func testObserverRequestCreateNonceAccount(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	as := [][2]string{
 		{"DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", "25DfFJbUsDMR7rYpieHhK7diWB1EuWkv5nB3F6CzNFTR"},
-		testGenerateRandNonceAccount(require),
 		{"7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", "8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG"},
+		testGenerateRandNonceAccount(require),
 		testGenerateRandNonceAccount(require),
 	}
 	node := nodes[0]
 
 	for _, nonce := range as {
-		err := node.store.WriteOrUpdateNonceAccount(ctx, nonce[0], nonce[1])
+		err := node.store.WriteNonceAccount(ctx, nonce[0], nonce[1])
 		require.Nil(err)
 	}
 	count, err := node.store.CountNonceAccounts(ctx)

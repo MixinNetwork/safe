@@ -39,7 +39,7 @@ func (a *NonceAccount) Account() solanaApp.NonceAccount {
 	}
 }
 
-func (s *SQLite3Store) WriteOrUpdateNonceAccount(ctx context.Context, address, hash string) error {
+func (s *SQLite3Store) WriteNonceAccount(ctx context.Context, address, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -49,36 +49,39 @@ func (s *SQLite3Store) WriteOrUpdateNonceAccount(ctx context.Context, address, h
 	}
 	defer common.Rollback(tx)
 
-	err = s.writeOrUpdateNonceAccount(ctx, tx, address, hash)
+	now := time.Now().UTC()
+	vals := []any{address, hash, nil, nil, now, now}
+	err = s.execOne(ctx, tx, buildInsertionSQL("nonce_accounts", nonceAccountCols), vals...)
 	if err != nil {
-		return err
+		return fmt.Errorf("INSERT nonce_accounts %v", err)
 	}
 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) writeOrUpdateNonceAccount(ctx context.Context, tx *sql.Tx, address, hash string) error {
-	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM nonce_accounts WHERE address=?", address)
+func (s *SQLite3Store) UpdateNonceAccount(ctx context.Context, address, hash string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("store.writeOrUpdateNonceAccount(%s) => %v", address, err)
+		return err
+	}
+	defer common.Rollback(tx)
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM nonce_accounts WHERE address=?", address)
+	if err != nil || !existed {
+		return fmt.Errorf("store.UpdateNonceAccount(%s) => %t %v", address, existed, err)
 	}
 
 	now := time.Now().UTC()
-	if existed {
-		err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET hash=?, updated_at=? WHERE address=?",
-			hash, now, address)
-		if err != nil {
-			return fmt.Errorf("UPDATE nonce_accounts %v", err)
-		}
-	} else {
-		vals := []any{address, hash, nil, nil, now, now}
-		err = s.execOne(ctx, tx, buildInsertionSQL("nonce_accounts", nonceAccountCols), vals...)
-		if err != nil {
-			return fmt.Errorf("INSERT nonce_accounts %v", err)
-		}
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET hash=?, mix=?, call_id=?, updated_at=? WHERE address=?",
+		hash, nil, nil, now, address)
+	if err != nil {
+		return fmt.Errorf("UPDATE nonce_accounts %v", err)
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (s *SQLite3Store) LockNonceAccountWithMix(ctx context.Context, address, mix string) error {
@@ -110,7 +113,7 @@ func (s *SQLite3Store) OccupyNonceAccountByCall(ctx context.Context, address, ca
 	}
 	defer common.Rollback(tx)
 
-	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=? AND mix IS NOT NULL AND call_id IS NULL",
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=? AND call_id IS NULL",
 		call, time.Now().UTC(), address)
 	if err != nil {
 		return fmt.Errorf("UPDATE nonce_accounts %v", err)
