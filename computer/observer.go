@@ -226,9 +226,10 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 	txs := node.group.ListConfirmedWithdrawalTransactionsAfter(ctx, start, 100)
 	for _, tx := range txs {
 		id := common.UniqueId(tx.TraceId, "confirm-withdrawal")
+		sig := solana.MustSignatureFromBase58(tx.WithdrawalHash.String)
 		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
 		extra = append(extra, uuid.Must(uuid.FromString(tx.Memo)).Bytes()...)
-		extra = append(extra, []byte(tx.WithdrawalHash.String)...)
+		extra = append(extra, sig[:]...)
 		err := node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeConfirmWithdrawal,

@@ -270,9 +270,11 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 	callId := call.RequestId
 
 	id := uuid.Must(uuid.NewV4()).String()
+	sig := solana.MustSignatureFromBase58("jmHyRpKEuc1PgDjDaqaQqo9GpSM3pp9PhLgwzqpfa2uUbtRYJmbKtWp4onfNFsbk47paBjxz1d6s9n56Y8Na9Hp")
 	var extra []byte
 	extra = append(extra, uuid.Must(uuid.FromString(tid)).Bytes()...)
 	extra = append(extra, uuid.Must(uuid.FromString(callId)).Bytes()...)
+	extra = append(extra, sig[:]...)
 	for _, node := range nodes {
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra)
 		testStep(ctx, require, node, out)

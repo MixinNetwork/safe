@@ -371,7 +371,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	extra := req.ExtraBytes()
 	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
 	reqId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
-	hash := string(extra[32:])
+	hash := solana.SignatureFromBytes(extra[32:]).String()
 
 	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.safeUser(), txId)
 	logger.Printf("common.SafeReadWithdrawalHashUntilSufficient(%s) => %s %v", txId, withdrawalHash, err)
