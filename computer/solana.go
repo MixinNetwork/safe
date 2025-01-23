@@ -63,7 +63,10 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	}
 
 	for _, tx := range block.Transactions {
-		return node.solanaProcessTransaction(ctx, tx.MustGetTransaction(), tx.Meta)
+		err := node.solanaProcessTransaction(ctx, tx.MustGetTransaction(), tx.Meta)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
