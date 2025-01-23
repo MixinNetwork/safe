@@ -31,6 +31,9 @@ import (
 const (
 	ConfirmFlagMixinWithdrawal = 0
 	ConfirmFlagOnChainTx       = 1
+
+	ConfirmFlagNonceAvailable = 0
+	ConfirmFlagNonceExpired   = 1
 )
 
 func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
@@ -153,54 +156,24 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(err)
 	}
 	call := &store.SystemCall{
-		RequestId:       req.Id,
-		Superior:        req.Id,
-		Type:            store.CallTypeMain,
-		Public:          hex.EncodeToString(user.FingerprintWithPath()),
-		Message:         hex.EncodeToString(msg),
-		Raw:             tx.MustToBase64(),
-		State:           common.RequestStateInitial,
-		WithdrawalIds:   "",
-		WithdrewAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
-		Signature:       sql.NullString{Valid: false},
-		RequestSignerAt: sql.NullTime{Valid: false},
-		CreatedAt:       req.CreatedAt,
-		UpdatedAt:       req.CreatedAt,
+		RequestId: req.Id,
+		Superior:  req.Id,
+		Type:      store.CallTypeMain,
+		Public:    hex.EncodeToString(user.FingerprintWithPath()),
+		Message:   hex.EncodeToString(msg),
+		Raw:       tx.MustToBase64(),
+		State:     common.RequestStateInitial,
+		CreatedAt: req.CreatedAt,
+		UpdatedAt: req.CreatedAt,
 	}
 
-	var txs []*mtg.Transaction
-	var compaction string
-	as := node.getSystemCallRelatedAsset(ctx, req.Id)
-	destination := node.getMtgAddress(ctx).String()
-	for _, asset := range as {
-		if !asset.Solana {
-			continue
-		}
-		id := common.UniqueId(req.Id, asset.Asset.AssetID)
-		id = common.UniqueId(id, "withdrawal")
-		memo := []byte(req.Id)
-		tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, destination, "", id)
-		if tx == nil {
-			return node.failRequest(ctx, req, asset.Asset.AssetID)
-		}
-		txs = append(txs, tx)
-	}
-	if len(txs) > 0 {
-		ids := []string{}
-		for _, tx := range txs {
-			ids = append(ids, tx.TraceId)
-		}
-		call.WithdrawalIds = strings.Join(ids, ",")
-		call.WithdrewAt = sql.NullTime{Valid: false}
-	}
-
-	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, txs, compaction)
-	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v %d %s) => %v", call, len(txs), compaction, err)
+	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, nil, "")
+	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v) => %v", call, err)
 	if err != nil {
 		panic(err)
 	}
 
-	return txs, ""
+	return nil, ""
 }
 
 func (node *Node) processSetOperationParams(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
@@ -332,6 +305,73 @@ func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Req
 		panic(fmt.Errorf("store.MarkKeyConfirmedWithRequest(%v) => %v", req, err))
 	}
 	return nil, ""
+}
+
+func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeConfirmNonce {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	flag, extra := extra[0], extra[:]
+	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+
+	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
+	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
+	if err != nil {
+		panic(err)
+	}
+	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
+		return node.failRequest(ctx, req, "")
+	}
+
+	switch flag {
+	case ConfirmFlagNonceAvailable:
+		var txs []*mtg.Transaction
+		as := node.getSystemCallRelatedAsset(ctx, callId)
+		destination := node.getMtgAddress(ctx).String()
+		for _, asset := range as {
+			if !asset.Solana {
+				continue
+			}
+			id := common.UniqueId(req.Id, asset.Asset.AssetID)
+			id = common.UniqueId(id, "withdrawal")
+			memo := []byte(req.Id)
+			tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, destination, "", id)
+			if tx == nil {
+				return node.failRequest(ctx, req, asset.Asset.AssetID)
+			}
+			txs = append(txs, tx)
+		}
+		var ids []string
+		if len(txs) > 0 {
+			for _, tx := range txs {
+				ids = append(ids, tx.TraceId)
+			}
+		}
+		call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
+		err = node.store.UpdateWithdrawalsWithRequest(ctx, req, call, txs, "")
+		if err != nil {
+			panic(err)
+		}
+		return txs, ""
+	case ConfirmFlagNonceExpired:
+		user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+		if err != nil || user == nil {
+			panic(err)
+		}
+		mix, err := bot.NewMixAddressFromString(user.MixAddress)
+		if err != nil {
+			panic(err)
+		}
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold))
+	default:
+		logger.Printf("invalid nonce confirm flag: %d", flag)
+		return node.failRequest(ctx, req, "")
+	}
 }
 
 func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

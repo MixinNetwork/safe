@@ -148,22 +148,24 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSetOperationParams(ctx, req)
 	case OperationTypeKeygenInput:
 		return node.processSignerKeygenRequests(ctx, req)
-	case OperationTypeKeygenOutput:
-		return node.processSignerKeygenResults(ctx, req)
-	case OperationTypeCreateSubCall:
-		return node.processCreateSubCall(ctx, req)
+	case OperationTypeConfirmNonce:
+		return node.processConfirmNonce(ctx, req)
 	case OperationTypeConfirmWithdrawal:
 		return node.processConfirmWithdrawal(ctx, req)
+	case OperationTypeCreateSubCall:
+		return node.processCreateSubCall(ctx, req)
 	case OperationTypeConfirmCall:
 		return node.processConfirmCall(ctx, req)
 	case OperationTypeSignInput:
 		return node.processObserverRequestSign(ctx, req)
+	case OperationTypeDeposit:
+		return node.processObserverCreateDepositCall(ctx, req)
+	case OperationTypeKeygenOutput:
+		return node.processSignerKeygenResults(ctx, req)
 	case OperationTypeSignPrepare:
 		return node.processSignerPrepare(ctx, req)
 	case OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)
-	case OperationTypeDeposit:
-		return node.processObserverCreateDepositCall(ctx, req)
 	default:
 		panic(req.Action)
 	}
