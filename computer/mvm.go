@@ -371,19 +371,17 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	extra := req.ExtraBytes()
 	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
 	reqId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
+	hash := string(extra[32:])
 
 	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.safeUser(), txId)
 	logger.Printf("common.SafeReadWithdrawalHashUntilSufficient(%s) => %s %v", txId, withdrawalHash, err)
-	if err != nil {
+	if err != nil || withdrawalHash != hash {
 		panic(err)
 	}
 	tx, err := node.solanaClient().RPCGetTransaction(ctx, withdrawalHash)
 	logger.Printf("solana.RPCGetTransaction(%s) => %v %v", withdrawalHash, tx, err)
-	if err != nil {
+	if err != nil || tx == nil {
 		panic(err)
-	}
-	if tx == nil {
-		return node.failRequest(ctx, req, "")
 	}
 
 	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, common.RequestStateInitial)
