@@ -102,20 +102,20 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	id := uuid.Must(uuid.NewV4()).String()
 	sid := common.UniqueId(id, now.String())
 	call := &store.SystemCall{
-		RequestId:       id,
-		Superior:        id,
-		Type:            store.CallTypeMain,
-		NonceAccount:    nonce,
-		Public:          public,
-		Message:         hex.EncodeToString(msg),
-		Raw:             tx.MustToBase64(),
-		State:           common.RequestStatePending,
-		WithdrawalIds:   "",
-		WithdrewAt:      sql.NullTime{Valid: true, Time: now},
-		Signature:       sql.NullString{Valid: false},
-		RequestSignerAt: sql.NullTime{Valid: false},
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		RequestId:        id,
+		Superior:         id,
+		Type:             store.CallTypeMain,
+		NonceAccount:     nonce,
+		Public:           public,
+		Message:          hex.EncodeToString(msg),
+		Raw:              tx.MustToBase64(),
+		State:            common.RequestStatePending,
+		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
+		WithdrawnAt:      sql.NullTime{Valid: true, Time: now},
+		Signature:        sql.NullString{Valid: false},
+		RequestSignerAt:  sql.NullTime{Valid: false},
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 	pub := common.Fingerprint(call.Public)
 	pub = append(pub, []byte{0, 0, 0, 0, 0, 0, 0, 0}...)

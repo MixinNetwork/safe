@@ -105,7 +105,7 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 		require.Equal(call.RequestId, sub.Superior)
 		require.Equal(store.CallTypePostProcess, sub.Type)
 		require.Len(sub.GetWithdrawalIds(), 0)
-		require.True(sub.WithdrewAt.Valid)
+		require.True(sub.WithdrawnAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
 	}
@@ -149,7 +149,6 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
 		require.Nil(err)
 		require.Equal(hash.String(), nonce.Hash)
-		require.True(nonce.UserId.Valid)
 	}
 }
 
@@ -174,7 +173,6 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 		require.Nil(err)
 		require.Equal(hash.String(), nonce.Hash)
 		require.False(nonce.CallId.Valid)
-		require.False(nonce.UserId.Valid)
 
 		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStatePending)
 		require.Nil(err)
@@ -239,7 +237,7 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 		require.Equal(store.CallTypePrepare, sub.Type)
 		require.Equal(nonce.Address, sub.NonceAccount)
 		require.Len(sub.GetWithdrawalIds(), 0)
-		require.True(sub.WithdrewAt.Valid)
+		require.True(sub.WithdrawnAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
 	}
@@ -280,8 +278,8 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
 		require.Nil(err)
-		require.Equal("", call.WithdrawalIds)
-		require.True(call.WithdrewAt.Valid)
+		require.Equal("", call.WithdrawalTraces.String)
+		require.True(call.WithdrawnAt.Valid)
 	}
 }
 
@@ -308,10 +306,9 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(out.OutputId, call.RequestId)
 		require.Equal(out.OutputId, call.Superior)
 		require.Equal(store.CallTypeMain, call.Type)
-		require.Equal(user.NonceAccount, call.NonceAccount)
 		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
 		require.Len(call.GetWithdrawalIds(), 1)
-		require.False(call.WithdrewAt.Valid)
+		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
 		require.False(call.RequestSignerAt.Valid)
 		c = call
@@ -336,10 +333,6 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(mix.String(), user1.MixAddress)
 		require.Equal(start.String(), user1.UserId)
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user1.Public)
-		require.Equal("DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", user1.NonceAccount)
-		count, err := node.store.CountSpareNonceAccounts(ctx)
-		require.Nil(err)
-		require.Equal(3, count)
 
 		_, share, err := node.store.ReadKeyByFingerprint(ctx, hex.EncodeToString(common.Fingerprint(user1.Public)))
 		require.Nil(err)
@@ -360,10 +353,6 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(mix.String(), user2.MixAddress)
 		require.Equal(big.NewInt(0).Add(start, big.NewInt(1)).String(), user2.UserId)
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user2.Public)
-		require.NotEqual("", user1.NonceAccount)
-		count, err = node.store.CountSpareNonceAccounts(ctx)
-		require.Nil(err)
-		require.Equal(2, count)
 	}
 	return user
 }
@@ -378,10 +367,6 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 	addr := solana.MustPublicKeyFromBase58(as[0][0])
 
 	for _, node := range nodes {
-		count, err := node.store.CountSpareNonceAccounts(ctx)
-		require.Nil(err)
-		require.Equal(0, count)
-
 		for _, nonce := range as {
 			address := solana.MustPublicKeyFromBase58(nonce[0])
 			hash := solana.MustHashFromBase58(nonce[1])
@@ -405,10 +390,6 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 		account, err := node.store.ReadNonceAccount(ctx, addr.String())
 		require.Nil(err)
 		require.Equal(hash.String(), account.Hash)
-
-		count, err = node.store.CountSpareNonceAccounts(ctx)
-		require.Nil(err)
-		require.Equal(4, count)
 	}
 }
 
