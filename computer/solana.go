@@ -274,8 +274,8 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (string, string, error
 	return pub.String(), hash.String(), nil
 }
 
-func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user, nonce solana.PublicKey) error {
-	for _, ix := range tx.Message.Instructions {
+func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
+	for index, ix := range tx.Message.Instructions {
 		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
 		if err != nil {
 			panic(err)
@@ -285,20 +285,23 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			panic(err)
 		}
 
+		if index == 0 {
+			_, ok := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
+			if !ok {
+				return fmt.Errorf("invalid nonce advance instruction")
+			}
+			continue
+		}
+
 		switch programKey {
 		case system.ProgramID:
-			if transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data); ok {
-				recipient := transfer.GetRecipientAccount().PublicKey
-				if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
-					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
-				}
-				continue
+			transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data)
+			if !ok {
+				return fmt.Errorf("invalid system program instruction: %d", index)
 			}
-			if advance, ok := solanaApp.DecodeNonceAdvance(accounts, ix.Data); ok {
-				nonceAccount := advance.GetNonceAccount().PublicKey
-				if !nonceAccount.Equals(nonce) {
-					return fmt.Errorf("invalid nonce account: %s", nonce.String())
-				}
+			recipient := transfer.GetRecipientAccount().PublicKey
+			if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
+				return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 			}
 		case solana.TokenProgramID, solana.Token2022ProgramID:
 			if mint, ok := solanaApp.DecodeTokenMint(accounts, ix.Data); ok {
@@ -336,6 +339,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 				}
 				continue
 			}
+			return fmt.Errorf("invalid token program instruction: %d", index)
 		case tokenAta.ProgramID:
 		default:
 			return fmt.Errorf("invalid program key: %s", programKey.String())

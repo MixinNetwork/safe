@@ -403,7 +403,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	if err != nil {
 		panic(err)
 	}
-	if call == nil || call.WithdrewAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
+	if call == nil || call.WithdrawnAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
 		return node.failRequest(ctx, req, "")
 	}
 	ids := []string{}
@@ -413,9 +413,9 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 		}
 		ids = append(ids, id)
 	}
-	call.WithdrawalIds = strings.Join(ids, ",")
+	call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
 	if len(ids) == 0 {
-		call.WithdrewAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	}
 
 	err = node.store.MarkSystemCallWithdrewWithRequest(ctx, req, call, txId, withdrawalHash)
@@ -473,14 +473,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
-	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
-	if err != nil {
-		panic(nonceAccount)
-	}
-	if nonce == nil {
-		return node.failRequest(ctx, req, "")
-	}
+
 	raw := node.readStorageExtraFromObserver(ctx, hash)
 	tx, err := solana.TransactionFromBytes(raw)
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
@@ -489,8 +482,8 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 
 	if !common.CheckTestEnvironment(ctx) {
-		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress), solana.MustPublicKeyFromBase58(nonceAccount))
-		logger.Printf("node.VerifySubSystemCall(%s %s) => %v", user.ChainAddress, nonceAccount, err)
+		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+		logger.Printf("node.VerifySubSystemCall(%s %s) => %v", user.ChainAddress, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
@@ -501,24 +494,19 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(err)
 	}
 	sub := &store.SystemCall{
-		RequestId:       req.Id,
-		Superior:        call.RequestId,
-		NonceAccount:    nonceAccount,
-		Message:         hex.EncodeToString(msg),
-		Raw:             tx.MustToBase64(),
-		State:           common.RequestStatePending,
-		WithdrawalIds:   "",
-		WithdrewAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
-		Signature:       sql.NullString{Valid: false},
-		RequestSignerAt: sql.NullTime{Valid: false},
-		CreatedAt:       req.CreatedAt,
-		UpdatedAt:       req.CreatedAt,
+		RequestId:        req.Id,
+		Superior:         call.RequestId,
+		NonceAccount:     nonceAccount,
+		Message:          hex.EncodeToString(msg),
+		Raw:              tx.MustToBase64(),
+		State:            common.RequestStatePending,
+		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
+		WithdrawnAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
+		CreatedAt:        req.CreatedAt,
+		UpdatedAt:        req.CreatedAt,
 	}
 	switch call.State {
 	case common.RequestStateInitial:
-		if nonce.UserId.Valid || nonce.CallId.Valid {
-			return node.failRequest(ctx, req, "")
-		}
 		sub.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
 		sub.Type = store.CallTypePrepare
 	case common.RequestStateDone, common.RequestStateFailed:
@@ -838,14 +826,6 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		panic(err)
 	}
 
-	nonce, err := node.store.ReadNonceAccount(ctx, nonceAccount)
-	logger.Printf("store.ReadNonceAccount(%s) => %v %v", nonceAccount, nonce, err)
-	if err != nil {
-		panic(err)
-	}
-	if nonce == nil || nonce.CallId.Valid || nonce.UserId.Valid {
-		return node.failRequest(ctx, req, "")
-	}
 	user, err := node.store.ReadUserByChainAddress(ctx, userAddress.String())
 	logger.Printf("store.ReadUserByChainAddress(%s) => %v %v", userAddress.String(), user, err)
 	if err != nil {
@@ -862,7 +842,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		panic(err)
 	}
 
-	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), userAddress, solana.MustPublicKeyFromBase58(nonceAccount))
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), userAddress)
 	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, userAddress, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
@@ -873,20 +853,20 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		panic(err)
 	}
 	new := &store.SystemCall{
-		RequestId:       req.Id,
-		Superior:        req.Id,
-		Type:            store.CallTypeMain,
-		Public:          hex.EncodeToString(user.FingerprintWithPath()),
-		NonceAccount:    nonceAccount,
-		Message:         hex.EncodeToString(msg),
-		Raw:             tx.MustToBase64(),
-		State:           common.RequestStatePending,
-		WithdrawalIds:   "",
-		WithdrewAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
-		Signature:       sql.NullString{Valid: false},
-		RequestSignerAt: sql.NullTime{Valid: false},
-		CreatedAt:       req.CreatedAt,
-		UpdatedAt:       req.CreatedAt,
+		RequestId:        req.Id,
+		Superior:         req.Id,
+		Type:             store.CallTypeMain,
+		Public:           hex.EncodeToString(user.FingerprintWithPath()),
+		NonceAccount:     nonceAccount,
+		Message:          hex.EncodeToString(msg),
+		Raw:              tx.MustToBase64(),
+		State:            common.RequestStatePending,
+		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
+		WithdrawnAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
+		Signature:        sql.NullString{Valid: false},
+		RequestSignerAt:  sql.NullTime{Valid: false},
+		CreatedAt:        req.CreatedAt,
+		UpdatedAt:        req.CreatedAt,
 	}
 
 	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, new, nil, nil, "")
