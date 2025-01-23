@@ -284,16 +284,21 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 }
 
 func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) *store.SystemCall {
-	conf := nodes[0].conf
+	node := nodes[0]
+	conf := node.conf
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	require.Nil(err)
+	require.Equal("DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", nonce.Address)
+	err = node.store.LockNonceAccountWithMix(ctx, nonce.Address, user.MixAddress)
+	require.Nil(err)
 
 	sequence += 10
-	_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "", sequence, decimal.NewFromInt(1000000))
+	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "", sequence, decimal.NewFromInt(1000000))
 	require.Nil(err)
 	sequence += 10
 	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, decimal.NewFromInt(5000000))
 	require.Nil(err)
 
-	var c *store.SystemCall
 	id := uuid.Must(uuid.NewV4()).String()
 	hash := "d3b2db9339aee4acb39d0809fc164eb7091621400a9a3d64e338e6ffd035d32f"
 	extra := user.IdBytes()
@@ -307,10 +312,25 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(out.OutputId, call.Superior)
 		require.Equal(store.CallTypeMain, call.Type)
 		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
-		require.Len(call.GetWithdrawalIds(), 1)
 		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
 		require.False(call.RequestSignerAt.Valid)
+	}
+
+	cs, err := node.store.ListUnconfirmedSystemCalls(ctx)
+	require.Nil(err)
+	require.Len(cs, 1)
+	var c *store.SystemCall
+	id = uuid.Must(uuid.NewV4()).String()
+	extra = []byte{ConfirmFlagNonceAvailable}
+	extra = append(extra, uuid.Must(uuid.FromString(cs[0].RequestId)).Bytes()...)
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra)
+		testStep(ctx, require, node, out)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cs[0].RequestId, common.RequestStateInitial)
+		require.Nil(err)
+		require.Len(call.GetWithdrawalIds(), 1)
+		require.False(call.WithdrawnAt.Valid)
 		c = call
 	}
 	return c
@@ -364,33 +384,15 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 		{"7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", "8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG"},
 		testGenerateRandNonceAccount(require),
 	}
-	addr := solana.MustPublicKeyFromBase58(as[0][0])
+	node := nodes[0]
 
-	for _, node := range nodes {
-		for _, nonce := range as {
-			address := solana.MustPublicKeyFromBase58(nonce[0])
-			hash := solana.MustHashFromBase58(nonce[1])
-			extra := address.Bytes()
-			extra = append(extra, hash[:]...)
-
-			id := uuid.Must(uuid.NewV4()).String()
-			out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
-			testStep(ctx, require, node, out)
-			account, err := node.store.ReadNonceAccount(ctx, address.String())
-			require.Nil(err)
-			require.Equal(hash.String(), account.Hash)
-		}
-
-		hash := solana.MustHashFromBase58("25DfFJbUsDMR7rYpieHhK7diWB1EuWkv5nB3F6CzNFTR")
-		extra := addr.Bytes()
-		extra = append(extra, hash[:]...)
-		id := uuid.Must(uuid.NewV4()).String()
-		out := testBuildObserverRequest(node, id, OperationTypeCreateNonce, extra)
-		testStep(ctx, require, node, out)
-		account, err := node.store.ReadNonceAccount(ctx, addr.String())
+	for _, nonce := range as {
+		err := node.store.WriteOrUpdateNonceAccount(ctx, nonce[0], nonce[1])
 		require.Nil(err)
-		require.Equal(hash.String(), account.Hash)
 	}
+	count, err := node.store.CountNonceAccounts(ctx)
+	require.Nil(err)
+	require.Equal(4, count)
 }
 
 func testObserverSetPriceParams(ctx context.Context, require *require.Assertions, nodes []*Node) {

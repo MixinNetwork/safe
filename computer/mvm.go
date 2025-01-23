@@ -309,8 +309,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	}
 
 	extra := req.ExtraBytes()
-	flag, extra := extra[0], extra[:]
-	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	flag, extra := extra[0], extra[1:]
+	callId := uuid.Must(uuid.FromBytes(extra)).String()
 
 	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
@@ -482,7 +482,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(err)
 	}
 	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
-	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", user.ChainAddress, err)
+	logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}

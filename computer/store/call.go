@@ -316,6 +316,28 @@ func (s *SQLite3Store) ReadSystemCallByMessage(ctx context.Context, message stri
 	return systemCallFromRow(row)
 }
 
+func (s *SQLite3Store) ListUnconfirmedSystemCalls(ctx context.Context) ([]*SystemCall, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_traces IS NULL AND withdrawn_at IS NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
+	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateInitial)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []*SystemCall
+	for rows.Next() {
+		call, err := systemCallFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		calls = append(calls, call)
+	}
+	return calls, nil
+}
+
 func (s *SQLite3Store) ListInitialSystemCalls(ctx context.Context) ([]*SystemCall, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

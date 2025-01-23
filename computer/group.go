@@ -104,6 +104,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleObserver
 	case OperationTypeKeygenInput:
 		return RequestRoleObserver
+	case OperationTypeConfirmNonce:
+		return RequestRoleObserver
 	case OperationTypeConfirmWithdrawal:
 		return RequestRoleObserver
 	case OperationTypeCreateSubCall:

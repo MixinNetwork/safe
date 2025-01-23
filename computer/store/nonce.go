@@ -21,7 +21,7 @@ type NonceAccount struct {
 	UpdatedAt time.Time
 }
 
-var nonceAccountCols = []string{"address", "hash", "mix", "call_id", "call_id", "created_at", "updated_at"}
+var nonceAccountCols = []string{"address", "hash", "mix", "call_id", "created_at", "updated_at"}
 
 func nonceAccountFromRow(row Row) (*NonceAccount, error) {
 	var a NonceAccount
@@ -92,7 +92,7 @@ func (s *SQLite3Store) LockNonceAccountWithMix(ctx context.Context, address, mix
 	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET mix=?, updated_at=? WHERE address=? AND mix IS NULL AND call_id IS NULL",
-		mix, address)
+		mix, time.Now().UTC(), address)
 	if err != nil {
 		return fmt.Errorf("UPDATE nonce_accounts %v", err)
 	}
@@ -111,7 +111,7 @@ func (s *SQLite3Store) OccupyNonceAccountByCall(ctx context.Context, address, ca
 	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=? AND mix IS NOT NULL AND call_id IS NULL",
-		call, address)
+		call, time.Now().UTC(), address)
 	if err != nil {
 		return fmt.Errorf("UPDATE nonce_accounts %v", err)
 	}
@@ -130,7 +130,7 @@ func (s *SQLite3Store) ReleaseLockedNonceAccount(ctx context.Context, address st
 	defer common.Rollback(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET mix=?, updated_at=? WHERE address=? AND mix IS NOT NULL AND call_id IS NULL",
-		nil, address)
+		nil, time.Now().UTC(), address)
 	if err != nil {
 		return fmt.Errorf("UPDATE nonce_accounts %v", err)
 	}
