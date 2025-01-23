@@ -33,7 +33,8 @@ func (node *Node) bootObserver(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	go node.nonceAccountLoop(ctx)
+	go node.createNonceAccountLoop(ctx)
+	go node.releaseNonceAccountLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
 	go node.initialCallLoop(ctx)
@@ -96,9 +97,20 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 	})
 }
 
-func (node *Node) nonceAccountLoop(ctx context.Context) {
+func (node *Node) createNonceAccountLoop(ctx context.Context) {
 	for {
 		err := node.createNonceAccounts(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(1 * time.Minute)
+	}
+}
+
+func (node *Node) releaseNonceAccountLoop(ctx context.Context) {
+	for {
+		err := node.releaseNonceAccounts(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -180,6 +192,23 @@ func (node *Node) createNonceAccounts(ctx context.Context) error {
 		return fmt.Errorf("store.WriteOrUpdateNonceAccount(%s %s) => %v", address, hash, err)
 	}
 	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey, time.Now().UTC())
+}
+
+func (node *Node) releaseNonceAccounts(ctx context.Context) error {
+	as, err := node.store.ListLockedNonceAccounts(ctx)
+	if err != nil {
+		return err
+	}
+	for _, nonce := range as {
+		if nonce.UpdatedAt.Add(20 * time.Minute).After(time.Now()) {
+			continue
+		}
+		err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (node *Node) handleWithdrawalsFee(ctx context.Context) error {

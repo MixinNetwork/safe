@@ -152,8 +152,6 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSignerKeygenRequests(ctx, req)
 	case OperationTypeKeygenOutput:
 		return node.processSignerKeygenResults(ctx, req)
-	case OperationTypeCreateNonce:
-		return node.processCreateOrUpdateNonceAccount(ctx, req)
 	case OperationTypeCreateSubCall:
 		return node.processCreateSubCall(ctx, req)
 	case OperationTypeConfirmWithdrawal:

@@ -13,19 +13,19 @@ import (
 )
 
 type NonceAccount struct {
-	Address    string
-	Hash       string
-	OccupiedBy sql.NullString
-	OccupiedAt sql.NullTime
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	Address   string
+	Hash      string
+	Mix       sql.NullString
+	CallId    sql.NullString
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
-var nonceAccountCols = []string{"address", "hash", "occupied_by", "occupied_at", "call_id", "created_at", "updated_at"}
+var nonceAccountCols = []string{"address", "hash", "mix", "call_id", "call_id", "created_at", "updated_at"}
 
-func nonceAccountFromRow(row *sql.Row) (*NonceAccount, error) {
+func nonceAccountFromRow(row Row) (*NonceAccount, error) {
 	var a NonceAccount
-	err := row.Scan(&a.Address, &a.Hash, &a.OccupiedBy, &a.OccupiedAt, &a.CreatedAt, &a.UpdatedAt)
+	err := row.Scan(&a.Address, &a.Hash, &a.Mix, &a.CallId, &a.CreatedAt, &a.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -81,24 +81,83 @@ func (s *SQLite3Store) writeOrUpdateNonceAccount(ctx context.Context, tx *sql.Tx
 	return nil
 }
 
-func (s *SQLite3Store) assignNonceAccountToUser(ctx context.Context, tx *sql.Tx, req *Request, uid string) (string, error) {
-	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM nonce_accounts WHERE user_id=?", uid)
-	if err != nil || existed {
-		return "", fmt.Errorf("store.checkExistenceFromNonceAccounts(%s) => %t %v", uid, existed, err)
-	}
+func (s *SQLite3Store) LockNonceAccountWithMix(ctx context.Context, address, mix string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	account, err := readSpareNonceAccount(ctx, tx)
-	if err != nil || account == "" {
-		return "", fmt.Errorf("store.readSpareNonceAccount() => %s %v", account, err)
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET user_id=?, updated_at=? WHERE address=? AND user_id IS NULL AND call_id IS NULL",
-		uid, req.CreatedAt, account)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("UPDATE nonce_accounts %v", err)
+		return err
+	}
+	defer common.Rollback(tx)
+
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET mix=?, updated_at=? WHERE address=? AND mix IS NULL AND call_id IS NULL",
+		mix, address)
+	if err != nil {
+		return fmt.Errorf("UPDATE nonce_accounts %v", err)
 	}
 
-	return account, nil
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) OccupyNonceAccountByCall(ctx context.Context, address, call string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=? AND mix IS NOT NULL AND call_id IS NULL",
+		call, address)
+	if err != nil {
+		return fmt.Errorf("UPDATE nonce_accounts %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ReleaseLockedNonceAccount(ctx context.Context, address string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET mix=?, updated_at=? WHERE address=? AND mix IS NOT NULL AND call_id IS NULL",
+		nil, address)
+	if err != nil {
+		return fmt.Errorf("UPDATE nonce_accounts %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListLockedNonceAccounts(ctx context.Context) ([]*NonceAccount, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE mix IS NOT NULL AND call_id IS NULL ORDER BY updated_at ASC LIMIT 100", strings.Join(nonceAccountCols, ","))
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var as []*NonceAccount
+	for rows.Next() {
+		nonce, err := nonceAccountFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		as = append(as, nonce)
+	}
+	return as, nil
 }
 
 func (s *SQLite3Store) ReadNonceAccount(ctx context.Context, address string) (*NonceAccount, error) {
@@ -109,21 +168,10 @@ func (s *SQLite3Store) ReadNonceAccount(ctx context.Context, address string) (*N
 }
 
 func (s *SQLite3Store) ReadSpareNonceAccount(ctx context.Context) (*NonceAccount, error) {
-	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE user_id IS NULL AND call_id IS NULL ORDER BY created_at ASC LIMIT 1", strings.Join(nonceAccountCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE mix IS NULL AND call_id IS NULL ORDER BY created_at ASC LIMIT 1", strings.Join(nonceAccountCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
 	return nonceAccountFromRow(row)
-}
-
-func readSpareNonceAccount(ctx context.Context, tx *sql.Tx) (string, error) {
-	var account string
-	query := "SELECT address FROM nonce_accounts WHERE user_id IS NULL AND call_id IS NULL ORDER BY created_at ASC LIMIT 1"
-	row := tx.QueryRowContext(ctx, query)
-	err := row.Scan(&account)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return account, err
 }
 
 func (s *SQLite3Store) CountNonceAccounts(ctx context.Context) (int, error) {

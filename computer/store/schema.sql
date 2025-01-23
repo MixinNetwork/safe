@@ -144,8 +144,8 @@ CREATE TABLE IF NOT EXISTS system_calls (
 CREATE TABLE IF NOT EXISTS nonce_accounts (
   address        VARCHAR NOT NULL,
   hash           VARCHAR NOT NULL,
-  occupied_by    VARCHAR,
-  occupied_at    TIMESTAMP,
+  mix            VARCHAR,
+  call_id        VARCHAR,
   created_at     TIMESTAMP NOT NULL,
   updated_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('address')

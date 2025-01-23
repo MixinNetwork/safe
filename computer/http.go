@@ -4,6 +4,7 @@ package computer
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,6 +26,7 @@ func (node *Node) StartHTTP() {
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/users/:addr", node.httpGetUser)
 	router.GET("/deployed_assets", node.httpGetAssets)
+	router.POST("/nonce_accounts", node.httpLockNonce)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7080), handler)
 	if err != nil {
@@ -79,24 +81,11 @@ func (node *Node) httpGetUser(w http.ResponseWriter, r *http.Request, params map
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "user"})
 		return
 	}
-	nonce, err := node.store.ReadNonceAccount(ctx, user.NonceAccount)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	if nonce == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "nonce"})
-		return
-	}
 
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"id":            user.UserId,
 		"mix_address":   user.MixAddress,
 		"chain_address": user.ChainAddress,
-		"nonce": map[string]any{
-			"address": nonce.Address,
-			"hash":    nonce.Hash,
-		},
 	})
 }
 
@@ -116,4 +105,46 @@ func (node *Node) httpGetAssets(w http.ResponseWriter, r *http.Request, params m
 		})
 	}
 	common.RenderJSON(w, r, http.StatusOK, view)
+}
+
+func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	ctx := r.Context()
+	var body struct {
+		Mix string `json:"mix"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+
+	user, err := node.store.ReadUserByMixAddress(ctx, body.Mix)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if user == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "user"})
+		return
+	}
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if nonce == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "nonce"})
+		return
+	}
+	err = node.store.LockNonceAccountWithMix(ctx, nonce.Address, body.Mix)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"mix":           body.Mix,
+		"nonce_address": nonce.Address,
+		"nonce_hash":    nonce.Hash,
+	})
 }
