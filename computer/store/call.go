@@ -202,6 +202,11 @@ func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
+	query = "UPDATE nonce_accounts SET call_id=?, updated_at=? WHERE address=?"
+	err = s.execOne(ctx, tx, query, nil, req.CreatedAt, call.NonceAccount)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE nonce_accounts %v", err)
+	}
 
 	err = s.finishRequest(ctx, tx, req, nil, "")
 	if err != nil {
