@@ -98,12 +98,12 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 
 func (node *Node) nonceAccountLoop(ctx context.Context) {
 	for {
-		err := node.requestNonceAccounts(ctx)
+		err := node.createNonceAccounts(ctx)
 		if err != nil {
 			panic(err)
 		}
 
-		time.Sleep(2 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -162,30 +162,22 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) requestNonceAccounts(ctx context.Context) error {
-	count, err := node.store.CountSpareNonceAccounts(ctx)
-	if err != nil || count > 1000 {
+func (node *Node) createNonceAccounts(ctx context.Context) error {
+	count, err := node.store.CountNonceAccounts(ctx)
+	if err != nil || count > 100 {
 		return err
 	}
 	requested := node.readPropertyAsTime(ctx, store.NonceAccountRequestTimeKey)
-	if requested.Add(2 * time.Minute).After(time.Now().UTC()) {
+	if requested.Add(1 * time.Minute).After(time.Now().UTC()) {
 		return nil
 	}
-	id := common.UniqueId(requested.String(), requested.String())
-
-	nonceAccountPublic, nonceAccountHash, err := node.CreateNonceAccount(ctx)
+	address, hash, err := node.CreateNonceAccount(ctx)
 	if err != nil {
 		return fmt.Errorf("node.CreateNonceAccount() => %v", err)
 	}
-	extra := nonceAccountPublic.Bytes()
-	extra = append(extra, nonceAccountHash[:]...)
-	err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    id,
-		Type:  OperationTypeCreateNonce,
-		Extra: extra,
-	})
+	err = node.store.WriteOrUpdateNonceAccount(ctx, address, hash)
 	if err != nil {
-		return err
+		return fmt.Errorf("store.WriteOrUpdateNonceAccount(%s %s) => %v", address, hash, err)
 	}
 	return node.writeRequestTime(ctx, store.NonceAccountRequestTimeKey, time.Now().UTC())
 }

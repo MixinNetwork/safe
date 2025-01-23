@@ -39,7 +39,7 @@ func (a *NonceAccount) Account() solanaApp.NonceAccount {
 	}
 }
 
-func (s *SQLite3Store) WriteOrUpdateNonceAccount(ctx context.Context, req *Request, address, hash string) error {
+func (s *SQLite3Store) WriteOrUpdateNonceAccount(ctx context.Context, address, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -49,7 +49,7 @@ func (s *SQLite3Store) WriteOrUpdateNonceAccount(ctx context.Context, req *Reque
 	}
 	defer common.Rollback(tx)
 
-	err = s.writeOrUpdateNonceAccount(ctx, tx, req, address, hash)
+	err = s.writeOrUpdateNonceAccount(ctx, tx, address, hash)
 	if err != nil {
 		return err
 	}
@@ -57,30 +57,27 @@ func (s *SQLite3Store) WriteOrUpdateNonceAccount(ctx context.Context, req *Reque
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) writeOrUpdateNonceAccount(ctx context.Context, tx *sql.Tx, req *Request, address, hash string) error {
+func (s *SQLite3Store) writeOrUpdateNonceAccount(ctx context.Context, tx *sql.Tx, address, hash string) error {
 	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM nonce_accounts WHERE address=?", address)
 	if err != nil {
 		return fmt.Errorf("store.writeOrUpdateNonceAccount(%s) => %v", address, err)
 	}
 
+	now := time.Now().UTC()
 	if existed {
 		err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET hash=?, updated_at=? WHERE address=?",
-			hash, req.CreatedAt, address)
+			hash, now, address)
 		if err != nil {
 			return fmt.Errorf("UPDATE nonce_accounts %v", err)
 		}
 	} else {
-		vals := []any{address, hash, nil, nil, req.CreatedAt, req.CreatedAt}
+		vals := []any{address, hash, nil, nil, now, now}
 		err = s.execOne(ctx, tx, buildInsertionSQL("nonce_accounts", nonceAccountCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT nonce_accounts %v", err)
 		}
 	}
 
-	err = s.finishRequest(ctx, tx, req, nil, "")
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -129,8 +126,8 @@ func readSpareNonceAccount(ctx context.Context, tx *sql.Tx) (string, error) {
 	return account, err
 }
 
-func (s *SQLite3Store) CountSpareNonceAccounts(ctx context.Context) (int, error) {
-	query := "SELECT COUNT(*) FROM nonce_accounts WHERE user_id IS NULL AND call_id IS NULL"
+func (s *SQLite3Store) CountNonceAccounts(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM nonce_accounts"
 	row := s.db.QueryRowContext(ctx, query)
 
 	var count int
