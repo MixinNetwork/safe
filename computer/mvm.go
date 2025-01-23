@@ -77,11 +77,20 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	return nil, ""
 }
 
-// To finish a system call may take up to 4 steps:
-// 1 withdrawal from Mixin Network to Solana
-// 2 observer create sub system call to transfer or mint assets to user account
-// 3 run main system call created by user
-// 4 observer create postprocess system call to deposit solana assets to mtg and burn external assets
+// simplified steps:
+//  1. user creates system call with locked nonce
+//     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL)
+//  2. observer confirms nonce available and make mtg create withdrawal txs
+//     (state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL)
+//  3. observer pays the withdrawal fees and confirms all withdrawals success to mtg
+//     (state: initial, withdrawal_traces: "", withdrawn_at: NOT NULL)
+//  4. observer creates, runs and confirms sub prepare system call to transfer or mint assets to user account
+//     (state: pending, signature: NULL)
+//  5. observer requests to generate signature for main call
+//     (state: pending, signature: NOT NULL)
+//  6. observer runs and confirms main call success
+//     (state: done, signature: NOT NULL)
+//  7. observer create postprocess system call to deposit solana assets to mtg and burn external assets
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)

@@ -29,11 +29,12 @@ const (
 	// observer operation
 	OperationTypeSetOperationParams = 10
 	OperationTypeKeygenInput        = 11
-	OperationTypeConfirmWithdrawal  = 12
-	OperationTypeCreateSubCall      = 13
-	OperationTypeConfirmCall        = 14
-	OperationTypeSignInput          = 15
-	OperationTypeDeposit            = 16
+	OperationTypeConfirmNonce       = 12
+	OperationTypeConfirmWithdrawal  = 13
+	OperationTypeCreateSubCall      = 14
+	OperationTypeConfirmCall        = 15
+	OperationTypeSignInput          = 16
+	OperationTypeDeposit            = 17
 
 	// signer operation
 	OperationTypeKeygenOutput = 20
