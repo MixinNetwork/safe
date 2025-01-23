@@ -39,6 +39,7 @@ func (node *Node) bootObserver(ctx context.Context) {
 	go node.withdrawalFeeLoop(ctx)
 	go node.withdrawalConfirmLoop(ctx)
 
+	go node.unconfirmedCallLoop(ctx)
 	go node.initialCallLoop(ctx)
 	go node.unsignedCallLoop(ctx)
 	go node.signedCallLoop(ctx)
@@ -135,6 +136,17 @@ func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 func (node *Node) withdrawalConfirmLoop(ctx context.Context) {
 	for {
 		err := node.handleWithdrawalsConfirm(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(1 * time.Minute)
+	}
+}
+
+func (node *Node) unconfirmedCallLoop(ctx context.Context) {
+	for {
+		err := node.handleUnconfirmedCalls(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -262,6 +274,35 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 			return err
 		}
 		err = node.writeRequestTime(ctx, store.WithdrawalConfirmRequestTimeKey, tx.UpdatedAt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
+	calls, err := node.store.ListUnconfirmedSystemCalls(ctx)
+	if err != nil {
+		return err
+	}
+	for _, call := range calls {
+		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+		if err != nil {
+			return err
+		}
+		id := common.UniqueId(call.RequestId, "confirm")
+		extra := []byte{ConfirmFlagNonceAvailable}
+		if nonce == nil || nonce.CallId.Valid || !nonce.Mix.Valid {
+			id = common.UniqueId(id, "expired")
+			extra = []byte{ConfirmFlagNonceExpired}
+		}
+		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
+			Id:    id,
+			Type:  ConfirmFlagNonceAvailable,
+			Extra: extra,
+		})
 		if err != nil {
 			return err
 		}

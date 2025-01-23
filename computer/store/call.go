@@ -320,7 +320,7 @@ func (s *SQLite3Store) ListUnconfirmedSystemCalls(ctx context.Context) ([]*Syste
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_traces IS NULL AND withdrawn_at IS NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state=? AND withdrawal_traces IS NULL AND withdrawn_at IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateInitial)
 	if err != nil {
 		return nil, err
