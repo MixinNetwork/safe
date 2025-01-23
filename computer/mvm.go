@@ -402,10 +402,6 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	call.WithdrawalIds = strings.Join(ids, ",")
 	if len(ids) == 0 {
 		call.WithdrewAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
-		_, as := node.transferOrMintTokens(ctx, call, nil)
-		if len(as) == 0 {
-			call.State = common.RequestStatePending
-		}
 	}
 
 	err = node.store.MarkSystemCallWithdrewWithRequest(ctx, req, call, txId, withdrawalHash)
