@@ -96,32 +96,30 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 func (node *Node) getActionRole(act byte) byte {
 	switch act {
-	case OperationTypeSetOperationParams:
-		return RequestRoleObserver
 	case OperationTypeAddUser:
 		return RequestRoleUser
 	case OperationTypeSystemCall:
 		return RequestRoleUser
+	case OperationTypeSetOperationParams:
+		return RequestRoleObserver
 	case OperationTypeKeygenInput:
 		return RequestRoleObserver
-	case OperationTypeKeygenOutput:
-		return RequestRoleSigner
-	case OperationTypeCreateNonce:
+	case OperationTypeConfirmWithdrawal:
 		return RequestRoleObserver
 	case OperationTypeCreateSubCall:
-		return RequestRoleObserver
-	case OperationTypeConfirmWithdrawal:
 		return RequestRoleObserver
 	case OperationTypeConfirmCall:
 		return RequestRoleObserver
 	case OperationTypeSignInput:
 		return RequestRoleObserver
+	case OperationTypeDeposit:
+		return RequestRoleObserver
+	case OperationTypeKeygenOutput:
+		return RequestRoleSigner
 	case OperationTypeSignPrepare:
 		return RequestRoleSigner
 	case OperationTypeSignOutput:
 		return RequestRoleSigner
-	case OperationTypeDeposit:
-		return RequestRoleObserver
 	default:
 		return 0
 	}
@@ -129,7 +127,7 @@ func (node *Node) getActionRole(act byte) byte {
 
 func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	switch req.Action {
-	case OperationTypeKeygenInput, OperationTypeKeygenOutput, OperationTypeCreateNonce:
+	case OperationTypeKeygenInput, OperationTypeKeygenOutput:
 	default:
 		count, err := node.store.CountKeys(ctx)
 		if err != nil {

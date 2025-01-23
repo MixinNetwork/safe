@@ -22,20 +22,23 @@ const (
 	FlagConfirmCallSuccess = 1
 	FlagConfirmCallFail    = 2
 
+	// user operation
 	OperationTypeAddUser    = 1
 	OperationTypeSystemCall = 2
 
+	// observer operation
 	OperationTypeSetOperationParams = 10
 	OperationTypeKeygenInput        = 11
-	OperationTypeKeygenOutput       = 12
-	OperationTypeCreateNonce        = 13
-	OperationTypeCreateSubCall      = 14
-	OperationTypeConfirmWithdrawal  = 15
-	OperationTypeConfirmCall        = 16
-	OperationTypeSignInput          = 17
-	OperationTypeSignPrepare        = 18
-	OperationTypeSignOutput         = 19
-	OperationTypeDeposit            = 20
+	OperationTypeConfirmWithdrawal  = 12
+	OperationTypeCreateSubCall      = 13
+	OperationTypeConfirmCall        = 14
+	OperationTypeSignInput          = 15
+	OperationTypeDeposit            = 16
+
+	// signer operation
+	OperationTypeKeygenOutput = 20
+	OperationTypeSignPrepare  = 21
+	OperationTypeSignOutput   = 22
 )
 
 func DecodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, error) {

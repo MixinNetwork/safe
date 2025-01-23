@@ -29,8 +29,6 @@ import (
 )
 
 const (
-	SignerKeygenMaximum = 128
-
 	ConfirmFlagMixinWithdrawal = 0
 	ConfirmFlagOnChainTx       = 1
 )
@@ -38,6 +36,9 @@ const (
 func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
+	}
+	if req.Action != OperationTypeAddUser {
+		panic(req.Action)
 	}
 
 	mix := string(req.ExtraBytes())
@@ -77,14 +78,16 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 }
 
 // To finish a system call may take up to 4 steps:
-// 1 withdrawal
-// 2 transfer
-// 3 call
-// 4 postprocess
-// sub calls should all be created by observer
+// 1 withdrawal from Mixin Network to Solana
+// 2 observer create sub system call to transfer or mint assets to user account
+// 3 run main system call created by user
+// 4 observer create postprocess system call to deposit solana assets to mtg and burn external assets
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
+	}
+	if req.Action != OperationTypeSystemCall {
+		panic(req.Action)
 	}
 
 	data := req.ExtraBytes()
