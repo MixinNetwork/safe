@@ -275,6 +275,9 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (string, string, error
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
+	if common.CheckTestEnvironment(ctx) {
+		return nil
+	}
 	for index, ix := range tx.Message.Instructions {
 		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
 		if err != nil {

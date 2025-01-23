@@ -69,8 +69,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	if err != nil || key == "" {
 		panic(fmt.Errorf("store.ReadLatestKey() => %s %v", key, err))
 	}
-	path := id.FillBytes(make([]byte, 8))
-	public := mixin.DeriveEd25519Child(key, path)
+	public := mixin.DeriveEd25519Child(key, id.FillBytes(make([]byte, 8)))
 	chainAddress := solana.PublicKeyFromBytes(public[:]).String()
 
 	err = node.store.WriteUserWithRequest(ctx, req, id.String(), mix, chainAddress, key)
@@ -140,17 +139,11 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	ins := tx.Message.Instructions[0]
-	accounts, err := ins.ResolveInstructionAccounts(&tx.Message)
-	if err != nil {
-		panic(err)
-	}
-	advance, flag := solanaApp.DecodeNonceAdvance(accounts, ins.Data)
-	logger.Printf("solana.DecodeNonceAdvance() => %v %t", advance, flag)
+	advance, flag := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %t", advance, flag)
 	if !flag {
 		return node.failRequest(ctx, req, "")
 	}
-
 	msg, err := tx.Message.MarshalBinary()
 	if err != nil {
 		panic(err)
@@ -331,6 +324,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	switch flag {
 	case ConfirmFlagNonceAvailable:
 		var txs []*mtg.Transaction
+		var ids []string
 		as := node.getSystemCallRelatedAsset(ctx, callId)
 		destination := node.getMtgAddress(ctx).String()
 		for _, asset := range as {
@@ -345,14 +339,13 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 				return node.failRequest(ctx, req, asset.Asset.AssetID)
 			}
 			txs = append(txs, tx)
-		}
-		var ids []string
-		if len(txs) > 0 {
-			for _, tx := range txs {
-				ids = append(ids, tx.TraceId)
-			}
+			ids = append(ids, tx.TraceId)
 		}
 		call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
+		if len(txs) == 0 {
+			call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+		}
+
 		err = node.store.UpdateWithdrawalsWithRequest(ctx, req, call, txs, "")
 		if err != nil {
 			panic(err)
@@ -435,12 +428,11 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 
 	extra := req.ExtraBytes()
 	reqId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	nonceAccount := solana.PublicKeyFromBytes(extra[16:48]).String()
-	hash, err := crypto.HashFromString(hex.EncodeToString(extra[48:80]))
+	hash, err := crypto.HashFromString(hex.EncodeToString(extra[16:48]))
 	if err != nil {
 		panic(err)
 	}
-	extra = extra[80:]
+	extra = extra[48:]
 	var offset int
 	var as []*store.DeployedAsset
 	for {
@@ -480,23 +472,25 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
-
-	if !common.CheckTestEnvironment(ctx) {
-		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
-		logger.Printf("node.VerifySubSystemCall(%s %s) => %v", user.ChainAddress, err)
-		if err != nil {
-			return node.failRequest(ctx, req, "")
-		}
+	advance, flag := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %t", advance, flag)
+	if !flag {
+		return node.failRequest(ctx, req, "")
 	}
-
 	msg, err := tx.Message.MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", user.ChainAddress, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+
 	sub := &store.SystemCall{
 		RequestId:        req.Id,
 		Superior:         call.RequestId,
-		NonceAccount:     nonceAccount,
+		NonceAccount:     advance.GetNonceAccount().PublicKey.String(),
 		Message:          hex.EncodeToString(msg),
 		Raw:              tx.MustToBase64(),
 		State:            common.RequestStatePending,

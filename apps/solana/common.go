@@ -277,6 +277,15 @@ func DecodeNonceAdvance(accounts solana.AccountMetaSlice, data []byte) (*system.
 	return nil, false
 }
 
+func NonceAccountFromTx(tx *solana.Transaction) (*system.AdvanceNonceAccount, bool) {
+	ins := tx.Message.Instructions[0]
+	accounts, err := ins.ResolveInstructionAccounts(&tx.Message)
+	if err != nil {
+		panic(err)
+	}
+	return DecodeNonceAdvance(accounts, ins.Data)
+}
+
 func extractTransfersFromInstruction(msg *solana.Message, cix solana.CompiledInstruction, tokenAccounts map[solana.PublicKey]token.Account) *Transfer {
 	programKey, err := msg.Program(cix.ProgramIDIndex)
 	if err != nil {

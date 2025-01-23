@@ -129,8 +129,8 @@ func (s *SQLite3Store) UpdateWithdrawalsWithRequest(ctx context.Context, req *Re
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE system_calls SET withdrawal_traces=?, updated_at=? WHERE request_id=? AND state=? AND withdrawal_traces IS NULL AND withdrawn_at IS NULL"
-	_, err = tx.ExecContext(ctx, query, call.WithdrawalTraces, req.CreatedAt, call.RequestId, common.RequestStateInitial)
+	query := "UPDATE system_calls SET withdrawal_traces=?, withdrawn_at=?, updated_at=? WHERE request_id=? AND state=? AND withdrawal_traces IS NULL AND withdrawn_at IS NULL"
+	_, err = tx.ExecContext(ctx, query, call.WithdrawalTraces, call.WithdrawnAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
