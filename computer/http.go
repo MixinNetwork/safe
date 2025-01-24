@@ -28,7 +28,7 @@ func (node *Node) StartHTTP() {
 	router.GET("/deployed_assets", node.httpGetAssets)
 	router.POST("/nonce_accounts", node.httpLockNonce)
 	handler := common.HandleCORS(router)
-	err := http.ListenAndServe(fmt.Sprintf(":%d", 7080), handler)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
 	if err != nil {
 		panic(err)
 	}
