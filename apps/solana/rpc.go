@@ -45,13 +45,13 @@ func (c *Client) getRPCClient() *rpc.Client {
 	return c.rpcClient
 }
 
-func (c *Client) GetLatestBlockhash(ctx context.Context) (*rpc.LatestBlockhashResult, error) {
+func (c *Client) RPCGetBlockHeight(ctx context.Context) (uint64, error) {
 	client := c.getRPCClient()
-	blockhash, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	height, err := client.GetBlockHeight(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+		return 0, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
-	return blockhash.Value, err
+	return height, nil
 }
 
 func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {

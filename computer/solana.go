@@ -32,14 +32,14 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		block, err := client.GetLatestBlockhash(ctx)
+		height, err := client.RPCGetBlockHeight(ctx)
 		if err != nil {
 			logger.Printf("solana.RPCGetBlockHeight => %v", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		if checkpoint+SolanaBlockDelay > int64(block.LastValidBlockHeight)+1 {
-			logger.Printf("current %d > limit %d", checkpoint+SolanaBlockDelay, int64(block.LastValidBlockHeight)+1)
+		if checkpoint+SolanaBlockDelay > int64(height)+1 {
+			logger.Printf("current %d > limit %d", checkpoint+SolanaBlockDelay, int64(height)+1)
 			time.Sleep(time.Second * 5)
 			continue
 		}
