@@ -55,8 +55,8 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 	return node
 }
 
-func (node *Node) Boot(ctx context.Context) {
-	go node.bootObserver(ctx)
+func (node *Node) Boot(ctx context.Context, version string) {
+	go node.bootObserver(ctx, version)
 	go node.bootSigner(ctx)
 	logger.Printf("node.Boot(%s, %d)", node.id, node.Index())
 }

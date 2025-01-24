@@ -17,12 +17,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (node *Node) bootObserver(ctx context.Context) {
+func (node *Node) bootObserver(ctx context.Context, version string) {
 	if string(node.id) != node.conf.ObserverId {
 		return
 	}
 	logger.Printf("bootObserver(%s)", node.id)
-	go node.StartHTTP()
+	go node.StartHTTP(version)
 
 	err := node.initMpcKeys(ctx)
 	if err != nil {

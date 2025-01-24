@@ -74,7 +74,7 @@ func ComputerBootCmd(c *cli.Context) error {
 	}
 	defer kd.Close()
 	computer := computer.NewNode(kd, group, messenger, mc.Computer, client)
-	computer.Boot(ctx)
+	computer.Boot(ctx, version)
 
 	group.AttachWorker(mc.Computer.AppId, computer)
 	group.RegisterDepositEntry(mc.Computer.AppId, mtg.DepositEntry{

@@ -17,7 +17,9 @@ import (
 var FAVICON []byte
 var VERSION string
 
-func (node *Node) StartHTTP() {
+func (node *Node) StartHTTP(version string) {
+	VERSION = version
+
 	router := httptreemux.New()
 	router.PanicHandler = common.HandlePanic
 	router.NotFoundHandler = common.HandleNotFound
