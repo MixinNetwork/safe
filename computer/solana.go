@@ -251,8 +251,6 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (string, string, error
 		}
 		return "", "", err
 	}
-
-	time.Sleep(10 * time.Second)
 	for {
 		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
 		if rpcTx != nil {
@@ -264,15 +262,18 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (string, string, error
 		}
 		return "", "", fmt.Errorf("solana.RPCGetTransaction(%s) => %v", h, err)
 	}
-
-	hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
-	logger.Printf("node.GetNonceAccountHash(%s %s) => %v %v", nonce.PublicKey().String(), h, hash, err)
-	if err != nil {
-		return "", "", err
+	for {
+		hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
+		logger.Printf("node.GetNonceAccountHash(%s %s) => %v %v", nonce.PublicKey().String(), h, hash, err)
+		if err != nil {
+			return "", "", err
+		}
+		if hash == nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return nonce.PublicKey().String(), hash.String(), nil
 	}
-	pub := nonce.PublicKey()
-
-	return pub.String(), hash.String(), nil
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
