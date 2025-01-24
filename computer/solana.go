@@ -266,6 +266,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context) (string, string, error
 	}
 
 	hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
+	logger.Printf("node.GetNonceAccountHash(%s %s) => %v %v", nonce.PublicKey().String(), h, hash, err)
 	if err != nil {
 		return "", "", err
 	}
