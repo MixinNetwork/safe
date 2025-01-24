@@ -47,11 +47,11 @@ func (c *Client) getRPCClient() *rpc.Client {
 
 func (c *Client) RPCGetBlockHeight(ctx context.Context) (uint64, error) {
 	client := c.getRPCClient()
-	height, err := client.GetBlockHeight(ctx, rpc.CommitmentConfirmed)
+	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return 0, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
-	return height, nil
+	return block.Context.Slot, nil
 }
 
 func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
