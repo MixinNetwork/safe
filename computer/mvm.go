@@ -412,7 +412,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	}
 
-	err = node.store.MarkSystemCallWithdrewWithRequest(ctx, req, call, txId, withdrawalHash)
+	err = node.store.MarkSystemCallWithdrawnWithRequest(ctx, req, call, txId, withdrawalHash)
 	if err != nil {
 		panic(err)
 	}

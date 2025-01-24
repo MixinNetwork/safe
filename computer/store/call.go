@@ -142,7 +142,7 @@ func (s *SQLite3Store) UpdateWithdrawalsWithRequest(ctx context.Context, req *Re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkSystemCallWithdrewWithRequest(ctx context.Context, req *Request, call *SystemCall, txId, hash string) error {
+func (s *SQLite3Store) MarkSystemCallWithdrawnWithRequest(ctx context.Context, req *Request, call *SystemCall, txId, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
