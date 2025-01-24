@@ -31,7 +31,7 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
 		ctx,
 		nonceAccountSize,
-		rpc.CommitmentFinalized,
+		rpc.CommitmentConfirmed,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
@@ -97,7 +97,7 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 			rent, err := c.getRPCClient().GetMinimumBalanceForRentExemption(
 				ctx,
 				mintSize,
-				rpc.CommitmentFinalized,
+				rpc.CommitmentConfirmed,
 			)
 			if err != nil {
 				return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)

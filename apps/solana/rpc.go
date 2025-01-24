@@ -47,7 +47,7 @@ func (c *Client) getRPCClient() *rpc.Client {
 
 func (c *Client) RPCGetBlockHeight(ctx context.Context) (uint64, error) {
 	client := c.getRPCClient()
-	height, err := client.GetBlockHeight(ctx, rpc.CommitmentFinalized)
+	height, err := client.GetBlockHeight(ctx, rpc.CommitmentConfirmed)
 	if err != nil {
 		return 0, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
@@ -58,7 +58,7 @@ func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.G
 	client := c.getRPCClient()
 	block, err := client.GetBlockWithOpts(ctx, height, &rpc.GetBlockOpts{
 		Encoding:                       solana.EncodingBase64,
-		Commitment:                     rpc.CommitmentFinalized,
+		Commitment:                     rpc.CommitmentConfirmed,
 		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
 		TransactionDetails:             rpc.TransactionDetailsFull,
 	})
