@@ -247,7 +247,7 @@ func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, typ stri
 			"id":         n.AppId,
 			"type":       n.Type,
 			"app":        stats.App,
-			"mtg":        stats.Mtg,
+			"mtg":        stats.MTG,
 			"runtime":    stats.Runtime,
 			"group":      stats.Group,
 			"updated_at": n.UpdatedAt,

@@ -20,7 +20,7 @@ type Configuration struct {
 	ObserverAssetId         string             `toml:"observer-asset-id"`
 	OperationPriceAssetId   string             `toml:"operation-price-asset-id"`
 	OperationPriceAmount    string             `toml:"operation-price-amount"`
-	MpcKeyNumber            int                `toml:"mpc-key-number"`
+	MPCKeyNumber            int                `toml:"mpc-key-number"`
 	MixinMessengerAPI       string             `toml:"mixin-messenger-api"`
 	MixinRPC                string             `toml:"mixin-rpc"`
 	SolanaRPC               string             `toml:"solana-rpc"`

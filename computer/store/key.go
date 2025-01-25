@@ -115,31 +115,27 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 
 // the mpc key with default path
 // used as address on solana chain
-func (s *SQLite3Store) ReadFirstKey(ctx context.Context) (string, error) {
+func (s *SQLite3Store) ReadFirstPublicKey(ctx context.Context) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	var public string
 	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE confirmed_at IS NOT NULL ORDER BY confirmed_at ASC LIMIT 1")
 	err := row.Scan(&public)
-	if err == sql.ErrNoRows {
-		return "", nil
-	} else if err != nil {
+	if err != nil {
 		return "", err
 	}
 	return public, err
 }
 
-func (s *SQLite3Store) ReadLatestKey(ctx context.Context) (string, error) {
+func (s *SQLite3Store) ReadLatestPublicKey(ctx context.Context) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	var public string
 	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE confirmed_at IS NOT NULL ORDER BY confirmed_at DESC LIMIT 1")
 	err := row.Scan(&public)
-	if err == sql.ErrNoRows {
-		return "", nil
-	} else if err != nil {
+	if err != nil {
 		return "", err
 	}
 	return public, err

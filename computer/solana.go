@@ -59,7 +59,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	client := node.solanaClient()
 	block, err := client.RPCGetBlockByHeight(ctx, uint64(checkpoint))
-	if err != nil || block == nil {
+	if err != nil {
 		return err
 	}
 
@@ -69,7 +69,6 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -162,42 +161,38 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	if err != nil {
 		return err
 	}
-
-	if call.Type == store.CallTypeMain {
-		nonce, err := node.store.ReadSpareNonceAccount(ctx)
-		if err != nil {
-			return err
-		}
-		source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
-		tx := node.burnRestTokens(ctx, call, source, nonce)
-		if tx == nil {
-			return nil
-		}
-		data, err := tx.MarshalBinary()
-		if err != nil {
-			panic(err)
-		}
-		id := common.UniqueId(call.RequestId, "post-tx-storage")
-		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
-		if err != nil {
-			return err
-		}
-
-		id = common.UniqueId(id, "craete-post-call")
-		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
-		extra = append(extra, nonce.Account().Address.Bytes()...)
-		extra = append(extra, hash[:]...)
-		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
-			Id:    id,
-			Type:  OperationTypeCreateSubCall,
-			Extra: extra,
-		})
-		if err != nil {
-			return err
-		}
+	if call.Type != store.CallTypeMain {
+		return nil
 	}
 
-	return nil
+	nonce, err = node.store.ReadSpareNonceAccount(ctx)
+	if err != nil {
+		return err
+	}
+	source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
+	tx = node.burnRestTokens(ctx, call, source, nonce)
+	if tx == nil {
+		return nil
+	}
+	data, err := tx.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	id = common.UniqueId(call.RequestId, "post-tx-storage")
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+	if err != nil {
+		return err
+	}
+
+	id = common.UniqueId(id, "craete-post-call")
+	extra = uuid.Must(uuid.FromString(call.RequestId)).Bytes()
+	extra = append(extra, nonce.Account().Address.Bytes()...)
+	extra = append(extra, hash[:]...)
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeCreateSubCall,
+		Extra: extra,
+	})
 }
 
 func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfers) error {
@@ -357,7 +352,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 }
 
 func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
-	mtgAddress := node.getMtgAddress(ctx).String()
+	mtgAddress := node.getMTGAddress(ctx).String()
 
 	changes := make(map[string]*big.Int)
 	for _, t := range transfers {
@@ -391,7 +386,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 }
 
 func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
-	mtg := node.getMtgAddress(ctx)
+	mtg := node.getMTGAddress(ctx)
 	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 	if err != nil || user == nil {
 		panic(fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err))
@@ -559,10 +554,10 @@ func (node *Node) solanaPayer() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
 }
 
-func (node *Node) getMtgAddress(ctx context.Context) solana.PublicKey {
-	key, err := node.store.ReadFirstKey(ctx)
+func (node *Node) getMTGAddress(ctx context.Context) solana.PublicKey {
+	key, err := node.store.ReadFirstPublicKey(ctx)
 	if err != nil || key == "" {
-		panic(fmt.Errorf("store.ReadFirstKey() => %s %v", key, err))
+		panic(fmt.Errorf("store.ReadFirstPublicKey() => %s %v", key, err))
 	}
 	return solana.PublicKeyFromBytes(common.DecodeHexOrPanic(key))
 }

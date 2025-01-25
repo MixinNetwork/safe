@@ -39,7 +39,7 @@ func TestComputerSolana(t *testing.T) {
 	count, err := node.store.CountKeys(ctx)
 	require.Nil(err)
 	require.Equal(2, count)
-	key, err := node.store.ReadLatestKey(ctx)
+	key, err := node.store.ReadLatestPublicKey(ctx)
 	require.Nil(err)
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
 	payer, err := solana.PrivateKeyFromBase58(testPayerPrivKey)

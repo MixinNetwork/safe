@@ -11,16 +11,17 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-var StartUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
-var DefaultPath = []byte{0, 0, 0, 0, 0, 0, 0, 0}
+var (
+	StartUserId = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(48), nil)
+	DefaultPath = []byte{0, 0, 0, 0, 0, 0, 0, 0}
+)
 
-// Public is the underived key with defaultPath controlled by mpc
 type User struct {
 	UserId       string
 	RequestId    string
 	MixAddress   string
 	ChainAddress string
-	Public       string
+	Public       string // public is the master with defaultPath controlled by mpc
 	CreatedAt    time.Time
 }
 
@@ -106,7 +107,7 @@ func (s *SQLite3Store) ReadUserByChainAddress(ctx context.Context, address strin
 	return userFromRow(row)
 }
 
-func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, id, mixAddress, chainAddress, key string) error {
+func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, id, mixAddress, chainAddress, master string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -116,7 +117,7 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, i
 	}
 	defer common.Rollback(tx)
 
-	vals := []any{id, req.Id, mixAddress, chainAddress, key, time.Now().UTC()}
+	vals := []any{id, req.Id, mixAddress, chainAddress, master, time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("users", userCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT users %v", err)

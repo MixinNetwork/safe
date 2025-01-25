@@ -24,7 +24,7 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 	logger.Printf("bootObserver(%s)", node.id)
 	go node.StartHTTP(version)
 
-	err := node.initMpcKeys(ctx)
+	err := node.initMPCKeys(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -47,10 +47,10 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 	go node.solanaRPCBlocksLoop(ctx)
 }
 
-func (node *Node) initMpcKeys(ctx context.Context) error {
+func (node *Node) initMPCKeys(ctx context.Context) error {
 	for {
 		count, err := node.store.CountKeys(ctx)
-		if err != nil || count >= node.conf.MpcKeyNumber {
+		if err != nil || count >= node.conf.MPCKeyNumber {
 			return err
 		}
 
@@ -61,7 +61,7 @@ func (node *Node) initMpcKeys(ctx context.Context) error {
 			continue
 		}
 
-		for i := count; i < node.conf.MpcKeyNumber; i++ {
+		for i := count; i < node.conf.MPCKeyNumber; i++ {
 			id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
 			id = common.UniqueId(id, now.String())
 			extra := []byte{byte(i)}

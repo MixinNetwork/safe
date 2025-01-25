@@ -142,7 +142,7 @@ func TestNode(t *testing.T) {
 
 	k1 := &StatsInfo{
 		Type: NodeTypeKeeper,
-		Mtg: MtgInfo{
+		MTG: MTGInfo{
 			LatestRequest: "61d911746e291a77",
 			BitcoinHeight: "861968",
 			InitialTxs:    "0",
@@ -171,13 +171,13 @@ func TestNode(t *testing.T) {
 	stats, err := nks[0].getStats()
 	require.Nil(err)
 	require.Equal(NodeTypeKeeper, nks[0].Type)
-	require.Equal(k1.Mtg.LatestRequest, stats.Mtg.LatestRequest)
-	require.Equal(k1.Mtg.BitcoinHeight, stats.Mtg.BitcoinHeight)
-	require.Equal(k1.Mtg.InitialTxs, stats.Mtg.InitialTxs)
-	require.Equal(k1.Mtg.SignedTxs, stats.Mtg.SignedTxs)
-	require.Equal(k1.Mtg.SnapshotTxs, stats.Mtg.SnapshotTxs)
-	require.Equal(k1.Mtg.XINOutputs, stats.Mtg.XINOutputs)
-	require.Equal(k1.Mtg.MSKTOutputs, stats.Mtg.MSKTOutputs)
+	require.Equal(k1.MTG.LatestRequest, stats.MTG.LatestRequest)
+	require.Equal(k1.MTG.BitcoinHeight, stats.MTG.BitcoinHeight)
+	require.Equal(k1.MTG.InitialTxs, stats.MTG.InitialTxs)
+	require.Equal(k1.MTG.SignedTxs, stats.MTG.SignedTxs)
+	require.Equal(k1.MTG.SnapshotTxs, stats.MTG.SnapshotTxs)
+	require.Equal(k1.MTG.XINOutputs, stats.MTG.XINOutputs)
+	require.Equal(k1.MTG.MSKTOutputs, stats.MTG.MSKTOutputs)
 	require.Equal(k1.App.SignerBitcoinKeys, stats.App.SignerBitcoinKeys)
 	require.Equal(k1.App.SignerEthereumKeys, stats.App.SignerEthereumKeys)
 	require.Equal(k1.App.ObserverBitcoinKeys, stats.App.ObserverBitcoinKeys)
@@ -190,7 +190,7 @@ func TestNode(t *testing.T) {
 
 	s1 := &StatsInfo{
 		Type: NodeTypeSigner,
-		Mtg: MtgInfo{
+		MTG: MTGInfo{
 			InitialTxs:  "1",
 			SignedTxs:   "0",
 			SnapshotTxs: "142",
@@ -213,11 +213,11 @@ func TestNode(t *testing.T) {
 	stats, err = nss[0].getStats()
 	require.Nil(err)
 	require.Equal(NodeTypeSigner, nss[0].Type)
-	require.Equal(s1.Mtg.InitialTxs, stats.Mtg.InitialTxs)
-	require.Equal(s1.Mtg.SignedTxs, stats.Mtg.SignedTxs)
-	require.Equal(s1.Mtg.SnapshotTxs, stats.Mtg.SnapshotTxs)
-	require.Equal(s1.Mtg.MSSTOutputs, stats.Mtg.MSSTOutputs)
-	require.Equal(s1.Mtg.MSKTOutputs, stats.Mtg.MSKTOutputs)
+	require.Equal(s1.MTG.InitialTxs, stats.MTG.InitialTxs)
+	require.Equal(s1.MTG.SignedTxs, stats.MTG.SignedTxs)
+	require.Equal(s1.MTG.SnapshotTxs, stats.MTG.SnapshotTxs)
+	require.Equal(s1.MTG.MSSTOutputs, stats.MTG.MSSTOutputs)
+	require.Equal(s1.MTG.MSKTOutputs, stats.MTG.MSKTOutputs)
 	require.Equal(s1.App.InitialSessions, stats.App.InitialSessions)
 	require.Equal(s1.App.PendingSessions, stats.App.PendingSessions)
 	require.Equal(s1.App.FinalSessions, stats.App.FinalSessions)

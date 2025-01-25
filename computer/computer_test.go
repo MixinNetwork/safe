@@ -468,7 +468,7 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 		count, err = node.store.CountKeys(ctx)
 		require.Nil(err)
 		require.Equal(1, count)
-		key, err := node.store.ReadLatestKey(ctx)
+		key, err := node.store.ReadLatestPublicKey(ctx)
 		require.Nil(err)
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 
@@ -504,7 +504,7 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 	count, err = node.store.CountKeys(ctx)
 	require.Nil(err)
 	require.Equal(3, count)
-	key, err := node.store.ReadLatestKey(ctx)
+	key, err := node.store.ReadLatestPublicKey(ctx)
 	require.Nil(err)
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
 }
@@ -634,7 +634,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.MTG.App.AppId = conf.Computer.MTG.Genesis.Members[i]
 	conf.Computer.MTG.GroupSize = 1
 	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
-	conf.Computer.MpcKeyNumber = 3
+	conf.Computer.MPCKeyNumber = 3
 
 	if rpc := os.Getenv("SOLANARPC"); rpc != "" {
 		conf.Computer.SolanaRPC = rpc

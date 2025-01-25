@@ -1,11 +1,8 @@
 package computer
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -29,9 +26,6 @@ import (
 )
 
 const (
-	ConfirmFlagMixinWithdrawal = 0
-	ConfirmFlagOnChainTx       = 1
-
 	ConfirmFlagNonceAvailable = 0
 	ConfirmFlagNonceExpired   = 1
 )
@@ -64,34 +58,47 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	if err != nil {
 		panic(err)
 	}
-	key, err := node.store.ReadLatestKey(ctx)
-	logger.Printf("store.ReadLatestKey() => %s %v", key, err)
-	if err != nil || key == "" {
-		panic(fmt.Errorf("store.ReadLatestKey() => %s %v", key, err))
+	master, err := node.store.ReadLatestPublicKey(ctx)
+	logger.Printf("store.ReadLatestPublicKey() => %s %v", master, err)
+	if err != nil || master == "" {
+		panic(fmt.Errorf("store.ReadLatestPublicKey() => %s %v", master, err))
 	}
-	public := mixin.DeriveEd25519Child(key, id.FillBytes(make([]byte, 8)))
+	public := mixin.DeriveEd25519Child(master, id.FillBytes(make([]byte, 8)))
 	chainAddress := solana.PublicKeyFromBytes(public[:]).String()
 
-	err = node.store.WriteUserWithRequest(ctx, req, id.String(), mix, chainAddress, key)
+	err = node.store.WriteUserWithRequest(ctx, req, id.String(), mix, chainAddress, master)
 	if err != nil {
 		panic(fmt.Errorf("store.WriteUserWithRequest(%v %s) => %v", req, mix, err))
 	}
 	return nil, ""
 }
 
-// simplified steps:
+// System call operation full lifecycle:
+//
 //  1. user creates system call with locked nonce
+//     processSystemCall
 //     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL)
+//
 //  2. observer confirms nonce available and make mtg create withdrawal txs
+//     processConfirmNonce
 //     (state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL)
+//
 //  3. observer pays the withdrawal fees and confirms all withdrawals success to mtg
+//     processConfirmWithdrawal
 //     (state: initial, withdrawal_traces: "", withdrawn_at: NOT NULL)
+//
 //  4. observer creates, runs and confirms sub prepare system call to transfer or mint assets to user account
+//     processCreateSubCall
 //     (state: pending, signature: NULL)
+//
 //  5. observer requests to generate signature for main call
+//     processObserverRequestSign
 //     (state: pending, signature: NOT NULL)
+//
 //  6. observer runs and confirms main call success
+//     processConfirmCall
 //     (state: done, signature: NOT NULL)
+//
 //  7. observer create postprocess system call to deposit solana assets to mtg and burn external assets
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
@@ -170,137 +177,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	return nil, ""
 }
 
-func (node *Node) processSetOperationParams(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeSetOperationParams {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	if len(extra) != 24 {
-		return node.failRequest(ctx, req, "")
-	}
-
-	assetId := uuid.Must(uuid.FromBytes(extra[:16]))
-	abu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[16:24]))
-	amount := decimal.NewFromBigInt(abu, -8)
-	params := &store.OperationParams{
-		RequestId:            req.Id,
-		OperationPriceAsset:  assetId.String(),
-		OperationPriceAmount: amount,
-		CreatedAt:            req.CreatedAt,
-	}
-	err := node.store.WriteOperationParamsFromRequest(ctx, params, req)
-	if err != nil {
-		panic(err)
-	}
-	return nil, ""
-}
-
-func (node *Node) processSignerKeygenRequests(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeKeygenInput {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	if len(extra) != 1 {
-		return node.failRequest(ctx, req, "")
-	}
-	count, err := node.store.CountKeys(ctx)
-	logger.Printf("store.CountKeys() => %v %d:%d:%d", err, count, extra[0], node.conf.MpcKeyNumber)
-	if err != nil {
-		panic(err)
-	}
-	if int(extra[0]) != count || count >= node.conf.MpcKeyNumber {
-		return node.failRequest(ctx, req, "")
-	}
-
-	members := node.GetMembers()
-	threshold := node.conf.MTG.Genesis.Threshold
-	id := common.UniqueId(req.Id, fmt.Sprintf("OperationTypeKeygenInput:%d", count))
-	id = common.UniqueId(id, fmt.Sprintf("MTG:%v:%d", members, threshold))
-	sessions := []*store.Session{{
-		Id:         id,
-		RequestId:  req.Id,
-		MixinHash:  req.MixinHash.String(),
-		MixinIndex: req.Output.OutputIndex,
-		Index:      0,
-		Operation:  OperationTypeKeygenInput,
-		CreatedAt:  req.CreatedAt,
-	}}
-	err = node.store.WriteSessionsWithRequest(ctx, req, sessions, false)
-	if err != nil {
-		panic(fmt.Errorf("store.WriteSessionsWithRequest(%v) => %v", req, err))
-	}
-	return nil, ""
-}
-
-func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleSigner {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeKeygenOutput {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	sid := uuid.FromBytesOrNil(extra[:16]).String()
-	public := extra[16:]
-
-	s, err := node.store.ReadSession(ctx, sid)
-	logger.Printf("store.ReadSession(%s) => %v %v", sid, s, err)
-	if err != nil {
-		panic(err)
-	}
-	if s == nil {
-		return node.failRequest(ctx, req, "")
-	}
-	fp := hex.EncodeToString(common.Fingerprint(hex.EncodeToString(public)))
-	key, _, err := node.store.ReadKeyByFingerprint(ctx, fp)
-	logger.Printf("store.ReadKeyByFingerprint(%s) => %s %v", fp, key, err)
-	if err != nil {
-		panic(err)
-	}
-	if key != hex.EncodeToString(public) || key == "" {
-		return node.failRequest(ctx, req, "")
-	}
-
-	sender := req.Output.Senders[0]
-	err = node.store.WriteSessionSignerIfNotExist(ctx, s.Id, sender, public, req.Output.SequencerCreatedAt, sender == string(node.id))
-	if err != nil {
-		panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", s, err))
-	}
-	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
-	if err != nil {
-		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
-	}
-	finished, sig := node.verifySessionSignerResults(ctx, s, signers)
-	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", s, len(signers), finished, sig)
-	if !finished {
-		return node.failRequest(ctx, req, "")
-	}
-	if l := len(signers); l <= node.threshold {
-		panic(s.Id)
-	}
-
-	valid := node.verifySessionHolder(ctx, hex.EncodeToString(public))
-	logger.Printf("node.verifySessionHolder(%x) => %t", public, valid)
-	if !valid {
-		return nil, ""
-	}
-
-	err = node.store.MarkKeyConfirmedWithRequest(ctx, req, hex.EncodeToString(public))
-	if err != nil {
-		panic(fmt.Errorf("store.MarkKeyConfirmedWithRequest(%v) => %v", req, err))
-	}
-	return nil, ""
-}
-
 func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
@@ -327,7 +203,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		var txs []*mtg.Transaction
 		var ids []string
 		as := node.getSystemCallRelatedAsset(ctx, callId)
-		destination := node.getMtgAddress(ctx).String()
+		destination := node.getMTGAddress(ctx).String()
 		for _, asset := range as {
 			if !asset.Solana {
 				continue
@@ -550,11 +426,9 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			panic(err)
 		}
 		if common.CheckTestEnvironment(ctx) {
-			if signature == "2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb" {
-				msg = common.DecodeHexOrPanic("0300050bcdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d6c4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127dbfb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b63dca1663046f4756ce46e2bc880f3e5f4075486ab71a22da53763d9511e53b3a387fbde731a6a95e59ce4357a2a9d4e93e0dcf6adfa3de29a5d6a18b0943ca2e5a310642242cffec0d9fc9ade1271f1ca01980d7c494a8462df13fa17780e6806a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea9400000000000000000000000000000000000000000000000000000000000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a906a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a000000008c97258f4e2489f1bb3d1029148e0d830b5a1399daff1084048e7bd8dbe9f859756984b89aebd6266f0b276b84a367bb40327e1d21134fa569bc5f51d1e9ad810607030306000404000000070200013400000000604d160000000000520000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9080101431408fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b0100000000000000000000000000000000000000000000000000000000000000000a0700040501070809000803010402090740420f0000000000070202050c02000000404b4c0000000000")
-			}
-			if signature == "5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR" {
-				msg = common.DecodeHexOrPanic("02010308cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d619e5c93ee8fb3f54284c769278771b90851ef9db78db616e0e7ad0f9a8ab8969bad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4eca3224f33a7dc3529a89d8666b56615eeaca95e34aedbf364f9145cb424e84525c4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db06a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea9400000000000000000000000000000000000000000000000000000000000000000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9c35f67d9654b08f6cb7dd06de4319d70c58903b0687b110b0a13e2d453300b9e020603020500040400000007030304010a0f40420f000000000008")
+			test := getTestSystemConfirmCallMessage(signature)
+			if test != nil {
+				msg = test
 			}
 		}
 		call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
@@ -662,137 +536,6 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 	if err != nil {
 		panic(err)
 	}
-	return nil, ""
-}
-
-func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleSigner {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeSignPrepare {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	session := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	extra = extra[16:]
-	if !bytes.Equal(extra, PrepareExtra) {
-		logger.Printf("invalid prepare extra: %s", string(extra))
-		return node.failRequest(ctx, req, "")
-	}
-
-	s, err := node.store.ReadSession(ctx, session)
-	if err != nil || s == nil {
-		panic(fmt.Errorf("store.ReadSession(%s) => %v", session, err))
-	}
-	if s.PreparedAt.Valid {
-		logger.Printf("session %s is prepared", s.Id)
-		return node.failRequest(ctx, req, "")
-	}
-
-	err = node.store.PrepareSessionSignerIfNotExist(ctx, s.Id, req.Output.Senders[0], req.Output.SequencerCreatedAt)
-	logger.Printf("store.PrepareSessionSignerIfNotExist(%s %s %s) => %v", s.Id, node.id, req.Output.Senders[0], err)
-	if err != nil {
-		panic(fmt.Errorf("store.PrepareSessionSignerIfNotExist(%v) => %v", s, err))
-	}
-	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
-	logger.Printf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err)
-	if err != nil {
-		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %v", s.Id, err))
-	}
-	if len(signers) <= node.threshold {
-		logger.Printf("insufficient prepared signers: %d %d", len(signers), node.threshold)
-		return node.failRequest(ctx, req, "")
-	}
-	err = node.store.MarkSessionPreparedWithRequest(ctx, req, s.Id, req.Output.SequencerCreatedAt)
-	if err != nil {
-		panic(fmt.Errorf("node.MarkSessionPreparedWithRequest(%s %v) => %v", s.Id, req.Output.SequencerCreatedAt, err))
-	}
-	return nil, ""
-}
-
-func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	logger.Printf("node.processSignerSignatureResponse(%s)", string(node.id))
-	if req.Role != RequestRoleSigner {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeSignOutput {
-		panic(req.Action)
-	}
-	extra := req.ExtraBytes()
-	sid := uuid.FromBytesOrNil(extra[:16]).String()
-	signature := extra[16:]
-	s, err := node.store.ReadSession(ctx, sid)
-	if err != nil || s == nil {
-		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
-	}
-	call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, common.RequestStatePending)
-	if err != nil || call == nil {
-		panic(fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", s.RequestId, call, err))
-	}
-	if call.State == common.RequestStateDone || call.Signature.Valid {
-		logger.Printf("invalid call %s: %d %s", call.RequestId, call.State, call.Signature.String)
-		return node.failRequest(ctx, req, "")
-	}
-
-	self := len(req.Output.Senders) == 1 && req.Output.Senders[0] == string(node.id)
-	err = node.store.UpdateSessionSigner(ctx, s.Id, req.Output.Senders[0], signature, req.Output.SequencerCreatedAt, self)
-	if err != nil {
-		panic(fmt.Errorf("store.UpdateSessionSigner(%s %s) => %v", s.Id, req.Output.Senders[0], err))
-	}
-	signers, err := node.store.ListSessionSignerResults(ctx, s.Id)
-	logger.Printf("store.ListSessionSignerResults(%s) => %d", s.Id, len(signers))
-	if err != nil {
-		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", s.Id, len(signers), err))
-	}
-	finished, sig := node.verifySessionSignerResults(ctx, s, signers)
-	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", s, len(signers), finished, sig)
-	if !finished {
-		return node.failRequest(ctx, req, "")
-	}
-	if l := len(signers); l <= node.threshold {
-		panic(s.Id)
-	}
-	extra = common.DecodeHexOrPanic(s.Extra)
-	if s.State == common.RequestStateInitial && s.PreparedAt.Valid {
-		// this could happend only after crash or not commited
-		err = node.store.MarkSessionPending(ctx, s.Id, s.Public, extra)
-		logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", s, extra, err)
-		if err != nil {
-			panic(err)
-		}
-	}
-	_, share, path, err := node.readKeyByFingerPath(ctx, s.Public)
-	logger.Printf("node.readKeyByFingerPath(%s) => %v", s.Public, err)
-	if err != nil {
-		panic(err)
-	}
-	valid, vsig := node.verifySessionSignature(common.DecodeHexOrPanic(call.Message), sig, share, path)
-	logger.Printf("node.verifySessionSignature(%v, %x) => %t", s, sig, valid)
-	if !valid || !bytes.Equal(sig, vsig) {
-		panic(hex.EncodeToString(vsig))
-	}
-
-	if common.CheckTestEnvironment(ctx) {
-		key := "SIGNER:" + sid
-		val, err := node.store.ReadProperty(ctx, key)
-		if err != nil {
-			panic(err)
-		}
-		if val == "" {
-			extra := []byte{OperationTypeSignOutput}
-			extra = append(extra, signature...)
-			err = node.store.WriteProperty(ctx, key, hex.EncodeToString(extra))
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	err = node.store.AttachSystemCallSignatureWithRequest(ctx, req, call, s.Id, base64.StdEncoding.EncodeToString(sig))
-	if err != nil {
-		panic(fmt.Errorf("store.AttachSystemCallSignatureWithRequest(%s %v) => %v", s.Id, call, err))
-	}
-
 	return nil, ""
 }
 
@@ -937,57 +680,4 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	}
 
 	return txs, compaction
-}
-
-type ReferencedTxAsset struct {
-	Solana bool
-	Amount decimal.Decimal
-	Asset  *bot.AssetNetwork
-}
-
-func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId string) []*ReferencedTxAsset {
-	req, err := node.store.ReadRequest(ctx, requestId)
-	if err != nil || req == nil {
-		panic(fmt.Errorf("store.ReadRequest(%s) => %v %v", requestId, req, err))
-	}
-	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
-	if err != nil || ver == nil {
-		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", req.MixinHash.String(), ver, err))
-	}
-	if common.CheckTestEnvironment(ctx) {
-		h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
-		h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
-		ver.References = []crypto.Hash{h1, h2}
-	}
-
-	var as []*ReferencedTxAsset
-	for _, ref := range ver.References {
-		refVer, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
-		if err != nil {
-			panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", ref.String(), refVer, err))
-		}
-		if refVer == nil {
-			continue
-		}
-
-		outputs := node.group.ListOutputsByTransactionHash(ctx, ref.String(), req.Sequence)
-		if len(outputs) == 0 {
-			continue
-		}
-		total := decimal.NewFromInt(0)
-		for _, output := range outputs {
-			total = total.Add(output.Amount)
-		}
-
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, outputs[0].AssetId)
-		if err != nil {
-			panic(err)
-		}
-		as = append(as, &ReferencedTxAsset{
-			Solana: asset.ChainID == solanaApp.SolanaChainBase,
-			Amount: total,
-			Asset:  asset,
-		})
-	}
-	return as
 }
