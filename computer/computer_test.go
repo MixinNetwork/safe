@@ -85,7 +85,7 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 	node := nodes[0]
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
 	require.Nil(err)
-	source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
+	source := node.getUserSolanaPublicKeyFromCall(ctx, call)
 	stx := node.burnRestTokens(ctx, call, source, nonce)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()

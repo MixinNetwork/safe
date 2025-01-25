@@ -94,7 +94,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			continue
 		}
 		decimal := uint8(9)
-		if transfer.TokenAddress != "11111111111111111111111111111111" {
+		if transfer.TokenAddress != solanaApp.SolanaEmptyAddress {
 			asset, err := node.solanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
 			if err != nil {
 				return err
@@ -169,7 +169,7 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	if err != nil {
 		return err
 	}
-	source := node.GetUserSolanaPublicKeyFromCall(ctx, call)
+	source := node.getUserSolanaPublicKeyFromCall(ctx, call)
 	tx = node.burnRestTokens(ctx, call, source, nonce)
 	if tx == nil {
 		return nil
@@ -514,11 +514,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 		return nil
 	}
 
-	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), source, nonce.Account(), transfers)
-	if err != nil {
-		panic(err)
-	}
-	return tx
+	return node.transferRestTokens(ctx, source, nonce, transfers)
 }
 
 func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKey, nonce *store.NonceAccount, transfers []*solanaApp.TokenTransfers) *solana.Transaction {
@@ -529,7 +525,7 @@ func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKe
 	return tx
 }
 
-func (node *Node) GetUserSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
+func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
 	data := common.DecodeHexOrPanic(c.Public)
 	if len(data) != 16 {
 		panic(fmt.Errorf("invalid public of system call: %s %s", c.RequestId, c.Public))

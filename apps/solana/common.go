@@ -85,7 +85,7 @@ func PublicKeyFromEd25519Public(pub string) solana.PublicKey {
 }
 
 func VerifyAssetKey(assetKey string) error {
-	if assetKey == "11111111111111111111111111111111" {
+	if assetKey == SolanaEmptyAddress {
 		return nil
 	}
 	pub := base58.Decode(assetKey)
@@ -105,7 +105,7 @@ func VerifyAssetKey(assetKey string) error {
 }
 
 func GenerateAssetId(assetKey string) string {
-	if assetKey == "11111111111111111111111111111111" {
+	if assetKey == SolanaEmptyAddress {
 		return common.SafeSolanaChainId
 	}
 	err := VerifyAssetKey(assetKey)
