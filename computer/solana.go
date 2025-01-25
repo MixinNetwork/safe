@@ -79,7 +79,10 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		return err
 	}
 
-	transfers := solanaApp.ExtractTransfersFromTransaction(ctx, tx, meta)
+	transfers, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, meta)
+	if err != nil {
+		panic(err)
+	}
 	changes, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
 	logger.Printf("node.parseSolanaBlockBalanceChanges(%d) => %d %v", len(transfers), len(changes), err)
 	if err != nil || len(changes) == 0 {

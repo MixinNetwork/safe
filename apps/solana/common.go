@@ -12,12 +12,12 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
 )
 
 const (
-	SolanaEmptyAddress = "11111111111111111111111111111111"
-	SolanaChainBase    = "64692c23-8971-4cf4-84a7-4dd1271dd887"
+	SolanaEmptyAddress   = "11111111111111111111111111111111"
+	WrappedSolanaAddress = "So11111111111111111111111111111111111111112"
+	SolanaChainBase      = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 )
 
 type NonceAccount struct {
@@ -53,6 +53,8 @@ type Transfer struct {
 	Sender   string
 	Receiver string
 	Value    *big.Int
+
+	MayClosedWsolAta *solana.PublicKey
 }
 
 func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *solana.PrivateKey {
@@ -112,54 +114,6 @@ func GenerateAssetId(assetKey string) string {
 	}
 
 	return ethereum.BuildChainAssetId(SolanaChainBase, assetKey)
-}
-
-func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) []*Transfer {
-	if meta.Err != nil {
-		// Transaction failed, ignore
-		return nil
-	}
-
-	hash := tx.Signatures[0].String()
-	msg := tx.Message
-
-	var (
-		transfers         = []*Transfer{}
-		innerInstructions = map[uint16][]solana.CompiledInstruction{}
-		tokenAccounts     = map[solana.PublicKey]token.Account{}
-	)
-
-	for _, inner := range meta.InnerInstructions {
-		innerInstructions[inner.Index] = inner.Instructions
-	}
-
-	for _, balance := range meta.PreTokenBalances {
-		if account, err := msg.Account(balance.AccountIndex); err == nil {
-			tokenAccounts[account] = token.Account{
-				Owner: *balance.Owner,
-				Mint:  balance.Mint,
-			}
-		}
-	}
-
-	for index, ix := range msg.Instructions {
-		baseIndex := int64(index+1) * 10000
-		if transfer := extractTransfersFromInstruction(&msg, ix, tokenAccounts); transfer != nil {
-			transfer.Signature = hash
-			transfer.Index = baseIndex
-			transfers = append(transfers, transfer)
-		}
-
-		for innerIndex, inner := range innerInstructions[uint16(index)] {
-			if transfer := extractTransfersFromInstruction(&msg, inner, tokenAccounts); transfer != nil {
-				transfer.Signature = hash
-				transfer.Index = baseIndex + int64(innerIndex) + 1
-				transfers = append(transfers, transfer)
-			}
-		}
-	}
-
-	return transfers
 }
 
 func ExtractBurnsFromTransaction(ctx context.Context, tx *solana.Transaction) []*token.BurnChecked {
@@ -241,6 +195,45 @@ func decodeTokenTransfer(accounts solana.AccountMetaSlice, data []byte) (*token.
 	return nil, false
 }
 
+func decodeCloseAccount(accounts solana.AccountMetaSlice, data []byte) (*token.CloseAccount, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	close, ok := ix.Impl.(*token.CloseAccount)
+	return close, ok
+}
+
+func decodeTokenInitializeAccount(accounts solana.AccountMetaSlice, data []byte) (*token.InitializeAccount, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+
+	if init, ok := ix.Impl.(*token.InitializeAccount); ok {
+		return init, true
+	}
+
+	if init, ok := ix.Impl.(*token.InitializeAccount2); ok {
+		i := token.NewInitializeAccountInstructionBuilder()
+		i.SetAccount(init.GetAccount().PublicKey)
+		i.SetMintAccount(init.GetMintAccount().PublicKey)
+		i.SetOwnerAccount(*init.Owner)
+		return i, true
+	}
+
+	if init, ok := ix.Impl.(*token.InitializeAccount3); ok {
+		i := token.NewInitializeAccountInstructionBuilder()
+		i.SetAccount(init.GetAccount().PublicKey)
+		i.SetMintAccount(init.GetMintAccount().PublicKey)
+		i.SetOwnerAccount(*init.Owner)
+		return i, true
+	}
+
+	return nil, false
+}
+
 func DecodeTokenBurn(accounts solana.AccountMetaSlice, data []byte) (*token.BurnChecked, bool) {
 	ix, err := token.DecodeInstruction(accounts, data)
 	if err != nil {
@@ -286,7 +279,13 @@ func NonceAccountFromTx(tx *solana.Transaction) (*system.AdvanceNonceAccount, bo
 	return DecodeNonceAdvance(accounts, ins.Data)
 }
 
-func extractTransfersFromInstruction(msg *solana.Message, cix solana.CompiledInstruction, tokenAccounts map[solana.PublicKey]token.Account) *Transfer {
+func extractTransfersFromInstruction(
+	msg *solana.Message,
+	cix solana.CompiledInstruction,
+	tokenAccounts map[solana.PublicKey]token.Account,
+	owners []*solana.PublicKey,
+	transfers []*Transfer,
+) *Transfer {
 	programKey, err := msg.Program(cix.ProgramIDIndex)
 	if err != nil {
 		panic(err)
@@ -309,15 +308,41 @@ func extractTransfersFromInstruction(msg *solana.Message, cix solana.CompiledIns
 			}
 		}
 	case solana.TokenProgramID, solana.Token2022ProgramID:
+		// account to receiver token may not be ata
+		if init, ok := decodeTokenInitializeAccount(accounts, cix.Data); ok {
+			tokenAccounts[init.GetAccount().PublicKey] = token.Account{
+				Owner: init.GetOwnerAccount().PublicKey,
+				Mint:  init.GetMintAccount().PublicKey,
+			}
+		}
+
 		if transfer, ok := decodeTokenTransfer(accounts, cix.Data); ok {
 			from, ok := tokenAccounts[transfer.GetSourceAccount().PublicKey]
 			if !ok {
-				panic(fmt.Sprintf("token account not found: %s", transfer.GetSourceAccount().PublicKey.String()))
+				panic(fmt.Sprintf("source token account not found: %s", transfer.GetSourceAccount().PublicKey.String()))
 			}
 
 			to, ok := tokenAccounts[transfer.GetDestinationAccount().PublicKey]
 			if !ok {
-				panic(fmt.Sprintf("token account not found: %s", transfer.GetDestinationAccount().PublicKey.String()))
+				if from.Mint.String() == WrappedSolanaAddress {
+					for _, owner := range owners {
+						ata, _, err := solana.FindAssociatedTokenAddress(*owner, from.Mint)
+						if err != nil {
+							panic(err)
+						}
+						if ata.Equals(transfer.GetDestinationAccount().PublicKey) {
+							return &Transfer{
+								TokenAddress:     from.Mint.String(),
+								AssetId:          ethereum.BuildChainAssetId(SolanaChainBase, from.Mint.String()),
+								Sender:           from.Owner.String(),
+								Receiver:         owner.String(),
+								Value:            new(big.Int).SetUint64(*transfer.Amount),
+								MayClosedWsolAta: &ata,
+							}
+						}
+					}
+				}
+				panic(fmt.Sprintf("destination token account not found: %s", transfer.GetDestinationAccount().PublicKey.String()))
 			}
 
 			return &Transfer{
@@ -326,6 +351,31 @@ func extractTransfersFromInstruction(msg *solana.Message, cix solana.CompiledIns
 				Sender:       from.Owner.String(),
 				Receiver:     to.Owner.String(),
 				Value:        new(big.Int).SetUint64(*transfer.Amount),
+			}
+		}
+
+		// check WSOL transfer and WSOL token account closed
+		if close, ok := decodeCloseAccount(accounts, cix.Data); ok {
+			closed := close.GetAccount().PublicKey
+			if owner, ok := tokenAccounts[closed]; ok {
+				for index, transfer := range transfers {
+					if !solana.MustPublicKeyFromBase58(transfer.Receiver).Equals(owner.Owner) || transfer.TokenAddress != WrappedSolanaAddress {
+						continue
+					}
+					transfers[index].TokenAddress = SolanaEmptyAddress
+					transfers[index].AssetId = SolanaChainBase
+					transfers[index].MayClosedWsolAta = nil
+				}
+				return nil
+			}
+
+			for index, transfer := range transfers {
+				if transfer.MayClosedWsolAta == nil || !transfer.MayClosedWsolAta.Equals(closed) {
+					continue
+				}
+				transfers[index].TokenAddress = SolanaEmptyAddress
+				transfers[index].AssetId = SolanaChainBase
+				transfers[index].MayClosedWsolAta = nil
 			}
 		}
 	}

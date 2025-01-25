@@ -3,6 +3,7 @@ package solana
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/gagliardetto/solana-go"
@@ -241,4 +242,61 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		).Build(),
 	)
 	return builder, nil
+}
+
+func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) ([]*Transfer, error) {
+	if meta.Err != nil {
+		// Transaction failed, ignore
+		return nil, nil
+	}
+
+	if err := c.processTransactionWithAddressLookups(ctx, tx); err != nil {
+		return nil, err
+	}
+	hash := tx.Signatures[0].String()
+	msg := tx.Message
+
+	var (
+		transfers         = []*Transfer{}
+		innerInstructions = map[uint16][]solana.CompiledInstruction{}
+		tokenAccounts     = map[solana.PublicKey]token.Account{}
+		owners            = []*solana.PublicKey{}
+	)
+
+	for _, inner := range meta.InnerInstructions {
+		innerInstructions[inner.Index] = inner.Instructions
+	}
+
+	for _, balance := range meta.PreTokenBalances {
+		if account, err := msg.Account(balance.AccountIndex); err == nil {
+			tokenAccounts[account] = token.Account{
+				Owner: *balance.Owner,
+				Mint:  balance.Mint,
+			}
+			if !slices.ContainsFunc(owners, func(owner *solana.PublicKey) bool {
+				return owner.Equals(*balance.Owner)
+			}) {
+				owners = append(owners, balance.Owner)
+			}
+		}
+	}
+
+	for index, ix := range msg.Instructions {
+		baseIndex := int64(index+1) * 10000
+		if transfer := extractTransfersFromInstruction(&msg, ix, tokenAccounts, owners, transfers); transfer != nil {
+			transfer.Signature = hash
+			transfer.Index = baseIndex
+			transfers = append(transfers, transfer)
+		}
+
+		for innerIndex, inner := range innerInstructions[uint16(index)] {
+			if transfer := extractTransfersFromInstruction(&msg, inner, tokenAccounts, owners, transfers); transfer != nil {
+				transfer.Signature = hash
+				transfer.Index = baseIndex + int64(innerIndex) + 1
+				transfers = append(transfers, transfer)
+			}
+		}
+	}
+
+	return transfers, nil
 }

@@ -897,7 +897,10 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	if err != nil {
 		panic(err)
 	}
-	ts := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
+	ts, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
+	if err != nil {
+		panic(err)
+	}
 
 	var txs []*mtg.Transaction
 	var compaction string
