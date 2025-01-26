@@ -197,7 +197,7 @@ func (node *Node) createNonceAccounts(ctx context.Context) error {
 	if requested.Add(1 * time.Minute).After(time.Now().UTC()) {
 		return nil
 	}
-	address, hash, err := node.CreateNonceAccount(ctx)
+	address, hash, err := node.CreateNonceAccount(ctx, count)
 	if err != nil {
 		return fmt.Errorf("node.CreateNonceAccount() => %v", err)
 	}

@@ -3,6 +3,7 @@ package computer
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
@@ -226,11 +228,11 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	})
 }
 
-func (node *Node) CreateNonceAccount(ctx context.Context) (string, string, error) {
-	nonce, err := solana.NewRandomPrivateKey()
-	if err != nil {
-		panic(err)
-	}
+func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, string, error) {
+	id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.threshold)
+	id = common.UniqueId(id, fmt.Sprintf("computer nonce account: %d", index))
+	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
+	nonce := solana.PrivateKey(ed25519.NewKeyFromSeed(seed[:])[:])
 
 	tx, err := node.solanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
 	if err != nil {
