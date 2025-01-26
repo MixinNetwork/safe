@@ -36,18 +36,19 @@ A MIX account wants to create BTC/SOL pool to the Raydium program.
 2. Build the Solana transaction with fee payer, nonce account hash, and  instruction to create pool on Raydium.
 3. Send three transactions to the computer group. BTC, SOL, and XIN references the two transactions, with extra: 2 | 432483921937 | Solana Encoded Tx
 
-The XIN transaction to create System Call may have the memo exceeds the length limit. It could be done by sending storage transaction with another recipient to computer group.
+The XIN transaction to create System Call may have the memo exceeds the length limit. It could be done by sending the storage transaction with the first output as a storage output to burn the XIN, and the second output to computer group.
 
 The group receives the XIN transaciton and will check the fee is enough, then make system calls according to the extra.
 
 The user and the group both have an account on Solana Chain, and are controlled by the MPC multisig. The group withdraws SOL to the user account at first. After the SOL withdrawal is confirmed by Solana blockchain, the observer sends a notification to the group and then send a transaction to group to create a new preparing system call to mint BTC to the user account with another spare nonce account controlled by the group. The transaction created by observer should be with the following instructions:
 
 1. advance nonce
-2. create the spl token of BTC if necessary
-3. create the associated token address of user account if necessary
-4. mint spl token of BTC to user account
+2. transfer SOL to user account
+3. create the spl token of BTC if necessary
+4. create the associated token address of user account if necessary
+5. mint spl token of BTC to user account
 
-After the mint of BTC is confirmed, the observer sends a notification to the group and update the hash of used nocne account. Then requests the group to sign the system call created by user.
+After the transaction that transfered and minted the assets is confirmed, the observer should update the hash of used nocne account and sends a notification to the group. Then requests the group to sign the system call created by user.
 
 Then each group members sign the transaction in one go, combines the signature and wait observer to send it to the network. To combine the signature, each node sends a transaction to the group. And there is a member signature to the data for the group to check. 
 
