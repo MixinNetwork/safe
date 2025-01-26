@@ -40,7 +40,7 @@ The XIN transaction to create System Call may have the memo exceeds the length l
 
 The group receives the XIN transaciton and will check the fee is enough, then make system calls according to the extra.
 
-The user and the group both have an account on Solana Chain, and are controlled by the MPC multisig. The group withdraws SOL to the user account at first. After the SOL withdrawal is confirmed by Solana blockchain, the observer sends a notification to the group and then send a transaction to group to create a new preparing system call to mint BTC to the user account with another spare nonce account controlled by the group. The transaction created by observer should be with the following instructions:
+The user and the group both have an account on Solana Chain, and are both controlled by the MPC multisig. The group withdraws SOL to the group account at first. After the SOL withdrawal is confirmed by Solana blockchain, the observer sends a notification to the group and then send a transaction to group to create a new preparing system call to transfer SOL and mint BTC to the user account with another spare nonce account controlled by the observer. The transaction created by observer should be with the following instructions:
 
 1. advance nonce
 2. transfer SOL to user account
@@ -55,12 +55,11 @@ Then each group members sign the transaction in one go, combines the signature a
 After the transaction confirmed, there should be LP tokens in the user account and maybe some BTC because of slippage. We have an observer node to scan the Solana blockchain and finds the extra and rest tokens in user account after System Call. The observer will create a postprocess system call to the computer group, which should be with the following instructions:
 
 1. advance nonce.
-2. user account transfer LP token to the group account deposit address in Mixin.
-3. user account burns the left BTC token.
+2. burn the left BTC token in user account.
 
-Then sign the transaction in one go, and broadcast, and marking the transaction in pending state. The observer finds the transaction successful, then send a notification to the group. The group will sends BTC to the user MIX account, but not the LP token.
+Then sign the transaction in one go, and broadcast, and marking the transaction in pending state. The observer finds the transaction successful, then send a notification to the group. The group will sends BTC to the user MIX account.
 
-Whenever the group account received a mixin deposit transaction, in this case, the LP token, the observer will send a notification to the group, and the group will just send the LP token to the user account corresponding UID MIX account.
+In addition, the observer keeps scanning the Solana blocks, and would create a system call to transfer LP token to group deposit entry once observer finds the user system call confirmed. Whenever the group receives a mixin deposit transaction, in this case, the LP token, the group will just send the LP token to the user MIX account.
 
 The observer is one member of the computer group. And any member could be the observer. There could be multiple observers, and the observer notifications could be duplicated, but the group could identify it because the notification is just a Solana transaction hash.
 
