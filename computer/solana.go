@@ -230,7 +230,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 }
 
 func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, string, error) {
-	id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.threshold)
+	id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
 	id = common.UniqueId(id, fmt.Sprintf("computer nonce account: %d", index))
 	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
 	nonce := solana.PrivateKey(ed25519.NewKeyFromSeed(seed[:])[:])

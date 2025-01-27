@@ -53,7 +53,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		"observer": node.conf.ObserverId,
 		"members": map[string]any{
 			"members":   node.GetMembers(),
-			"threshold": node.conf.Threshold,
+			"threshold": node.conf.MTG.Genesis.Threshold,
 		},
 		"params": map[string]any{
 			"operation": map[string]any{
