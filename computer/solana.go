@@ -75,6 +75,7 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
+	logger.Printf("node.solanaProcessTransaction(%s)", tx.Signatures[0].String())
 	err := node.solanaProcessCallTransaction(ctx, tx)
 	if err != nil {
 		return err
