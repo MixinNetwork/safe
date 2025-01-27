@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/gagliardetto/solana-go"
@@ -251,6 +252,10 @@ func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana
 	}
 
 	if err := c.processTransactionWithAddressLookups(ctx, tx); err != nil {
+		// FIXME handle address table closed
+		if strings.Contains(err.Error(), "get account info: not found") {
+			return nil, nil
+		}
 		return nil, err
 	}
 	hash := tx.Signatures[0].String()
