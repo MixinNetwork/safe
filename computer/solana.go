@@ -48,16 +48,8 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		err = node.solanaReadBlock(ctx, checkpoint)
 		logger.Printf("node.solanaReadBlock(%d) => %v", checkpoint, err)
 		if err != nil {
-			if !strings.Contains(err.Error(), "") {
-				time.Sleep(time.Second * 5)
-				continue
-			}
-			skipped, err := node.solanaCheckSkippedBlock(ctx, checkpoint)
-			logger.Printf("node.solanaCheckSkippedBlock(%d) => %t %v", checkpoint, skipped, err)
-			if err != nil || !skipped {
-				time.Sleep(time.Second * 5)
-				continue
-			}
+			time.Sleep(time.Second * 5)
+			continue
 		}
 		err = node.writeRequestNumber(ctx, store.SolanaScanHeightKey, checkpoint+1)
 		if err != nil {
@@ -70,6 +62,15 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	client := node.solanaClient()
 	block, err := client.RPCGetBlockByHeight(ctx, uint64(checkpoint))
 	if err != nil {
+		if strings.Contains(err.Error(), "was skipped, or missing in long-term storage") {
+			next, er := client.RPCGetBlockByHeight(ctx, uint64(checkpoint+1))
+			if er != nil {
+				return er
+			}
+			if next.ParentSlot != uint64(checkpoint) {
+				return nil
+			}
+		}
 		return err
 	}
 
@@ -80,15 +81,6 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 		}
 	}
 	return nil
-}
-
-func (node *Node) solanaCheckSkippedBlock(ctx context.Context, checkpoint int64) (bool, error) {
-	client := node.solanaClient()
-	block, err := client.RPCGetBlockByHeight(ctx, uint64(checkpoint+1))
-	if err != nil {
-		return false, err
-	}
-	return block.ParentSlot < uint64(checkpoint), nil
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
