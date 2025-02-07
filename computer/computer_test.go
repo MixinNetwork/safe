@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	mc "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
@@ -370,14 +370,11 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
 	start := big.NewInt(0).Add(store.StartUserId, big.NewInt(1))
 	var user *store.User
-	id := uuid.Must(uuid.NewV4())
+	id := uuid.Must(uuid.NewV4()).String()
 	for _, node := range nodes {
-		seed := id.Bytes()
-		seed = append(seed, id.Bytes()...)
-		seed = append(seed, id.Bytes()...)
-		seed = append(seed, id.Bytes()...)
-		mix := mc.NewAddressFromSeed(seed)
-		out := testBuildUserRequest(node, id.String(), "", OperationTypeAddUser, []byte(mix.String()))
+		uid := common.UniqueId(id, "user1")
+		mix := bot.NewUUIDMixAddress([]string{uid}, 1)
+		out := testBuildUserRequest(node, id, "", OperationTypeAddUser, []byte(mix.String()))
 		testStep(ctx, require, node, out)
 		user1, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -391,13 +388,10 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(solana.PublicKeyFromBytes(public).String(), user1.ChainAddress)
 		user = user1
 
-		uid := uuid.Must(uuid.FromString(common.UniqueId(id.String(), "second")))
-		seed = uid.Bytes()
-		seed = append(seed, uid.Bytes()...)
-		seed = append(seed, uid.Bytes()...)
-		seed = append(seed, uid.Bytes()...)
-		mix = mc.NewAddressFromSeed(seed)
-		out = testBuildUserRequest(node, uid.String(), "", OperationTypeAddUser, []byte(mix.String()))
+		id2 := common.UniqueId(id, "second")
+		uid = common.UniqueId(id, "user2")
+		mix = bot.NewUUIDMixAddress([]string{uid}, 1)
+		out = testBuildUserRequest(node, id2, "", OperationTypeAddUser, []byte(mix.String()))
 		testStep(ctx, require, node, out)
 		user2, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
