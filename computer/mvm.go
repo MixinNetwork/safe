@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/mixin/util/base58"
@@ -39,7 +38,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	}
 
 	mix := string(req.ExtraBytes())
-	_, err := mc.NewAddressFromString(mix)
+	_, err := bot.NewMixAddressFromString(mix)
 	logger.Printf("common.NewAddressFromString(%s) => %v", mix, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
