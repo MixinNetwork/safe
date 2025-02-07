@@ -66,13 +66,16 @@ func DecodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, e
 }
 
 func (node *Node) parseRequest(out *mtg.Action) (*store.Request, error) {
-	if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
-		panic(out.TransactionHash)
-	}
 	switch out.AssetId {
 	case node.conf.ObserverAssetId:
+		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			panic(out.TransactionHash)
+		}
 		return node.parseObserverRequest(out)
 	case node.conf.AssetId:
+		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+			panic(out.TransactionHash)
+		}
 		return node.parseSignerResponse(out)
 	default:
 		return node.parseUserRequest(out)
