@@ -287,7 +287,7 @@ func (node *Node) processDeployExternalAssets(ctx context.Context, req *store.Re
 		address := solana.PublicKeyFromBytes(extra[offset : offset+32]).String()
 		offset += 32
 
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, assetId)
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, assetId)
 		if err != nil {
 			panic(err)
 		}
@@ -520,7 +520,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				if err != nil || da == nil {
 					panic(err)
 				}
-				asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, da.AssetId)
+				asset, err := common.SafeReadAssetUntilSufficient(ctx, da.AssetId)
 				if err != nil {
 					panic(err)
 				}

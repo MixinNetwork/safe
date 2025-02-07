@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/dimfeld/httptreemux/v5"
 )
 
@@ -28,6 +30,7 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/users/:addr", node.httpGetUser)
 	router.GET("/deployed_assets", node.httpGetAssets)
+	router.POST("/deployed_assets", node.httpDeployAssets)
 	router.POST("/nonce_accounts", node.httpLockNonce)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
@@ -108,6 +111,53 @@ func (node *Node) httpGetAssets(w http.ResponseWriter, r *http.Request, params m
 		})
 	}
 	common.RenderJSON(w, r, http.StatusOK, view)
+}
+
+func (node *Node) httpDeployAssets(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	ctx := r.Context()
+	var body struct {
+		Assets []string `json:"assets"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+
+	var assets []*store.ExternalAsset
+	now := time.Now().UTC()
+	for _, id := range body.Assets {
+		old, err := node.store.ReadExternalAsset(ctx, id)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		}
+		if old != nil {
+			assets = append(assets, old)
+			continue
+		}
+		asset, err := bot.ReadAsset(ctx, id)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+			return
+		}
+		if asset.ChainID == common.SafeSolanaChainId {
+			common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "chain"})
+			return
+		}
+		assets = append(assets, &store.ExternalAsset{
+			AssetId:   id,
+			CreatedAt: now,
+		})
+	}
+	err = node.store.WriteExternalAssets(ctx, assets)
+	if err != nil {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"assets": assets,
+	})
 }
 
 func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params map[string]string) {

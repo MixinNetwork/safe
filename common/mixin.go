@@ -326,7 +326,7 @@ func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.C
 	}
 }
 
-func SafeReadAssetUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*bot.AssetNetwork, error) {
+func SafeReadAssetUntilSufficient(ctx context.Context, id string) (*bot.AssetNetwork, error) {
 	for {
 		asset, err := bot.ReadAsset(ctx, id)
 		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)

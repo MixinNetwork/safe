@@ -53,7 +53,7 @@ func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId strin
 			total = total.Add(output.Amount)
 		}
 
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, outputs[0].AssetId)
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, outputs[0].AssetId)
 		if err != nil {
 			panic(err)
 		}

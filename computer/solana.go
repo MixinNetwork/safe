@@ -3,7 +3,6 @@ package computer
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -246,40 +245,48 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	})
 }
 
+func (node *Node) CreateMints(ctx context.Context, as []string) ([]*solanaApp.DeployedAsset, error) {
+	var assets []*solanaApp.DeployedAsset
+	for _, asset := range as {
+		id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
+		id = common.UniqueId(id, fmt.Sprintf("external asset: %s", asset))
+		seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
+		key := solanaApp.PrivateKeyFromSeed(seed[:])
+		na, err := common.SafeReadAssetUntilSufficient(ctx, asset)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, &solanaApp.DeployedAsset{
+			AssetId:    asset,
+			Address:    key.PublicKey().String(),
+			Asset:      na,
+			PrivateKey: &key,
+		})
+	}
+	tx, err := node.solanaClient().CreateMints(ctx, node.conf.SolanaKey, node.getMTGAddress(ctx), assets)
+	if err != nil {
+		return nil, err
+	}
+	err = node.SendTransactionUtilConfirm(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return assets, nil
+}
+
 func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, string, error) {
 	id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
 	id = common.UniqueId(id, fmt.Sprintf("computer nonce account: %d", index))
 	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
-	nonce := solana.PrivateKey(ed25519.NewKeyFromSeed(seed[:])[:])
+	nonce := solanaApp.PrivateKeyFromSeed(seed[:])
 
 	tx, err := node.solanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
 	if err != nil {
 		return "", "", err
 	}
-
-	var h string
-	for {
-		sig, err := node.solanaClient().SendTransaction(ctx, tx)
-		if err == nil {
-			h = sig
-			break
-		}
-		if strings.Contains(err.Error(), "Blockhash not found") {
-			time.Sleep(1 * time.Second)
-			continue
-		}
+	err = node.SendTransactionUtilConfirm(ctx, tx)
+	if err != nil {
 		return "", "", err
-	}
-	for {
-		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
-		if rpcTx != nil {
-			break
-		}
-		if strings.Contains(err.Error(), "not found") {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		return "", "", fmt.Errorf("solana.RPCGetTransaction(%s) => %v", h, err)
 	}
 	for {
 		hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
@@ -292,6 +299,34 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 		}
 		return nonce.PublicKey().String(), hash.String(), nil
 	}
+}
+
+func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction) error {
+	var h string
+	for {
+		sig, err := node.solanaClient().SendTransaction(ctx, tx)
+		if err == nil {
+			h = sig
+			break
+		}
+		if strings.Contains(err.Error(), "Blockhash not found") {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return err
+	}
+	for {
+		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
+		if rpcTx != nil {
+			break
+		}
+		if strings.Contains(err.Error(), "not found") {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", h, err)
+	}
+	return nil
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
@@ -543,7 +578,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 		if !slices.Contains(externals, address) || t.Amount == 0 {
 			continue
 		}
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, as[address])
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, as[address])
 		if err != nil {
 			panic(err)
 		}

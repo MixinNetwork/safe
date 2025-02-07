@@ -33,6 +33,8 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 		panic(err)
 	}
 
+	go node.deployOrConfirmAssetsLoop(ctx)
+
 	go node.createNonceAccountLoop(ctx)
 	go node.releaseNonceAccountLoop(ctx)
 
@@ -98,6 +100,17 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 		Type:  OperationTypeSetOperationParams,
 		Extra: extra,
 	})
+}
+
+func (node *Node) deployOrConfirmAssetsLoop(ctx context.Context) {
+	for {
+		err := node.deployOrConfirmAssets(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(1 * time.Minute)
+	}
 }
 
 func (node *Node) createNonceAccountLoop(ctx context.Context) {
@@ -188,6 +201,45 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 	}
 }
 
+func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
+	es, err := node.store.ListUnconfirmedAssets(ctx)
+	if err != nil || len(es) == 0 {
+		return err
+	}
+	var as []string
+	for _, a := range es {
+		old, err := node.store.ReadDeployedAsset(ctx, a.AssetId)
+		if err != nil {
+			return err
+		}
+		if old == nil {
+			as = append(as, a.AssetId)
+			continue
+		}
+		err = node.store.ConfirmExternalAsset(ctx, a.AssetId)
+		if err != nil {
+			return err
+		}
+	}
+	assets, err := node.CreateMints(ctx, as)
+	if err != nil {
+		return err
+	}
+
+	id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
+	extra := []byte{}
+	for _, asset := range assets {
+		id = common.UniqueId(id, asset.AssetId)
+		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
+		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
+	}
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeDeployExternalAssets,
+		Extra: extra,
+	})
+}
+
 func (node *Node) createNonceAccounts(ctx context.Context) error {
 	count, err := node.store.CountNonceAccounts(ctx)
 	if err != nil || count > 100 {
@@ -231,7 +283,7 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 		if !tx.Destination.Valid {
 			panic(tx.TraceId)
 		}
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, tx.AssetId)
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, tx.AssetId)
 		if err != nil {
 			return err
 		}

@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 	"math/big"
 	"time"
@@ -93,6 +94,10 @@ func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) 
 
 func (a *DeployedAsset) PublicKey() solana.PublicKey {
 	return solana.MustPublicKeyFromBase58(a.Address)
+}
+
+func PrivateKeyFromSeed(seed []byte) solana.PrivateKey {
+	return solana.PrivateKey(ed25519.NewKeyFromSeed(seed[:])[:])
 }
 
 func PublicKeyFromEd25519Public(pub string) solana.PublicKey {
