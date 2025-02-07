@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/util/base58"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -19,6 +21,15 @@ const (
 	WrappedSolanaAddress = "So11111111111111111111111111111111111111112"
 	SolanaChainBase      = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 )
+
+type DeployedAsset struct {
+	AssetId   string
+	Address   string
+	CreatedAt time.Time
+
+	Asset      *bot.AssetNetwork
+	PrivateKey *solana.PrivateKey
+}
 
 type NonceAccount struct {
 	Address solana.PublicKey
@@ -78,6 +89,10 @@ func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) 
 		payer,
 	).Build())
 	return b
+}
+
+func (a *DeployedAsset) PublicKey() solana.PublicKey {
+	return solana.MustPublicKeyFromBase58(a.Address)
 }
 
 func PublicKeyFromEd25519Public(pub string) solana.PublicKey {
@@ -246,7 +261,31 @@ func DecodeTokenBurn(accounts solana.AccountMetaSlice, data []byte) (*token.Burn
 	return nil, false
 }
 
-func DecodeTokenMint(accounts solana.AccountMetaSlice, data []byte) (*token.MintTo, bool) {
+func DecodeCreateAccount(accounts solana.AccountMetaSlice, data []byte) (*system.CreateAccount, bool) {
+	ix, err := system.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+	mint, ok := ix.Impl.(*system.CreateAccount)
+	if ok {
+		return mint, true
+	}
+	return nil, false
+}
+
+func DecodeMintToken(accounts solana.AccountMetaSlice, data []byte) (*token.InitializeMint2, bool) {
+	ix, err := token.DecodeInstruction(accounts, data)
+	if err != nil {
+		return nil, false
+	}
+	mint, ok := ix.Impl.(*token.InitializeMint2)
+	if ok {
+		return mint, true
+	}
+	return nil, false
+}
+
+func DecodeTokenMintTo(accounts solana.AccountMetaSlice, data []byte) (*token.MintTo, bool) {
 	ix, err := token.DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, false

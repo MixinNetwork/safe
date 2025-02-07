@@ -5,42 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
-	"github.com/gagliardetto/solana-go"
+	"github.com/MixinNetwork/safe/common"
 )
-
-type DeployedAsset struct {
-	AssetId   string
-	Address   string
-	CreatedAt time.Time
-
-	PrivateKey *solana.PrivateKey
-}
-
-func (a *DeployedAsset) PublicKey() solana.PublicKey {
-	return solana.MustPublicKeyFromBase58(a.Address)
-}
-
-func DeployedAssetsFromTransferTokens(transfers []solanaApp.TokenTransfers) []*DeployedAsset {
-	var as []*DeployedAsset
-	for _, t := range transfers {
-		if t.SolanaAsset {
-			continue
-		}
-		as = append(as, &DeployedAsset{
-			AssetId: t.AssetId,
-			Address: t.Mint.String(),
-		})
-	}
-	return as
-}
 
 var deployedAssetCols = []string{"asset_id", "address", "created_at"}
 
-func deployedAssetFromRow(row Row) (*DeployedAsset, error) {
-	var a DeployedAsset
+func deployedAssetFromRow(row Row) (*solanaApp.DeployedAsset, error) {
+	var a solanaApp.DeployedAsset
 	err := row.Scan(&a.AssetId, &a.Address, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -48,40 +21,47 @@ func deployedAssetFromRow(row Row) (*DeployedAsset, error) {
 	return &a, err
 }
 
-func (s *SQLite3Store) writeDeployedAssetsIfNorExist(ctx context.Context, tx *sql.Tx, req *Request, assets []*DeployedAsset) error {
-	for _, asset := range assets {
-		existed, err := s.checkExistence(ctx, tx, "SELECT address FROM deployed_assets WHERE asset_id=?", asset.AssetId)
-		if err != nil {
-			return err
-		}
-		if existed {
-			continue
-		}
+func (s *SQLite3Store) WriteDeployAssetWithRequest(ctx context.Context, req *Request, assets map[string]*solanaApp.DeployedAsset) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	for _, asset := range assets {
 		vals := []any{asset.AssetId, asset.Address, req.CreatedAt}
 		err = s.execOne(ctx, tx, buildInsertionSQL("deployed_assets", deployedAssetCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT deployed_assets %v", err)
 		}
 	}
-	return nil
+
+	err = s.finishRequest(ctx, tx, req, nil, "")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string) (*DeployedAsset, error) {
+func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string) (*solanaApp.DeployedAsset, error) {
 	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE asset_id=?", strings.Join(deployedAssetCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
 
 	return deployedAssetFromRow(row)
 }
 
-func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address string) (*DeployedAsset, error) {
+func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address string) (*solanaApp.DeployedAsset, error) {
 	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE address=?", strings.Join(deployedAssetCols, ","))
 	row := s.db.QueryRowContext(ctx, query, address)
 
 	return deployedAssetFromRow(row)
 }
 
-func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*DeployedAsset, error) {
+func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*solanaApp.DeployedAsset, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -92,7 +72,7 @@ func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*DeployedAsset
 	}
 	defer rows.Close()
 
-	var as []*DeployedAsset
+	var as []*solanaApp.DeployedAsset
 	for rows.Next() {
 		asset, err := deployedAssetFromRow(rows)
 		if err != nil {

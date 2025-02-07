@@ -90,7 +90,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req *Request, call *SystemCall, assets []*DeployedAsset, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -104,11 +104,6 @@ func (s *SQLite3Store) WriteSubCallAndAssetsWithRequest(ctx context.Context, req
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
-	}
-
-	err = s.writeDeployedAssetsIfNorExist(ctx, tx, req, assets)
-	if err != nil {
-		return err
 	}
 
 	err = s.finishRequest(ctx, tx, req, txs, compaction)

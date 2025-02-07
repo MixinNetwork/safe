@@ -320,7 +320,10 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tx, as := node.transferOrMintTokens(ctx, call, nonce)
+		tx, err := node.transferOrMintTokens(ctx, call, nonce)
+		if err != nil {
+			return err
+		}
 		data, err := tx.MarshalBinary()
 		if err != nil {
 			panic(err)
@@ -334,13 +337,6 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
 		extra = append(extra, solana.MustPublicKeyFromBase58(nonce.Address).Bytes()...)
 		extra = append(extra, hash[:]...)
-		for _, asset := range as {
-			if asset.PrivateKey == nil {
-				continue
-			}
-			extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
-			extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
-		}
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeCreateSubCall,

@@ -19,6 +19,8 @@ const (
 	mintSize         uint64 = 82
 )
 
+var nullFreezeAuthority solana.PublicKey
+
 func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
 	client := c.getRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
@@ -73,10 +75,75 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	return tx, nil
 }
 
+func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicKey, assets []*DeployedAsset) (*solana.Transaction, error) {
+	client := c.getRPCClient()
+	payer, err := solana.PrivateKeyFromBase58(key)
+	if err != nil {
+		panic(err)
+	}
+
+	rent, err := client.GetMinimumBalanceForRentExemption(ctx, nonceAccountSize, rpc.CommitmentConfirmed)
+	if err != nil {
+		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption() => %v", err)
+	}
+	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+	}
+	builder := solana.NewTransactionBuilder()
+	builder.SetRecentBlockHash(block.Value.Blockhash)
+	builder.SetFeePayer(payer.PublicKey())
+
+	for _, asset := range assets {
+		if asset.Asset.ChainID == SolanaChainBase {
+			return nil, fmt.Errorf("CreateMints(%s) => invalid asset chain", asset.AssetId)
+		}
+		builder.AddInstruction(
+			system.NewCreateAccountInstruction(
+				rent,
+				mintSize,
+				token.ProgramID,
+				payer.PublicKey(),
+				solana.MustPublicKeyFromBase58(asset.Address),
+			).Build(),
+		)
+		builder.AddInstruction(
+			token.NewInitializeMint2Instruction(
+				uint8(asset.Asset.Precision),
+				mtg,
+				nullFreezeAuthority,
+				solana.MustPublicKeyFromBase58(asset.Address),
+			).Build(),
+		)
+	}
+
+	tx, err := builder.Build()
+	if err != nil {
+		panic(err)
+	}
+	_, err = tx.PartialSign(BuildSignersGetter(payer))
+	if err != nil {
+		panic(err)
+	}
+	for _, asset := range assets {
+		if asset.PrivateKey == nil {
+			return nil, fmt.Errorf("CreateMints(%s) => asset private key is required", asset.AssetId)
+		}
+		_, err = tx.PartialSign(BuildSignersGetter(*asset.PrivateKey))
+		if err != nil {
+			if common.CheckTestEnvironment(ctx) {
+				tx.Signatures[1] = solana.MustSignatureFromBase58("449h9tg5hCHigegVuH6Waoh8ACDYc5hrhZh2t9td2ToFgtBHrkzH7Z2vSE2nnmNdksUkj71k7eaQhdHrRgj19b5W")
+				continue
+			}
+			panic(err)
+		}
+	}
+	return tx, nil
+}
+
 func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
 	builder := buildInitialTxWithNonceAccount(payer, nonce)
 
-	var nullFreezeAuthority solana.PublicKey
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
 			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, &transfer, payer, mtg)
@@ -87,40 +154,13 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 			continue
 		}
 
-		if common.CheckTestEnvironment(ctx) && transfer.AssetId == common.SafeLitecoinChainId {
-			transfer.Mint = solana.MustPublicKeyFromBase58("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8")
-		}
 		mint := transfer.Mint
 		mintToken, err := c.GetMint(ctx, mint)
 		if err != nil {
 			return nil, err
 		}
-		if mintToken == nil || common.CheckTestEnvironment(ctx) {
-			rent, err := c.getRPCClient().GetMinimumBalanceForRentExemption(
-				ctx,
-				mintSize,
-				rpc.CommitmentConfirmed,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
-			}
-			builder.AddInstruction(
-				system.NewCreateAccountInstruction(
-					rent,
-					mintSize,
-					token.ProgramID,
-					payer,
-					mint,
-				).Build(),
-			)
-			builder.AddInstruction(
-				token.NewInitializeMint2Instruction(
-					transfer.Decimals,
-					mtg,
-					nullFreezeAuthority,
-					mint,
-				).Build(),
-			)
+		if mintToken == nil {
+			return nil, fmt.Errorf("invalid transfer mint: %s", mint.String())
 		}
 
 		ataAddress, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, mint)
@@ -155,10 +195,6 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 	tx, err := builder.Build()
 	if err != nil {
 		panic(err)
-	}
-	if common.CheckTestEnvironment(ctx) && transfers[0].AssetId == common.SafeLitecoinChainId {
-		tx.Signatures = make([]solana.Signature, tx.Message.Header.NumRequiredSignatures)
-		tx.Signatures[1] = solana.MustSignatureFromBase58("449h9tg5hCHigegVuH6Waoh8ACDYc5hrhZh2t9td2ToFgtBHrkzH7Z2vSE2nnmNdksUkj71k7eaQhdHrRgj19b5W")
 	}
 	return tx, nil
 }

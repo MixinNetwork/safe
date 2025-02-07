@@ -318,16 +318,18 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 
 		switch programKey {
 		case system.ProgramID:
-			transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data)
-			if !ok {
-				return fmt.Errorf("invalid system program instruction: %d", index)
+			if _, ok := solanaApp.DecodeCreateAccount(accounts, ix.Data); ok {
+				continue
 			}
-			recipient := transfer.GetRecipientAccount().PublicKey
-			if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
-				return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
+			if transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data); ok {
+				recipient := transfer.GetRecipientAccount().PublicKey
+				if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
+					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
+				}
 			}
+			return fmt.Errorf("invalid system program instruction: %d", index)
 		case solana.TokenProgramID, solana.Token2022ProgramID:
-			if mint, ok := solanaApp.DecodeTokenMint(accounts, ix.Data); ok {
+			if mint, ok := solanaApp.DecodeTokenMintTo(accounts, ix.Data); ok {
 				to := mint.GetDestinationAccount().PublicKey
 				token := mint.GetMintAccount().PublicKey
 				ata, _, err := solana.FindAssociatedTokenAddress(user, token)
@@ -371,6 +373,60 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 	return nil
 }
 
+func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transaction, mtgAccount solana.PublicKey, as map[string]*solanaApp.DeployedAsset) error {
+	if common.CheckTestEnvironment(ctx) {
+		return nil
+	}
+	for index, ix := range tx.Message.Instructions {
+		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
+		if err != nil {
+			panic(err)
+		}
+		accounts, err := ix.ResolveInstructionAccounts(&tx.Message)
+		if err != nil {
+			panic(err)
+		}
+
+		if index == 0 {
+			_, ok := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
+			if !ok {
+				return fmt.Errorf("invalid nonce advance instruction")
+			}
+			continue
+		}
+
+		switch programKey {
+		case system.ProgramID:
+			if _, ok := solanaApp.DecodeCreateAccount(accounts, ix.Data); ok {
+				continue
+			}
+			return fmt.Errorf("invalid system program instruction: %d", index)
+		case solana.TokenProgramID, solana.Token2022ProgramID:
+			if mint, ok := solanaApp.DecodeMintToken(accounts, ix.Data); ok {
+				address := mint.GetMintAccount().PublicKey
+				asset := as[address.String()]
+				if asset == nil {
+					return fmt.Errorf("invalid token mint instruction: invalid address %s", address.String())
+				}
+				if int(*mint.Decimals) != asset.Asset.Precision {
+					return fmt.Errorf("invalid token mint instruction: invalid decimals %d", mint.Decimals)
+				}
+				if mint.FreezeAuthority != nil {
+					return fmt.Errorf("invalid token mint instruction: invalid freezeAuthority %s", mint.FreezeAuthority)
+				}
+				if !mint.MintAuthority.Equals(mtgAccount) {
+					return fmt.Errorf("invalid token mint instruction: invalid mintAuthority %s", mint.MintAuthority)
+				}
+				continue
+			}
+			return fmt.Errorf("invalid token program instruction: %d", index)
+		default:
+			return fmt.Errorf("invalid program key: %s", programKey.String())
+		}
+	}
+	return nil
+}
+
 func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
 	mtgAddress := node.getMTGAddress(ctx).String()
 
@@ -405,16 +461,15 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 	return changes, nil
 }
 
-func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, []*store.DeployedAsset) {
+func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, error) {
 	mtg := node.getMTGAddress(ctx)
 	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 	if err != nil || user == nil {
-		panic(fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err))
+		return nil, fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err)
 	}
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
 
 	var transfers []solanaApp.TokenTransfers
-	var as []*store.DeployedAsset
 	assets := node.getSystemCallRelatedAsset(ctx, call.RequestId)
 	for _, asset := range assets {
 		if asset.Solana {
@@ -431,26 +486,9 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 			continue
 		}
 		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID)
-		if err != nil {
-			panic(err)
+		if err != nil || da == nil {
+			return nil, fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", asset.Asset.AssetID, da, err)
 		}
-		if da == nil {
-			key, err := solana.NewRandomPrivateKey()
-			if err != nil {
-				panic(err)
-			}
-			da = &store.DeployedAsset{
-				AssetId:    asset.Asset.AssetID,
-				Address:    key.PublicKey().String(),
-				PrivateKey: &key,
-			}
-			if common.CheckTestEnvironment(ctx) {
-				da.Address = "EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8"
-				da.PrivateKey = nil
-			}
-			as = append(as, da)
-		}
-
 		transfers = append(transfers, solanaApp.TokenTransfers{
 			SolanaAsset: false,
 			AssetId:     asset.Asset.AssetID,
@@ -461,24 +499,11 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 			Decimals:    uint8(asset.Asset.Precision),
 		})
 	}
-	if len(transfers) == 0 || nonce == nil {
-		return nil, as
+	if len(transfers) == 0 {
+		return nil, nil
 	}
 
-	tx, err := node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
-	if err != nil {
-		panic(err)
-	}
-	for _, da := range as {
-		if da.PrivateKey == nil {
-			continue
-		}
-		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(*da.PrivateKey))
-		if err != nil {
-			panic(err)
-		}
-	}
-	return tx, as
+	return node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
 }
 
 func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {

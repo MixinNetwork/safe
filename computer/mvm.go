@@ -243,6 +243,87 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	}
 }
 
+func (node *Node) processDeployExternalAssets(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeDeployExternalAssets {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	signature := base58.Encode(extra[:64])
+	var tx *solana.Transaction
+	if common.CheckTestEnvironment(ctx) {
+		txx, err := solana.TransactionFromBase64("Aq+1siMrGCCLToUpY5GSao9ykkiKNngtqxMKLulHaNfoYLSctNPzgvFHKj0ALXL/lw8vkN8ftc0+ioPjEJTeoggAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgACBM3FbI0IejAbIRRLKrXhKGtQpdlB7gL2JIjbAwi5Q9LWxNsdH1mNaoGX2vUbaNf8DvE5xN7FpJa6yWeVY70xJ9sAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbd9uHXZaGT2cvhRs7reawctIXtX1s3kTqM9YV+/wCpB2V+JD25HD2HV0/Fx1bxICT/YKK9TO9MkEDb+l4zirECAgIAATQAAAAAABcWAAAAAABSAAAAAAAAAAbd9uHXZaGT2cvhRs7reawctIXtX1s3kTqM9YV+/wCpAwEBQxQI+xe2BpjTbUW8YkyOIQtMhFIzyZp64xKifog6iqhES5sBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+		if err != nil {
+			panic(err)
+		}
+		tx = txx
+	} else {
+		tr, err := node.solanaClient().RPCGetTransaction(ctx, signature)
+		if err != nil {
+			panic(err)
+		}
+		txx, err := tr.Transaction.GetTransaction()
+		if err != nil {
+			panic(err)
+		}
+		tx = txx
+	}
+	if len(tx.Signatures) != 2 {
+		logger.Printf("invalid signature length: %d", len(tx.Signatures))
+		return node.failRequest(ctx, req, "")
+	}
+
+	as := make(map[string]*solanaApp.DeployedAsset)
+	offset := 64
+	for {
+		if offset == len(extra) {
+			break
+		}
+		assetId := uuid.Must(uuid.FromBytes(extra[offset : offset+16])).String()
+		offset += 16
+		address := solana.PublicKeyFromBytes(extra[offset : offset+32]).String()
+		offset += 32
+
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, node.mixin, assetId)
+		if err != nil {
+			panic(err)
+		}
+		if asset == nil || asset.ChainID == solanaApp.SolanaChainBase {
+			logger.Printf("processDeployExternalAssets(%s) => invalid asset", assetId)
+			return node.failRequest(ctx, req, "")
+		}
+		old, err := node.store.ReadDeployedAsset(ctx, assetId)
+		if err != nil {
+			panic(err)
+		}
+		if old != nil {
+			logger.Printf("processDeployExternalAssets(%s) => asset already existed", assetId)
+			return node.failRequest(ctx, req, "")
+		}
+		as[address] = &solanaApp.DeployedAsset{
+			AssetId: assetId,
+			Address: address,
+			Asset:   asset,
+		}
+		logger.Verbosef("processDeployExternalAssets() => %s %s", assetId, address)
+	}
+
+	mtgAccount := node.getMTGAddress(ctx)
+	err := node.VerifyMintSystemCall(ctx, tx, mtgAccount, as)
+	logger.Printf("node.VerifyMintSystemCall() => %v", err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	err = node.store.WriteDeployAssetWithRequest(ctx, req, as)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
+}
+
 func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
@@ -308,22 +389,6 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
-	extra = extra[48:]
-	var offset int
-	var as []*store.DeployedAsset
-	for {
-		if offset == len(extra) {
-			break
-		}
-		asset := uuid.Must(uuid.FromBytes(extra[offset : offset+16])).String()
-		offset += 16
-		address := solana.PublicKeyFromBytes(extra[offset : offset+32]).String()
-		offset += 32
-		as = append(as, &store.DeployedAsset{
-			AssetId: asset,
-			Address: address,
-		})
-	}
 
 	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, 0)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
@@ -386,7 +451,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(req)
 	}
 
-	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, sub, as, nil, "")
+	err = node.store.WriteSubCallWithRequest(ctx, req, sub, nil, "")
 	if err != nil {
 		panic(err)
 	}
@@ -597,7 +662,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		UpdatedAt:        req.CreatedAt,
 	}
 
-	err = node.store.WriteSubCallAndAssetsWithRequest(ctx, req, new, nil, nil, "")
+	err = node.store.WriteSubCallWithRequest(ctx, req, new, nil, "")
 	if err != nil {
 		panic(err)
 	}

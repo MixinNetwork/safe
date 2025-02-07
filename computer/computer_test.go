@@ -16,6 +16,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -35,6 +36,7 @@ func TestComputer(t *testing.T) {
 	testObserverRequestGenerateKey(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverSetPriceParams(ctx, require, nodes)
+	testObserverRequestDeployAsset(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
 	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
@@ -223,9 +225,9 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
 	require.Nil(err)
 	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
-	stx, as := node.transferOrMintTokens(ctx, call, nonce)
+	stx, err := node.transferOrMintTokens(ctx, call, nonce)
+	require.Nil(err)
 	require.NotNil(stx)
-	require.Len(as, 1)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
 	ref := crypto.Sha256Hash(raw)
@@ -234,10 +236,6 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 	var extra []byte
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 	extra = append(extra, ref[:]...)
-	for _, asset := range as {
-		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
-		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
-	}
 
 	for index, node := range nodes {
 		if index == 0 {
@@ -445,6 +443,41 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 		require.NotNil(params)
 		require.Equal(node.conf.OperationPriceAssetId, params.OperationPriceAsset)
 		require.Equal(node.conf.OperationPriceAmount, params.OperationPriceAmount.String())
+	}
+}
+
+func testObserverRequestDeployAsset(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	node := nodes[0]
+
+	ltc, err := bot.ReadAsset(ctx, common.SafeLitecoinChainId)
+	require.Nil(err)
+	key, err := solana.NewRandomPrivateKey()
+	require.Nil(err)
+	as := []*solanaApp.DeployedAsset{
+		{
+			AssetId:    ltc.AssetID,
+			Address:    "EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8",
+			PrivateKey: &key,
+			Asset:      ltc,
+		},
+	}
+	stx, err := node.solanaClient().CreateMints(ctx, node.conf.SolanaKey, node.getMTGAddress(ctx), as)
+	require.Nil(err)
+
+	var extra []byte
+	extra = append(extra, stx.Signatures[0][:]...)
+	for _, asset := range as {
+		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
+		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
+	}
+
+	id := uuid.Must(uuid.NewV4()).String()
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra)
+		testStep(ctx, require, node, out)
+		asset, err := node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId)
+		require.Nil(err)
+		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", asset.Address)
 	}
 }
 

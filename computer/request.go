@@ -27,14 +27,15 @@ const (
 	OperationTypeSystemCall = 2
 
 	// observer operation
-	OperationTypeSetOperationParams = 10
-	OperationTypeKeygenInput        = 11
-	OperationTypeConfirmNonce       = 12
-	OperationTypeConfirmWithdrawal  = 13
-	OperationTypeCreateSubCall      = 14
-	OperationTypeConfirmCall        = 15
-	OperationTypeSignInput          = 16
-	OperationTypeDeposit            = 17
+	OperationTypeSetOperationParams   = 10
+	OperationTypeKeygenInput          = 11
+	OperationTypeDeployExternalAssets = 12
+	OperationTypeConfirmNonce         = 13
+	OperationTypeConfirmWithdrawal    = 14
+	OperationTypeCreateSubCall        = 15
+	OperationTypeConfirmCall          = 16
+	OperationTypeSignInput            = 17
+	OperationTypeDeposit              = 18
 
 	// signer operation
 	OperationTypeKeygenOutput = 20
