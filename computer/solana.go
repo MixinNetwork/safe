@@ -63,12 +63,20 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	block, err := client.RPCGetBlockByHeight(ctx, uint64(checkpoint))
 	if err != nil {
 		if strings.Contains(err.Error(), "was skipped, or missing in long-term storage") {
-			next, er := client.RPCGetBlockByHeight(ctx, uint64(checkpoint+1))
-			if er != nil {
-				return er
-			}
-			if next.ParentSlot != uint64(checkpoint) {
-				return nil
+			i := 1
+			for {
+				next, er := client.RPCGetBlockByHeight(ctx, uint64(checkpoint+int64(i)))
+				if er != nil {
+					if strings.Contains(err.Error(), "was skipped, or missing in long-term storage") {
+						i += 1
+						time.Sleep(time.Second)
+						continue
+					}
+					return er
+				}
+				if next.ParentSlot != uint64(checkpoint) {
+					return nil
+				}
 			}
 		}
 		return err
