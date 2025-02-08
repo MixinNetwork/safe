@@ -395,6 +395,39 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 	}
 }
 
+func CreateAttachmentUntilSufficient(ctx context.Context, client *mixin.Client) (*mixin.Attachment, error) {
+	for {
+		attachment, err := client.CreateAttachment(ctx)
+		logger.Verbosef("mixin.CreateAttachment() => %v %v", attachment, err)
+		if err == nil {
+			return attachment, nil
+		}
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return nil, err
+	}
+}
+
+func UploadAttachmenttUntilSufficient(ctx context.Context, client *mixin.Client, file []byte) (*mixin.Attachment, error) {
+	attachment, err := CreateAttachmentUntilSufficient(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		err = mixin.UploadAttachment(ctx, attachment, file)
+		if err == nil {
+			return attachment, nil
+		}
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return nil, err
+	}
+}
+
 func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, error) {
 	utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
 	if err != nil {

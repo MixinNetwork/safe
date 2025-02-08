@@ -115,6 +115,7 @@ CREATE INDEX IF NOT EXISTS users_by_created ON users(created_at);
 
 CREATE TABLE IF NOT EXISTS external_assets (
   asset_id        VARCHAR NOT NULL,
+  uri             TEXT,
   created_at      TIMESTAMP NOT NULL,
   confirmed_at    TIMESTAMP,
   PRIMARY KEY ('asset_id')

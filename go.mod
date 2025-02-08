@@ -30,6 +30,8 @@ require (
 	golang.org/x/crypto v0.32.0
 )
 
+require github.com/near/borsh-go v0.3.2-0.20220516180422-1ff87d108454 // indirect
+
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MixinNetwork/go-number v0.1.1 // indirect
@@ -39,6 +41,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
+	github.com/blocto/solana-go-sdk v1.30.0
 	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/btcsuite/btcutil v1.0.2 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect

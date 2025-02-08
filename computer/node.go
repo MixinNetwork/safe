@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -143,4 +145,32 @@ func (node *Node) readSolanaBlockCheckpoint(ctx context.Context) (int64, error) 
 		return 315360000, err
 	}
 	return height, nil
+}
+
+func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNetwork) (string, error) {
+	ea, err := node.store.ReadExternalAsset(ctx, asset.AssetID)
+	if err != nil || ea == nil {
+		return "", fmt.Errorf("invalid external asset to mint: %s", asset.AssetID)
+	}
+	if ea.Uri.Valid {
+		return ea.Uri.String, nil
+	}
+	meta := solanaApp.Metadata{
+		Name:        fmt.Sprintf("%s (Mixin)", asset.Name),
+		Description: fmt.Sprintf("%s minted by Mixin Computer", asset.Name),
+		Image:       asset.IconURL,
+	}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return "", err
+	}
+	attachment, err := common.UploadAttachmenttUntilSufficient(ctx, node.mixin, data)
+	if err != nil {
+		return "", err
+	}
+	err = node.store.UpdateExternalAssetUri(ctx, ea.AssetId, attachment.ViewURL)
+	if err != nil {
+		return "", err
+	}
+	return attachment.ViewURL, nil
 }

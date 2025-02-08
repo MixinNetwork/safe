@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/safe/common"
+	sc "github.com/blocto/solana-go-sdk/common"
+	meta "github.com/blocto/solana-go-sdk/program/metaplex/token_metadata"
 	"github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
@@ -98,13 +100,14 @@ func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicK
 		if asset.Asset.ChainID == SolanaChainBase {
 			return nil, fmt.Errorf("CreateMints(%s) => invalid asset chain", asset.AssetId)
 		}
+		mint := solana.MustPublicKeyFromBase58(asset.Address)
 		builder.AddInstruction(
 			system.NewCreateAccountInstruction(
 				rent,
 				mintSize,
 				token.ProgramID,
 				payer.PublicKey(),
-				solana.MustPublicKeyFromBase58(asset.Address),
+				mint,
 			).Build(),
 		)
 		builder.AddInstruction(
@@ -114,6 +117,29 @@ func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicK
 				nullFreezeAuthority,
 				solana.MustPublicKeyFromBase58(asset.Address),
 			).Build(),
+		)
+		pda, _, err := solana.FindTokenMetadataAddress(mint)
+		if err != nil {
+			return nil, err
+		}
+		builder.AddInstruction(
+			CustomInstruction{
+				Instruction: meta.CreateMetadataAccountV3(meta.CreateMetadataAccountV3Param{
+					Metadata:                sc.PublicKeyFromString(pda.String()),
+					Mint:                    sc.PublicKeyFromString(mint.String()),
+					MintAuthority:           sc.PublicKeyFromString(mtg.String()),
+					Payer:                   sc.PublicKeyFromString(payer.PublicKey().String()),
+					UpdateAuthority:         sc.PublicKeyFromString(mtg.String()),
+					UpdateAuthorityIsSigner: true,
+					IsMutable:               false,
+					Data: meta.DataV2{
+						Name:                 fmt.Sprintf("%s (Mixin)", asset.Asset.Name),
+						Symbol:               asset.Asset.Symbol,
+						Uri:                  asset.Uri,
+						SellerFeeBasisPoints: 0,
+					},
+				}),
+			},
 		)
 	}
 

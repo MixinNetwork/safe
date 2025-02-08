@@ -248,17 +248,22 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 func (node *Node) CreateMints(ctx context.Context, as []string) ([]*solanaApp.DeployedAsset, error) {
 	var assets []*solanaApp.DeployedAsset
 	for _, asset := range as {
-		id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
-		id = common.UniqueId(id, fmt.Sprintf("external asset: %s", asset))
-		seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
-		key := solanaApp.PrivateKeyFromSeed(seed[:])
 		na, err := common.SafeReadAssetUntilSufficient(ctx, asset)
 		if err != nil {
 			return nil, err
 		}
+		uri, err := node.checkExternalAssetUri(ctx, na)
+		if err != nil {
+			return nil, err
+		}
+		id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
+		id = common.UniqueId(id, fmt.Sprintf("external asset: %s", asset))
+		seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
+		key := solanaApp.PrivateKeyFromSeed(seed[:])
 		assets = append(assets, &solanaApp.DeployedAsset{
 			AssetId:    asset,
 			Address:    key.PublicKey().String(),
+			Uri:        uri,
 			Asset:      na,
 			PrivateKey: &key,
 		})

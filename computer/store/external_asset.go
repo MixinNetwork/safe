@@ -12,15 +12,16 @@ import (
 
 type ExternalAsset struct {
 	AssetId     string
+	Uri         sql.NullString
 	CreatedAt   time.Time
 	ConfirmedAt sql.NullTime
 }
 
-var externalAssetCols = []string{"asset_id", "created_at", "confirmed_at"}
+var externalAssetCols = []string{"asset_id", "uri", "created_at", "confirmed_at"}
 
 func externalAssetFromRow(row Row) (*ExternalAsset, error) {
 	var a ExternalAsset
-	err := row.Scan(&a.AssetId, &a.CreatedAt, &a.ConfirmedAt)
+	err := row.Scan(&a.AssetId, &a.Uri, &a.CreatedAt, &a.ConfirmedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -38,11 +39,30 @@ func (s *SQLite3Store) WriteExternalAssets(ctx context.Context, assets []*Extern
 	defer common.Rollback(tx)
 
 	for _, asset := range assets {
-		vals := []any{asset.AssetId, asset.CreatedAt, nil}
+		vals := []any{asset.AssetId, nil, asset.CreatedAt, nil}
 		err = s.execOne(ctx, tx, buildInsertionSQL("external_assets", externalAssetCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT external_assets %v", err)
 		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) UpdateExternalAssetUri(ctx context.Context, id, uri string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	query := "UPDATE external_assets SET uri=? WHERE asset_id=? AND uri IS NULL"
+	_, err = tx.ExecContext(ctx, query, uri, id)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store UPDATE external_assets %v", err)
 	}
 
 	return tx.Commit()
@@ -58,7 +78,7 @@ func (s *SQLite3Store) ConfirmExternalAsset(ctx context.Context, id string) erro
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE external_assets SET confirmed_at=? WHERE asset_id=?"
+	query := "UPDATE external_assets SET confirmed_at=? WHERE asset_id=? AND confirmed_at IS NULL"
 	_, err = tx.ExecContext(ctx, query, time.Now().UTC(), id)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE external_assets %v", err)

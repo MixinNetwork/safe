@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/mixin/util/base58"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/blocto/solana-go-sdk/types"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
@@ -23,11 +24,18 @@ const (
 	SolanaChainBase      = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 )
 
+type Metadata struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Image       string `json:"image"`
+}
+
 type DeployedAsset struct {
 	AssetId   string
 	Address   string
 	CreatedAt time.Time
 
+	Uri        string
 	Asset      *bot.AssetNetwork
 	PrivateKey *solana.PrivateKey
 }
@@ -425,4 +433,28 @@ func extractTransfersFromInstruction(
 	}
 
 	return nil
+}
+
+type CustomInstruction struct {
+	Instruction types.Instruction
+}
+
+func (cs CustomInstruction) ProgramID() solana.PublicKey {
+	return solana.MustPublicKeyFromBase58(cs.Instruction.ProgramID.String())
+}
+
+func (cs CustomInstruction) Accounts() []*solana.AccountMeta {
+	var as []*solana.AccountMeta
+	for _, a := range cs.Instruction.Accounts {
+		as = append(as, &solana.AccountMeta{
+			PublicKey:  solana.MustPublicKeyFromBase58(a.PubKey.String()),
+			IsWritable: a.IsWritable,
+			IsSigner:   a.IsSigner,
+		})
+	}
+	return as
+}
+
+func (cs CustomInstruction) Data() ([]byte, error) {
+	return cs.Instruction.Data, nil
 }
