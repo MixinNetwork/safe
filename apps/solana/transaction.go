@@ -77,25 +77,14 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	return tx, nil
 }
 
-func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicKey, assets []*DeployedAsset) (*solana.Transaction, error) {
+func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, assets []*DeployedAsset) (*solana.Transaction, error) {
 	client := c.getRPCClient()
-	payer, err := solana.PrivateKeyFromBase58(key)
-	if err != nil {
-		panic(err)
-	}
+	builder := buildInitialTxWithNonceAccount(payer, nonce)
 
 	rent, err := client.GetMinimumBalanceForRentExemption(ctx, mintSize, rpc.CommitmentConfirmed)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption() => %v", err)
 	}
-	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
-	if err != nil {
-		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
-	}
-	builder := solana.NewTransactionBuilder()
-	builder.SetRecentBlockHash(block.Value.Blockhash)
-	builder.SetFeePayer(payer.PublicKey())
-
 	for _, asset := range assets {
 		if asset.Asset.ChainID == SolanaChainBase {
 			return nil, fmt.Errorf("CreateMints(%s) => invalid asset chain", asset.AssetId)
@@ -106,7 +95,7 @@ func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicK
 				rent,
 				mintSize,
 				token.ProgramID,
-				payer.PublicKey(),
+				payer,
 				mint,
 			).Build(),
 		)
@@ -128,7 +117,7 @@ func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicK
 					Metadata:                sc.PublicKeyFromString(pda.String()),
 					Mint:                    sc.PublicKeyFromString(mint.String()),
 					MintAuthority:           sc.PublicKeyFromString(mtg.String()),
-					Payer:                   sc.PublicKeyFromString(payer.PublicKey().String()),
+					Payer:                   sc.PublicKeyFromString(payer.String()),
 					UpdateAuthority:         sc.PublicKeyFromString(mtg.String()),
 					UpdateAuthorityIsSigner: true,
 					IsMutable:               false,
@@ -144,10 +133,6 @@ func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicK
 	}
 
 	tx, err := builder.Build()
-	if err != nil {
-		panic(err)
-	}
-	_, err = tx.PartialSign(BuildSignersGetter(payer))
 	if err != nil {
 		panic(err)
 	}
@@ -366,4 +351,31 @@ func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana
 	}
 
 	return transfers, nil
+}
+
+func ExtractMintsFromTransaction(tx *solana.Transaction) []string {
+	var assets []string
+	for index, ix := range tx.Message.Instructions {
+		if index == 0 {
+			continue
+		}
+		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
+		if err != nil {
+			panic(err)
+		}
+		accounts, err := ix.ResolveInstructionAccounts(&tx.Message)
+		if err != nil {
+			panic(err)
+		}
+
+		switch programKey {
+		case solana.TokenProgramID, solana.Token2022ProgramID:
+			if mint, ok := DecodeMintToken(accounts, ix.Data); ok {
+				address := mint.GetMintAccount().PublicKey
+				assets = append(assets, address.String())
+				continue
+			}
+		}
+	}
+	return assets
 }

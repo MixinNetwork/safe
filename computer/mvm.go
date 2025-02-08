@@ -243,7 +243,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	}
 }
 
-func (node *Node) processDeployExternalAssets(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
 	}
@@ -252,32 +252,17 @@ func (node *Node) processDeployExternalAssets(ctx context.Context, req *store.Re
 	}
 
 	extra := req.ExtraBytes()
-	signature := base58.Encode(extra[:64])
-	var tx *solana.Transaction
-	if common.CheckTestEnvironment(ctx) {
-		txx, err := solana.TransactionFromBase64("Aq+1siMrGCCLToUpY5GSao9ykkiKNngtqxMKLulHaNfoYLSctNPzgvFHKj0ALXL/lw8vkN8ftc0+ioPjEJTeoggAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgACBM3FbI0IejAbIRRLKrXhKGtQpdlB7gL2JIjbAwi5Q9LWxNsdH1mNaoGX2vUbaNf8DvE5xN7FpJa6yWeVY70xJ9sAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbd9uHXZaGT2cvhRs7reawctIXtX1s3kTqM9YV+/wCpB2V+JD25HD2HV0/Fx1bxICT/YKK9TO9MkEDb+l4zirECAgIAATQAAAAAABcWAAAAAABSAAAAAAAAAAbd9uHXZaGT2cvhRs7reawctIXtX1s3kTqM9YV+/wCpAwEBQxQI+xe2BpjTbUW8YkyOIQtMhFIzyZp64xKifog6iqhES5sBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-		if err != nil {
-			panic(err)
-		}
-		tx = txx
-	} else {
-		tr, err := node.solanaClient().RPCGetTransaction(ctx, signature)
-		if err != nil {
-			panic(err)
-		}
-		txx, err := tr.Transaction.GetTransaction()
-		if err != nil {
-			panic(err)
-		}
-		tx = txx
-	}
-	if len(tx.Signatures) != 2 {
-		logger.Printf("invalid signature length: %d", len(tx.Signatures))
+	if len(extra) < 96 {
+		logger.Printf("invalid extra length: %x", extra)
 		return node.failRequest(ctx, req, "")
 	}
-
+	cid := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	hash, err := crypto.HashFromString(hex.EncodeToString(extra[16:48]))
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	as := make(map[string]*solanaApp.DeployedAsset)
-	offset := 64
+	offset := 48
 	for {
 		if offset == len(extra) {
 			break
@@ -311,13 +296,53 @@ func (node *Node) processDeployExternalAssets(ctx context.Context, req *store.Re
 		logger.Verbosef("processDeployExternalAssets() => %s %s", assetId, address)
 	}
 
-	mtgAccount := node.getMTGAddress(ctx)
-	err := node.VerifyMintSystemCall(ctx, tx, mtgAccount, as)
+	raw := node.readStorageExtraFromObserver(ctx, hash)
+	tx, err := solana.TransactionFromBytes(raw)
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
+	if err != nil {
+		panic(err)
+	}
+	advance, flag := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %t", advance, flag)
+	if !flag {
+		return node.failRequest(ctx, req, "")
+	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	err = node.VerifyMintSystemCall(ctx, tx, node.getMTGAddress(ctx), as)
 	logger.Printf("node.VerifyMintSystemCall() => %v", err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.WriteDeployAssetWithRequest(ctx, req, as)
+
+	call := &store.SystemCall{
+		RequestId:        cid,
+		Superior:         cid,
+		Type:             store.CallTypeMint,
+		NonceAccount:     advance.GetNonceAccount().PublicKey.String(),
+		Public:           node.getMTGPublicWithPath(ctx),
+		Message:          hex.EncodeToString(msg),
+		Raw:              tx.MustToBase64(),
+		State:            common.RequestStatePending,
+		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
+		WithdrawnAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
+		CreatedAt:        req.CreatedAt,
+		UpdatedAt:        req.CreatedAt,
+	}
+	session := &store.Session{
+		Id:         req.Id,
+		RequestId:  call.RequestId,
+		MixinHash:  req.MixinHash.String(),
+		MixinIndex: req.Output.OutputIndex,
+		Index:      0,
+		Operation:  OperationTypeSignInput,
+		Public:     call.Public,
+		Extra:      call.Message,
+		CreatedAt:  req.CreatedAt,
+	}
+	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
 	if err != nil {
 		panic(err)
 	}
@@ -478,6 +503,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			panic(err)
 		}
 		if transaction == nil {
+			logger.Printf("transaction not found: %s", signature)
 			return node.failRequest(ctx, req, "")
 		}
 
@@ -500,12 +526,27 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			panic(fmt.Errorf("store.ReadSystemCallByMessage(%x) => %v %v", msg, call, err))
 		}
 		if call.State != common.RequestStatePending {
+			logger.Printf("invalid call state: %s %d", call.RequestId, call.State)
 			return node.failRequest(ctx, req, "")
 		}
 
+		var assets []string
 		var txs []*mtg.Transaction
 		var compaction string
-		if call.Type == store.CallTypePostProcess {
+		switch call.Type {
+		case store.CallTypeMint:
+			if common.CheckTestEnvironment(ctx) {
+				tx, err = solana.TransactionFromBase64(call.Raw)
+				if err != nil {
+					panic(err)
+				}
+			}
+			assets = solanaApp.ExtractMintsFromTransaction(tx)
+			logger.Printf("ExtractMintsFromTransaction(%v) => %v", tx, assets)
+			if len(assets) == 0 {
+				return node.failRequest(ctx, req, "")
+			}
+		case store.CallTypePostProcess:
 			bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
 			if len(bs) == 0 {
 				panic(fmt.Errorf("invalid burned assets length: %s %d", call.RequestId, len(bs)))
@@ -537,7 +578,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 		}
 
-		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, txs, compaction)
+		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, assets, txs, compaction)
 		if err != nil {
 			panic(err)
 		}
@@ -554,6 +595,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		}
 		return nil, ""
 	default:
+		logger.Printf("invalid confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")
 	}
 }

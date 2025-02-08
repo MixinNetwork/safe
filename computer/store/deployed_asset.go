@@ -7,44 +7,17 @@ import (
 	"strings"
 
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
-	"github.com/MixinNetwork/safe/common"
 )
 
-var deployedAssetCols = []string{"asset_id", "address", "created_at"}
+var deployedAssetCols = []string{"asset_id", "address", "state", "created_at"}
 
 func deployedAssetFromRow(row Row) (*solanaApp.DeployedAsset, error) {
 	var a solanaApp.DeployedAsset
-	err := row.Scan(&a.AssetId, &a.Address, &a.CreatedAt)
+	err := row.Scan(&a.AssetId, &a.Address, &a.State, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return &a, err
-}
-
-func (s *SQLite3Store) WriteDeployAssetWithRequest(ctx context.Context, req *Request, assets map[string]*solanaApp.DeployedAsset) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	for _, asset := range assets {
-		vals := []any{asset.AssetId, asset.Address, req.CreatedAt}
-		err = s.execOne(ctx, tx, buildInsertionSQL("deployed_assets", deployedAssetCols), vals...)
-		if err != nil {
-			return fmt.Errorf("INSERT deployed_assets %v", err)
-		}
-	}
-
-	err = s.finishRequest(ctx, tx, req, nil, "")
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
 }
 
 func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string) (*solanaApp.DeployedAsset, error) {

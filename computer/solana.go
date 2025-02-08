@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
@@ -245,38 +246,66 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	})
 }
 
-func (node *Node) CreateMints(ctx context.Context, as []string) ([]*solanaApp.DeployedAsset, error) {
+func (node *Node) CreateMintsTransaction(ctx context.Context, as []string, nonce *store.NonceAccount) (string, *solana.Transaction, []*solanaApp.DeployedAsset, error) {
+	tid := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
 	var assets []*solanaApp.DeployedAsset
-	for _, asset := range as {
-		na, err := common.SafeReadAssetUntilSufficient(ctx, asset)
+	if common.CheckTestEnvironment(ctx) {
+		tid = common.UniqueId(tid, common.SafeLitecoinChainId)
+		ltc, err := bot.ReadAsset(ctx, common.SafeLitecoinChainId)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-		uri, err := node.checkExternalAssetUri(ctx, na)
+		key, err := solana.NewRandomPrivateKey()
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-		id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
-		id = common.UniqueId(id, fmt.Sprintf("external asset: %s", asset))
-		seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
-		key := solanaApp.PrivateKeyFromSeed(seed[:])
-		assets = append(assets, &solanaApp.DeployedAsset{
-			AssetId:    asset,
-			Address:    key.PublicKey().String(),
-			Uri:        uri,
-			Asset:      na,
-			PrivateKey: &key,
-		})
+		assets = []*solanaApp.DeployedAsset{
+			{
+				AssetId:    ltc.AssetID,
+				Address:    "EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8",
+				Uri:        "https://uploads.mixin.one/mixin/attachments/1739005826-2dc1afa3f3327f4d29cbb02e3b41cf57d4842f3c444e8e829871699ac43d21b2",
+				PrivateKey: &key,
+				Asset:      ltc,
+			},
+		}
+	} else {
+		for _, asset := range as {
+			na, err := common.SafeReadAssetUntilSufficient(ctx, asset)
+			if err != nil {
+				return "", nil, nil, err
+			}
+			uri, err := node.checkExternalAssetUri(ctx, na)
+			if err != nil {
+				return "", nil, nil, err
+			}
+			tid = common.UniqueId(tid, asset)
+			key := solanaApp.GenerateKeyForExternalAsset(node.GetMembers(), node.conf.MTG.Genesis.Threshold, asset)
+			assets = append(assets, &solanaApp.DeployedAsset{
+				AssetId:    asset,
+				Address:    key.PublicKey().String(),
+				Uri:        uri,
+				Asset:      na,
+				PrivateKey: &key,
+			})
+		}
 	}
-	tx, err := node.solanaClient().CreateMints(ctx, node.conf.SolanaKey, node.getMTGAddress(ctx), assets)
+
+	call, err := node.store.ReadSystemCallByRequestId(ctx, tid, 0)
 	if err != nil {
-		return nil, err
+		return "", nil, nil, fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", tid, call, err)
 	}
-	err = node.SendTransactionUtilConfirm(ctx, tx)
+	if call != nil {
+		return "", nil, nil, nil
+	}
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
 	if err != nil {
-		return nil, err
+		return "", nil, nil, err
 	}
-	return assets, nil
+	tx, err := node.solanaClient().CreateMints(ctx, node.solanaPayer(), node.getMTGAddress(ctx), nonce.Account(), assets)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return tid, tx, assets, nil
 }
 
 func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, string, error) {
@@ -414,9 +443,6 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 }
 
 func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transaction, mtgAccount solana.PublicKey, as map[string]*solanaApp.DeployedAsset) error {
-	if common.CheckTestEnvironment(ctx) {
-		return nil
-	}
 	for index, ix := range tx.Message.Instructions {
 		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
 		if err != nil {
@@ -436,6 +462,7 @@ func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transacti
 		}
 
 		switch programKey {
+		case solana.TokenMetadataProgramID:
 		case system.ProgramID:
 			if _, ok := solanaApp.DecodeCreateAccount(accounts, ix.Data); ok {
 				continue
@@ -451,7 +478,7 @@ func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transacti
 				if int(*mint.Decimals) != asset.Asset.Precision {
 					return fmt.Errorf("invalid token mint instruction: invalid decimals %d", mint.Decimals)
 				}
-				if mint.FreezeAuthority != nil {
+				if mint.FreezeAuthority.String() != solanaApp.SolanaEmptyAddress {
 					return fmt.Errorf("invalid token mint instruction: invalid freezeAuthority %s", mint.FreezeAuthority)
 				}
 				if !mint.MintAuthority.Equals(mtgAccount) {
@@ -641,6 +668,16 @@ func (node *Node) getMTGAddress(ctx context.Context) solana.PublicKey {
 		panic(fmt.Errorf("store.ReadFirstPublicKey() => %s %v", key, err))
 	}
 	return solana.PublicKeyFromBytes(common.DecodeHexOrPanic(key))
+}
+
+func (node *Node) getMTGPublicWithPath(ctx context.Context) string {
+	key, err := node.store.ReadFirstPublicKey(ctx)
+	if err != nil || key == "" {
+		panic(fmt.Errorf("store.ReadFirstPublicKey() => %s %v", key, err))
+	}
+	fp := common.Fingerprint(key)
+	public := append(fp, store.DefaultPath...)
+	return hex.EncodeToString(public)
 }
 
 func (node *Node) solanaDepositEntry() solana.PublicKey {

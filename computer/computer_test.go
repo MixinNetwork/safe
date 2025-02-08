@@ -16,7 +16,6 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -404,7 +403,7 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 	as := [][2]string{
 		{"DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", "25DfFJbUsDMR7rYpieHhK7diWB1EuWkv5nB3F6CzNFTR"},
 		{"7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", "8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG"},
-		testGenerateRandNonceAccount(require),
+		{"ByaBrgG365HHJfMiybAg3sJfFuyj6oEou2cA6Cs4DfT6", "GPr2BFAJEdYeevsehok3UABvAHS6E6CXi36HNYeEbggo"},
 		testGenerateRandNonceAccount(require),
 	}
 	node := nodes[0]
@@ -449,35 +448,52 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 func testObserverRequestDeployAsset(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	node := nodes[0]
 
-	ltc, err := bot.ReadAsset(ctx, common.SafeLitecoinChainId)
+	nonce, err := node.store.ReadNonceAccount(ctx, "ByaBrgG365HHJfMiybAg3sJfFuyj6oEou2cA6Cs4DfT6")
 	require.Nil(err)
-	key, err := solana.NewRandomPrivateKey()
-	require.Nil(err)
-	as := []*solanaApp.DeployedAsset{
+	err = node.store.WriteExternalAssets(ctx, []*store.ExternalAsset{
 		{
-			AssetId:    ltc.AssetID,
-			Address:    "EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8",
-			PrivateKey: &key,
-			Asset:      ltc,
+			AssetId:   common.SafeLitecoinChainId,
+			CreatedAt: time.Now().UTC(),
 		},
-	}
-	stx, err := node.solanaClient().CreateMints(ctx, node.conf.SolanaKey, node.getMTGAddress(ctx), as)
+	})
 	require.Nil(err)
+	cid, stx, assets, err := node.CreateMintsTransaction(ctx, []string{common.SafeLitecoinChainId}, nonce)
+	require.Nil(err)
+	raw, err := stx.MarshalBinary()
+	require.Nil(err)
+	ref := crypto.Sha256Hash(raw)
 
-	var extra []byte
-	extra = append(extra, stx.Signatures[0][:]...)
-	for _, asset := range as {
+	extra := uuid.Must(uuid.FromString(cid)).Bytes()
+	extra = append(extra, ref[:]...)
+	for _, asset := range assets {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
 
 	id := uuid.Must(uuid.NewV4()).String()
 	for _, node := range nodes {
+		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+		require.Nil(err)
 		out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra)
-		testStep(ctx, require, node, out)
+		go testStep(ctx, require, node, out)
+	}
+	for _, node := range nodes {
+		testWaitOperation(ctx, node, id)
+	}
+	id = common.UniqueId(id, "confirm")
+	sig := solana.MustSignatureFromBase58("MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi")
+	extra = []byte{FlagConfirmCallSuccess}
+	extra = append(extra, sig[:]...)
+	for _, node := range nodes {
 		asset, err := node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId)
 		require.Nil(err)
 		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", asset.Address)
+		require.Equal(int64(common.RequestStateInitial), asset.State)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
+		testStep(ctx, require, node, out)
+		asset, err = node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId)
+		require.Nil(err)
+		require.Equal(int64(common.RequestStateDone), asset.State)
 	}
 }
 

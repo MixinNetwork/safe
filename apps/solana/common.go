@@ -16,6 +16,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gofrs/uuid"
 )
 
 const (
@@ -33,6 +34,7 @@ type Metadata struct {
 type DeployedAsset struct {
 	AssetId   string
 	Address   string
+	State     int64
 	CreatedAt time.Time
 
 	Uri        string
@@ -130,6 +132,14 @@ func VerifyAssetKey(assetKey string) error {
 		return fmt.Errorf("invalid solana assetKey %s", assetKey)
 	}
 	return nil
+}
+
+func GenerateKeyForExternalAsset(members []string, threshold int, assetId string) solana.PrivateKey {
+	id := fmt.Sprintf("MEMBERS:%v:%d", members, threshold)
+	id = common.UniqueId(id, assetId)
+	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
+	key := PrivateKeyFromSeed(seed[:])
+	return key
 }
 
 func GenerateAssetId(assetKey string) string {

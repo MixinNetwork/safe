@@ -153,7 +153,7 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 	case OperationTypeKeygenInput:
 		return node.processSignerKeygenRequests(ctx, req)
 	case OperationTypeDeployExternalAssets:
-		return node.processDeployExternalAssets(ctx, req)
+		return node.processDeployExternalAssetsCall(ctx, req)
 	case OperationTypeConfirmNonce:
 		return node.processConfirmNonce(ctx, req)
 	case OperationTypeConfirmWithdrawal:

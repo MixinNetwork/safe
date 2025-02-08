@@ -202,7 +202,7 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 }
 
 func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
-	es, err := node.store.ListUnconfirmedAssets(ctx)
+	es, err := node.store.ListUnrequestedAssets(ctx)
 	if err != nil || len(es) == 0 {
 		return err
 	}
@@ -216,25 +216,36 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 			as = append(as, a.AssetId)
 			continue
 		}
-		err = node.store.ConfirmExternalAsset(ctx, a.AssetId)
+		err = node.store.MarkExternalAssetRequested(ctx, a.AssetId)
 		if err != nil {
 			return err
 		}
 	}
-	assets, err := node.CreateMints(ctx, as)
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	if err != nil || nonce == nil {
+		return fmt.Errorf("store.ReadSpareNonceAccount() => %v %v", nonce, err)
+	}
+	tid, tx, assets, err := node.CreateMintsTransaction(ctx, as, nonce)
+	if err != nil || tx == nil {
+		return err
+	}
+	data, err := tx.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(tid, "storage-tx"), *node.safeUser())
 	if err != nil {
 		return err
 	}
 
-	id := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
-	extra := []byte{}
+	extra := uuid.Must(uuid.FromString(tid)).Bytes()
+	extra = append(extra, hash[:]...)
 	for _, asset := range assets {
-		id = common.UniqueId(id, asset.AssetId)
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    id,
+		Id:    tid,
 		Type:  OperationTypeDeployExternalAssets,
 		Extra: extra,
 	})
