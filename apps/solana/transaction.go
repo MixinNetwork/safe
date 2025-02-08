@@ -84,7 +84,7 @@ func (c *Client) CreateMints(ctx context.Context, key string, mtg solana.PublicK
 		panic(err)
 	}
 
-	rent, err := client.GetMinimumBalanceForRentExemption(ctx, nonceAccountSize, rpc.CommitmentConfirmed)
+	rent, err := client.GetMinimumBalanceForRentExemption(ctx, mintSize, rpc.CommitmentConfirmed)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption() => %v", err)
 	}
