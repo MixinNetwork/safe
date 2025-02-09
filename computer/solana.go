@@ -92,9 +92,9 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
-	logger.Printf("node.solanaProcessTransaction(%s)", tx.Signatures[0].String())
 	err := node.solanaProcessCallTransaction(ctx, tx)
 	if err != nil {
+		logger.Printf("node.solanaProcessCallTransaction(%s) => %v", tx.Signatures[0].String(), err)
 		return err
 	}
 
@@ -103,8 +103,8 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		panic(err)
 	}
 	changes, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
-	logger.Printf("node.parseSolanaBlockBalanceChanges(%d) => %d %v", len(transfers), len(changes), err)
 	if err != nil || len(changes) == 0 {
+		logger.Printf("node.parseSolanaBlockBalanceChanges(%d) => %d %v", len(transfers), len(changes), err)
 		return err
 	}
 	tsMap := make(map[string][]*solanaApp.TokenTransfers)
