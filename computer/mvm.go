@@ -280,7 +280,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 			logger.Printf("processDeployExternalAssets(%s) => invalid asset", assetId)
 			return node.failRequest(ctx, req, "")
 		}
-		old, err := node.store.ReadDeployedAsset(ctx, assetId)
+		old, err := node.store.ReadDeployedAsset(ctx, assetId, 0)
 		if err != nil {
 			panic(err)
 		}

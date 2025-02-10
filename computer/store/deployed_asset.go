@@ -20,9 +20,14 @@ func deployedAssetFromRow(row Row) (*solanaApp.DeployedAsset, error) {
 	return &a, err
 }
 
-func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string) (*solanaApp.DeployedAsset, error) {
+func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string, state int64) (*solanaApp.DeployedAsset, error) {
 	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE asset_id=?", strings.Join(deployedAssetCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
+	values := []any{id}
+	if state > 0 {
+		query = query + " AND state=?"
+		values = append(values, state)
+	}
+	row := s.db.QueryRowContext(ctx, query, values...)
 
 	return deployedAssetFromRow(row)
 }

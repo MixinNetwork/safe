@@ -207,7 +207,7 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	}
 	var as []string
 	for _, a := range es {
-		old, err := node.store.ReadDeployedAsset(ctx, a.AssetId)
+		old, err := node.store.ReadDeployedAsset(ctx, a.AssetId, 0)
 		if err != nil {
 			return err
 		}

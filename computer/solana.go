@@ -552,7 +552,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 			})
 			continue
 		}
-		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID)
+		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
 		if err != nil || da == nil {
 			return nil, fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", asset.Asset.AssetID, da, err)
 		}
@@ -581,7 +581,7 @@ func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, so
 		if asset.Solana {
 			continue
 		}
-		a, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID)
+		a, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
 		if err != nil {
 			panic(err)
 		}
