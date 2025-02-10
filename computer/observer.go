@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"time"
@@ -465,7 +466,11 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if index == -1 {
 			return fmt.Errorf("invalid solana tx signature: %s", call.RequestId)
 		}
-		tx.Signatures[index] = solana.SignatureFromBytes(common.DecodeHexOrPanic(call.Signature.String))
+		sig, err := base64.StdEncoding.DecodeString(call.Signature.String)
+		if err != nil {
+			panic(err)
+		}
+		tx.Signatures[index] = solana.SignatureFromBytes(sig)
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
 			panic(err)
