@@ -1,7 +1,6 @@
 package computer
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -643,9 +642,6 @@ func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.S
 		panic(fmt.Errorf("invalid public of system call: %s %s", c.RequestId, c.Public))
 	}
 	fp, path := hex.EncodeToString(data[:8]), data[8:]
-	if bytes.Equal(store.DefaultPath, path) {
-		panic(fmt.Errorf("invalid empty path"))
-	}
 	_, share, err := node.store.ReadKeyByFingerprint(ctx, fp)
 	if err != nil {
 		panic(err)
