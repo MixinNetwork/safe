@@ -642,7 +642,7 @@ func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.S
 	if len(data) != 16 {
 		panic(fmt.Errorf("invalid public of system call: %s %s", c.RequestId, c.Public))
 	}
-	fp, path := hex.EncodeToString(data[:8]), data[:8]
+	fp, path := hex.EncodeToString(data[:8]), data[8:]
 	if bytes.Equal(store.DefaultPath, path) {
 		panic(fmt.Errorf("invalid empty path"))
 	}
