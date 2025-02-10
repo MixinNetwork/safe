@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -442,6 +443,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 }
 
 func (node *Node) handleSignedCalls(ctx context.Context) error {
+	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
 	calls, err := node.store.ListSignedCalls(ctx)
 	if err != nil {
 		return err
@@ -471,6 +473,11 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			panic(err)
 		}
 		tx.Signatures[index] = solana.SignatureFromBytes(sig)
+		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
+		if err != nil {
+			panic(err)
+		}
+
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
 			panic(err)
