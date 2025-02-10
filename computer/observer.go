@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -14,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -482,15 +484,24 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
-		if err != nil {
-			panic(err)
+		var meta *rpc.TransactionMeta
+		for {
+			rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
+			if rpcTx != nil && err == nil {
+				tx, err = rpcTx.Transaction.GetTransaction()
+				if err != nil {
+					panic(err)
+				}
+				meta = rpcTx.Meta
+				break
+			}
+			if strings.Contains(err.Error(), "not found") {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
-		ttx, err := rpcTx.Transaction.GetTransaction()
-		if err != nil {
-			panic(err)
-		}
-		err = node.solanaProcessTransaction(ctx, ttx, rpcTx.Meta)
+		err = node.solanaProcessTransaction(ctx, tx, meta)
 		if err != nil {
 			return err
 		}
