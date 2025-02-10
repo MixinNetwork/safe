@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
+	"github.com/MixinNetwork/safe/common"
 )
 
 var deployedAssetCols = []string{"asset_id", "address", "state", "created_at"}
@@ -33,8 +34,8 @@ func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string, state i
 }
 
 func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address string) (*solanaApp.DeployedAsset, error) {
-	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE address=?", strings.Join(deployedAssetCols, ","))
-	row := s.db.QueryRowContext(ctx, query, address)
+	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE address=? AND state=?", strings.Join(deployedAssetCols, ","))
+	row := s.db.QueryRowContext(ctx, query, address, common.RequestStateDone)
 
 	return deployedAssetFromRow(row)
 }
@@ -43,8 +44,8 @@ func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*solanaApp.Dep
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	query := fmt.Sprintf("SELECT %s FROM deployed_assets LIMIT 500", strings.Join(deployedAssetCols, ","))
-	rows, err := s.db.QueryContext(ctx, query)
+	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE state=? LIMIT 500", strings.Join(deployedAssetCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, common.RequestStateDone)
 	if err != nil {
 		return nil, err
 	}
