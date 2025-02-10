@@ -8,7 +8,6 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -447,7 +446,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
-		publicKey := solanaApp.PublicKeyFromEd25519Public(call.Public)
+		publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
 		tx, err := solana.TransactionFromBase64(call.Raw)
 		if err != nil {
 			return err
