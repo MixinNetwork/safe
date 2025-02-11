@@ -21,8 +21,6 @@ const (
 	mintSize         uint64 = 82
 )
 
-var nullFreezeAuthority solana.PublicKey
-
 func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
 	client := c.getRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
@@ -99,14 +97,11 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 				mint,
 			).Build(),
 		)
-		builder.AddInstruction(
-			token.NewInitializeMint2Instruction(
-				uint8(asset.Asset.Precision),
-				mtg,
-				nullFreezeAuthority,
-				solana.MustPublicKeyFromBase58(asset.Address),
-			).Build(),
-		)
+		initMint := token.NewInitializeMint2InstructionBuilder().
+			SetDecimals(uint8(asset.Asset.Precision)).
+			SetMintAuthority(mtg).
+			SetMintAccount(solana.MustPublicKeyFromBase58(asset.Address)).Build()
+		builder.AddInstruction(initMint)
 		pda, _, err := solana.FindTokenMetadataAddress(mint)
 		if err != nil {
 			return nil, err
