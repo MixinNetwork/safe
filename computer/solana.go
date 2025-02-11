@@ -167,11 +167,14 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	if err != nil {
 		panic(err)
 	}
+	err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String())
+	if err != nil {
+		panic(err)
+	}
 
 	id := common.UniqueId(txId.String(), "confirm-call")
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, txId[:]...)
-	extra = append(extra, newNonceHash[:]...)
 	err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeConfirmCall,
