@@ -480,8 +480,8 @@ func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transacti
 				if int(*mint.Decimals) != asset.Asset.Precision {
 					return fmt.Errorf("invalid token mint instruction: invalid decimals %d", mint.Decimals)
 				}
-				if mint.FreezeAuthority.String() != solanaApp.SolanaEmptyAddress {
-					return fmt.Errorf("invalid token mint instruction: invalid freezeAuthority %s", mint.FreezeAuthority)
+				if mint.FreezeAuthority != nil {
+					return fmt.Errorf("invalid token mint instruction: invalid freezeAuthority")
 				}
 				if !mint.MintAuthority.Equals(mtgAccount) {
 					return fmt.Errorf("invalid token mint instruction: invalid mintAuthority %s", mint.MintAuthority)
