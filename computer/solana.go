@@ -183,7 +183,7 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	if err != nil {
 		return err
 	}
-	if call.Type != store.CallTypeMain {
+	if call.Type != store.CallTypeMain || call.SkipPostprocess {
 		return nil
 	}
 

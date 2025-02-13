@@ -27,6 +27,9 @@ import (
 const (
 	ConfirmFlagNonceAvailable = 0
 	ConfirmFlagNonceExpired   = 1
+
+	FlagWithPostProcess = 0
+	FlagSkipPostProcess = 1
 )
 
 func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
@@ -109,6 +112,15 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
+	skipPostprocess := false
+	switch data[8] {
+	case FlagSkipPostProcess:
+		skipPostprocess = true
+	case FlagWithPostProcess:
+	default:
+		logger.Printf("invalid skip postprocess flag: %d", data[8])
+		return node.failRequest(ctx, req, "")
+	}
 	user, err := node.store.ReadUser(ctx, id)
 	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
 	if err != nil {
@@ -132,8 +144,13 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	tx, err := solana.TransactionFromBytes(data[8:])
-	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", data[8:], tx, err)
+	rb := data[9:]
+	if len(rb) == 32 {
+		hash := crypto.Hash(rb)
+		rb = node.readStorageExtraFromObserver(ctx, hash)
+	}
+	tx, err := solana.TransactionFromBytes(rb)
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", rb, tx, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -155,16 +172,17 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(err)
 	}
 	call := &store.SystemCall{
-		RequestId:    req.Id,
-		Superior:     req.Id,
-		Type:         store.CallTypeMain,
-		NonceAccount: advance.GetNonceAccount().PublicKey.String(),
-		Public:       hex.EncodeToString(user.FingerprintWithPath()),
-		Message:      hex.EncodeToString(msg),
-		Raw:          tx.MustToBase64(),
-		State:        common.RequestStateInitial,
-		CreatedAt:    req.CreatedAt,
-		UpdatedAt:    req.CreatedAt,
+		RequestId:       req.Id,
+		Superior:        req.Id,
+		Type:            store.CallTypeMain,
+		NonceAccount:    advance.GetNonceAccount().PublicKey.String(),
+		Public:          hex.EncodeToString(user.FingerprintWithPath()),
+		SkipPostprocess: skipPostprocess,
+		Message:         hex.EncodeToString(msg),
+		Raw:             tx.MustToBase64(),
+		State:           common.RequestStateInitial,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, nil, "")

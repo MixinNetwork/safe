@@ -161,14 +161,6 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 		}
 
 		mint := transfer.Mint
-		mintToken, err := c.GetMint(ctx, mint)
-		if err != nil {
-			return nil, err
-		}
-		if mintToken == nil {
-			return nil, fmt.Errorf("invalid transfer mint: %s", mint.String())
-		}
-
 		ataAddress, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, mint)
 		if err != nil {
 			return nil, err

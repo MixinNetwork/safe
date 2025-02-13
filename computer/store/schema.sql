@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS system_calls (
   call_type             VARCHAR NOT NULL,
   nonce_account         VARCHAR NOT NULL,
   public                VARCHAR NOT NULL,
+  skip_postprocess      BOOLEAN NOT NULL,
   message               VARCHAR NOT NULL,
   raw                   TEXT NOT NULL,
   state                 INTEGER NOT NULL,

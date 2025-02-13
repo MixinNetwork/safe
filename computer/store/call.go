@@ -27,6 +27,7 @@ type SystemCall struct {
 	Type             string
 	NonceAccount     string
 	Public           string
+	SkipPostprocess  bool
 	Message          string
 	Raw              string
 	State            int64
@@ -38,11 +39,11 @@ type SystemCall struct {
 	UpdatedAt        time.Time
 }
 
-var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "nonce_account", "public", "message", "raw", "state", "withdrawal_traces", "withdrawn_at", "signature", "request_signer_at", "created_at", "updated_at"}
+var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "nonce_account", "public", "skip_postprocess", "message", "raw", "state", "withdrawal_traces", "withdrawn_at", "signature", "request_signer_at", "created_at", "updated_at"}
 
 func systemCallFromRow(row Row) (*SystemCall, error) {
 	var c SystemCall
-	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.NonceAccount, &c.Public, &c.Message, &c.Raw, &c.State, &c.WithdrawalTraces, &c.WithdrawnAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
+	err := row.Scan(&c.RequestId, &c.Superior, &c.Type, &c.NonceAccount, &c.Public, &c.SkipPostprocess, &c.Message, &c.Raw, &c.State, &c.WithdrawalTraces, &c.WithdrawnAt, &c.Signature, &c.RequestSignerAt, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -78,7 +79,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	}
 	defer common.Rollback(tx)
 
-	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalTraces, call.WithdrawnAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.SkipPostprocess, call.Message, call.Raw, call.State, call.WithdrawalTraces, call.WithdrawnAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
@@ -102,7 +103,7 @@ func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request
 	}
 	defer common.Rollback(tx)
 
-	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalTraces, call.WithdrawnAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.SkipPostprocess, call.Message, call.Raw, call.State, call.WithdrawalTraces, call.WithdrawnAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
@@ -126,7 +127,7 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 	}
 	defer common.Rollback(tx)
 
-	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.Message, call.Raw, call.State, call.WithdrawalTraces, call.WithdrawnAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
+	vals := []any{call.RequestId, call.Superior, call.Type, call.NonceAccount, call.Public, call.SkipPostprocess, call.Message, call.Raw, call.State, call.WithdrawalTraces, call.WithdrawnAt, call.Signature, call.RequestSignerAt, call.CreatedAt, call.UpdatedAt}
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
