@@ -219,7 +219,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	case ConfirmFlagNonceAvailable:
 		var txs []*mtg.Transaction
 		var ids []string
-		as := node.getSystemCallRelatedAsset(ctx, callId)
+		as := node.GetSystemCallRelatedAsset(ctx, callId)
 		destination := node.getMTGAddress(ctx).String()
 		for _, asset := range as {
 			if !asset.Solana {

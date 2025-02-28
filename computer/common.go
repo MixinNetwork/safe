@@ -22,7 +22,8 @@ type ReferencedTxAsset struct {
 	Asset  *bot.AssetNetwork
 }
 
-func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId string) map[string]*ReferencedTxAsset {
+func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, requestId string) map[string]*ReferencedTxAsset {
+	am := make(map[string]*ReferencedTxAsset)
 	req, err := node.store.ReadRequest(ctx, requestId)
 	if err != nil || req == nil {
 		panic(fmt.Errorf("store.ReadRequest(%s) => %v %v", requestId, req, err))
@@ -37,38 +38,44 @@ func (node *Node) getSystemCallRelatedAsset(ctx context.Context, requestId strin
 		ver.References = []crypto.Hash{h1, h2}
 	}
 
-	as := make(map[string]*ReferencedTxAsset)
 	for _, ref := range ver.References {
-		refVer, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ref.String())
-		if err != nil {
-			panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", ref.String(), refVer, err))
-		}
-
-		outputs := node.group.ListOutputsByTransactionHash(ctx, ref.String(), req.Sequence)
-		if len(outputs) == 0 {
-			continue
-		}
-		total := decimal.NewFromInt(0)
-		for _, output := range outputs {
-			total = total.Add(output.Amount)
-		}
-
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, outputs[0].AssetId)
-		if err != nil {
-			panic(err)
-		}
-		ra := &ReferencedTxAsset{
-			Solana: asset.ChainID == solanaApp.SolanaChainBase,
-			Amount: total,
-			Asset:  asset,
-		}
-		old := as[asset.AssetID]
-		if old != nil {
-			ra.Amount = ra.Amount.Add(old.Amount)
-		}
-		as[asset.AssetID] = ra
+		node.getSystemCallRelatedAsset(ctx, req, am, ref.String())
 	}
-	return as
+	return am
+}
+
+func (node *Node) getSystemCallRelatedAsset(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, hash string) {
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
+	if err != nil || ver == nil {
+		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
+	}
+	outputs := node.group.ListOutputsByTransactionHash(ctx, hash, req.Sequence)
+	if len(outputs) == 0 {
+		return
+	}
+	total := decimal.NewFromInt(0)
+	for _, output := range outputs {
+		total = total.Add(output.Amount)
+	}
+
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, outputs[0].AssetId)
+	if err != nil {
+		panic(err)
+	}
+	ra := &ReferencedTxAsset{
+		Solana: asset.ChainID == solanaApp.SolanaChainBase,
+		Amount: total,
+		Asset:  asset,
+	}
+	old := am[asset.AssetID]
+	if old != nil {
+		ra.Amount = ra.Amount.Add(old.Amount)
+	}
+	am[asset.AssetID] = ra
+
+	for _, ref := range ver.References {
+		node.getSystemCallRelatedAsset(ctx, req, am, ref.String())
+	}
 }
 
 func (node *Node) processSetOperationParams(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

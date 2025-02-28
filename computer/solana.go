@@ -539,7 +539,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
 
 	var transfers []solanaApp.TokenTransfers
-	assets := node.getSystemCallRelatedAsset(ctx, call.RequestId)
+	assets := node.GetSystemCallRelatedAsset(ctx, call.RequestId)
 	for _, asset := range assets {
 		if asset.Solana {
 			mint := solana.MustPublicKeyFromBase58(asset.Asset.AssetKey)
@@ -576,7 +576,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 }
 
 func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
-	assets := node.getSystemCallRelatedAsset(ctx, main.RequestId)
+	assets := node.GetSystemCallRelatedAsset(ctx, main.RequestId)
 	var externals []string
 	as := make(map[string]string)
 	for _, asset := range assets {
