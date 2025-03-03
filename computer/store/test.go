@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -108,4 +109,15 @@ func (s *SQLite3Store) TestReadPendingRequest(ctx context.Context) (*Request, er
 	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)
 
 	return requestFromRow(row)
+}
+
+func (s *SQLite3Store) TestCountSpentReferences(ctx context.Context, request_id string) (int, error) {
+	row := s.db.QueryRowContext(ctx, "SELECT COUNT(1) FROM spent_references WHERE request_id=?", request_id)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
 }

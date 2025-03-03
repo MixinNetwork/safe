@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
@@ -22,8 +23,8 @@ type ReferencedTxAsset struct {
 	Asset  *bot.AssetNetwork
 }
 
-func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, requestId string) map[string]*ReferencedTxAsset {
-	am := make(map[string]*ReferencedTxAsset)
+func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId string) []*store.SpentReference {
+	var refs []*store.SpentReference
 	req, err := node.store.ReadRequest(ctx, requestId)
 	if err != nil || req == nil {
 		panic(fmt.Errorf("store.ReadRequest(%s) => %v %v", requestId, req, err))
@@ -39,43 +40,74 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, requestId strin
 	}
 
 	for _, ref := range ver.References {
-		node.getSystemCallRelatedAsset(ctx, req, am, ref.String())
+		rs := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		if len(rs) > 0 {
+			refs = append(refs, rs...)
+		}
 	}
-	return am
+	return refs
 }
 
-func (node *Node) getSystemCallRelatedAsset(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, hash string) {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) []*store.SpentReference {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
 	}
+	if ver.Asset.String() == "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc" && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
+		return nil
+	}
 	outputs := node.group.ListOutputsByTransactionHash(ctx, hash, req.Sequence)
 	if len(outputs) == 0 {
-		return
+		return nil
 	}
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
 		total = total.Add(output.Amount)
 	}
-
 	asset, err := common.SafeReadAssetUntilSufficient(ctx, outputs[0].AssetId)
 	if err != nil {
 		panic(err)
 	}
-	ra := &ReferencedTxAsset{
-		Solana: asset.ChainID == solanaApp.SolanaChainBase,
-		Amount: total,
-		Asset:  asset,
+	refs := []*store.SpentReference{
+		{
+			TransactionHash: hash,
+			RequestId:       req.Id,
+			ChainId:         asset.ChainID,
+			AssetId:         asset.AssetID,
+			Amount:          total.String(),
+			Asset:           asset,
+		},
 	}
-	old := am[asset.AssetID]
-	if old != nil {
-		ra.Amount = ra.Amount.Add(old.Amount)
-	}
-	am[asset.AssetID] = ra
 
 	for _, ref := range ver.References {
-		node.getSystemCallRelatedAsset(ctx, req, am, ref.String())
+		rs := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		if len(rs) > 0 {
+			refs = append(refs, rs...)
+		}
 	}
+	return refs
+}
+
+func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {
+	am := make(map[string]*ReferencedTxAsset)
+	for _, ref := range rs {
+		amt, err := decimal.NewFromString(ref.Amount)
+		if err != nil {
+			panic(err)
+		}
+
+		ra := &ReferencedTxAsset{
+			Solana: ref.ChainId == solanaApp.SolanaChainBase,
+			Amount: amt,
+			Asset:  ref.Asset,
+		}
+		old := am[ref.AssetId]
+		if old != nil {
+			ra.Amount = ra.Amount.Add(old.Amount)
+		}
+		am[ref.AssetId] = ra
+	}
+	return am
 }
 
 func (node *Node) processSetOperationParams(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

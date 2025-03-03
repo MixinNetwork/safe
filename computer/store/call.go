@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/trusted-group/mtg"
@@ -39,7 +40,20 @@ type SystemCall struct {
 	UpdatedAt        time.Time
 }
 
+type SpentReference struct {
+	TransactionHash string
+	RequestId       string
+	ChainId         string
+	AssetId         string
+	Amount          string
+	CreatedAt       time.Time
+
+	Asset *bot.AssetNetwork
+}
+
 var systemCallCols = []string{"request_id", "superior_request_id", "call_type", "nonce_account", "public", "skip_postprocess", "message", "raw", "state", "withdrawal_traces", "withdrawn_at", "signature", "request_signer_at", "created_at", "updated_at"}
+
+var spentReferenceCols = []string{"transaction_hash", "request_id", "chain_id", "asset_id", "amount", "created_at"}
 
 func systemCallFromRow(row Row) (*SystemCall, error) {
 	var c SystemCall
@@ -69,7 +83,7 @@ func (c *SystemCall) UserIdFromPublicPath() *big.Int {
 	return id
 }
 
-func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, rs []*SpentReference, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -83,6 +97,14 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	err = s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
+	}
+
+	for _, r := range rs {
+		vals := []any{r.TransactionHash, r.RequestId, r.ChainId, r.AssetId, r.Amount, req.CreatedAt}
+		err = s.execOne(ctx, tx, buildInsertionSQL("spent_references", spentReferenceCols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT spent_references %v", err)
+		}
 	}
 
 	err = s.finishRequest(ctx, tx, req, txs, compaction)
@@ -480,4 +502,26 @@ func (s *SQLite3Store) ListUnfinishedSubSystemCalls(ctx context.Context) ([]*Sys
 		calls = append(calls, call)
 	}
 	return calls, nil
+}
+
+func (s *SQLite3Store) CheckReferencesSpent(ctx context.Context, rs []*SpentReference) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer common.Rollback(tx)
+
+	for _, ref := range rs {
+		existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM spent_references WHERE transaction_hash=?", ref.TransactionHash)
+		if err != nil {
+			return "", err
+		}
+		if existed {
+			return ref.TransactionHash, nil
+		}
+	}
+	return "", nil
 }

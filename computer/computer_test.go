@@ -336,6 +336,9 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
 		require.False(call.RequestSignerAt.Valid)
+		count, err := node.store.TestCountSpentReferences(ctx, call.RequestId)
+		require.Nil(err)
+		require.Equal(2, count)
 	}
 
 	cs, err := node.store.ListUnconfirmedSystemCalls(ctx)

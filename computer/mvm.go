@@ -110,6 +110,16 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(req.Action)
 	}
 
+	rs := node.GetSystemCallReferenceTxs(ctx, req.Id)
+	hash, err := node.store.CheckReferencesSpent(ctx, rs)
+	if err != nil {
+		panic(fmt.Errorf("store.CheckReferencesSpent() => %v", err))
+	}
+	if hash != "" {
+		logger.Printf("reference %s is already spent", hash)
+		return node.failRequest(ctx, req, "")
+	}
+
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
 	skipPostprocess := false
@@ -185,7 +195,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		UpdatedAt:       req.CreatedAt,
 	}
 
-	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, nil, "")
+	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs, nil, "")
 	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v) => %v", call, err)
 	if err != nil {
 		panic(err)
@@ -219,7 +229,9 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	case ConfirmFlagNonceAvailable:
 		var txs []*mtg.Transaction
 		var ids []string
-		as := node.GetSystemCallRelatedAsset(ctx, callId)
+		rs := node.GetSystemCallReferenceTxs(ctx, callId)
+		as := node.GetSystemCallRelatedAsset(ctx, rs)
+
 		destination := node.getMTGAddress(ctx).String()
 		for _, asset := range as {
 			if !asset.Solana {

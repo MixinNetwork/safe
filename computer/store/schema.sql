@@ -153,6 +153,17 @@ CREATE TABLE IF NOT EXISTS system_calls (
 );
 
 
+CREATE TABLE IF NOT EXISTS spent_references (
+  transaction_hash   VARCHAR NOT NULL,
+  request_id         VARCHAR NOT NULL,
+  chain_id           VARCHAR NOT NULL,
+  asset_id           VARCHAR NOT NULL,
+  amount             VARCHAR NOT NULL,
+  created_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('transaction_hash')
+);
+
+
 CREATE TABLE IF NOT EXISTS nonce_accounts (
   address        VARCHAR NOT NULL,
   hash           VARCHAR NOT NULL,
