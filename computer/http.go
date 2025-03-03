@@ -31,8 +31,8 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/users/:addr", node.httpGetUser)
 	router.GET("/deployed_assets", node.httpGetAssets)
 	router.POST("/deployed_assets", node.httpDeployAssets)
+	router.POST("/nonce_accounts", node.httpLockNonce)
 	router.POST("/storages", node.httpStorageTxs)
-	router.POST("/", node.httpLockNonce)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
 	if err != nil {
