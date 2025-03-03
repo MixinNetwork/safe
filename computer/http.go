@@ -31,7 +31,8 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/users/:addr", node.httpGetUser)
 	router.GET("/deployed_assets", node.httpGetAssets)
 	router.POST("/deployed_assets", node.httpDeployAssets)
-	router.POST("/nonce_accounts", node.httpLockNonce)
+	router.POST("/storages", node.httpStorageTxs)
+	router.POST("/", node.httpLockNonce)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
 	if err != nil {
@@ -199,5 +200,30 @@ func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params m
 		"mix":           body.Mix,
 		"nonce_address": nonce.Address,
 		"nonce_hash":    nonce.Hash,
+	})
+}
+
+func (node *Node) httpStorageTxs(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	ctx := r.Context()
+	var body struct {
+		Storages []string `json:"storages"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+
+	var references []string
+	for _, tx := range body.Storages {
+		hash, err := node.storageSolanaTx(ctx, tx)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+			return
+		}
+		references = append(references, hash)
+	}
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"references": references,
 	})
 }

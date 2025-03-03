@@ -510,6 +510,23 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	return nil
 }
 
+func (node *Node) storageSolanaTx(ctx context.Context, raw string) (string, error) {
+	rb, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return "", err
+	}
+	_, err = solana.TransactionFromBytes(rb)
+	if err != nil {
+		return "", err
+	}
+	trace := common.UniqueId(raw, "storage-solana-tx")
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, rb, trace, *node.safeUser())
+	if err != nil {
+		return "", err
+	}
+	return hash.String(), nil
+}
+
 func (node *Node) readPropertyAsTime(ctx context.Context, key string) time.Time {
 	val, err := node.store.ReadProperty(ctx, key)
 	if err != nil {
