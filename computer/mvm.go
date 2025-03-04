@@ -119,6 +119,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		logger.Printf("reference %s is already spent", hash)
 		return node.failRequest(ctx, req, "")
 	}
+	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
@@ -148,7 +149,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		if err != nil {
 			panic(err)
 		}
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold))
+		return node.refundAndFailRequest(ctx, req, as, mix.Members(), int(mix.Threshold))
 	}
 	if req.AssetId != plan.OperationPriceAsset || req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
 		return node.failRequest(ctx, req, "")
@@ -224,14 +225,13 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
 		return node.failRequest(ctx, req, "")
 	}
+	rs := node.GetSystemCallReferenceTxs(ctx, callId)
+	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	switch flag {
 	case ConfirmFlagNonceAvailable:
 		var txs []*mtg.Transaction
 		var ids []string
-		rs := node.GetSystemCallReferenceTxs(ctx, callId)
-		as := node.GetSystemCallRelatedAsset(ctx, rs)
-
 		destination := node.getMTGAddress(ctx).String()
 		for _, asset := range as {
 			if !asset.Solana {
@@ -266,7 +266,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if err != nil {
 			panic(err)
 		}
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold))
+		return node.refundAndFailRequest(ctx, req, as, mix.Members(), int(mix.Threshold))
 	default:
 		logger.Printf("invalid nonce confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")
@@ -619,11 +619,26 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if err != nil || call == nil {
 			panic(err)
 		}
-		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call)
+		user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+		if err != nil || user == nil {
+			panic(err)
+		}
+		mix, err := bot.NewMixAddressFromString(user.MixAddress)
 		if err != nil {
 			panic(err)
 		}
-		return nil, ""
+
+		rs := node.GetSystemCallReferenceTxs(ctx, callId)
+		as := node.GetSystemCallRelatedAsset(ctx, rs)
+		txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
+		if compaction != "" {
+			return node.failRequest(ctx, req, compaction)
+		}
+		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, txs)
+		if err != nil {
+			panic(err)
+		}
+		return txs, ""
 	default:
 		logger.Printf("invalid confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")

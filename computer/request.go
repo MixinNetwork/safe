@@ -136,17 +136,30 @@ func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {
 	return DecodeRequest(out, m, role)
 }
 
-func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, receivers []string, threshold int) ([]*mtg.Transaction, string) {
-	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), []byte("refund"), req.Id)
-	if t == nil {
-		return node.failRequest(ctx, req, req.AssetId)
+func (node *Node) buildRefundTxs(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, receivers []string, threshold int) ([]*mtg.Transaction, string) {
+	var txs []*mtg.Transaction
+	for _, as := range am {
+		memo := []byte(fmt.Sprintf("refund-%s", as.Asset.AssetID))
+		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), memo, req.Id)
+		if t == nil {
+			return nil, as.Asset.AssetID
+		}
+		txs = append(txs, t)
 	}
-	err := node.store.FailRequest(ctx, req, "", []*mtg.Transaction{t})
+	return txs, ""
+}
+
+func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, receivers []string, threshold int) ([]*mtg.Transaction, string) {
+	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
+	txs, compaction := node.buildRefundTxs(ctx, req, am, receivers, threshold)
+	if compaction != "" {
+		return node.failRequest(ctx, req, compaction)
+	}
+	err := node.store.FailRequest(ctx, req, "", txs)
 	if err != nil {
 		panic(err)
 	}
-	return []*mtg.Transaction{t}, ""
+	return txs, ""
 }
 
 func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId string) ([]*mtg.Transaction, string) {

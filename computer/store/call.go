@@ -279,7 +279,7 @@ func (s *SQLite3Store) ConfirmSystemCallSuccessWithRequest(ctx context.Context, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req *Request, call *SystemCall) error {
+func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -295,7 +295,7 @@ func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
 
-	err = s.finishRequest(ctx, tx, req, nil, "")
+	err = s.finishRequest(ctx, tx, req, txs, "")
 	if err != nil {
 		return err
 	}
