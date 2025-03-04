@@ -91,9 +91,10 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
+	hash := tx.Signatures[0]
 	err := node.solanaProcessCallTransaction(ctx, tx)
 	if err != nil {
-		logger.Printf("node.solanaProcessCallTransaction(%s) => %v", tx.Signatures[0].String(), err)
+		logger.Printf("node.solanaProcessCallTransaction(%s) => %v", hash.String(), err)
 		return err
 	}
 
@@ -102,9 +103,12 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		panic(err)
 	}
 	changes, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
-	if err != nil || len(changes) == 0 {
-		logger.Printf("node.parseSolanaBlockBalanceChanges(%d) => %d %v", len(transfers), len(changes), err)
+	if err != nil {
+		logger.Printf("node.parseSolanaBlockBalanceChanges(%s %d) => %d %v", hash.String(), len(transfers), len(changes), err)
 		return err
+	}
+	if len(changes) == 0 {
+		return nil
 	}
 	tsMap := make(map[string][]*solanaApp.TokenTransfers)
 	for _, transfer := range transfers {
@@ -130,7 +134,6 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			Decimals:    decimal,
 		})
 	}
-	hash := tx.Signatures[0]
 	for user, ts := range tsMap {
 		err = node.solanaProcessDepositTransaction(ctx, hash, user, ts)
 		if err != nil {
