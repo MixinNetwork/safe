@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/dimfeld/httptreemux/v5"
@@ -215,9 +216,10 @@ func (node *Node) httpStorageTxs(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	var references []string
-	for _, tx := range body.Storages {
+	for index, tx := range body.Storages {
 		hash, err := node.storageSolanaTx(ctx, tx)
 		if err != nil {
+			logger.Printf("node.storageSolanaTx(%d %s) => %v", index, tx, err)
 			common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
 			return
 		}

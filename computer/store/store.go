@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -84,7 +83,6 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	logger.Printf("SQLite3Store.WriteProperty(%s)", k)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
