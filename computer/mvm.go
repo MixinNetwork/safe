@@ -110,6 +110,17 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(req.Action)
 	}
 
+	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
+	if err != nil {
+		panic(err)
+	}
+	if plan == nil ||
+		!plan.OperationPriceAmount.IsPositive() ||
+		req.AssetId != plan.OperationPriceAsset ||
+		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
+		return node.failRequest(ctx, req, "")
+	}
+
 	rs := node.GetSystemCallReferenceTxs(ctx, req.Id)
 	hash, err := node.store.CheckReferencesSpent(ctx, rs)
 	if err != nil {
@@ -119,7 +130,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		logger.Printf("reference %s is already spent", hash)
 		return node.failRequest(ctx, req, "")
 	}
-	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
@@ -137,21 +147,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	if err != nil {
 		panic(fmt.Errorf("store.ReadUser() => %v", err))
 	} else if user == nil {
-		return node.failRequest(ctx, req, "")
-	}
-
-	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
-	if err != nil {
-		panic(err)
-	}
-	if plan == nil || !plan.OperationPriceAmount.IsPositive() {
-		mix, err := bot.NewMixAddressFromString(user.MixAddress)
-		if err != nil {
-			panic(err)
-		}
-		return node.refundAndFailRequest(ctx, req, as, mix.Members(), int(mix.Threshold))
-	}
-	if req.AssetId != plan.OperationPriceAsset || req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
 		return node.failRequest(ctx, req, "")
 	}
 

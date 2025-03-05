@@ -39,6 +39,31 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId strin
 		ver.References = []crypto.Hash{h1, h2}
 	}
 
+	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
+	if err != nil {
+		panic(err)
+	}
+	outputs := node.group.ListOutputsByTransactionHash(ctx, req.MixinHash.String(), req.Sequence)
+	total := decimal.NewFromInt(0)
+	for _, output := range outputs {
+		total = total.Add(output.Amount)
+	}
+	if total.Compare(plan.OperationPriceAmount) == 1 {
+		amount := total.Sub(plan.OperationPriceAmount)
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, req.AssetId)
+		if err != nil {
+			panic(err)
+		}
+		refs = append(refs, &store.SpentReference{
+			TransactionHash: req.MixinHash.String(),
+			RequestId:       req.Id,
+			ChainId:         bot.EthereumChainId,
+			AssetId:         bot.XINAssetId,
+			Amount:          amount.String(),
+			Asset:           asset,
+		})
+	}
+
 	for _, ref := range ver.References {
 		rs := node.getSystemCallReferenceTx(ctx, req, ref.String())
 		if len(rs) > 0 {
