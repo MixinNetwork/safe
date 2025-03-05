@@ -357,16 +357,16 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		id := common.UniqueId(call.RequestId, "confirm")
+		id := common.UniqueId(call.RequestId, "confirm-nonce")
 		extra := []byte{ConfirmFlagNonceAvailable}
 		if nonce == nil || nonce.CallId.Valid || !nonce.Mix.Valid {
-			id = common.UniqueId(id, "expired")
+			id = common.UniqueId(id, "expired-nonce")
 			extra = []byte{ConfirmFlagNonceExpired}
 		}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
-			Type:  ConfirmFlagNonceAvailable,
+			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
 		})
 		if err != nil {
