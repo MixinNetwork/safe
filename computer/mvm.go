@@ -168,9 +168,9 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	advance, flag := solanaApp.NonceAccountFromTx(tx)
-	logger.Printf("solana.NonceAccountFromTx() => %v %t", advance, flag)
-	if !flag {
+	advance, err := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
+	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
 	msg, err := tx.Message.MarshalBinary()
@@ -328,9 +328,9 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 	if err != nil {
 		panic(err)
 	}
-	advance, flag := solanaApp.NonceAccountFromTx(tx)
-	logger.Printf("solana.NonceAccountFromTx() => %v %t", advance, flag)
-	if !flag {
+	advance, err := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
+	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
 	msg, err := tx.Message.MarshalBinary()
@@ -464,9 +464,9 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	if err != nil {
 		panic(err)
 	}
-	advance, flag := solanaApp.NonceAccountFromTx(tx)
-	logger.Printf("solana.NonceAccountFromTx() => %v %t", advance, flag)
-	if !flag {
+	advance, err := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
+	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
 	msg, err := tx.Message.MarshalBinary()

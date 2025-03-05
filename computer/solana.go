@@ -383,9 +383,9 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 		}
 
 		if index == 0 {
-			_, ok := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
-			if !ok {
-				return fmt.Errorf("invalid nonce advance instruction")
+			_, err := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
+			if err != nil {
+				return fmt.Errorf("invalid nonce advance instruction: %v", err)
 			}
 			continue
 		}
@@ -459,9 +459,9 @@ func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transacti
 		}
 
 		if index == 0 {
-			_, ok := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
-			if !ok {
-				return fmt.Errorf("invalid nonce advance instruction")
+			_, err := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
+			if err != nil {
+				return fmt.Errorf("invalid nonce advance instruction: %v", err)
 			}
 			continue
 		}

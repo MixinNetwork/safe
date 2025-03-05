@@ -320,23 +320,23 @@ func DecodeTokenMintTo(accounts solana.AccountMetaSlice, data []byte) (*token.Mi
 	return nil, false
 }
 
-func DecodeNonceAdvance(accounts solana.AccountMetaSlice, data []byte) (*system.AdvanceNonceAccount, bool) {
+func DecodeNonceAdvance(accounts solana.AccountMetaSlice, data []byte) (*system.AdvanceNonceAccount, error) {
 	ix, err := system.DecodeInstruction(accounts, data)
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 	advance, ok := ix.Impl.(*system.AdvanceNonceAccount)
 	if ok {
-		return advance, true
+		return advance, nil
 	}
-	return nil, false
+	return nil, fmt.Errorf("invalid nonce advance instruction")
 }
 
-func NonceAccountFromTx(tx *solana.Transaction) (*system.AdvanceNonceAccount, bool) {
+func NonceAccountFromTx(tx *solana.Transaction) (*system.AdvanceNonceAccount, error) {
 	ins := tx.Message.Instructions[0]
 	accounts, err := ins.ResolveInstructionAccounts(&tx.Message)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return DecodeNonceAdvance(accounts, ins.Data)
 }
