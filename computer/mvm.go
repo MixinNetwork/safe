@@ -175,7 +175,8 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 	msg, err := tx.Message.MarshalBinary()
 	if err != nil {
-		panic(err)
+		logger.Printf("solana.MarshalBinary() => %v", err)
+		return node.failRequest(ctx, req, "")
 	}
 	call := &store.SystemCall{
 		RequestId:       req.Id,
