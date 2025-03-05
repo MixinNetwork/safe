@@ -195,7 +195,7 @@ func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (s
 }
 
 // processTransactionWithAddressLookups resolves the address lookups in the transaction.
-func (c *Client) processTransactionWithAddressLookups(ctx context.Context, txx *solana.Transaction) error {
+func (c *Client) ProcessTransactionWithAddressLookups(ctx context.Context, txx *solana.Transaction) error {
 	if txx.Message.IsResolved() {
 		return nil
 	}

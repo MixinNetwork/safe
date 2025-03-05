@@ -285,7 +285,7 @@ func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana
 		return nil, nil
 	}
 
-	if err := c.processTransactionWithAddressLookups(ctx, tx); err != nil {
+	if err := c.ProcessTransactionWithAddressLookups(ctx, tx); err != nil {
 		// FIXME handle address table closed
 		if strings.Contains(err.Error(), "get account info: not found") {
 			return nil, nil

@@ -168,6 +168,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
+	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
 	advance, err := solanaApp.NonceAccountFromTx(tx)
 	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
 	if err != nil {
@@ -328,6 +332,10 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 	if err != nil {
 		panic(err)
 	}
+	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
 	advance, err := solanaApp.NonceAccountFromTx(tx)
 	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
 	if err != nil {
@@ -461,6 +469,10 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	raw := node.readStorageExtraFromObserver(ctx, hash)
 	tx, err := solana.TransactionFromBytes(raw)
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
+	if err != nil {
+		panic(err)
+	}
+	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
