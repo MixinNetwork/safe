@@ -14,6 +14,8 @@ github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/
 github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
 github.com/MixinNetwork/trusted-group v0.10.0 h1:srbl4fl6B3+EscFG1dRGYXMYLkpO3X8vlt5HDlKGAKY=
 github.com/MixinNetwork/trusted-group v0.10.0/go.mod h1:mk4j2xhMJ8IH8l0gS19IgmK0bjHqLMnyhwAj6CH6h64=
+github.com/MixinNetwork/trusted-group v0.10.1-0.20250306135727-78b6655350e6 h1:6/hYBYg9eAQraaOQqMHiha/Z9SIAjAkDR42Wz4znhiw=
+github.com/MixinNetwork/trusted-group v0.10.1-0.20250306135727-78b6655350e6/go.mod h1:mk4j2xhMJ8IH8l0gS19IgmK0bjHqLMnyhwAj6CH6h64=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
