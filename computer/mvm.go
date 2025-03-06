@@ -276,7 +276,15 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if err != nil {
 			panic(err)
 		}
-		return node.refundAndFailRequest(ctx, req, as, mix.Members(), int(mix.Threshold))
+		txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
+		if compaction != "" {
+			return node.failRequest(ctx, req, compaction)
+		}
+		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, txs)
+		if err != nil {
+			panic(err)
+		}
+		return txs, ""
 	default:
 		logger.Printf("invalid nonce confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")
