@@ -646,33 +646,33 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if err != nil || call == nil {
 			panic(err)
 		}
-		user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-		if err != nil || user == nil {
-			panic(err)
-		}
-		mix, err := bot.NewMixAddressFromString(user.MixAddress)
-		if err != nil {
-			panic(err)
-		}
 
-		rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
-		if err != nil {
-			err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
-			if err != nil {
-				panic(err)
-			}
-			return nil, ""
-		}
-		as := node.GetSystemCallRelatedAsset(ctx, rs)
-		txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
-		if compaction != "" {
-			return node.failRequest(ctx, req, compaction)
-		}
-		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, txs)
+		// user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+		// if err != nil || user == nil {
+		// 	panic(err)
+		// }
+		// mix, err := bot.NewMixAddressFromString(user.MixAddress)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+		// if err != nil {
+		// 	err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
+		// 	return nil, ""
+		// }
+		// as := node.GetSystemCallRelatedAsset(ctx, rs)
+		// txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
+		// if compaction != "" {
+		// 	return node.failRequest(ctx, req, compaction)
+		// }
+		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
 		if err != nil {
 			panic(err)
 		}
-		return txs, ""
+		return nil, ""
 	default:
 		logger.Printf("invalid confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")

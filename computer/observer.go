@@ -395,6 +395,13 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 			panic(err)
 		}
 		id := common.UniqueId(call.RequestId, store.CallTypePrepare)
+		old, err := node.store.ReadSystemCallByRequestId(ctx, id, 0)
+		if err != nil {
+			panic(err)
+		}
+		if old != nil && old.State == common.RequestStateFailed {
+			id = common.UniqueId(id, old.RequestId)
+		}
 		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(id, "storage"), *node.safeUser())
 		if err != nil {
 			return err
@@ -454,6 +461,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
+		logger.Printf("node.handleSignedCalls(%s)", call.RequestId)
 		publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
 		tx, err := solana.TransactionFromBase64(call.Raw)
 		if err != nil {
@@ -490,7 +498,14 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
-			panic(err)
+			id := common.UniqueId(call.RequestId, "fail-call")
+			extra := []byte{FlagConfirmCallFail}
+			extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+			return node.sendObserverTransactionToGroup(ctx, &common.Operation{
+				Id:    id,
+				Type:  OperationTypeConfirmCall,
+				Extra: extra,
+			})
 		}
 		var meta *rpc.TransactionMeta
 		for {
