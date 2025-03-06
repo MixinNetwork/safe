@@ -591,6 +591,51 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	return node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
 }
 
+func (node *Node) clearTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
+	rs, err := node.GetSystemCallReferenceTxs(ctx, main.RequestId)
+	if err != nil {
+		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", main.RequestId, err))
+	}
+	assets := node.GetSystemCallRelatedAsset(ctx, rs)
+	if len(assets) == 0 {
+		return nil
+	}
+
+	var transfers []*solanaApp.TokenTransfers
+	for _, asset := range assets {
+		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Asset.Precision)))
+		if asset.Solana {
+			mint := solana.MustPublicKeyFromBase58(asset.Asset.AssetKey)
+			transfers = append(transfers, &solanaApp.TokenTransfers{
+				SolanaAsset: true,
+				AssetId:     asset.Asset.AssetID,
+				ChainId:     asset.Asset.ChainID,
+				Mint:        mint,
+				Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
+				Amount:      amount.BigInt().Uint64(),
+				Decimals:    uint8(asset.Asset.Precision),
+			})
+		}
+		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
+		if err != nil || da == nil {
+			panic(fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", asset.Asset.AssetID, da, err))
+		}
+		transfers = append(transfers, &solanaApp.TokenTransfers{
+			SolanaAsset: false,
+			AssetId:     asset.Asset.AssetID,
+			ChainId:     asset.Asset.ChainID,
+			Mint:        da.PublicKey(),
+			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
+			Amount:      amount.BigInt().Uint64(),
+			Decimals:    uint8(asset.Asset.Precision),
+		})
+	}
+	if len(transfers) == 0 {
+		panic(fmt.Errorf("empty transfers for system call: %s", main.RequestId))
+	}
+	return node.transferRestTokens(ctx, source, nonce, transfers)
+}
+
 func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
 	rs, err := node.GetSystemCallReferenceTxs(ctx, main.RequestId)
 	if err != nil {

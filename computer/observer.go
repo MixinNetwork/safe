@@ -498,14 +498,8 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
-			id := common.UniqueId(call.RequestId, "fail-call")
-			extra := []byte{FlagConfirmCallFail}
-			extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-			return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-				Id:    id,
-				Type:  OperationTypeConfirmCall,
-				Extra: extra,
-			})
+			logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
+			return node.handleFailedCall(ctx, call)
 		}
 		var meta *rpc.TransactionMeta
 		for {
@@ -531,6 +525,60 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		time.Sleep(1 * time.Minute)
 	}
 	return nil
+}
+
+func (node *Node) handleFailedCall(ctx context.Context, call *store.SystemCall) error {
+	id := common.UniqueId(call.RequestId, "confirm-fail")
+	extra := []byte{FlagConfirmCallFail}
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+	err := node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeConfirmCall,
+		Extra: extra,
+	})
+	if err != nil {
+		return err
+	}
+	if call.Type != store.CallTypeMain {
+		return nil
+	}
+
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	if err != nil {
+		panic(err)
+	}
+	tx := node.clearTokens(ctx, call, node.getMTGAddress(ctx), nonce)
+	if tx == nil {
+		return nil
+	}
+	data, err := tx.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	id = common.UniqueId(call.RequestId, "post-process")
+	old, err := node.store.ReadSystemCallByRequestId(ctx, id, 0)
+	if err != nil {
+		panic(err)
+	}
+	if old != nil && old.State == common.RequestStateFailed {
+		id = common.UniqueId(id, old.RequestId)
+	}
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(id, "storage"), *node.safeUser())
+	if err != nil {
+		return err
+	}
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
+	if err != nil {
+		return err
+	}
+	extra = uuid.Must(uuid.FromString(id)).Bytes()
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+	extra = append(extra, hash[:]...)
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeCreateSubCall,
+		Extra: extra,
+	})
 }
 
 func (node *Node) storageSolanaTx(ctx context.Context, raw string) (string, error) {
