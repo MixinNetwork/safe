@@ -163,6 +163,28 @@ func (s *SQLite3Store) ListLockedNonceAccounts(ctx context.Context) ([]*NonceAcc
 	return as, nil
 }
 
+func (s *SQLite3Store) ListNonceAccounts(ctx context.Context) ([]*NonceAccount, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM nonce_accounts LIMIT 500", strings.Join(nonceAccountCols, ","))
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var as []*NonceAccount
+	for rows.Next() {
+		nonce, err := nonceAccountFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		as = append(as, nonce)
+	}
+	return as, nil
+}
+
 func (s *SQLite3Store) ReadNonceAccount(ctx context.Context, address string) (*NonceAccount, error) {
 	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE address=?", strings.Join(nonceAccountCols, ","))
 	row := s.db.QueryRowContext(ctx, query, address)
