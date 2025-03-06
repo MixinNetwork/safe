@@ -165,7 +165,7 @@ operation-price-amount = "0.001"
 mpc-key-number = 1
 mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://kernel.mixin.dev"
-solana-rpc = "https://api.mainnet-beta.solana.com"
+solana-rpc = "https://omniscient-omniscient-reel.solana-mainnet.quiknode.pro/ba89021c3319102fdeaaba182d89b8039280ef21"
 # solana private key to sign and send transaction
 solana-key = "56HtVW5YQ9Xi8MTeQFAWdSuzV17mrDAr1AUCYzTdx36VLvsodA89eSuZd6axrufzo4tyoUNdgjDpm4fnLJLRcXmF"
 solana-deposit-entry = "HT7X7p5XPERge4ZShYALRKzkgxua1fW7rVMfwChRrG9V"

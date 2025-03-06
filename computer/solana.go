@@ -615,6 +615,7 @@ func (node *Node) clearTokens(ctx context.Context, main *store.SystemCall, sourc
 				Amount:      amount.BigInt().Uint64(),
 				Decimals:    uint8(asset.Asset.Precision),
 			})
+			continue
 		}
 		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
 		if err != nil || da == nil {
