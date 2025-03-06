@@ -228,7 +228,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	rs, err := node.GetSystemCallReferenceTxs(ctx, req.Id)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
 	if err != nil {
 		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
 		if err != nil {
@@ -655,7 +655,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			panic(err)
 		}
 
-		rs, err := node.GetSystemCallReferenceTxs(ctx, req.Id)
+		rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
 		if err != nil {
 			err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
 			if err != nil {
