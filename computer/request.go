@@ -129,8 +129,8 @@ func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {
 	if a != node.conf.AppId {
 		panic(out.Extra)
 	}
-	if m == nil {
-		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
+	if len(m) == 0 {
+		return nil, fmt.Errorf("node.parseUserRequest(%v)", out)
 	}
 	role := node.requestRole(out.AssetId)
 	return DecodeRequest(out, m, role)
