@@ -121,7 +121,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	rs := node.GetSystemCallReferenceTxs(ctx, req.Id)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, req.Id)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	hash, err := node.store.CheckReferencesSpent(ctx, rs)
 	if err != nil {
 		panic(fmt.Errorf("store.CheckReferencesSpent() => %v", err))
@@ -225,7 +228,14 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	rs := node.GetSystemCallReferenceTxs(ctx, callId)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, req.Id)
+	if err != nil {
+		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
+		if err != nil {
+			panic(err)
+		}
+		return nil, ""
+	}
 	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	switch flag {
@@ -636,7 +646,14 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			panic(err)
 		}
 
-		rs := node.GetSystemCallReferenceTxs(ctx, callId)
+		rs, err := node.GetSystemCallReferenceTxs(ctx, req.Id)
+		if err != nil {
+			err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
+			if err != nil {
+				panic(err)
+			}
+			return nil, ""
+		}
 		as := node.GetSystemCallRelatedAsset(ctx, rs)
 		txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
 		if compaction != "" {

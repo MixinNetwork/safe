@@ -23,7 +23,7 @@ type ReferencedTxAsset struct {
 	Asset  *bot.AssetNetwork
 }
 
-func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId string) []*store.SpentReference {
+func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId string) ([]*store.SpentReference, error) {
 	var refs []*store.SpentReference
 	req, err := node.store.ReadRequest(ctx, requestId)
 	if err != nil || req == nil {
@@ -65,25 +65,28 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId strin
 	}
 
 	for _, ref := range ver.References {
-		rs := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		rs, err := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		if err != nil {
+			return nil, err
+		}
 		if len(rs) > 0 {
 			refs = append(refs, rs...)
 		}
 	}
-	return refs
+	return refs, nil
 }
 
-func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) []*store.SpentReference {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) ([]*store.SpentReference, error) {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
 	}
 	if ver.Asset.String() == "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc" && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
-		return nil
+		return nil, nil
 	}
 	outputs := node.group.ListOutputsByTransactionHash(ctx, hash, req.Sequence)
 	if len(outputs) == 0 {
-		return nil
+		return nil, fmt.Errorf("unreceived reference %s", hash)
 	}
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
@@ -105,12 +108,15 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 	}
 
 	for _, ref := range ver.References {
-		rs := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		rs, err := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		if err != nil {
+			return nil, err
+		}
 		if len(rs) > 0 {
 			refs = append(refs, rs...)
 		}
 	}
-	return refs
+	return refs, nil
 }
 
 func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {

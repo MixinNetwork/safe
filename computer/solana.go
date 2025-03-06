@@ -542,7 +542,10 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
 
 	var transfers []solanaApp.TokenTransfers
-	rs := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+	if err != nil {
+		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
+	}
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	for _, asset := range assets {
 		if asset.Solana {
@@ -580,7 +583,10 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 }
 
 func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
-	rs := node.GetSystemCallReferenceTxs(ctx, main.RequestId)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, main.RequestId)
+	if err != nil {
+		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", main.RequestId, err))
+	}
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	var externals []string
 	as := make(map[string]string)
