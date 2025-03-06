@@ -290,7 +290,7 @@ func (s *SQLite3Store) ConfirmSystemCallFailWithRequest(ctx context.Context, req
 	defer common.Rollback(tx)
 
 	query := "UPDATE system_calls SET state=?, updated_at=? WHERE request_id=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateFailed, req.CreatedAt, call.RequestId, common.RequestStatePending)
+	err = s.execOne(ctx, tx, query, common.RequestStateFailed, req.CreatedAt, call.RequestId, call.State)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
