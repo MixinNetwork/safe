@@ -21,6 +21,7 @@ import (
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 const SolanaBlockDelay = 32
@@ -553,6 +554,8 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	}
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	for _, asset := range assets {
+		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Asset.Precision)))
+
 		if asset.Solana {
 			mint := solana.MustPublicKeyFromBase58(asset.Asset.AssetKey)
 			transfers = append(transfers, solanaApp.TokenTransfers{
@@ -561,11 +564,12 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 				ChainId:     asset.Asset.ChainID,
 				Mint:        mint,
 				Destination: destination,
-				Amount:      asset.Amount.BigInt().Uint64(),
+				Amount:      amount.BigInt().Uint64(),
 				Decimals:    uint8(asset.Asset.Precision),
 			})
 			continue
 		}
+
 		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
 		if err != nil || da == nil {
 			return nil, fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", asset.Asset.AssetID, da, err)
@@ -576,7 +580,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 			ChainId:     asset.Asset.ChainID,
 			Mint:        da.PublicKey(),
 			Destination: destination,
-			Amount:      asset.Amount.BigInt().Uint64(),
+			Amount:      amount.BigInt().Uint64(),
 			Decimals:    uint8(asset.Asset.Precision),
 		})
 	}
