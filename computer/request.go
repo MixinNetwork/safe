@@ -138,9 +138,9 @@ func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {
 
 func (node *Node) buildRefundTxs(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, receivers []string, threshold int) ([]*mtg.Transaction, string) {
 	var txs []*mtg.Transaction
-	for _, as := range am {
+	for id, as := range am {
 		memo := []byte(fmt.Sprintf("refund-%s", as.Asset.AssetID))
-		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, req.AssetId, receivers, threshold, req.Amount.String(), memo, req.Id)
+		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, id, receivers, threshold, as.Amount.String(), memo, req.Id)
 		if t == nil {
 			return nil, as.Asset.AssetID
 		}
