@@ -459,6 +459,10 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+		if err != nil {
+			return err
+		}
 		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
 		if err != nil {
 			panic(err)
