@@ -142,6 +142,9 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 	}
 	for _, a := range am {
 		logger.Printf("node.GetSystemCallRelatedAsset() => %v", a)
+		if !a.Amount.IsPositive() {
+			panic(a)
+		}
 	}
 	return am
 }
