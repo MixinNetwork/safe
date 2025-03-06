@@ -459,6 +459,11 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
+		if err != nil {
+			panic(err)
+		}
+
 		accounts, err := tx.AccountMetaList()
 		if err != nil {
 			return err
@@ -478,10 +483,6 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			panic(err)
 		}
 		tx.Signatures[index] = solana.SignatureFromBytes(sig)
-		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
-		if err != nil {
-			panic(err)
-		}
 
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
