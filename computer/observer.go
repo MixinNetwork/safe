@@ -394,12 +394,11 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		id := common.UniqueId(call.RequestId, "mints-tx-storage")
-		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+		id := common.UniqueId(call.RequestId, store.CallTypePrepare)
+		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(id, "storage"), *node.safeUser())
 		if err != nil {
 			return err
 		}
-		id = common.UniqueId(id, "mints-tx")
 		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
 		if err != nil {
 			return err

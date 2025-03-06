@@ -404,6 +404,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 				if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
 					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 				}
+				continue
 			}
 			return fmt.Errorf("invalid system program instruction: %d", index)
 		case solana.TokenProgramID, solana.Token2022ProgramID:
