@@ -249,7 +249,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			}
 			id := common.UniqueId(req.Id, asset.Asset.AssetID)
 			id = common.UniqueId(id, "withdrawal")
-			memo := []byte(req.Id)
+			memo := []byte(call.RequestId)
 			tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, destination, "", id)
 			if tx == nil {
 				return node.failRequest(ctx, req, asset.Asset.AssetID)
@@ -411,7 +411,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 
 	extra := req.ExtraBytes()
 	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	reqId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
+	callId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
 	hash := solana.SignatureFromBytes(extra[32:]).String()
 
 	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.safeUser(), txId)
@@ -425,8 +425,8 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 		panic(err)
 	}
 
-	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, common.RequestStateInitial)
-	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
+	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
 	if err != nil {
 		panic(err)
 	}
