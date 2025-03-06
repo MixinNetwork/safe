@@ -149,19 +149,6 @@ func (node *Node) buildRefundTxs(ctx context.Context, req *store.Request, am map
 	return txs, ""
 }
 
-func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, receivers []string, threshold int) ([]*mtg.Transaction, string) {
-	logger.Printf("node.refundAndFailRequest(%v) => %v %d", req, receivers, threshold)
-	txs, compaction := node.buildRefundTxs(ctx, req, am, receivers, threshold)
-	if compaction != "" {
-		return node.failRequest(ctx, req, compaction)
-	}
-	err := node.store.FailRequest(ctx, req, "", txs)
-	if err != nil {
-		panic(err)
-	}
-	return txs, ""
-}
-
 func (node *Node) failRequest(ctx context.Context, req *store.Request, assetId string) ([]*mtg.Transaction, string) {
 	logger.Printf("node.failRequest(%v, %s)", req, assetId)
 	err := node.store.FailRequest(ctx, req, assetId, nil)
