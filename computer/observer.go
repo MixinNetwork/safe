@@ -400,8 +400,12 @@ func (node *Node) handleInitialCalls(ctx context.Context) error {
 			return err
 		}
 		id = common.UniqueId(id, "mints-tx")
-		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
-		extra = append(extra, solana.MustPublicKeyFromBase58(nonce.Address).Bytes()...)
+		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
+		if err != nil {
+			return err
+		}
+		extra := uuid.Must(uuid.FromString(id)).Bytes()
+		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 		extra = append(extra, hash[:]...)
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,

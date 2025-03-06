@@ -210,8 +210,12 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 	}
 
 	id = common.UniqueId(id, "craete-post-call")
-	extra = uuid.Must(uuid.FromString(call.RequestId)).Bytes()
-	extra = append(extra, nonce.Account().Address.Bytes()...)
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
+	if err != nil {
+		return err
+	}
+	extra = uuid.Must(uuid.FromString(id)).Bytes()
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 	extra = append(extra, hash[:]...)
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,

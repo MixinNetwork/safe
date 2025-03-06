@@ -94,7 +94,7 @@ func testObserverCreatePostprocessCall(ctx context.Context, require *require.Ass
 	ref := crypto.Sha256Hash(raw)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	var extra []byte
+	extra := uuid.Must(uuid.FromString(id)).Bytes()
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 	extra = append(extra, ref[:]...)
 
@@ -233,7 +233,7 @@ func testObserverCreateSubCall(ctx context.Context, require *require.Assertions,
 	ref := crypto.Sha256Hash(raw)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	var extra []byte
+	extra := uuid.Must(uuid.FromString(id)).Bytes()
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 	extra = append(extra, ref[:]...)
 

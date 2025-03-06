@@ -461,16 +461,17 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 
 	extra := req.ExtraBytes()
-	reqId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	hash, err := crypto.HashFromString(hex.EncodeToString(extra[16:48]))
+	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
+	mainId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
+	hash, err := crypto.HashFromString(hex.EncodeToString(extra[32:64]))
 	if err != nil {
 		panic(err)
 	}
 
-	call, err := node.store.ReadSystemCallByRequestId(ctx, reqId, 0)
-	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", reqId, call, err)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, mainId, 0)
+	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", mainId, call, err)
 	if err != nil {
-		panic(reqId)
+		panic(mainId)
 	}
 	if call == nil {
 		return node.failRequest(ctx, req, "")
@@ -510,7 +511,7 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 	}
 
 	sub := &store.SystemCall{
-		RequestId:        req.Id,
+		RequestId:        callId,
 		Superior:         call.RequestId,
 		NonceAccount:     advance.GetNonceAccount().PublicKey.String(),
 		Message:          hex.EncodeToString(msg),
