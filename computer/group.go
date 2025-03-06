@@ -50,6 +50,9 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if isDeposit {
 		return node.processDeposit(ctx, out)
 	}
+	if len(out.Extra) == 0 {
+		return nil, ""
+	}
 
 	req, err := node.parseRequest(out)
 	logger.Printf("node.parseRequest(%v) => %v %v", out, req, err)
