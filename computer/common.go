@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
@@ -122,6 +123,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
 	for _, ref := range rs {
+		logger.Verbosef("node.GetReferencedTxAsset() => %v", ref)
 		amt, err := decimal.NewFromString(ref.Amount)
 		if err != nil {
 			panic(err)
@@ -137,6 +139,9 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 			ra.Amount = ra.Amount.Add(old.Amount)
 		}
 		am[ref.AssetId] = ra
+	}
+	for _, a := range am {
+		logger.Verbosef("node.GetSystemCallRelatedAsset() => %v", a)
 	}
 	return am
 }
