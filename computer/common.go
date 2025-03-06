@@ -123,7 +123,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
 	for _, ref := range rs {
-		logger.Verbosef("node.GetReferencedTxAsset() => %v", ref)
+		logger.Printf("node.GetReferencedTxAsset() => %v", ref)
 		amt, err := decimal.NewFromString(ref.Amount)
 		if err != nil {
 			panic(err)
@@ -141,7 +141,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 		am[ref.AssetId] = ra
 	}
 	for _, a := range am {
-		logger.Verbosef("node.GetSystemCallRelatedAsset() => %v", a)
+		logger.Printf("node.GetSystemCallRelatedAsset() => %v", a)
 	}
 	return am
 }
