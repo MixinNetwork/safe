@@ -822,6 +822,14 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		if t.Receiver != node.solanaDepositEntry().String() {
 			continue
 		}
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, t.AssetId)
+		if err != nil {
+			panic(err)
+		}
+		amount := decimal.NewFromBigInt(t.Value, -int32(asset.Precision))
+		if amount.Cmp(out.Amount) != 0 {
+			panic(fmt.Errorf("invalid deposit amount: %s %s", amount.String(), out.Amount))
+		}
 		user, err := node.store.ReadUserByChainAddress(ctx, t.Sender)
 		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Sender, user, err)
 		if err != nil {
@@ -835,7 +843,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		}
 		id := common.UniqueId(deposit.Transaction, fmt.Sprintf("deposit-%d", i))
 		id = common.UniqueId(id, t.Receiver)
-		tx := node.buildTransaction(ctx, out, node.conf.AppId, t.AssetId, mix.Members(), int(mix.Threshold), t.Value.String(), []byte("deposit"), id)
+		tx := node.buildTransaction(ctx, out, node.conf.AppId, t.AssetId, mix.Members(), int(mix.Threshold), out.Amount.String(), []byte("deposit"), id)
 		if tx == nil {
 			compaction = t.AssetId
 			txs = nil
