@@ -31,6 +31,7 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/favicon.ico", node.httpFavicon)
 	router.GET("/users/:addr", node.httpGetUser)
 	router.GET("/deployed_assets", node.httpGetAssets)
+	router.GET("/system_calls/:id", node.httpGetSystemCall)
 	router.POST("/deployed_assets", node.httpDeployAssets)
 	router.POST("/nonce_accounts", node.httpLockNonce)
 	router.POST("/storages", node.httpStorageTx)
@@ -94,6 +95,38 @@ func (node *Node) httpGetUser(w http.ResponseWriter, r *http.Request, params map
 		"id":            user.UserId,
 		"mix_address":   user.MixAddress,
 		"chain_address": user.ChainAddress,
+	})
+}
+
+func (node *Node) httpGetSystemCall(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	ctx := r.Context()
+	call, err := node.store.ReadSystemCallByRequestId(ctx, params["addr"], 0)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if call == nil || call.Type != store.CallTypeMain {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "404"})
+		return
+	}
+	var state string
+	switch call.State {
+	case common.RequestStateInitial:
+		state = "initial"
+	case common.RequestStatePending:
+		state = "pending"
+	case common.RequestStateDone:
+		state = "done"
+	case common.RequestStateFailed:
+		state = "failed"
+	}
+
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"id":            call.RequestId,
+		"user_id":       call.UserIdFromPublicPath().String(),
+		"nonce_account": call.NonceAccount,
+		"raw":           call.Raw,
+		"state":         state,
 	})
 }
 
