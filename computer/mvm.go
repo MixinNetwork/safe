@@ -604,14 +604,11 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				return node.failRequest(ctx, req, "")
 			}
 		case store.CallTypePostProcess:
-			bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
-			if len(bs) == 0 {
-				panic(fmt.Errorf("invalid burned assets length: %s %d", call.RequestId, len(bs)))
-			}
 			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 			if err != nil {
 				panic(err)
 			}
+			bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
 			for _, burn := range bs {
 				address := burn.GetMintAccount().PublicKey.String()
 				da, err := node.store.ReadDeployedAssetByAddress(ctx, address)

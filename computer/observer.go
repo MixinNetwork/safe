@@ -35,10 +35,10 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 	if err != nil {
 		panic(err)
 	}
-	err = node.checkNonceAccounts(ctx)
-	if err != nil {
-		panic(err)
-	}
+	// err = node.checkNonceAccounts(ctx)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	go node.deployOrConfirmAssetsLoop(ctx)
 
