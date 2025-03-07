@@ -409,7 +409,7 @@ func extractTransfersFromInstruction(
 
 			return &Transfer{
 				TokenAddress: from.Mint.String(),
-				AssetId:      ethereum.BuildChainAssetId(SolanaChainBase, from.Mint.String()),
+				AssetId:      GenerateAssetId(from.Mint.String()),
 				Sender:       from.Owner.String(),
 				Receiver:     to.Owner.String(),
 				Value:        new(big.Int).SetUint64(*transfer.Amount),

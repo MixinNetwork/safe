@@ -608,6 +608,10 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			if err != nil {
 				panic(err)
 			}
+			mix, err := bot.NewMixAddressFromString(user.MixAddress)
+			if err != nil {
+				panic(err)
+			}
 			bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
 			for _, burn := range bs {
 				address := burn.GetMintAccount().PublicKey.String()
@@ -622,7 +626,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision))
 				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
 				id = common.UniqueId(id, user.MixAddress)
-				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, []string{user.MixAddress}, 1, amount.String(), []byte("refund"), id)
+				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount.String(), []byte("refund"), id)
 				if tx == nil {
 					compaction = da.AssetId
 					txs = nil
@@ -812,6 +816,9 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	var txs []*mtg.Transaction
 	var compaction string
 	for i, t := range ts {
+		if t.AssetId != out.AssetId {
+			continue
+		}
 		if t.Receiver != node.solanaDepositEntry().String() {
 			continue
 		}
@@ -822,12 +829,15 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		} else if user == nil {
 			continue
 		}
-		asset := solanaApp.GenerateAssetId(t.TokenAddress)
+		mix, err := bot.NewMixAddressFromString(user.MixAddress)
+		if err != nil {
+			panic(err)
+		}
 		id := common.UniqueId(deposit.Transaction, fmt.Sprintf("deposit-%d", i))
 		id = common.UniqueId(id, t.Receiver)
-		tx := node.buildTransaction(ctx, out, node.conf.AppId, asset, []string{user.MixAddress}, 1, t.Value.String(), []byte("deposit"), id)
+		tx := node.buildTransaction(ctx, out, node.conf.AppId, t.AssetId, mix.Members(), int(mix.Threshold), t.Value.String(), []byte("deposit"), id)
 		if tx == nil {
-			compaction = asset
+			compaction = t.AssetId
 			txs = nil
 			break
 		}
