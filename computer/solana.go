@@ -127,7 +127,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		}
 		tsMap[transfer.Receiver] = append(tsMap[transfer.Receiver], &solanaApp.TokenTransfers{
 			SolanaAsset: true,
-			AssetId:     solanaApp.GenerateAssetId(transfer.TokenAddress),
+			AssetId:     transfer.AssetId,
 			ChainId:     solanaApp.SolanaChainBase,
 			Mint:        solana.MustPublicKeyFromBase58(transfer.TokenAddress),
 			Destination: node.solanaDepositEntry(),
