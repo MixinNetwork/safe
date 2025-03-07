@@ -166,16 +166,25 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 		panic(err)
 	}
 
-	txId := tx.Signatures[0]
-	newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
-	if err != nil {
-		panic(err)
+	var newHash string
+	for {
+		newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+		if err != nil {
+			panic(err)
+		}
+		if newNonceHash.String() != nonce.Hash {
+			newHash = newNonceHash.String()
+			break
+		}
+		time.Sleep(5 * time.Second)
+		continue
 	}
-	err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String())
+	err = node.store.UpdateNonceAccount(ctx, nonce.Address, newHash)
 	if err != nil {
 		panic(err)
 	}
 
+	txId := tx.Signatures[0]
 	id := common.UniqueId(txId.String(), "confirm-call")
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, txId[:]...)
