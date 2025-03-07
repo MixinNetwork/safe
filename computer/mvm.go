@@ -775,6 +775,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 }
 
 func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
+	logger.Printf("node.processDeposit(%v)", out)
 	ar, handled, err := node.store.ReadActionResult(ctx, out.OutputId, out.OutputId)
 	logger.Printf("store.ReadActionResult(%s %s) => %v %t %v", out.OutputId, out.OutputId, ar, handled, err)
 	if err != nil {
@@ -816,6 +817,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	var txs []*mtg.Transaction
 	var compaction string
 	for i, t := range ts {
+		logger.Printf("%d-th transfer: %v", i, t)
 		if t.AssetId != out.AssetId {
 			continue
 		}
@@ -857,6 +859,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		state = common.RequestStateFailed
 	}
 	err = node.store.WriteDepositRequestIfNotExist(ctx, out, state, txs, compaction)
+	logger.Printf("store.WriteDepositRequestIfNotExist(%v %d %d %s) => %v", out, state, len(txs), compaction, err)
 	if err != nil {
 		panic(err)
 	}
