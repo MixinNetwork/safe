@@ -551,7 +551,7 @@ func (node *Node) handleFailedCall(ctx context.Context, call *store.SystemCall) 
 	if err != nil {
 		panic(err)
 	}
-	tx := node.clearTokens(ctx, call, node.getMTGAddress(ctx), nonce)
+	tx := node.clearTokens(ctx, call, node.getUserSolanaPublicKeyFromCall(ctx, call), nonce)
 	if tx == nil {
 		return nil
 	}

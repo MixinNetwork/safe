@@ -18,6 +18,8 @@ github.com/MixinNetwork/trusted-group v0.10.1-0.20250306135727-78b6655350e6 h1:6
 github.com/MixinNetwork/trusted-group v0.10.1-0.20250306135727-78b6655350e6/go.mod h1:mk4j2xhMJ8IH8l0gS19IgmK0bjHqLMnyhwAj6CH6h64=
 github.com/MixinNetwork/trusted-group v0.10.1-0.20250306141315-35048c26ad10 h1:Jc40MkSsnwNV8LQkhhGYXMYy15YgXYTJwbkUxjaS+pc=
 github.com/MixinNetwork/trusted-group v0.10.1-0.20250306141315-35048c26ad10/go.mod h1:mk4j2xhMJ8IH8l0gS19IgmK0bjHqLMnyhwAj6CH6h64=
+github.com/MixinNetwork/trusted-group v0.10.1-0.20250307030134-ed1c5279aa09 h1:T8EPUiNqmIoKlEhNiYEGXQ1rw+eD2DC/zUWgm9j9uFw=
+github.com/MixinNetwork/trusted-group v0.10.1-0.20250307030134-ed1c5279aa09/go.mod h1:mk4j2xhMJ8IH8l0gS19IgmK0bjHqLMnyhwAj6CH6h64=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/aead/siphash v1.0.1 h1:FwHfE/T45KPKYuuSAKyyvE+oPWcaQ+CUmFW0bPlM+kg=
