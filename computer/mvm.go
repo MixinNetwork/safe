@@ -815,8 +815,8 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		if t.Receiver != node.solanaDepositEntry().String() {
 			continue
 		}
-		user, err := node.store.ReadUserByChainAddress(ctx, t.Receiver)
-		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Receiver, user, err)
+		user, err := node.store.ReadUserByChainAddress(ctx, t.Sender)
+		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Sender, user, err)
 		if err != nil {
 			panic(err)
 		} else if user == nil {
