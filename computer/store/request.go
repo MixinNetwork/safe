@@ -110,7 +110,7 @@ func (s *SQLite3Store) WriteDepositRequestIfNotExist(ctx context.Context, out *m
 		return err
 	}
 
-	vals := []any{out.OutputId, out.TransactionHash, out.OutputIndex, out.AssetId, out.Amount, 0, 0, nil, state, out.SequencerCreatedAt, out.SequencerCreatedAt, out.Sequence}
+	vals := []any{out.OutputId, out.TransactionHash, out.OutputIndex, out.AssetId, out.Amount, 0, 0, "", state, out.SequencerCreatedAt, out.SequencerCreatedAt, out.Sequence}
 	err = s.execOne(ctx, tx, buildInsertionSQL("requests", requestCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT requests %v", err)
