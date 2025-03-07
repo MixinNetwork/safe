@@ -640,31 +640,13 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	case FlagConfirmCallFail:
 		callId := uuid.Must(uuid.FromBytes(extra)).String()
 		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
-		if err != nil || call == nil {
+		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
+		if err != nil {
 			panic(err)
 		}
-
-		// user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-		// if err != nil || user == nil {
-		// 	panic(err)
-		// }
-		// mix, err := bot.NewMixAddressFromString(user.MixAddress)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
-		// if err != nil {
-		// 	err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// 	return nil, ""
-		// }
-		// as := node.GetSystemCallRelatedAsset(ctx, rs)
-		// txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
-		// if compaction != "" {
-		// 	return node.failRequest(ctx, req, compaction)
-		// }
+		if call == nil {
+			return node.failRequest(ctx, req, "")
+		}
 		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
 		if err != nil {
 			panic(err)
