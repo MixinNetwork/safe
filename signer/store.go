@@ -41,6 +41,25 @@ func (s *SQLite3Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *SQLite3Store) CheckStoreOwner(ctx context.Context, partyId party.ID) {
+	key := "DATABASE-OWNER"
+	owner, err := s.ReadProperty(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+	nodeId := uuid.Must(uuid.FromString(string(partyId))).String()
+	if owner == nodeId {
+		return
+	}
+	if owner != "" {
+		panic("the signer database should never be copied between nodes")
+	}
+	err = s.WriteProperty(ctx, key, nodeId)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string, curve uint8, public string, conf []byte, saved bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
