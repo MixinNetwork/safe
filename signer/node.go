@@ -78,14 +78,6 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 }
 
 func (node *Node) Boot(ctx context.Context) {
-	err := node.store.Migrate(ctx)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.Migrate2(ctx)
-	if err != nil {
-		panic(err)
-	}
 	go node.loopBackup(ctx)
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)
