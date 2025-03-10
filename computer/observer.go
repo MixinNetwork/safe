@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -46,10 +47,9 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 	go node.releaseNonceAccountLoop(ctx)
 
 	go node.withdrawalFeeLoop(ctx)
-	go node.withdrawalConfirmLoop(ctx)
 
 	go node.unconfirmedCallLoop(ctx)
-	go node.initialCallLoop(ctx)
+	go node.unwithdrawnCallLoop(ctx)
 	go node.unsignedCallLoop(ctx)
 	go node.signedCallLoop(ctx)
 
@@ -78,7 +78,7 @@ func (node *Node) initMPCKeys(ctx context.Context) error {
 				Id:    id,
 				Type:  OperationTypeKeygenInput,
 				Extra: extra,
-			})
+			}, nil)
 			if err != nil {
 				return err
 			}
@@ -106,7 +106,7 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 		Id:    id,
 		Type:  OperationTypeSetOperationParams,
 		Extra: extra,
-	})
+	}, nil)
 }
 
 func (node *Node) deployOrConfirmAssetsLoop(ctx context.Context) {
@@ -153,9 +153,9 @@ func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) withdrawalConfirmLoop(ctx context.Context) {
+func (node *Node) unwithdrawnCallLoop(ctx context.Context) {
 	for {
-		err := node.handleWithdrawalsConfirm(ctx)
+		err := node.handleUnwithdrawnCalls(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -167,17 +167,6 @@ func (node *Node) withdrawalConfirmLoop(ctx context.Context) {
 func (node *Node) unconfirmedCallLoop(ctx context.Context) {
 	for {
 		err := node.handleUnconfirmedCalls(ctx)
-		if err != nil {
-			panic(err)
-		}
-
-		time.Sleep(1 * time.Minute)
-	}
-}
-
-func (node *Node) initialCallLoop(ctx context.Context) {
-	for {
-		err := node.handleInitialCalls(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -236,17 +225,21 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	if err != nil || tx == nil {
 		return err
 	}
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
+	if err != nil {
+		panic(err)
+	}
 	data, err := tx.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(tid, "storage-tx"), *node.safeUser())
+	hash, err := node.storageSubSolanaTx(ctx, tid, data)
 	if err != nil {
 		return err
 	}
+	references := []crypto.Hash{hash}
 
-	extra := uuid.Must(uuid.FromString(tid)).Bytes()
-	extra = append(extra, hash[:]...)
+	var extra []byte
 	for _, asset := range assets {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
@@ -255,7 +248,7 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 		Id:    tid,
 		Type:  OperationTypeDeployExternalAssets,
 		Extra: extra,
-	})
+	}, references)
 }
 
 func (node *Node) createNonceAccounts(ctx context.Context) error {
@@ -326,7 +319,7 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 	return nil
 }
 
-func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
+func (node *Node) handleUnwithdrawnCalls(ctx context.Context) error {
 	start := node.readPropertyAsTime(ctx, store.WithdrawalConfirmRequestTimeKey)
 	txs := node.group.ListConfirmedWithdrawalTransactionsAfter(ctx, start, 100)
 	for _, tx := range txs {
@@ -339,7 +332,7 @@ func (node *Node) handleWithdrawalsConfirm(ctx context.Context) error {
 			Id:    id,
 			Type:  OperationTypeConfirmWithdrawal,
 			Extra: extra,
-		})
+		}, nil)
 		if err != nil {
 			return err
 		}
@@ -361,71 +354,48 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
+		var references []crypto.Hash
 		id := common.UniqueId(call.RequestId, "confirm-nonce")
 		extra := []byte{ConfirmFlagNonceAvailable}
-		if nonce == nil || nonce.CallId.Valid || !nonce.Mix.Valid {
-			id = common.UniqueId(id, "expired-nonce")
-			extra = []byte{ConfirmFlagNonceExpired}
-		}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+
+		if nonce == nil || nonce.CallId.Valid || !nonce.Mix.Valid {
+			id = common.UniqueId(id, "expire-nonce")
+			extra[0] = ConfirmFlagNonceExpired
+		} else {
+			cid := common.UniqueId(id, "storage")
+			nonce, err := node.store.ReadSpareNonceAccount(ctx)
+			if err != nil {
+				return err
+			}
+			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
+			if err != nil {
+				return err
+			}
+			tx, err := node.transferOrMintTokens(ctx, call, nonce)
+			if err != nil {
+				return err
+			}
+			tb, err := tx.MarshalBinary()
+			if err != nil {
+				panic(err)
+			}
+			hash, err := node.storageSubSolanaTx(ctx, cid, tb)
+			if err != nil {
+				return err
+			}
+			references = append(references, hash)
+		}
+
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
 			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
-		})
+		}, references)
 		if err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (node *Node) handleInitialCalls(ctx context.Context) error {
-	calls, err := node.store.ListInitialSystemCalls(ctx)
-	if err != nil {
-		return err
-	}
-	for _, call := range calls {
-		nonce, err := node.store.ReadSpareNonceAccount(ctx)
-		if err != nil {
-			return err
-		}
-		tx, err := node.transferOrMintTokens(ctx, call, nonce)
-		if err != nil {
-			return err
-		}
-		data, err := tx.MarshalBinary()
-		if err != nil {
-			panic(err)
-		}
-		id := common.UniqueId(call.RequestId, store.CallTypePrepare)
-		old, err := node.store.ReadSystemCallByRequestId(ctx, id, 0)
-		if err != nil {
-			panic(err)
-		}
-		if old != nil && old.State == common.RequestStateFailed {
-			id = common.UniqueId(id, old.RequestId)
-		}
-		hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(id, "storage"), *node.safeUser())
-		if err != nil {
-			return err
-		}
-		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
-		if err != nil {
-			return err
-		}
-		extra := uuid.Must(uuid.FromString(id)).Bytes()
-		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-		extra = append(extra, hash[:]...)
-		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
-			Id:    id,
-			Type:  OperationTypeCreateSubCall,
-			Extra: extra,
-		})
-		if err != nil {
-			return err
-		}
-		time.Sleep(1 * time.Minute)
 	}
 	return nil
 }
@@ -449,7 +419,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 			Id:    id,
 			Type:  OperationTypeSignInput,
 			Extra: extra,
-		})
+		}, nil)
 		if err != nil {
 			return err
 		}
@@ -466,6 +436,16 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	}
 	for _, call := range calls {
 		logger.Printf("node.handleSignedCalls(%s)", call.RequestId)
+		if call.Type == store.CallTypeMain {
+			pending, err := node.store.CheckUnfinishedSubCalls(ctx, call)
+			if err != nil {
+				panic(err)
+			}
+			if pending {
+				continue
+			}
+		}
+
 		publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
 		tx, err := solana.TransactionFromBase64(call.Raw)
 		if err != nil {
@@ -532,57 +512,40 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 }
 
 func (node *Node) handleFailedCall(ctx context.Context, call *store.SystemCall) error {
+	var references []crypto.Hash
 	id := common.UniqueId(call.RequestId, "confirm-fail")
+	if call.Type == store.CallTypeMain {
+		cid := common.UniqueId(id, "post-process")
+		nonce, err := node.store.ReadSpareNonceAccount(ctx)
+		if err != nil {
+			panic(err)
+		}
+		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
+		if err != nil {
+			return err
+		}
+		tx := node.clearTokens(ctx, call, node.getUserSolanaPublicKeyFromCall(ctx, call), nonce)
+		if tx == nil {
+			return nil
+		}
+		data, err := tx.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		hash, err := node.storageSubSolanaTx(ctx, cid, data)
+		if err != nil {
+			return err
+		}
+		references = append(references, hash)
+	}
+
 	extra := []byte{FlagConfirmCallFail}
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	err := node.sendObserverTransactionToGroup(ctx, &common.Operation{
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeConfirmCall,
 		Extra: extra,
-	})
-	if err != nil {
-		return err
-	}
-	if call.Type != store.CallTypeMain {
-		return nil
-	}
-
-	nonce, err := node.store.ReadSpareNonceAccount(ctx)
-	if err != nil {
-		panic(err)
-	}
-	tx := node.clearTokens(ctx, call, node.getUserSolanaPublicKeyFromCall(ctx, call), nonce)
-	if tx == nil {
-		return nil
-	}
-	data, err := tx.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	id = common.UniqueId(call.RequestId, "post-process")
-	old, err := node.store.ReadSystemCallByRequestId(ctx, id, 0)
-	if err != nil {
-		panic(err)
-	}
-	if old != nil && old.State == common.RequestStateFailed {
-		id = common.UniqueId(id, old.RequestId)
-	}
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, common.UniqueId(id, "storage"), *node.safeUser())
-	if err != nil {
-		return err
-	}
-	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
-	if err != nil {
-		return err
-	}
-	extra = uuid.Must(uuid.FromString(id)).Bytes()
-	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	extra = append(extra, hash[:]...)
-	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    id,
-		Type:  OperationTypeCreateSubCall,
-		Extra: extra,
-	})
+	}, references)
 }
 
 func (node *Node) storageSolanaTx(ctx context.Context, raw string) (string, error) {
@@ -600,6 +563,17 @@ func (node *Node) storageSolanaTx(ctx context.Context, raw string) (string, erro
 		return "", err
 	}
 	return hash.String(), nil
+}
+
+func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) (crypto.Hash, error) {
+	data := uuid.Must(uuid.FromBytes(rb)).Bytes()
+	data = append(data, rb...)
+	trace := common.UniqueId(hex.EncodeToString(data), "storage-solana-tx")
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, rb, trace, *node.safeUser())
+	if err != nil {
+		return crypto.Hash{}, err
+	}
+	return hash, nil
 }
 
 func (node *Node) readPropertyAsTime(ctx context.Context, key string) time.Time {

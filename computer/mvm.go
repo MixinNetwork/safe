@@ -81,30 +81,46 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 //     processSystemCall
 //     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL, signature: NULL)
 //
-//  2. observer confirms nonce available. mvm creates withdrawal txs and makes sign request
+//  2. observer confirms nonce available and creates prepare system call to transfer assets to user account in advance
+//     mvm creates withdrawal txs and makes sign requests for user system call and prepare system call
 //     processConfirmNonce
-//     (state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL, signature: NULL)
+//     need withdrawals:
+//     (user    system call, state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL,     signature: NULL)
+//     (prepare system call, state: initial, withdrawal_traces: "",       withdrawn_at: NOT NULL, signature: NULL)
+//     otherwise:
+//     (user    system call, state: pending, withdrawal_traces: "",       withdrawn_at: NOT NULL, signature: NULL)
+//     (prepare system call, state: pending, withdrawal_traces: "",       withdrawn_at: NOT NULL, signature: NULL)
 //
-//     1). observer requests to regenerate signature for system call after timeout
+//     1). observer requests to regenerate signatures for system calls if timeout
 //     processObserverRequestSign
-//     (state: signature: NULL)
 //
-//     2). mtg generate signature for system call
+//     2). mtg generate signatures for system calls
 //     processSignerSignatureResponse
-//     (state: signature: NOT NULL)
+//     (user    system call, signature: NOT NULL)
+//     (prepare system call, signature: NOT NULL)
 //
-//  3. observer pays the withdrawal fees and confirms all withdrawals success to mtg
+//  3. observer pays the withdrawal fees and confirms all withdrawals success
 //     processConfirmWithdrawal
-//     (state: initial, withdrawal_traces: "", withdrawn_at: NOT NULL)
+//     (user    system call, state: pending, withdrawal_traces: "", withdrawn_at: NOT NULL, signature: NOT NULL)
+//     (prepare system call, state: pending, withdrawal_traces: "", withdrawn_at: NOT NULL, signature: NOT NULL)
 //
-//  4. observer creates, runs and confirms sub prepare system call to transfer or mint assets to user account
-//     (state: pending, signature: NOT NULL)
+//  4. observer runs prepare system call and confirms prepare system call successfully
+//     (prepare system call state: done)
+//     (user    system call state: pending)
 //
-//  5. observer runs and confirms main call success
+//  5. observer runs, confirms main call successfully
+//     and creates post-process system call to transfer solana assets to mtg deposit entry and burn external assets
+//     mvm makes sign requests for post-process system call
 //     processConfirmCall
-//     (state: done, signature: NOT NULL)
+//     (user         system call state: done)
+//     (post-process system call state: pending, withdrawal_traces: "", withdrawn_at: NOT NULL, signature: NULL)
 //
-//  6. observer create postprocess system call to deposit solana assets to mtg and burn external assets
+//     1). mtg generate signatures for post-process system call
+//     processSignerSignatureResponse
+//     (prepare system call, signature: NOT NULL)
+//
+//  6. observer runs, confirms post-process call successfully
+//     (post-process system call state: done)
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
@@ -161,45 +177,21 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		hash := crypto.Hash(rb)
 		rb = node.readStorageExtraFromObserver(ctx, hash)
 	}
-	tx, err := solana.TransactionFromBytes(rb)
-	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", rb, tx, err)
+	call, tx, err := node.buildSystemCallFromBytes(ctx, req, req.Id, rb, false)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
+	call.Superior = call.RequestId
+	call.Type = store.CallTypeMain
+	call.Public = hex.EncodeToString(user.FingerprintWithPath())
+	call.SkipPostprocess = skipPostprocess
+
 	hasUser := tx.IsSigner(solana.MustPublicKeyFromBase58(user.ChainAddress))
 	hasPayer := tx.IsSigner(node.solanaPayer())
 	if (!hasPayer || !hasUser) && !common.CheckTestEnvironment(ctx) {
 		logger.Printf("tx.IsSigner(user) => %t", hasUser)
 		logger.Printf("tx.IsSigner(payer) => %t", hasPayer)
 		return node.failRequest(ctx, req, "")
-	}
-
-	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
-	if err != nil {
-		panic(err)
-	}
-	advance, err := solanaApp.NonceAccountFromTx(tx)
-	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-	msg, err := tx.Message.MarshalBinary()
-	if err != nil {
-		logger.Printf("solana.MarshalBinary() => %v", err)
-		return node.failRequest(ctx, req, "")
-	}
-	call := &store.SystemCall{
-		RequestId:       req.Id,
-		Superior:        req.Id,
-		Type:            store.CallTypeMain,
-		NonceAccount:    advance.GetNonceAccount().PublicKey.String(),
-		Public:          hex.EncodeToString(user.FingerprintWithPath()),
-		SkipPostprocess: skipPostprocess,
-		Message:         hex.EncodeToString(msg),
-		Raw:             tx.MustToBase64(),
-		State:           common.RequestStateInitial,
-		CreatedAt:       req.CreatedAt,
-		UpdatedAt:       req.CreatedAt,
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs)
@@ -233,7 +225,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	}
 	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
 	if err != nil {
-		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
+		call.State = common.RequestStateFailed
+		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, nil, "")
 		if err != nil {
 			panic(err)
 		}
@@ -243,6 +236,30 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 
 	switch flag {
 	case ConfirmFlagNonceAvailable:
+		var sessions []*store.Session
+
+		prepare, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+		logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath().String(), user, err)
+		if err != nil {
+			panic(call.RequestId)
+		}
+		if user == nil {
+			return node.failRequest(ctx, req, "")
+		}
+		prepare.Superior = call.RequestId
+		prepare.Type = store.CallTypePrepare
+		prepare.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
+		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+		logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		sessions = append(sessions, node.buildSessionFromSystemCall(req, prepare, 0))
+
 		var txs []*mtg.Transaction
 		var ids []string
 		destination := node.getMTGAddress(ctx).String()
@@ -263,10 +280,12 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
 		if len(txs) == 0 {
 			call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+			call.State = common.RequestStatePending
+			prepare.State = common.RequestStatePending
 		}
+		sessions = append(sessions, node.buildSessionFromSystemCall(req, call, 1))
 
-		session := node.buildSessionFromSystemCall(req, call)
-		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, session, txs, "")
+		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, prepare, sessions, txs, "")
 		if err != nil {
 			panic(err)
 		}
@@ -284,7 +303,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if compaction != "" {
 			return node.failRequest(ctx, req, compaction)
 		}
-		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, txs)
+		call.State = common.RequestStateFailed
+		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, txs, "")
 		if err != nil {
 			panic(err)
 		}
@@ -303,18 +323,9 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		panic(req.Action)
 	}
 
-	extra := req.ExtraBytes()
-	if len(extra) < 96 {
-		logger.Printf("invalid extra length: %x", extra)
-		return node.failRequest(ctx, req, "")
-	}
-	cid := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	hash, err := crypto.HashFromString(hex.EncodeToString(extra[16:48]))
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
 	as := make(map[string]*solanaApp.DeployedAsset)
-	offset := 48
+	extra := req.ExtraBytes()
+	offset := 0
 	for {
 		if offset == len(extra) {
 			break
@@ -348,46 +359,21 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		logger.Verbosef("processDeployExternalAssets() => %s %s", assetId, address)
 	}
 
-	raw := node.readStorageExtraFromObserver(ctx, hash)
-	tx, err := solana.TransactionFromBytes(raw)
-	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
-	if err != nil {
-		panic(err)
-	}
-	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
-	if err != nil {
-		panic(err)
-	}
-	advance, err := solanaApp.NonceAccountFromTx(tx)
-	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
+	call, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
-	}
-	msg, err := tx.Message.MarshalBinary()
-	if err != nil {
-		panic(err)
 	}
 	err = node.VerifyMintSystemCall(ctx, tx, node.getMTGAddress(ctx), as)
 	logger.Printf("node.VerifyMintSystemCall() => %v", err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
+	call.Superior = call.RequestId
+	call.Type = store.CallTypeMint
+	call.Public = node.getMTGPublicWithPath(ctx)
+	call.State = common.RequestStatePending
 
-	call := &store.SystemCall{
-		RequestId:        cid,
-		Superior:         cid,
-		Type:             store.CallTypeMint,
-		NonceAccount:     advance.GetNonceAccount().PublicKey.String(),
-		Public:           node.getMTGPublicWithPath(ctx),
-		Message:          hex.EncodeToString(msg),
-		Raw:              tx.MustToBase64(),
-		State:            common.RequestStatePending,
-		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
-		WithdrawnAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
-		CreatedAt:        req.CreatedAt,
-		UpdatedAt:        req.CreatedAt,
-	}
-	session := node.buildSessionFromSystemCall(req, call)
+	session := node.buildSessionFromSystemCall(req, call, 0)
 	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
 	if err != nil {
 		panic(err)
@@ -446,95 +432,6 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	return nil, ""
 }
 
-func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeCreateSubCall {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	mainId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
-	hash, err := crypto.HashFromString(hex.EncodeToString(extra[32:64]))
-	if err != nil {
-		panic(err)
-	}
-
-	call, err := node.store.ReadSystemCallByRequestId(ctx, mainId, 0)
-	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", mainId, call, err)
-	if err != nil {
-		panic(mainId)
-	}
-	if call == nil {
-		return node.failRequest(ctx, req, "")
-	}
-	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-	logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath().String(), user, err)
-	if err != nil {
-		panic(call.RequestId)
-	}
-	if user == nil {
-		return node.failRequest(ctx, req, "")
-	}
-
-	raw := node.readStorageExtraFromObserver(ctx, hash)
-	tx, err := solana.TransactionFromBytes(raw)
-	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
-	if err != nil {
-		panic(err)
-	}
-	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
-	if err != nil {
-		panic(err)
-	}
-	advance, err := solanaApp.NonceAccountFromTx(tx)
-	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-	msg, err := tx.Message.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
-	logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-
-	sub := &store.SystemCall{
-		RequestId:        callId,
-		Superior:         call.RequestId,
-		NonceAccount:     advance.GetNonceAccount().PublicKey.String(),
-		Message:          hex.EncodeToString(msg),
-		Raw:              tx.MustToBase64(),
-		State:            common.RequestStatePending,
-		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
-		WithdrawnAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
-		CreatedAt:        req.CreatedAt,
-		UpdatedAt:        req.CreatedAt,
-	}
-	switch call.State {
-	case common.RequestStateInitial:
-		sub.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
-		sub.Type = store.CallTypePrepare
-	case common.RequestStateDone, common.RequestStateFailed:
-		sub.Public = call.Public
-		sub.Type = store.CallTypePostProcess
-	default:
-		panic(req)
-	}
-
-	session := node.buildSessionFromSystemCall(req, sub)
-	err = node.store.WriteSubCallWithRequest(ctx, req, sub, session)
-	if err != nil {
-		panic(err)
-	}
-	return nil, ""
-}
-
 func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleObserver {
 		panic(req.Role)
@@ -545,11 +442,15 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 
 	extra := req.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
+
+	var call, sub *store.SystemCall
+	var session *store.Session
+	var assets []string
+	var txs []*mtg.Transaction
+	var compaction string
 	switch flag {
 	case FlagConfirmCallSuccess:
 		signature := base58.Encode(extra[:64])
-		_ = solana.MustSignatureFromBase58(signature)
-
 		transaction, err := node.solanaClient().RPCGetTransaction(ctx, signature)
 		if err != nil {
 			panic(err)
@@ -558,7 +459,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			logger.Printf("transaction not found: %s", signature)
 			return node.failRequest(ctx, req, "")
 		}
-
 		tx, err := transaction.Transaction.GetTransaction()
 		if err != nil {
 			panic(err)
@@ -573,7 +473,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				msg = test
 			}
 		}
-		call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
+		call, err = node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
 		if err != nil || call == nil {
 			panic(fmt.Errorf("store.ReadSystemCallByMessage(%x) => %v %v", msg, call, err))
 		}
@@ -581,10 +481,8 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			logger.Printf("invalid call state: %s %d", call.RequestId, call.State)
 			return node.failRequest(ctx, req, "")
 		}
+		call.State = common.RequestStateDone
 
-		var assets []string
-		var txs []*mtg.Transaction
-		var compaction string
 		switch call.Type {
 		case store.CallTypeMint:
 			if common.CheckTestEnvironment(ctx) {
@@ -597,6 +495,16 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			logger.Printf("ExtractMintsFromTransaction(%v) => %v", tx, assets)
 			if len(assets) == 0 {
 				return node.failRequest(ctx, req, "")
+			}
+		case store.CallTypeMain:
+			postprocess, err := node.getPostprocessCall(ctx, req, call)
+			logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
+			if err != nil {
+				return node.failRequest(ctx, req, "")
+			}
+			if postprocess != nil {
+				session = node.buildSessionFromSystemCall(req, postprocess, 0)
+				sub = postprocess
 			}
 		case store.CallTypePostProcess:
 			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
@@ -631,30 +539,38 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 		}
 
-		err = node.store.ConfirmSystemCallSuccessWithRequest(ctx, req, call, assets, txs, compaction)
-		if err != nil {
-			panic(err)
-		}
-		return txs, compaction
 	case FlagConfirmCallFail:
 		callId := uuid.Must(uuid.FromBytes(extra)).String()
-		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
-		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
+		c, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
+		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, c, err)
 		if err != nil {
 			panic(err)
 		}
-		if call == nil {
+		if c == nil {
 			return node.failRequest(ctx, req, "")
 		}
-		err = node.store.ConfirmSystemCallFailWithRequest(ctx, req, call, nil)
+		call = c
+		call.State = common.RequestStateFailed
+
+		postprocess, err := node.getPostprocessCall(ctx, req, call)
+		logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
 		if err != nil {
-			panic(err)
+			return node.failRequest(ctx, req, "")
 		}
-		return nil, ""
+		if postprocess != nil {
+			session = node.buildSessionFromSystemCall(req, postprocess, 0)
+			sub = postprocess
+		}
 	default:
 		logger.Printf("invalid confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")
 	}
+
+	err := node.store.ConfirmSystemCallWithRequest(ctx, req, call, sub, session, assets, txs, compaction)
+	if err != nil {
+		panic(err)
+	}
+	return txs, compaction
 }
 
 func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
@@ -702,6 +618,7 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 	return nil, ""
 }
 
+// create system call to transfer assets to mtg deposit entry from user account on Solana
 func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	logger.Printf("node.processObserverCreateDepositCall(%s)", string(node.id))
 	if req.Role != RequestRoleObserver {
@@ -710,13 +627,10 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	if req.Action != OperationTypeDeposit {
 		panic(req.Action)
 	}
+
 	extra := req.ExtraBytes()
 	userAddress := solana.PublicKeyFromBytes(extra[:32])
-	nonceAccount := solana.PublicKeyFromBytes(extra[32:64]).String()
-	hash, err := crypto.HashFromString(hex.EncodeToString(extra[64:96]))
-	if err != nil {
-		panic(err)
-	}
+	signature := solana.SignatureFromBytes(extra[32:])
 
 	user, err := node.store.ReadUserByChainAddress(ctx, userAddress.String())
 	logger.Printf("store.ReadUserByChainAddress(%s) => %v %v", userAddress.String(), user, err)
@@ -726,43 +640,28 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-
-	raw := node.readStorageExtraFromObserver(ctx, hash)
-	tx, err := solana.TransactionFromBytes(raw)
-	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
-	if err != nil {
-		panic(err)
+	// TODO should compare built tx and deposit tx from signature
+	txx, err := node.solanaClient().RPCGetTransaction(ctx, signature.String())
+	if err != nil || txx == nil {
+		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v %v", signature.String(), txx, err))
 	}
 
+	call, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), userAddress)
 	logger.Printf("node.VerifySubSystemCall(%s %s) => %v", node.conf.SolanaDepositEntry, userAddress, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
+	call.Superior = call.RequestId
+	call.Type = store.CallTypeMain
+	call.Public = hex.EncodeToString(user.FingerprintWithPath())
+	call.State = common.RequestStatePending
+	session := node.buildSessionFromSystemCall(req, call, 0)
 
-	msg, err := tx.Message.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	new := &store.SystemCall{
-		RequestId:        req.Id,
-		Superior:         req.Id,
-		Type:             store.CallTypeMain,
-		Public:           hex.EncodeToString(user.FingerprintWithPath()),
-		NonceAccount:     nonceAccount,
-		Message:          hex.EncodeToString(msg),
-		Raw:              tx.MustToBase64(),
-		State:            common.RequestStatePending,
-		WithdrawalTraces: sql.NullString{Valid: true, String: ""},
-		WithdrawnAt:      sql.NullTime{Valid: true, Time: req.CreatedAt},
-		Signature:        sql.NullString{Valid: false},
-		RequestSignerAt:  sql.NullTime{Valid: false},
-		CreatedAt:        req.CreatedAt,
-		UpdatedAt:        req.CreatedAt,
-	}
-	session := node.buildSessionFromSystemCall(req, new)
-
-	err = node.store.WriteSubCallWithRequest(ctx, req, new, session)
+	err = node.store.WriteSubCallWithRequest(ctx, req, call, session)
 	if err != nil {
 		panic(err)
 	}
@@ -770,6 +669,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	return nil, ""
 }
 
+// deposit from Solana to mtg deposit entry
 func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.Transaction, string) {
 	logger.Printf("node.processDeposit(%v)", out)
 	ar, handled, err := node.store.ReadActionResult(ctx, out.OutputId, out.OutputId)
@@ -863,7 +763,93 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	return txs, compaction
 }
 
-func (node *Node) buildSessionFromSystemCall(req *store.Request, call *store.SystemCall) *store.Session {
+func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req *store.Request) (*store.SystemCall, *solana.Transaction, error) {
+	ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
+	if err != nil {
+		panic(err)
+	}
+	if len(ver.References) != 1 {
+		panic(fmt.Errorf("invalid count of references from request: %v %v", req, ver))
+	}
+	data := node.readStorageExtraFromObserver(ctx, ver.References[0])
+	id, raw := uuid.Must(uuid.FromBytes(data[:16])).String(), data[16:]
+	return node.buildSystemCallFromBytes(ctx, req, id, raw, true)
+}
+
+func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall) (*store.SystemCall, error) {
+	if call.Type != store.CallTypeMain {
+		return nil, nil
+	}
+	ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
+	if err != nil {
+		panic(err)
+	}
+	if len(ver.References) != 1 {
+		return nil, nil
+	}
+
+	postprocess, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	postprocess.Superior = call.RequestId
+	postprocess.Type = store.CallTypePostProcess
+	postprocess.Public = call.Public
+	postprocess.State = common.RequestStatePending
+
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+	if err != nil {
+		panic(err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("store.ReadUser(%s) => nil", call.UserIdFromPublicPath().String())
+	}
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+	logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
+	if err != nil {
+		return nil, err
+	}
+	return postprocess, nil
+}
+
+// should only return error when fail to parse nonce advance instruction;
+// without fields of superior, type, public, skip_postprocess
+func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Request, id string, raw []byte, withdrawn bool) (*store.SystemCall, *solana.Transaction, error) {
+	tx, err := solana.TransactionFromBytes(raw)
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
+	if err != nil {
+		panic(err)
+	}
+	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
+	advance, err := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
+	if err != nil {
+		return nil, nil, err
+	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	call := &store.SystemCall{
+		RequestId:    id,
+		NonceAccount: advance.GetNonceAccount().PublicKey.String(),
+		Message:      hex.EncodeToString(msg),
+		Raw:          tx.MustToBase64(),
+		State:        common.RequestStateInitial,
+		CreatedAt:    req.CreatedAt,
+		UpdatedAt:    req.CreatedAt,
+	}
+	if withdrawn {
+		call.WithdrawalTraces = sql.NullString{Valid: true, String: ""}
+		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+	}
+	return call, tx, nil
+}
+
+func (node *Node) buildSessionFromSystemCall(req *store.Request, call *store.SystemCall, index int) *store.Session {
 	call.RequestSignerAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	id := common.UniqueId(call.RequestId, req.CreatedAt.String())
 	return &store.Session{
@@ -871,7 +857,7 @@ func (node *Node) buildSessionFromSystemCall(req *store.Request, call *store.Sys
 		RequestId:  call.RequestId,
 		MixinHash:  req.MixinHash.String(),
 		MixinIndex: req.Output.OutputIndex,
-		Index:      0,
+		Index:      index,
 		Operation:  OperationTypeSignInput,
 		Public:     call.Public,
 		Extra:      call.Message,

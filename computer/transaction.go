@@ -94,17 +94,17 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.A
 	return act.BuildTransaction(ctx, traceId, opponentAppId, assetId, amount, string(memo), receivers, threshold)
 }
 
-func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common.Operation) error {
+func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common.Operation, references []crypto.Hash) error {
 	extra := encodeOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
 	}
 
 	traceId := fmt.Sprintf("SESSION:%s:OBSERVER:%s", op.Id, string(node.id))
-	return node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.ObserverAssetId, traceId)
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.ObserverAssetId, traceId, references)
 }
 
-func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, assetId, traceId string) error {
+func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, assetId, traceId string, references []crypto.Hash) error {
 	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 	amount := decimal.NewFromInt(1)

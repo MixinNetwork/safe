@@ -30,12 +30,11 @@ const (
 	OperationTypeSetOperationParams   = 10
 	OperationTypeKeygenInput          = 11
 	OperationTypeDeployExternalAssets = 12
-	OperationTypeConfirmNonce         = 13
-	OperationTypeConfirmWithdrawal    = 14
-	OperationTypeCreateSubCall        = 15
+	OperationTypeDeposit              = 13
+	OperationTypeConfirmNonce         = 14
+	OperationTypeConfirmWithdrawal    = 15
 	OperationTypeConfirmCall          = 16
 	OperationTypeSignInput            = 17
-	OperationTypeDeposit              = 18
 
 	// signer operation
 	OperationTypeKeygenOutput = 20

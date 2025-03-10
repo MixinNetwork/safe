@@ -184,58 +184,53 @@ func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.T
 		panic(err)
 	}
 
+	var references []crypto.Hash
+	id := common.UniqueId(call.RequestId, "confirm-success")
+	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
+		cid := common.UniqueId(id, "post-process")
+		nonce, err = node.store.ReadSpareNonceAccount(ctx)
+		if err != nil {
+			return err
+		}
+		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
+		if err != nil {
+			return err
+		}
+
+		source := node.getUserSolanaPublicKeyFromCall(ctx, call)
+		tx = node.burnRestTokens(ctx, call, source, nonce)
+		if tx == nil {
+			return nil
+		}
+		data, err := tx.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		hash, err := node.storageSubSolanaTx(ctx, cid, data)
+		if err != nil {
+			return err
+		}
+		references = append(references, hash)
+	}
+
 	txId := tx.Signatures[0]
-	id := common.UniqueId(txId.String(), "confirm-call")
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, txId[:]...)
-	err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeConfirmCall,
 		Extra: extra,
-	})
-	if err != nil {
-		return err
-	}
-	if call.Type != store.CallTypeMain || call.SkipPostprocess {
-		return nil
-	}
-
-	nonce, err = node.store.ReadSpareNonceAccount(ctx)
-	if err != nil {
-		return err
-	}
-	source := node.getUserSolanaPublicKeyFromCall(ctx, call)
-	tx = node.burnRestTokens(ctx, call, source, nonce)
-	if tx == nil {
-		return nil
-	}
-	data, err := tx.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	id = common.UniqueId(call.RequestId, "post-tx-storage")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
-	if err != nil {
-		return err
-	}
-
-	id = common.UniqueId(id, "craete-post-call")
-	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
-	if err != nil {
-		return err
-	}
-	extra = uuid.Must(uuid.FromString(id)).Bytes()
-	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	extra = append(extra, hash[:]...)
-	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    id,
-		Type:  OperationTypeCreateSubCall,
-		Extra: extra,
-	})
+	}, references)
 }
 
 func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfers) error {
+	id := common.UniqueId(depositHash.String(), user)
+	cid := common.UniqueId(id, "deposit")
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	if err != nil {
+		return err
+	}
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 	if err != nil {
 		return err
 	}
@@ -247,22 +242,18 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	if err != nil {
 		panic(err)
 	}
-	id := common.UniqueId(depositHash.String(), user)
-	id = common.UniqueId(id, "deposit")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+	hash, err := node.storageSubSolanaTx(ctx, cid, data)
 	if err != nil {
 		return err
 	}
 
-	id = common.UniqueId(id, "craete-deposit-call")
 	extra := solana.MustPublicKeyFromBase58(user).Bytes()
-	extra = append(extra, nonce.Account().Address.Bytes()...)
 	extra = append(extra, hash[:]...)
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeDeposit,
 		Extra: extra,
-	})
+	}, []crypto.Hash{hash})
 }
 
 func (node *Node) CreateMintsTransaction(ctx context.Context, as []string, nonce *store.NonceAccount) (string, *solana.Transaction, []*solanaApp.DeployedAsset, error) {

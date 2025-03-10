@@ -24,6 +24,7 @@ type ReferencedTxAsset struct {
 	Asset  *bot.AssetNetwork
 }
 
+// should only return error when mtg could not find outputs from referenced transaction
 func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId string) ([]*store.SpentReference, error) {
 	var refs []*store.SpentReference
 	req, err := node.store.ReadRequest(ctx, requestId)
@@ -82,6 +83,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
 	}
+	// referenced XIN transaction must be storage transaction
 	if ver.Asset.String() == "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc" && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
 		return nil, nil
 	}

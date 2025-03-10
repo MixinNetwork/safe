@@ -110,8 +110,6 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleObserver
 	case OperationTypeConfirmWithdrawal:
 		return RequestRoleObserver
-	case OperationTypeCreateSubCall:
-		return RequestRoleObserver
 	case OperationTypeConfirmCall:
 		return RequestRoleObserver
 	case OperationTypeSignInput:
@@ -158,8 +156,6 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processConfirmNonce(ctx, req)
 	case OperationTypeConfirmWithdrawal:
 		return node.processConfirmWithdrawal(ctx, req)
-	case OperationTypeCreateSubCall:
-		return node.processCreateSubCall(ctx, req)
 	case OperationTypeConfirmCall:
 		return node.processConfirmCall(ctx, req)
 	case OperationTypeSignInput:
