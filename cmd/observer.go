@@ -104,7 +104,6 @@ func ObserverFillAccountants(c *cli.Context) error {
 		return fmt.Errorf("invalid fee %d", c.Int64("fee"))
 	}
 	amount := (satoshi - fee) / count
-	fee = satoshi - amount*count
 
 	kb, err := hex.DecodeString(c.String("key"))
 	if err != nil {
@@ -123,7 +122,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	defer db.Close()
 
 	input := strings.Split(c.String("input"), ":")[0]
-	index, _ := strconv.ParseInt(strings.Split(c.String("input"), ":")[1], 10, 64)
+	index, _ := strconv.ParseUint(strings.Split(c.String("input"), ":")[1], 10, 32)
 	inputs := []*bitcoin.Input{{
 		TransactionHash: input,
 		Index:           uint32(index),
