@@ -155,7 +155,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS safes_by_signer ON safes(signer);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_observer ON safes(observer);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_address ON safes(address);
 CREATE UNIQUE INDEX IF NOT EXISTS safes_by_request_id ON safes(request_id);
--- CREATE UNIQUE INDEX IF NOT EXISTS safes_by_safe_asset_id ON safes(safe_asset_id) WHERE safe_asset_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS safes_by_safe_asset_id ON safes(safe_asset_id) WHERE safe_asset_id IS NOT NULL;
 
 
 
