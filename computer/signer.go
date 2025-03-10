@@ -572,7 +572,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	if err != nil || call == nil {
 		panic(fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", s.RequestId, call, err))
 	}
-	if call.State != common.RequestStatePending || call.Signature.Valid {
+	if call.State == common.RequestStateFailed || call.Signature.Valid {
 		logger.Printf("invalid call %s: %d %s", call.RequestId, call.State, call.Signature.String)
 		return node.failRequest(ctx, req, "")
 	}

@@ -436,14 +436,14 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
-		createdAt := time.Now().UTC()
-		if call.RequestSignerAt.Time.Add(20 * time.Minute).After(createdAt) {
+		if !call.RequestSignerAt.Valid {
+			panic(call.RequestId)
+		}
+		now := time.Now().UTC()
+		if call.RequestSignerAt.Time.Add(20 * time.Minute).After(now) {
 			continue
 		}
-		if call.RequestSignerAt.Valid {
-			createdAt = call.RequestSignerAt.Time
-		}
-		id := common.UniqueId(call.RequestId, createdAt.String())
+		id := common.UniqueId(call.RequestId, call.RequestSignerAt.Time.String())
 		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,

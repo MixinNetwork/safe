@@ -79,29 +79,32 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 //
 //  1. user creates system call with locked nonce
 //     processSystemCall
-//     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL)
+//     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL, signature: NULL)
 //
-//  2. observer confirms nonce available and make mtg create withdrawal txs
+//  2. observer confirms nonce available. mvm creates withdrawal txs and makes sign request
 //     processConfirmNonce
-//     (state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL)
+//     (state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL, signature: NULL)
+//
+//     1). observer requests to regenerate signature for system call after timeout
+//     processObserverRequestSign
+//     (state: signature: NULL)
+//
+//     2). mtg generate signature for system call
+//     processSignerSignatureResponse
+//     (state: signature: NOT NULL)
 //
 //  3. observer pays the withdrawal fees and confirms all withdrawals success to mtg
 //     processConfirmWithdrawal
 //     (state: initial, withdrawal_traces: "", withdrawn_at: NOT NULL)
 //
 //  4. observer creates, runs and confirms sub prepare system call to transfer or mint assets to user account
-//     processCreateSubCall
-//     (state: pending, signature: NULL)
-//
-//  5. observer requests to generate signature for main call
-//     processObserverRequestSign
 //     (state: pending, signature: NOT NULL)
 //
-//  6. observer runs and confirms main call success
+//  5. observer runs and confirms main call success
 //     processConfirmCall
 //     (state: done, signature: NOT NULL)
 //
-//  7. observer create postprocess system call to deposit solana assets to mtg and burn external assets
+//  6. observer create postprocess system call to deposit solana assets to mtg and burn external assets
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
@@ -199,8 +202,8 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		UpdatedAt:       req.CreatedAt,
 	}
 
-	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs, nil, "")
-	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v) => %v", call, err)
+	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs)
+	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v %d) => %v", call, len(rs), err)
 	if err != nil {
 		panic(err)
 	}
@@ -262,7 +265,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 		}
 
-		err = node.store.UpdateWithdrawalsWithRequest(ctx, req, call, txs, "")
+		session := node.buildSessionFromSystemCall(req, call)
+		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, session, txs, "")
 		if err != nil {
 			panic(err)
 		}
@@ -383,17 +387,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		CreatedAt:        req.CreatedAt,
 		UpdatedAt:        req.CreatedAt,
 	}
-	session := &store.Session{
-		Id:         req.Id,
-		RequestId:  call.RequestId,
-		MixinHash:  req.MixinHash.String(),
-		MixinIndex: req.Output.OutputIndex,
-		Index:      0,
-		Operation:  OperationTypeSignInput,
-		Public:     call.Public,
-		Extra:      call.Message,
-		CreatedAt:  req.CreatedAt,
-	}
+	session := node.buildSessionFromSystemCall(req, call)
 	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
 	if err != nil {
 		panic(err)
@@ -533,7 +527,8 @@ func (node *Node) processCreateSubCall(ctx context.Context, req *store.Request) 
 		panic(req)
 	}
 
-	err = node.store.WriteSubCallWithRequest(ctx, req, sub, nil, "")
+	session := node.buildSessionFromSystemCall(req, sub)
+	err = node.store.WriteSubCallWithRequest(ctx, req, sub, session)
 	if err != nil {
 		panic(err)
 	}
@@ -765,8 +760,9 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		CreatedAt:        req.CreatedAt,
 		UpdatedAt:        req.CreatedAt,
 	}
+	session := node.buildSessionFromSystemCall(req, new)
 
-	err = node.store.WriteSubCallWithRequest(ctx, req, new, nil, "")
+	err = node.store.WriteSubCallWithRequest(ctx, req, new, session)
 	if err != nil {
 		panic(err)
 	}
@@ -865,4 +861,20 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	}
 
 	return txs, compaction
+}
+
+func (node *Node) buildSessionFromSystemCall(req *store.Request, call *store.SystemCall) *store.Session {
+	call.RequestSignerAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+	id := common.UniqueId(call.RequestId, req.CreatedAt.String())
+	return &store.Session{
+		Id:         id,
+		RequestId:  call.RequestId,
+		MixinHash:  req.MixinHash.String(),
+		MixinIndex: req.Output.OutputIndex,
+		Index:      0,
+		Operation:  OperationTypeSignInput,
+		Public:     call.Public,
+		Extra:      call.Message,
+		CreatedAt:  req.CreatedAt,
+	}
 }
