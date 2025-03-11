@@ -19,9 +19,12 @@ import (
 )
 
 type ReferencedTxAsset struct {
-	Solana bool
-	Amount decimal.Decimal
-	Asset  *bot.AssetNetwork
+	Solana  bool
+	Amount  decimal.Decimal
+	Decimal int
+	Address string
+	AssetId string
+	ChainId string
 }
 
 // should only return error when mtg could not find outputs from referenced transaction
@@ -131,10 +134,22 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 			panic(err)
 		}
 
+		isSolAsset := ref.ChainId == solanaApp.SolanaChainBase
+		address := ref.Asset.AssetKey
+		if !isSolAsset {
+			da, err := node.store.ReadDeployedAsset(ctx, ref.AssetId, common.RequestStateDone)
+			if err != nil || da == nil {
+				panic(fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", ref.AssetId, da, err))
+			}
+			address = da.Address
+		}
 		ra := &ReferencedTxAsset{
-			Solana: ref.ChainId == solanaApp.SolanaChainBase,
-			Amount: amt,
-			Asset:  ref.Asset,
+			Solana:  isSolAsset,
+			Address: address,
+			Decimal: ref.Asset.Precision,
+			Amount:  amt,
+			AssetId: ref.AssetId,
+			ChainId: ref.Asset.ChainID,
 		}
 		old := am[ref.AssetId]
 		if old != nil {

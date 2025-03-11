@@ -162,7 +162,7 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 			continue
 		}
 
-		vals := []any{asset.AssetId, asset.Address, common.RequestStateInitial, req.CreatedAt}
+		vals := []any{asset.AssetId, asset.ChainId, asset.Address, common.RequestStateInitial, req.CreatedAt}
 		err = s.execOne(ctx, tx, buildInsertionSQL("deployed_assets", deployedAssetCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT deployed_assets %v", err)
@@ -370,6 +370,13 @@ func (s *SQLite3Store) ReadInitialSystemCallBySuperior(ctx context.Context, rid 
 func (s *SQLite3Store) ReadSystemCallByMessage(ctx context.Context, message string) (*SystemCall, error) {
 	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE message=?", strings.Join(systemCallCols, ","))
 	row := s.db.QueryRowContext(ctx, query, message)
+
+	return systemCallFromRow(row)
+}
+
+func (s *SQLite3Store) ReadSystemCallByHash(ctx context.Context, hash string) (*SystemCall, error) {
+	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE hash=?", strings.Join(systemCallCols, ","))
+	row := s.db.QueryRowContext(ctx, query, hash)
 
 	return systemCallFromRow(row)
 }

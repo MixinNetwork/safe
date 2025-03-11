@@ -33,6 +33,7 @@ type Metadata struct {
 
 type DeployedAsset struct {
 	AssetId   string
+	ChainId   string
 	Address   string
 	State     int64
 	CreatedAt time.Time

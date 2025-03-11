@@ -484,7 +484,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
 			logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
-			return node.handleFailedCall(ctx, call)
+			return node.processFailedCall(ctx, call)
 		}
 		var meta *rpc.TransactionMeta
 		for {
@@ -503,7 +503,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			}
 			return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
-		err = node.solanaProcessTransaction(ctx, tx, meta)
+		err = node.processSuccessedCall(ctx, call, tx, meta)
 		if err != nil {
 			return err
 		}
@@ -512,7 +512,65 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	return nil
 }
 
-func (node *Node) handleFailedCall(ctx context.Context, call *store.SystemCall) error {
+// deposited assets to run system call and new assets received in system call are all handled here
+func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCall, txx *solana.Transaction, meta *rpc.TransactionMeta) error {
+	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+	if err != nil || nonce == nil {
+		panic(err)
+	}
+	for {
+		newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+		if err != nil {
+			panic(err)
+		}
+		if newNonceHash.String() != nonce.Hash {
+			err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String())
+			if err != nil {
+				panic(err)
+			}
+			break
+		}
+		time.Sleep(5 * time.Second)
+		continue
+	}
+
+	var references []crypto.Hash
+	id := common.UniqueId(call.RequestId, "confirm-success")
+	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
+		cid := common.UniqueId(id, "post-process")
+		nonce, err = node.store.ReadSpareNonceAccount(ctx)
+		if err != nil {
+			return err
+		}
+		tx := node.CreatePostprocessTransaction(ctx, call, nonce, txx, meta)
+		if tx != nil {
+			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
+			if err != nil {
+				return err
+			}
+			data, err := tx.MarshalBinary()
+			if err != nil {
+				panic(err)
+			}
+			hash, err := node.storageSubSolanaTx(ctx, cid, data)
+			if err != nil {
+				return err
+			}
+			references = append(references, hash)
+		}
+	}
+
+	txId := txx.Signatures[0]
+	extra := []byte{FlagConfirmCallSuccess}
+	extra = append(extra, txId[:]...)
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    id,
+		Type:  OperationTypeConfirmCall,
+		Extra: extra,
+	}, references)
+}
+
+func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall) error {
 	var references []crypto.Hash
 	id := common.UniqueId(call.RequestId, "confirm-fail")
 	if call.Type == store.CallTypeMain {
@@ -521,13 +579,13 @@ func (node *Node) handleFailedCall(ctx context.Context, call *store.SystemCall) 
 		if err != nil {
 			panic(err)
 		}
+		tx := node.CreatePostprocessTransaction(ctx, call, nonce, nil, nil)
+		if tx == nil {
+			panic(fmt.Errorf("fail to build post-process transaction for failed call: %v", call))
+		}
 		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 		if err != nil {
 			return err
-		}
-		tx := node.clearTokens(ctx, call, node.getUserSolanaPublicKeyFromCall(ctx, call), nonce)
-		if tx == nil {
-			return nil
 		}
 		data, err := tx.MarshalBinary()
 		if err != nil {

@@ -5,20 +5,19 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -93,13 +92,19 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
 	hash := tx.Signatures[0]
-	err := node.solanaProcessCallTransaction(ctx, tx)
+	call, err := node.store.ReadSystemCallByMessage(ctx, hash.String())
 	if err != nil {
-		logger.Printf("node.solanaProcessCallTransaction(%s) => %v", hash.String(), err)
-		return err
+		panic(err)
+	}
+	var exception *solana.PublicKey
+	if call != nil {
+		user := node.getUserSolanaPublicKeyFromCall(ctx, call)
+		exception = &user
 	}
 
-	transfers, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, meta)
+	// all balance changes from the creator account of a system call is handled in processSuccessedCall
+	// only process deposits to other user accounts here
+	transfers, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, meta, exception)
 	if err != nil {
 		panic(err)
 	}
@@ -144,85 +149,6 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	return nil
 }
 
-func (node *Node) solanaProcessCallTransaction(ctx context.Context, tx *solana.Transaction) error {
-	signedBy := tx.Message.IsSigner(node.solanaPayer())
-	if !signedBy {
-		return nil
-	}
-
-	message, err := tx.Message.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(message))
-	if err != nil {
-		panic(err)
-	}
-	if call == nil {
-		return nil
-	}
-	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
-	if err != nil || nonce == nil {
-		panic(err)
-	}
-
-	var newHash string
-	for {
-		newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
-		if err != nil {
-			panic(err)
-		}
-		if newNonceHash.String() != nonce.Hash {
-			newHash = newNonceHash.String()
-			break
-		}
-		time.Sleep(5 * time.Second)
-		continue
-	}
-	err = node.store.UpdateNonceAccount(ctx, nonce.Address, newHash)
-	if err != nil {
-		panic(err)
-	}
-
-	var references []crypto.Hash
-	id := common.UniqueId(call.RequestId, "confirm-success")
-	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
-		cid := common.UniqueId(id, "post-process")
-		nonce, err = node.store.ReadSpareNonceAccount(ctx)
-		if err != nil {
-			return err
-		}
-		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
-		if err != nil {
-			return err
-		}
-
-		source := node.getUserSolanaPublicKeyFromCall(ctx, call)
-		tx = node.burnRestTokens(ctx, call, source, nonce)
-		if tx == nil {
-			return nil
-		}
-		data, err := tx.MarshalBinary()
-		if err != nil {
-			panic(err)
-		}
-		hash, err := node.storageSubSolanaTx(ctx, cid, data)
-		if err != nil {
-			return err
-		}
-		references = append(references, hash)
-	}
-
-	txId := tx.Signatures[0]
-	extra := []byte{FlagConfirmCallSuccess}
-	extra = append(extra, txId[:]...)
-	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    id,
-		Type:  OperationTypeConfirmCall,
-		Extra: extra,
-	}, references)
-}
-
 func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfers) error {
 	id := common.UniqueId(depositHash.String(), user)
 	cid := common.UniqueId(id, "deposit")
@@ -234,9 +160,9 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	if err != nil {
 		return err
 	}
-	tx := node.transferRestTokens(ctx, solana.MustPublicKeyFromBase58(user), nonce, ts)
-	if tx == nil {
-		return nil
+	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), solana.MustPublicKeyFromBase58(user), nonce.Account(), ts)
+	if err != nil {
+		panic(err)
 	}
 	data, err := tx.MarshalBinary()
 	if err != nil {
@@ -343,6 +269,160 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 		}
 		return nonce.PublicKey().String(), hash.String(), nil
 	}
+}
+
+func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, tx *solana.Transaction, meta *rpc.TransactionMeta) *solana.Transaction {
+	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+	if err != nil {
+		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
+	}
+	assets := node.GetSystemCallRelatedAsset(ctx, rs)
+	am := make(map[string]*ReferencedTxAsset)
+	for _, a := range assets {
+		am[a.Address] = a
+	}
+	assets = am
+
+	user := node.getUserSolanaPublicKeyFromCall(ctx, call)
+	if tx != nil && meta != nil {
+		changes := node.buildUserBalanceChangesFromMeta(ctx, tx, meta, user)
+		for address, change := range changes {
+			old := assets[address]
+			if old != nil {
+				assets[address].Amount = assets[address].Amount.Add(change.Amount)
+				continue
+			}
+
+			if !change.Amount.IsPositive() {
+				panic(fmt.Errorf("invalid change for system call: %s %s %v", tx.Signatures[0].String(), change.Amount.String(), call))
+			}
+			da, err := node.store.ReadDeployedAssetByAddress(ctx, address)
+			if err != nil {
+				panic(fmt.Errorf("store.ReadDeployedAssetByAddress(%s) => %v %v", address, da, err))
+			}
+			isSolAsset := true
+			assetId := ethereum.BuildChainAssetId(solanaApp.SolanaChainBase, address)
+			chainId := solanaApp.SolanaChainBase
+			if da != nil {
+				isSolAsset = false
+				assetId = da.AssetId
+				chainId = da.ChainId
+			}
+			assets[address] = &ReferencedTxAsset{
+				Solana:  isSolAsset,
+				Address: address,
+				Decimal: int(change.Decimals),
+				Amount:  change.Amount,
+				AssetId: assetId,
+				ChainId: chainId,
+			}
+		}
+	}
+
+	var transfers []*solanaApp.TokenTransfers
+	for _, asset := range assets {
+		if asset.Amount.IsZero() {
+			continue
+		}
+		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
+		mint := solana.MustPublicKeyFromBase58(asset.Address)
+		if asset.Solana {
+			transfers = append(transfers, &solanaApp.TokenTransfers{
+				SolanaAsset: true,
+				AssetId:     asset.AssetId,
+				ChainId:     asset.ChainId,
+				Mint:        mint,
+				Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
+				Amount:      amount.BigInt().Uint64(),
+				Decimals:    uint8(asset.Decimal),
+			})
+			continue
+		}
+		transfers = append(transfers, &solanaApp.TokenTransfers{
+			SolanaAsset: false,
+			AssetId:     asset.AssetId,
+			ChainId:     asset.ChainId,
+			Mint:        mint,
+			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
+			Amount:      amount.BigInt().Uint64(),
+			Decimals:    uint8(asset.Decimal),
+		})
+	}
+	if len(transfers) == 0 {
+		return nil
+	}
+
+	tx, err = node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), user, nonce.Account(), transfers)
+	if err != nil {
+		panic(err)
+	}
+	return tx
+}
+
+type BalanceChange struct {
+	Amount   decimal.Decimal
+	Decimals uint8
+}
+
+func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, user solana.PublicKey) map[string]*BalanceChange {
+	changes := make(map[string]*BalanceChange)
+	err := node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
+
+	as, err := tx.AccountMetaList()
+	if err != nil {
+		panic(err)
+	}
+	for index, account := range as {
+		if !account.PublicKey.Equals(user) {
+			continue
+		}
+		change := decimal.NewFromUint64(meta.PostBalances[index]).Sub(decimal.NewFromUint64(meta.PreBalances[index]))
+		change = change.Div(decimal.New(1, 9))
+		changes[solanaApp.SolanaEmptyAddress] = &BalanceChange{
+			Amount:   change,
+			Decimals: 9,
+		}
+	}
+
+	for _, tb := range meta.PreTokenBalances {
+		if !tb.Owner.Equals(user) {
+			continue
+		}
+		amount, err := decimal.NewFromString(tb.UiTokenAmount.UiAmountString)
+		if err != nil {
+			panic(err)
+		}
+		changes[tb.Mint.String()] = &BalanceChange{
+			Amount:   amount,
+			Decimals: tb.UiTokenAmount.Decimals,
+		}
+	}
+	for _, tb := range meta.PostTokenBalances {
+		if !tb.Owner.Equals(user) {
+			continue
+		}
+		amount, err := decimal.NewFromString(tb.UiTokenAmount.UiAmountString)
+		if err != nil {
+			panic(err)
+		}
+		key := tb.Mint.String()
+		old := changes[key]
+		if old == nil {
+			changes[key] = &BalanceChange{
+				Amount:   amount,
+				Decimals: tb.UiTokenAmount.Decimals,
+			}
+		} else {
+			changes[key] = &BalanceChange{
+				Amount:   amount.Sub(old.Amount),
+				Decimals: tb.UiTokenAmount.Decimals,
+			}
+		}
+	}
+	return changes
 }
 
 func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction) error {
@@ -554,34 +634,28 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	}
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	for _, asset := range assets {
-		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Asset.Precision)))
-
+		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
+		mint := solana.MustPublicKeyFromBase58(asset.Address)
 		if asset.Solana {
-			mint := solana.MustPublicKeyFromBase58(asset.Asset.AssetKey)
 			transfers = append(transfers, solanaApp.TokenTransfers{
 				SolanaAsset: true,
-				AssetId:     asset.Asset.AssetID,
-				ChainId:     asset.Asset.ChainID,
+				AssetId:     asset.AssetId,
+				ChainId:     asset.ChainId,
 				Mint:        mint,
 				Destination: destination,
 				Amount:      amount.BigInt().Uint64(),
-				Decimals:    uint8(asset.Asset.Precision),
+				Decimals:    uint8(asset.Decimal),
 			})
 			continue
 		}
-
-		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
-		if err != nil || da == nil {
-			return nil, fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", asset.Asset.AssetID, da, err)
-		}
 		transfers = append(transfers, solanaApp.TokenTransfers{
 			SolanaAsset: false,
-			AssetId:     asset.Asset.AssetID,
-			ChainId:     asset.Asset.ChainID,
-			Mint:        da.PublicKey(),
+			AssetId:     asset.AssetId,
+			ChainId:     asset.ChainId,
+			Mint:        mint,
 			Destination: destination,
 			Amount:      amount.BigInt().Uint64(),
-			Decimals:    uint8(asset.Asset.Precision),
+			Decimals:    uint8(asset.Decimal),
 		})
 	}
 	if len(transfers) == 0 {
@@ -589,120 +663,6 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	}
 
 	return node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
-}
-
-func (node *Node) clearTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
-	rs, err := node.GetSystemCallReferenceTxs(ctx, main.RequestId)
-	if err != nil {
-		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", main.RequestId, err))
-	}
-	assets := node.GetSystemCallRelatedAsset(ctx, rs)
-	if len(assets) == 0 {
-		return nil
-	}
-
-	var transfers []*solanaApp.TokenTransfers
-	for _, asset := range assets {
-		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Asset.Precision)))
-		if asset.Solana {
-			mint := solana.MustPublicKeyFromBase58(asset.Asset.AssetKey)
-			transfers = append(transfers, &solanaApp.TokenTransfers{
-				SolanaAsset: true,
-				AssetId:     asset.Asset.AssetID,
-				ChainId:     asset.Asset.ChainID,
-				Mint:        mint,
-				Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-				Amount:      amount.BigInt().Uint64(),
-				Decimals:    uint8(asset.Asset.Precision),
-			})
-			continue
-		}
-		da, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
-		if err != nil || da == nil {
-			panic(fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", asset.Asset.AssetID, da, err))
-		}
-		transfers = append(transfers, &solanaApp.TokenTransfers{
-			SolanaAsset: false,
-			AssetId:     asset.Asset.AssetID,
-			ChainId:     asset.Asset.ChainID,
-			Mint:        da.PublicKey(),
-			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-			Amount:      amount.BigInt().Uint64(),
-			Decimals:    uint8(asset.Asset.Precision),
-		})
-	}
-	if len(transfers) == 0 {
-		panic(fmt.Errorf("empty transfers for system call: %s", main.RequestId))
-	}
-	return node.transferRestTokens(ctx, source, nonce, transfers)
-}
-
-func (node *Node) burnRestTokens(ctx context.Context, main *store.SystemCall, source solana.PublicKey, nonce *store.NonceAccount) *solana.Transaction {
-	rs, err := node.GetSystemCallReferenceTxs(ctx, main.RequestId)
-	if err != nil {
-		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", main.RequestId, err))
-	}
-	assets := node.GetSystemCallRelatedAsset(ctx, rs)
-	var externals []string
-	as := make(map[string]string)
-	for _, asset := range assets {
-		if asset.Solana {
-			continue
-		}
-		a, err := node.store.ReadDeployedAsset(ctx, asset.Asset.AssetID, common.RequestStateDone)
-		if err != nil {
-			panic(err)
-		}
-		externals = append(externals, a.Address)
-		as[a.Address] = a.AssetId
-	}
-	if len(externals) == 0 {
-		return nil
-	}
-
-	spls, err := node.solanaClient().RPCGetTokenAccountsByOwner(ctx, source)
-	if err != nil {
-		panic(err)
-	}
-	if common.CheckTestEnvironment(ctx) {
-		spls = []*token.Account{
-			{
-				Mint:   solana.MustPublicKeyFromBase58("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8"),
-				Amount: 1000000,
-			},
-		}
-	}
-	var transfers []*solanaApp.TokenTransfers
-	for _, t := range spls {
-		address := t.Mint.String()
-		if !slices.Contains(externals, address) || t.Amount == 0 {
-			continue
-		}
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, as[address])
-		if err != nil {
-			panic(err)
-		}
-		transfer := &solanaApp.TokenTransfers{
-			Mint:        t.Mint,
-			Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-			Amount:      t.Amount,
-			Decimals:    uint8(asset.Precision),
-		}
-		transfers = append(transfers, transfer)
-	}
-	if len(transfers) == 0 {
-		return nil
-	}
-
-	return node.transferRestTokens(ctx, source, nonce, transfers)
-}
-
-func (node *Node) transferRestTokens(ctx context.Context, source solana.PublicKey, nonce *store.NonceAccount, transfers []*solanaApp.TokenTransfers) *solana.Transaction {
-	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), source, nonce.Account(), transfers)
-	if err != nil {
-		panic(err)
-	}
-	return tx
 }
 
 func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {

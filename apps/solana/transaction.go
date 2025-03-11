@@ -279,7 +279,7 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 	return builder, nil
 }
 
-func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) ([]*Transfer, error) {
+func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, exception *solana.PublicKey) ([]*Transfer, error) {
 	if meta.Err != nil {
 		// Transaction failed, ignore
 		return nil, nil
@@ -323,6 +323,9 @@ func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana
 	for index, ix := range msg.Instructions {
 		baseIndex := int64(index+1) * 10000
 		if transfer := extractTransfersFromInstruction(&msg, ix, tokenAccounts, owners, transfers); transfer != nil {
+			if exception != nil && exception.String() == transfer.Receiver {
+				continue
+			}
 			transfer.Signature = hash
 			transfer.Index = baseIndex
 			transfers = append(transfers, transfer)
@@ -330,6 +333,9 @@ func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana
 
 		for innerIndex, inner := range innerInstructions[uint16(index)] {
 			if transfer := extractTransfersFromInstruction(&msg, inner, tokenAccounts, owners, transfers); transfer != nil {
+				if exception != nil && exception.String() == transfer.Receiver {
+					continue
+				}
 				transfer.Signature = hash
 				transfer.Index = baseIndex + int64(innerIndex) + 1
 				transfers = append(transfers, transfer)

@@ -265,12 +265,12 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			if !asset.Solana {
 				continue
 			}
-			id := common.UniqueId(req.Id, asset.Asset.AssetID)
+			id := common.UniqueId(req.Id, asset.AssetId)
 			id = common.UniqueId(id, "withdrawal")
 			memo := []byte(call.RequestId)
-			tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.Asset.AssetID, asset.Amount.String(), memo, destination, "", id)
+			tx := node.buildWithdrawalTransaction(ctx, req.Output, asset.AssetId, asset.Amount.String(), memo, destination, "", id)
 			if tx == nil {
-				return node.failRequest(ctx, req, asset.Asset.AssetID)
+				return node.failRequest(ctx, req, asset.AssetId)
 			}
 			txs = append(txs, tx)
 			ids = append(ids, tx.TraceId)
@@ -350,6 +350,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		}
 		as[address] = &solanaApp.DeployedAsset{
 			AssetId: assetId,
+			ChainId: asset.ChainID,
 			Address: address,
 			Asset:   asset,
 		}
@@ -699,7 +700,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	if err != nil {
 		panic(err)
 	}
-	ts, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta)
+	ts, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
 	if err != nil {
 		panic(err)
 	}
