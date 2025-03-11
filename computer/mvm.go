@@ -155,13 +155,14 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
+	cid := uuid.Must(uuid.FromBytes(data[8:24])).String()
 	skipPostprocess := false
-	switch data[8] {
+	switch data[24] {
 	case FlagSkipPostProcess:
 		skipPostprocess = true
 	case FlagWithPostProcess:
 	default:
-		logger.Printf("invalid skip postprocess flag: %d", data[8])
+		logger.Printf("invalid skip postprocess flag: %d", data[24])
 		return node.failRequest(ctx, req, "")
 	}
 	user, err := node.store.ReadUser(ctx, id)
@@ -172,12 +173,12 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	rb := data[9:]
+	rb := data[25:]
 	if len(rb) == 32 {
 		hash := crypto.Hash(rb)
 		rb = node.readStorageExtraFromObserver(ctx, hash)
 	}
-	call, tx, err := node.buildSystemCallFromBytes(ctx, req, req.Id, rb, false)
+	call, tx, err := node.buildSystemCallFromBytes(ctx, req, cid, rb, false)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -759,12 +760,14 @@ func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, ca
 	if call.Type != store.CallTypeMain {
 		return nil, nil
 	}
-	ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
-	if err != nil {
-		panic(err)
-	}
-	if len(ver.References) != 1 {
-		return nil, nil
+	if !common.CheckTestEnvironment(ctx) {
+		ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
+		if err != nil {
+			panic(err)
+		}
+		if len(ver.References) != 1 {
+			return nil, nil
+		}
 	}
 
 	postprocess, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
