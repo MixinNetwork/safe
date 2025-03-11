@@ -22,6 +22,16 @@ type partyContextTyp string
 
 const partyContextKey = partyContextTyp("party")
 
+var outputReferences = make(map[string][]crypto.Hash)
+
+func writeOutputReferences(outputId string, references []crypto.Hash) {
+	outputReferences[outputId] = references
+}
+
+func readOutputReferences(outputId string) []crypto.Hash {
+	return outputReferences[outputId]
+}
+
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	out.TestAttachActionToGroup(nodes[0].group)
 	network := nodes[0].network.(*testNetwork)

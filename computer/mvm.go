@@ -226,7 +226,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
 	if err != nil {
 		call.State = common.RequestStateFailed
-		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, nil, "")
+		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, "")
 		if err != nil {
 			panic(err)
 		}
@@ -236,8 +236,6 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 
 	switch flag {
 	case ConfirmFlagNonceAvailable:
-		var sessions []*store.Session
-
 		prepare, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
@@ -258,7 +256,6 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
-		sessions = append(sessions, node.buildSessionFromSystemCall(req, prepare, 0))
 
 		var txs []*mtg.Transaction
 		var ids []string
@@ -283,9 +280,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			call.State = common.RequestStatePending
 			prepare.State = common.RequestStatePending
 		}
-		sessions = append(sessions, node.buildSessionFromSystemCall(req, call, 1))
 
-		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, prepare, sessions, txs, "")
+		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, prepare, txs, "")
 		if err != nil {
 			panic(err)
 		}
@@ -304,7 +300,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			return node.failRequest(ctx, req, compaction)
 		}
 		call.State = common.RequestStateFailed
-		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, txs, "")
+		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, txs, "")
 		if err != nil {
 			panic(err)
 		}
@@ -373,8 +369,8 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 	call.Public = node.getMTGPublicWithPath(ctx)
 	call.State = common.RequestStatePending
 
-	session := node.buildSessionFromSystemCall(req, call, 0)
-	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
+	err = node.store.WriteMintCallWithRequest(ctx, req, call, as)
+	logger.Printf("store.WriteMintCallWithRequest(%v) => %v", call, err)
 	if err != nil {
 		panic(err)
 	}
@@ -444,7 +440,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	flag, extra := extra[0], extra[1:]
 
 	var call, sub *store.SystemCall
-	var session *store.Session
 	var assets []string
 	var txs []*mtg.Transaction
 	var compaction string
@@ -503,7 +498,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				return node.failRequest(ctx, req, "")
 			}
 			if postprocess != nil {
-				session = node.buildSessionFromSystemCall(req, postprocess, 0)
 				sub = postprocess
 			}
 		case store.CallTypePostProcess:
@@ -558,7 +552,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			return node.failRequest(ctx, req, "")
 		}
 		if postprocess != nil {
-			session = node.buildSessionFromSystemCall(req, postprocess, 0)
 			sub = postprocess
 		}
 	default:
@@ -566,7 +559,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		return node.failRequest(ctx, req, "")
 	}
 
-	err := node.store.ConfirmSystemCallWithRequest(ctx, req, call, sub, session, assets, txs, compaction)
+	err := node.store.ConfirmSystemCallWithRequest(ctx, req, call, sub, assets, txs, compaction)
 	if err != nil {
 		panic(err)
 	}
@@ -583,12 +576,12 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 
 	extra := req.ExtraBytes()
 	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, 0)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
 	if err != nil {
 		panic(err)
 	}
-	if call == nil {
+	if call == nil || call.Signature.Valid || call.State == common.RequestStateFailed {
 		return node.failRequest(ctx, req, "")
 	}
 	old, err := node.store.ReadSession(ctx, req.Id)
@@ -659,9 +652,8 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	call.Type = store.CallTypeMain
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.State = common.RequestStatePending
-	session := node.buildSessionFromSystemCall(req, call, 0)
 
-	err = node.store.WriteSubCallWithRequest(ctx, req, call, session)
+	err = node.store.WriteSubCallWithRequest(ctx, req, call)
 	if err != nil {
 		panic(err)
 	}
@@ -763,19 +755,6 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	return txs, compaction
 }
 
-func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req *store.Request) (*store.SystemCall, *solana.Transaction, error) {
-	ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
-	if err != nil {
-		panic(err)
-	}
-	if len(ver.References) != 1 {
-		panic(fmt.Errorf("invalid count of references from request: %v %v", req, ver))
-	}
-	data := node.readStorageExtraFromObserver(ctx, ver.References[0])
-	id, raw := uuid.Must(uuid.FromBytes(data[:16])).String(), data[16:]
-	return node.buildSystemCallFromBytes(ctx, req, id, raw, true)
-}
-
 func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall) (*store.SystemCall, error) {
 	if call.Type != store.CallTypeMain {
 		return nil, nil
@@ -810,6 +789,25 @@ func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, ca
 		return nil, err
 	}
 	return postprocess, nil
+}
+
+func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req *store.Request) (*store.SystemCall, *solana.Transaction, error) {
+	var references []crypto.Hash
+	if common.CheckTestEnvironment(ctx) {
+		references = outputReferences[req.Output.OutputId]
+	} else {
+		ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
+		if err != nil {
+			panic(err)
+		}
+		if len(ver.References) != 1 {
+			panic(fmt.Errorf("invalid count of references from request: %v %v", req, ver))
+		}
+		references = ver.References
+	}
+	data := node.readStorageExtraFromObserver(ctx, references[0])
+	id, raw := uuid.Must(uuid.FromBytes(data[:16])).String(), data[16:]
+	return node.buildSystemCallFromBytes(ctx, req, id, raw, true)
 }
 
 // should only return error when fail to parse nonce advance instruction;
@@ -847,20 +845,4 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	}
 	return call, tx, nil
-}
-
-func (node *Node) buildSessionFromSystemCall(req *store.Request, call *store.SystemCall, index int) *store.Session {
-	call.RequestSignerAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
-	id := common.UniqueId(call.RequestId, req.CreatedAt.String())
-	return &store.Session{
-		Id:         id,
-		RequestId:  call.RequestId,
-		MixinHash:  req.MixinHash.String(),
-		MixinIndex: req.Output.OutputIndex,
-		Index:      index,
-		Operation:  OperationTypeSignInput,
-		Public:     call.Public,
-		Extra:      call.Message,
-		CreatedAt:  req.CreatedAt,
-	}
 }

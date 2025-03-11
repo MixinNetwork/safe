@@ -406,14 +406,15 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
-		if !call.RequestSignerAt.Valid {
-			panic(call.RequestId)
-		}
 		now := time.Now().UTC()
-		if call.RequestSignerAt.Time.Add(20 * time.Minute).After(now) {
+		if call.RequestSignerAt.Valid && call.RequestSignerAt.Time.Add(20*time.Minute).After(now) {
 			continue
 		}
-		id := common.UniqueId(call.RequestId, call.RequestSignerAt.Time.String())
+		offset := call.CreatedAt
+		if call.RequestSignerAt.Valid {
+			offset = call.RequestSignerAt.Time
+		}
+		id := common.UniqueId(call.RequestId, offset.String())
 		extra := uuid.Must(uuid.FromString(call.RequestId)).Bytes()
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
 			Id:    id,
@@ -566,8 +567,12 @@ func (node *Node) storageSolanaTx(ctx context.Context, raw string) (string, erro
 }
 
 func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) (crypto.Hash, error) {
-	data := uuid.Must(uuid.FromBytes(rb)).Bytes()
+	data := uuid.Must(uuid.FromString(id)).Bytes()
 	data = append(data, rb...)
+	if common.CheckTestEnvironment(ctx) {
+		ref := crypto.Sha256Hash(data)
+		return ref, node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(data))
+	}
 	trace := common.UniqueId(hex.EncodeToString(data), "storage-solana-tx")
 	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, rb, trace, *node.safeUser())
 	if err != nil {

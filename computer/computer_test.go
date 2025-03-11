@@ -38,34 +38,28 @@ func TestComputer(t *testing.T) {
 	testObserverRequestDeployAsset(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
-	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
-	testConfirmWithdrawal(ctx, require, nodes, call)
-	sub := testObserverCreateSubCall(ctx, require, nodes, call)
+	call, sub := testUserRequestSystemCall(ctx, require, nodes, mds, user)
+	testConfirmWithdrawal(ctx, require, nodes, call, sub)
 	testObserverConfirmSubCall(ctx, require, nodes, sub)
-	testObserverConfirmMainCall(ctx, require, nodes, call)
-	postprocess := testObserverCreatePostprocessCall(ctx, require, nodes, call)
+	postprocess := testObserverConfirmMainCall(ctx, require, nodes, call)
 	testObserverConfirmPostprocessCall(ctx, require, nodes, postprocess)
 }
 
 func testObserverConfirmPostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
-	signature := solana.MustSignatureFromBase58("5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR")
-	hash := solana.MustHashFromBase58("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+	node := nodes[0]
+	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+	require.Nil(err)
+	nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
+	require.Nil(err)
+	require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
+	require.False(nonce.CallId.Valid)
 
 	id := uuid.Must(uuid.NewV4()).String()
+	signature := solana.MustSignatureFromBase58("5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR")
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
-	extra = append(extra, hash[:]...)
-
-	for index, node := range nodes {
-		if index == 0 {
-			err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
-			require.Nil(err)
-			nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
-			require.Nil(err)
-			require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
-			require.False(nonce.CallId.Valid)
-		}
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, nil)
 		testStep(ctx, require, node, out)
 
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
@@ -82,111 +76,70 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 	}
 }
 
-func testObserverCreatePostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
+func testObserverConfirmMainCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
 	node := nodes[0]
-	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	err := node.store.UpdateNonceAccount(ctx, call.NonceAccount, "E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX")
+	require.Nil(err)
+	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+	require.Nil(err)
+	require.Equal("E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX", nonce.Hash)
+	require.False(nonce.CallId.Valid)
+	require.False(nonce.Mix.Valid)
+
+	cid := common.UniqueId(call.RequestId, "post-process")
+	nonce, err = node.store.ReadSpareNonceAccount(ctx)
+	require.Nil(err)
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 	require.Nil(err)
 	source := node.getUserSolanaPublicKeyFromCall(ctx, call)
 	stx := node.burnRestTokens(ctx, call, source, nonce)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
-	ref := crypto.Sha256Hash(raw)
+	refs := testStorageSystemCall(ctx, nodes, cid, raw)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	extra := uuid.Must(uuid.FromString(id)).Bytes()
-	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	extra = append(extra, ref[:]...)
-
-	for index, node := range nodes {
-		if index == 0 {
-			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
-			require.Nil(err)
-			nonce, err := node.store.ReadNonceAccount(ctx, nonce.Address)
-			require.Nil(err)
-			require.True(nonce.CallId.Valid)
-		}
-		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
-		require.Nil(err)
-		out := testBuildObserverRequest(node, id, OperationTypeCreateSubCall, extra)
+	signature := solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW")
+	extra := []byte{FlagConfirmCallSuccess}
+	extra = append(extra, signature[:]...)
+	var postprocess *store.SystemCall
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, refs)
 		testStep(ctx, require, node, out)
-
-		sub, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
+		main, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
 		require.Nil(err)
-		require.Equal(id, sub.RequestId)
-		require.Equal(call.RequestId, sub.Superior)
+		require.NotNil(main)
+		sub, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
+		require.Nil(err)
+		require.NotNil(sub)
+		require.Equal(main.RequestId, sub.Superior)
 		require.Equal(store.CallTypePostProcess, sub.Type)
 		require.Len(sub.GetWithdrawalIds(), 0)
 		require.True(sub.WithdrawnAt.Valid)
 		require.False(sub.Signature.Valid)
 		require.False(sub.RequestSignerAt.Valid)
+		postprocess = sub
 	}
-
-	tid := common.UniqueId(id, time.Time{}.String())
-	extra = uuid.Must(uuid.FromString(id)).Bytes()
-	for _, node := range nodes {
-		out := testBuildObserverRequest(node, tid, OperationTypeSignInput, extra)
-		testStep(ctx, require, node, out)
-		session, err := node.store.ReadSession(ctx, out.OutputId)
-		require.Nil(err)
-		require.NotNil(session)
-	}
-	for _, node := range nodes {
-		testWaitOperation(ctx, node, tid)
-	}
-	for {
-		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
-		require.Nil(err)
-		if s != nil && s.Signature.Valid {
-			return s
-		}
-	}
-}
-
-func testObserverConfirmMainCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
-	signature := solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW")
-
-	id := uuid.Must(uuid.NewV4()).String()
-	extra := []byte{FlagConfirmCallSuccess}
-	extra = append(extra, signature[:]...)
-
-	for index, node := range nodes {
-		if index == 0 {
-			err := node.store.UpdateNonceAccount(ctx, call.NonceAccount, "E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX")
-			require.Nil(err)
-			nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
-			require.Nil(err)
-			require.Equal("E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX", nonce.Hash)
-			require.False(nonce.CallId.Valid)
-			require.False(nonce.Mix.Valid)
-		}
-
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
-		testStep(ctx, require, node, out)
-		sub, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
-		require.Nil(err)
-		require.NotNil(sub)
-	}
+	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
+	return postprocess
 }
 
 func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
-	signature := solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb")
+	node := nodes[0]
+	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+	require.Nil(err)
+	nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
+	require.Nil(err)
+	require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
+	require.False(nonce.CallId.Valid)
+	require.False(nonce.Mix.Valid)
 
 	id := uuid.Must(uuid.NewV4()).String()
+	signature := solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb")
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
-
-	var callId string
-	for index, node := range nodes {
-		if index == 0 {
-			err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
-			require.Nil(err)
-			nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
-			require.Nil(err)
-			require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
-			require.False(nonce.CallId.Valid)
-		}
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
+	for _, node := range nodes {
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, nil)
 		testStep(ctx, require, node, out)
 
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
@@ -195,95 +148,10 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStatePending)
 		require.Nil(err)
 		require.NotNil(call)
-		callId = sub.Superior
-	}
-
-	tid := common.UniqueId(callId, time.Time{}.String())
-	extra = uuid.Must(uuid.FromString(callId)).Bytes()
-	for _, node := range nodes {
-		out := testBuildObserverRequest(node, tid, OperationTypeSignInput, extra)
-		testStep(ctx, require, node, out)
-		session, err := node.store.ReadSession(ctx, out.OutputId)
-		require.Nil(err)
-		require.NotNil(session)
-	}
-	for _, node := range nodes {
-		testWaitOperation(ctx, node, tid)
-	}
-	for {
-		s, err := nodes[0].store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
-		require.Nil(err)
-		if s != nil && s.Signature.Valid {
-			return
-		}
 	}
 }
 
-func testObserverCreateSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
-	node := nodes[0]
-	nonce, err := node.store.ReadSpareNonceAccount(ctx)
-	require.Nil(err)
-	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
-	require.Equal("8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG", nonce.Hash)
-	stx, err := node.transferOrMintTokens(ctx, call, nonce)
-	require.Nil(err)
-	require.NotNil(stx)
-	raw, err := stx.MarshalBinary()
-	require.Nil(err)
-	ref := crypto.Sha256Hash(raw)
-
-	id := uuid.Must(uuid.NewV4()).String()
-	extra := uuid.Must(uuid.FromString(id)).Bytes()
-	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
-	extra = append(extra, ref[:]...)
-
-	for index, node := range nodes {
-		if index == 0 {
-			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, id)
-			require.Nil(err)
-			nonce, err = node.store.ReadNonceAccount(ctx, nonce.Address)
-			require.Nil(err)
-			require.Equal(id, nonce.CallId.String)
-		}
-		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
-		require.Nil(err)
-		out := testBuildObserverRequest(node, id, OperationTypeCreateSubCall, extra)
-		testStep(ctx, require, node, out)
-
-		sub, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
-		require.Nil(err)
-		require.Equal(id, sub.RequestId)
-		require.Equal(call.RequestId, sub.Superior)
-		require.Equal(store.CallTypePrepare, sub.Type)
-		require.Equal(nonce.Address, sub.NonceAccount)
-		require.Len(sub.GetWithdrawalIds(), 0)
-		require.True(sub.WithdrawnAt.Valid)
-		require.False(sub.Signature.Valid)
-		require.False(sub.RequestSignerAt.Valid)
-	}
-
-	tid := common.UniqueId(id, time.Time{}.String())
-	extra = uuid.Must(uuid.FromString(id)).Bytes()
-	for _, node := range nodes {
-		out := testBuildObserverRequest(node, tid, OperationTypeSignInput, extra)
-		testStep(ctx, require, node, out)
-		session, err := node.store.ReadSession(ctx, out.OutputId)
-		require.Nil(err)
-		require.NotNil(session)
-	}
-	for _, node := range nodes {
-		testWaitOperation(ctx, node, tid)
-	}
-	for {
-		s, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStatePending)
-		require.Nil(err)
-		if s != nil && s.Signature.Valid {
-			return s
-		}
-	}
-}
-
-func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call, sub *store.SystemCall) {
 	tid := call.GetWithdrawalIds()[0]
 	callId := call.RequestId
 
@@ -294,16 +162,19 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 	extra = append(extra, uuid.Must(uuid.FromString(callId)).Bytes()...)
 	extra = append(extra, sig[:]...)
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra, nil)
 		testStep(ctx, require, node, out)
-		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
 		require.Nil(err)
 		require.Equal("", call.WithdrawalTraces.String)
 		require.True(call.WithdrawnAt.Valid)
+		call, err = node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStatePending)
+		require.Nil(err)
+		require.NotNil(call)
 	}
 }
 
-func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) *store.SystemCall {
+func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) (*store.SystemCall, *store.SystemCall) {
 	node := nodes[0]
 	conf := node.conf
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
@@ -324,8 +195,8 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	extra := user.IdBytes()
 	extra = append(extra, FlagWithPostProcess)
 	extra = append(extra, common.DecodeHexOrPanic("02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000810cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca85002953f9517566994f5066c9478a5e6d0466906e7d844b2d971b2e4f86ff72561c6d6405387e0deff4ac3250e4e4d1986f1bc5e805edd8ca4c48b73b92441afdc070b84fed2e0ca7ecb2a18e32bf10885151641616b3fe4447557683ee699247e1f9cbad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ecf6994777d4d13d8bd64679ac9e173a29ea40653734b52eee914ddc43c820f424071d460ef6501203e6656563c4add1638164d5eba1dee13e9085fb60036f98f10000000000000000000000000000000000000000000000000000000000000000816e66630c3bb724dc59e49f6cc4306e603a6aacca06fa3e34e2b40ad5979d8da5d5ca9e04cf5db590b714ba2fe32cb159133fc1c192b72257fd07d39cb0401ec4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f0000000000106a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea940000006a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a0000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a90ff0530009fc7a19cf8d8d0257f1dc2d478f1368aa89f5e546c6e12d8a4015ec020803050d0004040000000a0d0109030c0b020406070f0f080e20e992d18ecf6840bcd564b7ff16977c720000000000000000b992766700000000")...)
+	out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra)
 	for _, node := range nodes {
-		out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra)
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, out.OutputId, common.RequestStateInitial)
 		require.Nil(err)
@@ -354,19 +225,39 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	err = node.store.OccupyNonceAccountByCall(ctx, c.NonceAccount, c.RequestId)
 	require.Nil(err)
 
+	nonce, err = node.store.ReadSpareNonceAccount(ctx)
+	require.Nil(err)
+	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
+	require.Equal("8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG", nonce.Hash)
+	stx, err := node.transferOrMintTokens(ctx, c, nonce)
+	require.Nil(err)
+	require.NotNil(stx)
+	raw, err := stx.MarshalBinary()
+	require.Nil(err)
+	cid := common.UniqueId(c.RequestId, "prepare")
+	refs := testStorageSystemCall(ctx, nodes, cid, raw)
+
 	id = uuid.Must(uuid.NewV4()).String()
 	extra = []byte{ConfirmFlagNonceAvailable}
 	extra = append(extra, uuid.Must(uuid.FromString(c.RequestId)).Bytes()...)
+	out = testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra, refs)
+	var sub *store.SystemCall
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra)
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, c.RequestId, common.RequestStateInitial)
 		require.Nil(err)
 		require.Len(call.GetWithdrawalIds(), 1)
 		require.False(call.WithdrawnAt.Valid)
 		c = call
+		call, err = node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStateInitial)
+		require.Nil(err)
+		require.True(call.WithdrawalTraces.Valid)
+		require.True(call.WithdrawnAt.Valid)
+		sub = call
 	}
-	return c
+	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
+	testObserverRequestSignSystemCall(ctx, require, nodes, c.RequestId)
+	return c, sub
 }
 
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
@@ -439,7 +330,7 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 		extra := uuid.Must(uuid.FromString(node.conf.OperationPriceAssetId)).Bytes()
 		extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 
-		out := testBuildObserverRequest(node, id, OperationTypeSetOperationParams, extra)
+		out := testBuildObserverRequest(node, id, OperationTypeSetOperationParams, extra, nil)
 		testStep(ctx, require, node, out)
 
 		params, err = node.store.ReadLatestOperationParams(ctx, time.Now().UTC())
@@ -455,6 +346,8 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 
 	nonce, err := node.store.ReadNonceAccount(ctx, "ByaBrgG365HHJfMiybAg3sJfFuyj6oEou2cA6Cs4DfT6")
 	require.Nil(err)
+	require.False(nonce.CallId.Valid)
+	require.False(nonce.Mix.Valid)
 	err = node.store.WriteExternalAssets(ctx, []*store.ExternalAsset{
 		{
 			AssetId:   common.SafeLitecoinChainId,
@@ -466,25 +359,23 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 	require.Nil(err)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
-	ref := crypto.Sha256Hash(raw)
+	refs := testStorageSystemCall(ctx, nodes, cid, raw)
 
-	extra := uuid.Must(uuid.FromString(cid)).Bytes()
-	extra = append(extra, ref[:]...)
+	var extra []byte
 	for _, asset := range assets {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
-
 	id := uuid.Must(uuid.NewV4()).String()
 	for _, node := range nodes {
-		err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+		out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra, refs)
+		testStep(ctx, require, node, out)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
 		require.Nil(err)
-		out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra)
-		go testStep(ctx, require, node, out)
+		require.NotNil(call)
 	}
-	for _, node := range nodes {
-		testWaitOperation(ctx, node, id)
-	}
+	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
+
 	id = common.UniqueId(id, "confirm")
 	sig := solana.MustSignatureFromBase58("MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi")
 	extra = []byte{FlagConfirmCallSuccess}
@@ -494,7 +385,7 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 		require.Nil(err)
 		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", asset.Address)
 		require.Equal(int64(common.RequestStateInitial), asset.State)
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, nil)
 		testStep(ctx, require, node, out)
 		asset, err = node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId, common.RequestStateDone)
 		require.Nil(err)
@@ -520,7 +411,7 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 		require.Nil(err)
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 
-		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, extra)
+		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, extra, nil)
 		sessionId = out.OutputId
 		testStep(ctx, require, node, out)
 		sessions, err := node.store.ListPreparedSessions(ctx, 500)
@@ -557,6 +448,35 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
 }
 
+func testStorageSystemCall(ctx context.Context, nodes []*Node, id string, raw []byte) []crypto.Hash {
+	var refs []crypto.Hash
+	for _, node := range nodes {
+		ref, err := node.storageSubSolanaTx(ctx, id, raw)
+		if err != nil {
+			panic(err)
+		}
+		refs = []crypto.Hash{ref}
+	}
+	return refs
+}
+
+func testObserverRequestSignSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, cid string) {
+	id := uuid.Must(uuid.NewV4()).String()
+	extra := uuid.Must(uuid.FromString(cid)).Bytes()
+	out := testBuildObserverRequest(nodes[0], id, OperationTypeSignInput, extra, nil)
+	for _, node := range nodes {
+		testStep(ctx, require, node, out)
+	}
+	for _, node := range nodes {
+		testWaitOperation(ctx, node, id)
+	}
+	for _, node := range nodes {
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, 0)
+		require.Nil(err)
+		require.True(call.Signature.Valid)
+	}
+}
+
 func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte) *mtg.Action {
 	sequence += 10
 	if hash == "" {
@@ -583,13 +503,15 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 	}
 }
 
-func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
+func testBuildObserverRequest(node *Node, id string, action byte, extra []byte, references []crypto.Hash) *mtg.Action {
 	sequence += 10
 	memo := []byte{action}
 	memo = append(memo, extra...)
 	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	memoStr = hex.EncodeToString([]byte(memoStr))
 	timestamp := time.Now().UTC()
+
+	writeOutputReferences(id, references)
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,

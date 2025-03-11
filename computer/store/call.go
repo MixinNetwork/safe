@@ -114,7 +114,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session) error {
+func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request, call *SystemCall) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -124,7 +124,7 @@ func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request
 	}
 	defer common.Rollback(tx)
 
-	err = s.writeCallWithSession(ctx, tx, call, session)
+	err = s.writeSystemCall(ctx, tx, call)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*solanaApp.DeployedAsset) error {
+func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, assets map[string]*solanaApp.DeployedAsset) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -147,7 +147,7 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 	}
 	defer common.Rollback(tx)
 
-	err = s.writeCallWithSession(ctx, tx, call, session)
+	err = s.writeSystemCall(ctx, tx, call)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, sessions []*Session, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -195,17 +195,6 @@ func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req
 	err = s.writeSystemCall(ctx, tx, sub)
 	if err != nil {
 		return err
-	}
-
-	for _, session := range sessions {
-		cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
-			"extra", "state", "created_at", "updated_at"}
-		vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
-			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
-		err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
-		if err != nil {
-			return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
-		}
 	}
 
 	err = s.finishRequest(ctx, tx, req, txs, compaction)
@@ -251,7 +240,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawnWithRequest(ctx context.Context, r
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, session *Session, assets []string, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, assets []string, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -267,8 +256,8 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
 
-	if sub != nil && session != nil {
-		err = s.writeCallWithSession(ctx, tx, sub, session)
+	if sub != nil {
+		err = s.writeSystemCall(ctx, tx, sub)
 		if err != nil {
 			return err
 		}
@@ -304,7 +293,7 @@ func (s *SQLite3Store) WriteSignSessionWithRequest(ctx context.Context, req *Req
 	defer common.Rollback(tx)
 
 	query := "UPDATE system_calls SET request_signer_at=?, updated_at=? WHERE request_id=? AND state!=? AND signature IS NULL"
-	err = s.execOne(ctx, tx, query, req.CreatedAt, req.CreatedAt, call.RequestId, common.RequestStateInitial)
+	err = s.execOne(ctx, tx, query, req.CreatedAt, req.CreatedAt, call.RequestId, common.RequestStateFailed)
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
@@ -410,7 +399,7 @@ func (s *SQLite3Store) ListUnsignedCalls(ctx context.Context) ([]*SystemCall, er
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state!=? AND signature IS NULL AND request_signer_at IS NOT NULL ORDER BY request_signer_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
+	sql := fmt.Sprintf("SELECT %s FROM system_calls WHERE state!=? AND withdrawal_traces IS NOT NULL AND signature IS NULL ORDER BY created_at ASC LIMIT 100", strings.Join(systemCallCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql, common.RequestStateFailed)
 	if err != nil {
 		return nil, err
@@ -490,23 +479,6 @@ func (s *SQLite3Store) writeSystemCall(ctx context.Context, tx *sql.Tx, call *Sy
 	err := s.execOne(ctx, tx, buildInsertionSQL("system_calls", systemCallCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT system_calls %v", err)
-	}
-	return nil
-}
-
-func (s *SQLite3Store) writeCallWithSession(ctx context.Context, tx *sql.Tx, call *SystemCall, session *Session) error {
-	err := s.writeSystemCall(ctx, tx, call)
-	if err != nil {
-		return err
-	}
-
-	cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
-		"extra", "state", "created_at", "updated_at"}
-	vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
-		session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
-	err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 	}
 	return nil
 }
