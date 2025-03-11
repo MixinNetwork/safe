@@ -478,6 +478,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			return node.failRequest(ctx, req, "")
 		}
 		call.State = common.RequestStateDone
+		call.Hash = sql.NullString{Valid: true, String: signature}
 
 		switch call.Type {
 		case store.CallTypeMint:

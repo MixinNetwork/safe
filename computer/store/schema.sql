@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS system_calls (
   withdrawn_at          TIMESTAMP,
   signature             VARCHAR,
   request_signer_at     TIMESTAMP,
+  hash                  VARCHAR,
   created_at            TIMESTAMP NOT NULL,
   updated_at            TIMESTAMP NOT NULL,
   PRIMARY KEY ('request_id')
