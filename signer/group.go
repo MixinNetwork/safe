@@ -20,7 +20,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"

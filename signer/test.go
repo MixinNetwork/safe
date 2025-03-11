@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/saver"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"

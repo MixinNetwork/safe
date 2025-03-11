@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 )
 
 type SignatureRequest struct {

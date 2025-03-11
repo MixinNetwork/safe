@@ -3,7 +3,7 @@ package custodian
 import (
 	"context"
 
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 )
 
 const (

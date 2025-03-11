@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/gofrs/uuid/v5"
 )
 
