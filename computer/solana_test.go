@@ -104,6 +104,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	call := &store.SystemCall{
 		RequestId:        id,
 		Superior:         id,
+		RequestHash:      "4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295",
 		Type:             store.CallTypeMain,
 		NonceAccount:     nonce,
 		Public:           public,

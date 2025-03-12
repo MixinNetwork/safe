@@ -272,7 +272,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 }
 
 func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, tx *solana.Transaction, meta *rpc.TransactionMeta) *solana.Transaction {
-	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
 		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
 	}
@@ -628,7 +628,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
 
 	var transfers []solanaApp.TokenTransfers
-	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
 		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
 	}

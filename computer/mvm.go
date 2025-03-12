@@ -140,7 +140,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	rs, err := node.GetSystemCallReferenceTxs(ctx, req.Id)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, req.MixinHash.String())
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -224,7 +224,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestId)
+	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
 		call.State = common.RequestStateFailed
 		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, "")
@@ -842,6 +842,7 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	}
 	call := &store.SystemCall{
 		RequestId:    id,
+		RequestHash:  req.MixinHash.String(),
 		NonceAccount: advance.GetNonceAccount().PublicKey.String(),
 		Message:      hex.EncodeToString(msg),
 		Raw:          tx.MustToBase64(),

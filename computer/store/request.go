@@ -131,6 +131,13 @@ func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*Request, er
 	return requestFromRow(row)
 }
 
+func (s *SQLite3Store) ReadRequestByHash(ctx context.Context, hash string) (*Request, error) {
+	query := fmt.Sprintf("SELECT %s FROM requests WHERE mixin_hash=?", strings.Join(requestCols, ","))
+	row := s.db.QueryRowContext(ctx, query, hash)
+
+	return requestFromRow(row)
+}
+
 func (s *SQLite3Store) FailRequest(ctx context.Context, req *Request, compaction string, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

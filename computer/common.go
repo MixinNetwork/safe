@@ -28,11 +28,11 @@ type ReferencedTxAsset struct {
 }
 
 // should only return error when mtg could not find outputs from referenced transaction
-func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId string) ([]*store.SpentReference, error) {
+func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash string) ([]*store.SpentReference, error) {
 	var refs []*store.SpentReference
-	req, err := node.store.ReadRequest(ctx, requestId)
+	req, err := node.store.ReadRequestByHash(ctx, requestHash)
 	if err != nil || req == nil {
-		panic(fmt.Errorf("store.ReadRequest(%s) => %v %v", requestId, req, err))
+		panic(fmt.Errorf("store.ReadRequestByHash(%s) => %v %v", requestHash, req, err))
 	}
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
 	if err != nil || ver == nil {
@@ -62,6 +62,7 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestId strin
 		refs = append(refs, &store.SpentReference{
 			TransactionHash: req.MixinHash.String(),
 			RequestId:       req.Id,
+			RequestHash:     req.MixinHash.String(),
 			ChainId:         bot.EthereumChainId,
 			AssetId:         bot.XINAssetId,
 			Amount:          amount.String(),
@@ -106,6 +107,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 		{
 			TransactionHash: hash,
 			RequestId:       req.Id,
+			RequestHash:     req.MixinHash.String(),
 			ChainId:         asset.ChainID,
 			AssetId:         asset.AssetID,
 			Amount:          total.String(),

@@ -135,8 +135,9 @@ CREATE INDEX IF NOT EXISTS assets_by_address ON deployed_assets(address);
 
 
 CREATE TABLE IF NOT EXISTS system_calls (
-  request_id            VARCHAR NOT NULL,
-  superior_request_id   VARCHAR NOT NULL,
+  id                    VARCHAR NOT NULL,
+  superior_id           VARCHAR NOT NULL,
+  request_hash          VARCHAR NOT NULL,
   call_type             VARCHAR NOT NULL,
   nonce_account         VARCHAR NOT NULL,
   public                VARCHAR NOT NULL,
@@ -151,13 +152,14 @@ CREATE TABLE IF NOT EXISTS system_calls (
   hash                  VARCHAR,
   created_at            TIMESTAMP NOT NULL,
   updated_at            TIMESTAMP NOT NULL,
-  PRIMARY KEY ('request_id')
+  PRIMARY KEY ('id')
 );
 
 
 CREATE TABLE IF NOT EXISTS spent_references (
   transaction_hash   VARCHAR NOT NULL,
   request_id         VARCHAR NOT NULL,
+  request_hash       VARCHAR NOT NULL,
   chain_id           VARCHAR NOT NULL,
   asset_id           VARCHAR NOT NULL,
   amount             VARCHAR NOT NULL,
