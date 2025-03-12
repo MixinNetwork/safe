@@ -632,7 +632,7 @@ func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) 
 		return ref, node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(data))
 	}
 	trace := common.UniqueId(hex.EncodeToString(data), "storage-solana-tx")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, rb, trace, *node.safeUser())
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, trace, *node.safeUser())
 	if err != nil {
 		return crypto.Hash{}, err
 	}
