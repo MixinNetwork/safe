@@ -11,20 +11,6 @@ import (
 	treeout "github.com/gagliardetto/treeout"
 )
 
-func FindAssociatedTokenAddress(
-	wallet solana.PublicKey,
-	mint solana.PublicKey,
-	tokenProgramID solana.PublicKey,
-) (solana.PublicKey, uint8, error) {
-	return solana.FindProgramAddress([][]byte{
-		wallet[:],
-		tokenProgramID[:],
-		mint[:],
-	},
-		solana.SPLAssociatedTokenAccountProgramID,
-	)
-}
-
 type Create struct {
 	Payer  solana.PublicKey `bin:"-" borsh_skip:"true"`
 	Wallet solana.PublicKey `bin:"-" borsh_skip:"true"`

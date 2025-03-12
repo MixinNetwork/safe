@@ -80,6 +80,20 @@ type Transfer struct {
 	MayClosedWsolAta *solana.PublicKey
 }
 
+func FindAssociatedTokenAddress(
+	wallet solana.PublicKey,
+	mint solana.PublicKey,
+	tokenProgramID solana.PublicKey,
+) (solana.PublicKey, uint8, error) {
+	return solana.FindProgramAddress([][]byte{
+		wallet[:],
+		tokenProgramID[:],
+		mint[:],
+	},
+		solana.SPLAssociatedTokenAccountProgramID,
+	)
+}
+
 func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *solana.PrivateKey {
 	mapKeys := make(map[solana.PublicKey]*solana.PrivateKey)
 	for _, k := range keys {

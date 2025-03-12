@@ -249,14 +249,6 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		panic(err)
 	}
 	tokenProgram := mintAccount.Value.Owner
-	isToken2022 := false
-	switch {
-	case tokenProgram.Equals(solana.TokenProgramID):
-	case tokenProgram.Equals(solana.Token2022ProgramID):
-		isToken2022 = true
-	default:
-		panic(fmt.Errorf("invalid token program id: %s", tokenProgram.String()))
-	}
 
 	src, _, err := FindAssociatedTokenAddress(source, transfer.Mint, tokenProgram)
 	if err != nil {
@@ -270,32 +262,53 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 	if err != nil {
 		return nil, err
 	}
-	if ata == nil || common.CheckTestEnvironment(ctx) {
-		ins := tokenAta.NewCreateInstruction(
-			payer,
-			transfer.Destination,
-			transfer.Mint,
-		).Build()
-		if isToken2022 {
-			ins = NewAta2022CreateInstruction(
-				payer,
-				transfer.Destination,
-				transfer.Mint,
-			).Build()
+
+	switch {
+	case tokenProgram.Equals(solana.TokenProgramID):
+		if ata == nil || common.CheckTestEnvironment(ctx) {
+			builder.AddInstruction(
+				tokenAta.NewCreateInstruction(
+					payer,
+					transfer.Destination,
+					transfer.Mint,
+				).Build(),
+			)
 		}
-		builder.AddInstruction(ins)
+		builder.AddInstruction(
+			token.NewTransferCheckedInstruction(
+				transfer.Amount,
+				transfer.Decimals,
+				src,
+				transfer.Mint,
+				dst,
+				source,
+				nil,
+			).Build(),
+		)
+	case tokenProgram.Equals(solana.Token2022ProgramID):
+		if ata == nil || common.CheckTestEnvironment(ctx) {
+			builder.AddInstruction(
+				NewAta2022CreateInstruction(
+					payer,
+					transfer.Destination,
+					transfer.Mint,
+				).Build(),
+			)
+		}
+		builder.AddInstruction(
+			NewToken2022TransferCheckedInstruction(
+				transfer.Amount,
+				transfer.Decimals,
+				src,
+				transfer.Mint,
+				dst,
+				source,
+				nil,
+			).Build(),
+		)
+	default:
+		panic(fmt.Errorf("invalid token program id: %s", tokenProgram.String()))
 	}
-	builder.AddInstruction(
-		token.NewTransferCheckedInstruction(
-			transfer.Amount,
-			transfer.Decimals,
-			src,
-			transfer.Mint,
-			dst,
-			source,
-			nil,
-		).Build(),
-	)
 	return builder, nil
 }
 
