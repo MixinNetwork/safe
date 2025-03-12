@@ -226,8 +226,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	}
 	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
-		call.State = common.RequestStateFailed
-		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, nil, "")
+		err = node.store.ExpireSystemCallWithRequest(ctx, req, call, nil, "")
 		if err != nil {
 			panic(err)
 		}
@@ -300,8 +299,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if compaction != "" {
 			return node.failRequest(ctx, req, compaction)
 		}
-		call.State = common.RequestStateFailed
-		err = node.store.ConfirmSystemCallWithRequest(ctx, req, call, nil, nil, txs, "")
+		err = node.store.ExpireSystemCallWithRequest(ctx, req, call, txs, "")
 		if err != nil {
 			panic(err)
 		}
