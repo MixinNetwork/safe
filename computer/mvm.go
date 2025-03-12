@@ -647,6 +647,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 
 	call, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
 	if err != nil {
+		logger.Printf("node.getSubSystemCallFromReferencedStorage(%v) => %v", req, err)
 		return node.failRequest(ctx, req, "")
 	}
 	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), userAddress)
@@ -809,7 +810,7 @@ func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req
 			panic(err)
 		}
 		if len(ver.References) != 1 {
-			panic(fmt.Errorf("invalid count of references from request: %v %v", req, ver))
+			return nil, nil, fmt.Errorf("invalid count of references from request: %v %v", req, ver)
 		}
 		references = ver.References
 	}
