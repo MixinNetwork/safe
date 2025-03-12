@@ -244,6 +244,15 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		return builder, nil
 	}
 
+	mintAccount, err := c.RPCGetAccount(ctx, transfer.Mint)
+	if err != nil {
+		panic(err)
+	}
+	isToken2022 := false
+	if mintAccount.Value.Owner.Equals(solana.Token2022ProgramID) {
+		isToken2022 = true
+	}
+
 	src, _, err := solana.FindAssociatedTokenAddress(source, transfer.Mint)
 	if err != nil {
 		return nil, err
@@ -257,13 +266,19 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		return nil, err
 	}
 	if ata == nil || common.CheckTestEnvironment(ctx) {
-		builder.AddInstruction(
-			tokenAta.NewCreateInstruction(
+		ins := tokenAta.NewCreateInstruction(
+			payer,
+			transfer.Destination,
+			transfer.Mint,
+		).Build()
+		if isToken2022 {
+			ins = NewAta2022CreateInstruction(
 				payer,
 				transfer.Destination,
 				transfer.Mint,
-			).Build(),
-		)
+			).Build()
+		}
+		builder.AddInstruction(ins)
 	}
 	builder.AddInstruction(
 		token.NewTransferCheckedInstruction(
