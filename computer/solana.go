@@ -492,7 +492,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			if mint, ok := solanaApp.DecodeTokenMintTo(accounts, ix.Data); ok {
 				to := mint.GetDestinationAccount().PublicKey
 				token := mint.GetMintAccount().PublicKey
-				ata, _, err := solana.FindAssociatedTokenAddress(user, token)
+				ata, _, err := solanaApp.FindAssociatedTokenAddress(user, token, programKey)
 				if err != nil {
 					return err
 				}
@@ -504,11 +504,11 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			if transfer, ok := solanaApp.DecodeTokenTransferChecked(accounts, ix.Data); ok {
 				recipient := transfer.GetDestinationAccount().PublicKey
 				token := transfer.GetMintAccount().PublicKey
-				entryAta, _, err := solana.FindAssociatedTokenAddress(groupDepositEntry, token)
+				entryAta, _, err := solanaApp.FindAssociatedTokenAddress(groupDepositEntry, token, programKey)
 				if err != nil {
 					return err
 				}
-				userAta, _, err := solana.FindAssociatedTokenAddress(user, token)
+				userAta, _, err := solanaApp.FindAssociatedTokenAddress(user, token, programKey)
 				if err != nil {
 					return err
 				}

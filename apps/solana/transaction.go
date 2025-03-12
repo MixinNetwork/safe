@@ -248,16 +248,21 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 	if err != nil {
 		panic(err)
 	}
+	tokenProgram := mintAccount.Value.Owner
 	isToken2022 := false
-	if mintAccount.Value.Owner.Equals(solana.Token2022ProgramID) {
+	switch {
+	case tokenProgram.Equals(solana.TokenProgramID):
+	case tokenProgram.Equals(solana.Token2022ProgramID):
 		isToken2022 = true
+	default:
+		panic(fmt.Errorf("invalid token program id: %s", tokenProgram.String()))
 	}
 
-	src, _, err := solana.FindAssociatedTokenAddress(source, transfer.Mint)
+	src, _, err := FindAssociatedTokenAddress(source, transfer.Mint, tokenProgram)
 	if err != nil {
 		return nil, err
 	}
-	dst, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, transfer.Mint)
+	dst, _, err := FindAssociatedTokenAddress(transfer.Destination, transfer.Mint, tokenProgram)
 	if err != nil {
 		return nil, err
 	}

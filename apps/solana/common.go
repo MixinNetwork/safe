@@ -389,7 +389,7 @@ func extractTransfersFromInstruction(
 			if !ok {
 				if from.Mint.String() == WrappedSolanaAddress {
 					for _, owner := range owners {
-						ata, _, err := solana.FindAssociatedTokenAddress(*owner, from.Mint)
+						ata, _, err := FindAssociatedTokenAddress(*owner, from.Mint, programKey)
 						if err != nil {
 							panic(err)
 						}

@@ -11,6 +11,20 @@ import (
 	treeout "github.com/gagliardetto/treeout"
 )
 
+func FindAssociatedTokenAddress(
+	wallet solana.PublicKey,
+	mint solana.PublicKey,
+	tokenProgramID solana.PublicKey,
+) (solana.PublicKey, uint8, error) {
+	return solana.FindProgramAddress([][]byte{
+		wallet[:],
+		tokenProgramID[:],
+		mint[:],
+	},
+		solana.SPLAssociatedTokenAccountProgramID,
+	)
+}
+
 type Create struct {
 	Payer  solana.PublicKey `bin:"-" borsh_skip:"true"`
 	Wallet solana.PublicKey `bin:"-" borsh_skip:"true"`
@@ -63,9 +77,10 @@ func (inst *Create) SetMint(mint solana.PublicKey) *Create {
 func (inst Create) Build() *tokenAta.Instruction {
 
 	// Find the associatedTokenAddress;
-	associatedTokenAddress, _, _ := solana.FindAssociatedTokenAddress(
+	associatedTokenAddress, _, _ := FindAssociatedTokenAddress(
 		inst.Wallet,
 		inst.Mint,
+		solana.Token2022ProgramID,
 	)
 
 	keys := []*solana.AccountMeta{
@@ -134,9 +149,10 @@ func (inst *Create) Validate() error {
 	if inst.Mint.IsZero() {
 		return errors.New("Mint not set")
 	}
-	_, _, err := solana.FindAssociatedTokenAddress(
+	_, _, err := FindAssociatedTokenAddress(
 		inst.Wallet,
 		inst.Mint,
+		solana.Token2022ProgramID,
 	)
 	if err != nil {
 		return fmt.Errorf("error while FindAssociatedTokenAddress: %w", err)
