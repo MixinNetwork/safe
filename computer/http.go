@@ -100,7 +100,7 @@ func (node *Node) httpGetUser(w http.ResponseWriter, r *http.Request, params map
 
 func (node *Node) httpGetSystemCall(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	ctx := r.Context()
-	call, err := node.store.ReadSystemCallByRequestId(ctx, params["addr"], 0)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, params["id"], 0)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
