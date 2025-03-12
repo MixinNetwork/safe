@@ -482,7 +482,7 @@ func (s *SQLite3Store) CheckUnfinishedSubCalls(ctx context.Context, call *System
 	}
 	defer common.Rollback(tx)
 
-	return s.checkExistence(ctx, tx, "SELECT id FROM system_calls WHERE type=? AND state=? AND superior_id=?", CallTypePrepare, common.RequestStatePending, call.RequestId)
+	return s.checkExistence(ctx, tx, "SELECT id FROM system_calls WHERE call_type=? AND state=? AND superior_id=?", CallTypePrepare, common.RequestStatePending, call.RequestId)
 }
 
 func (s *SQLite3Store) CheckReferencesSpent(ctx context.Context, rs []*SpentReference) (string, error) {
