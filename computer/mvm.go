@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/mixin/util/base58"
@@ -729,9 +730,10 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		if err != nil {
 			panic(err)
 		}
-		amount := decimal.NewFromBigInt(t.Value, -int32(asset.Precision))
-		if amount.Cmp(out.Amount) != 0 {
-			panic(fmt.Errorf("invalid deposit amount: %s %s", amount.String(), out.Amount))
+		expected := mc.NewIntegerFromString(decimal.NewFromBigInt(t.Value, -int32(asset.Precision)).String())
+		actual := mc.NewIntegerFromString(out.Amount.String())
+		if expected.Cmp(actual) != 0 {
+			panic(fmt.Errorf("invalid deposit amount: %s %s", expected.String(), actual.String()))
 		}
 		user, err := node.store.ReadUserByChainAddress(ctx, t.Sender)
 		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Sender, user, err)
