@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	bin "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
@@ -126,6 +127,9 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.
 		},
 	)
 	if err != nil || r.Meta == nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("solana.GetTransaction(%s) => %v", signature, err)
 	}
 
