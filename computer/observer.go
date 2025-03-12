@@ -480,13 +480,29 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		}
 		tx.Signatures[index] = solana.SignatureFromBytes(sig)
 
+		var meta *rpc.TransactionMeta
 		hash, err := node.solanaClient().SendTransaction(ctx, tx)
 		if err != nil {
-			logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
-			return node.processFailedCall(ctx, call)
+			rpcTx, er := node.solanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
+			if er != nil {
+				return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, er)
+			}
+			if rpcTx != nil {
+				hash = tx.Signatures[0].String()
+				tx, err = rpcTx.Transaction.GetTransaction()
+				if err != nil {
+					panic(err)
+				}
+				meta = rpcTx.Meta
+			} else {
+				logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
+				return node.processFailedCall(ctx, call)
+			}
 		}
-		var meta *rpc.TransactionMeta
 		for {
+			if meta != nil {
+				break
+			}
 			rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
 			if err != nil {
 				return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
