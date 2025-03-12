@@ -115,7 +115,7 @@ func (node *Node) deployOrConfirmAssetsLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -126,7 +126,7 @@ func (node *Node) createNonceAccountLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -137,7 +137,7 @@ func (node *Node) releaseNonceAccountLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -148,7 +148,7 @@ func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -159,7 +159,7 @@ func (node *Node) unwithdrawnCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -170,7 +170,7 @@ func (node *Node) unconfirmedCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -181,7 +181,7 @@ func (node *Node) unsignedCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -192,7 +192,7 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(10 * time.Second)
 	}
 }
 
