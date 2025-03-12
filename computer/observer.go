@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -489,19 +488,19 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		var meta *rpc.TransactionMeta
 		for {
 			rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
-			if rpcTx != nil && err == nil {
-				tx, err = rpcTx.Transaction.GetTransaction()
-				if err != nil {
-					panic(err)
-				}
-				meta = rpcTx.Meta
-				break
+			if err != nil {
+				return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 			}
-			if strings.Contains(err.Error(), "not found") {
+			if rpcTx == nil {
 				time.Sleep(1 * time.Second)
 				continue
 			}
-			return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
+			tx, err = rpcTx.Transaction.GetTransaction()
+			if err != nil {
+				panic(err)
+			}
+			meta = rpcTx.Meta
+			break
 		}
 		err = node.processSuccessedCall(ctx, call, tx, meta)
 		if err != nil {

@@ -441,14 +441,14 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	}
 	for {
 		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
-		if rpcTx != nil {
-			break
+		if err != nil {
+			return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", h, err)
 		}
-		if strings.Contains(err.Error(), "not found") {
+		if rpcTx == nil {
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", h, err)
+		break
 	}
 	return nil
 }
