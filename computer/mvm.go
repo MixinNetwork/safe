@@ -638,8 +638,11 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	}
 	// TODO should compare built tx and deposit tx from signature
 	txx, err := node.solanaClient().RPCGetTransaction(ctx, signature.String())
-	if err != nil || txx == nil {
+	if err != nil {
 		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v %v", signature.String(), txx, err))
+	}
+	if txx == nil {
+		return node.failRequest(ctx, req, "")
 	}
 
 	call, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)

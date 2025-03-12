@@ -174,7 +174,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	}
 
 	extra := solana.MustPublicKeyFromBase58(user).Bytes()
-	extra = append(extra, hash[:]...)
+	extra = append(extra, depositHash[:]...)
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeDeposit,

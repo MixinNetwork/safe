@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS external_assets (
 
 CREATE TABLE IF NOT EXISTS deployed_assets (
   asset_id        VARCHAR NOT NULL,
+  chain_id        VARCHAR NOT NULL,
   address         VARCHAR NOT NULL,
   state           INTEGER NOT NULL,
   created_at      TIMESTAMP NOT NULL,
