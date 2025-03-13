@@ -132,10 +132,10 @@ func (s *SQLite3Store) ReleaseLockedNonceAccount(ctx context.Context, address st
 	}
 	defer common.Rollback(tx)
 
-	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET mix=?, call_id=?, updated_at=? WHERE address=? AND mix IS NOT NULL OR call_id IS NOT NULL",
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET mix=?, call_id=?, updated_at=? WHERE address=? AND (mix IS NOT NULL OR call_id IS NOT NULL)",
 		nil, nil, time.Now().UTC(), address)
 	if err != nil {
-		return fmt.Errorf("UPDATE nonce_accounts %v", err)
+		return fmt.Errorf("UPDATE nonce_accounts %s %v", address, err)
 	}
 
 	return tx.Commit()
