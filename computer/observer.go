@@ -216,6 +216,9 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 			return err
 		}
 	}
+	if len(as) == 0 {
+		return nil
+	}
 	tid, tx, assets, err := node.CreateMintsTransaction(ctx, as)
 	if err != nil || tx == nil {
 		return err
