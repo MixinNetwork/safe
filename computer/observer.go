@@ -224,10 +224,6 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	if err != nil || tx == nil {
 		return err
 	}
-	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
-	if err != nil {
-		panic(err)
-	}
 	data, err := tx.MarshalBinary()
 	if err != nil {
 		return err
