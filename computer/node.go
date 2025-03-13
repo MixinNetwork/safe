@@ -166,13 +166,15 @@ func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNet
 	if err != nil {
 		return "", err
 	}
-	attachment, err := common.UploadAttachmenttUntilSufficient(ctx, node.mixin, data)
+	id := common.UniqueId(asset.AssetID, "storage")
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
 	if err != nil {
 		return "", err
 	}
-	err = node.store.UpdateExternalAssetUri(ctx, ea.AssetId, attachment.ViewURL)
+	url := fmt.Sprintf("https://kernel.mixin.dev/objects/%s", hash.String())
+	err = node.store.UpdateExternalAssetUri(ctx, ea.AssetId, url)
 	if err != nil {
 		return "", err
 	}
-	return attachment.ViewURL, nil
+	return url, nil
 }
