@@ -182,7 +182,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	}, []crypto.Hash{hash})
 }
 
-func (node *Node) CreateMintsTransaction(ctx context.Context, as []string, nonce *store.NonceAccount) (string, *solana.Transaction, []*solanaApp.DeployedAsset, error) {
+func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (string, *solana.Transaction, []*solanaApp.DeployedAsset, error) {
 	tid := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
 	var assets []*solanaApp.DeployedAsset
 	if common.CheckTestEnvironment(ctx) {
@@ -233,9 +233,19 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string, nonce
 	if call != nil {
 		return "", nil, nil, nil
 	}
-	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
+	nonce, err := node.store.ReadNonceAccountByCall(ctx, tid)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, nil, fmt.Errorf("store.ReadNonceAccountByCall(%s) => %v", tid, err)
+	}
+	if nonce == nil {
+		nonce, err := node.store.ReadSpareNonceAccount(ctx)
+		if err != nil || nonce == nil {
+			return "", nil, nil, fmt.Errorf("store.ReadSpareNonceAccount(%s) => %v %v", tid, nonce, err)
+		}
+		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
+		if err != nil {
+			return "", nil, nil, err
+		}
 	}
 	tx, err := node.solanaClient().CreateMints(ctx, node.solanaPayer(), node.getMTGAddress(ctx), nonce.Account(), assets)
 	if err != nil {

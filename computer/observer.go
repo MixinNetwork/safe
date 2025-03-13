@@ -216,11 +216,7 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 			return err
 		}
 	}
-	nonce, err := node.store.ReadSpareNonceAccount(ctx)
-	if err != nil || nonce == nil {
-		return fmt.Errorf("store.ReadSpareNonceAccount() => %v %v", nonce, err)
-	}
-	tid, tx, assets, err := node.CreateMintsTransaction(ctx, as, nonce)
+	tid, tx, assets, err := node.CreateMintsTransaction(ctx, as)
 	if err != nil || tx == nil {
 		return err
 	}
