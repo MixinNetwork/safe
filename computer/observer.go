@@ -274,9 +274,20 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		if nonce.UpdatedAt.Add(20 * time.Minute).After(time.Now()) {
 			continue
 		}
-		err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+		if nonce.Mix.Valid {
+			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		call, err := node.store.ReadSystemCallByRequestId(ctx, nonce.CallId.String, 0)
 		if err != nil {
 			return err
+		}
+		if call == nil {
+			return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 		}
 	}
 	return nil
