@@ -117,7 +117,7 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 					UpdateAuthorityIsSigner: true,
 					IsMutable:               false,
 					Data: meta.DataV2{
-						Name:                 fmt.Sprintf("%s (Mixin)", asset.Asset.Name),
+						Name:                 asset.Asset.Name,
 						Symbol:               asset.Asset.Symbol,
 						Uri:                  asset.Uri,
 						SellerFeeBasisPoints: 0,
