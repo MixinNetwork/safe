@@ -19,6 +19,9 @@ import (
 const (
 	nonceAccountSize uint64 = 80
 	mintSize         uint64 = 82
+
+	maxNameLength   = 32
+	maxSymbolLength = 10
 )
 
 func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
@@ -106,6 +109,14 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 		if err != nil {
 			return nil, err
 		}
+		name := asset.Asset.Name
+		if len(name) > maxNameLength {
+			name = name[:maxNameLength]
+		}
+		symbol := asset.Asset.Symbol
+		if len(symbol) > maxSymbolLength {
+			name = name[:maxSymbolLength]
+		}
 		builder.AddInstruction(
 			CustomInstruction{
 				Instruction: meta.CreateMetadataAccountV3(meta.CreateMetadataAccountV3Param{
@@ -117,8 +128,8 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 					UpdateAuthorityIsSigner: true,
 					IsMutable:               false,
 					Data: meta.DataV2{
-						Name:                 asset.Asset.Name,
-						Symbol:               asset.Asset.Symbol,
+						Name:                 name,
+						Symbol:               symbol,
 						Uri:                  asset.Uri,
 						SellerFeeBasisPoints: 0,
 					},
