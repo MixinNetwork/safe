@@ -3,16 +3,18 @@ package computer
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
-	"image/png"
 	"io"
 	"net/http"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/fogleman/gg"
 )
@@ -41,7 +43,7 @@ func readImageFromUrl(url string) (*image.NRGBA, error) {
 	return icon512, nil
 }
 
-func applyCircleMask(img image.Image) ([]byte, error) {
+func applyCircleMask(img image.Image) *image.RGBA {
 	bounds := img.Bounds()
 	dst := image.NewRGBA(bounds)
 	draw.Draw(dst, bounds, img, bounds.Min, draw.Src)
@@ -64,15 +66,22 @@ func applyCircleMask(img image.Image) ([]byte, error) {
 		draw.Over,
 	)
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return dst
 }
 
-// https://kernel.mixin.dev/objects/b9dc9ef4e569e047e64cfb229bbd82ff0b597a470477e5731e429d41407e8944
+func getWebpBase64(img *image.RGBA) (string, error) {
+	var buf bytes.Buffer
+	err := webp.Encode(&buf, img, &webp.Options{
+		Lossless: true,
+		Exact:    true,
+	})
+	if err != nil {
+		return "", err
+	}
+	base64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
+	return "data:image/webp;base64," + base64Str, nil
+}
+
 func (node *Node) processAssetIcon(ctx context.Context, asset *bot.AssetNetwork) (string, error) {
 	icon, err := readImageFromUrl(asset.IconURL)
 	if err != nil {
@@ -84,15 +93,22 @@ func (node *Node) processAssetIcon(ctx context.Context, asset *bot.AssetNetwork)
 	}
 
 	combined := imaging.Overlay(icon, mark, image.Pt(0, 0), 1.0)
-	data, err := applyCircleMask(combined)
+	circle := applyCircleMask(combined)
+	imgBase64, err := getWebpBase64(circle)
+	if err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(map[string]any{
+		"content": imgBase64,
+	})
 	if err != nil {
 		return "", err
 	}
 
-	trace := common.UniqueId(asset.AssetID, "footmark-icon")
+	trace := common.UniqueId(asset.AssetID, "footmark-webp-icon")
 	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, trace, *node.safeUser())
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("https://kernel.mixin.dev/objects/%s", hash.String()), nil
+	return fmt.Sprintf("https://kernel.mixin.dev/objects/%s/content", hash.String()), nil
 }
