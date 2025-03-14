@@ -238,7 +238,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		return "", nil, nil, fmt.Errorf("store.ReadNonceAccountByCall(%s) => %v", tid, err)
 	}
 	if nonce == nil {
-		nonce, err := node.store.ReadSpareNonceAccount(ctx)
+		nonce, err = node.store.ReadSpareNonceAccount(ctx)
 		if err != nil || nonce == nil {
 			return "", nil, nil, fmt.Errorf("store.ReadSpareNonceAccount(%s) => %v %v", tid, nonce, err)
 		}
