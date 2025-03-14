@@ -289,6 +289,10 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		if call == nil {
 			return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 		}
+		switch call.State {
+		case common.RequestStateDone, common.RequestStateFailed:
+			return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+		}
 	}
 	return nil
 }
@@ -617,6 +621,15 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 			return err
 		}
 		references = append(references, hash)
+	}
+
+	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
+	if err != nil {
+		return err
+	}
+	err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+	if err != nil {
+		return err
 	}
 
 	extra := []byte{FlagConfirmCallFail}
