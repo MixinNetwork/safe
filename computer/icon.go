@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"io"
 	"net/http"
 
@@ -43,33 +41,15 @@ func readImageFromUrl(url string) (*image.NRGBA, error) {
 	return icon512, nil
 }
 
-func applyCircleMask(img image.Image) *image.RGBA {
-	bounds := img.Bounds()
-	dst := image.NewRGBA(bounds)
-	draw.Draw(dst, bounds, img, bounds.Min, draw.Src)
-
-	r := float64(size / 2)
+func applyCircleMask(img image.Image) image.Image {
 	dc := gg.NewContext(size, size)
-	dc.DrawCircle(r, r, r)
+	dc.DrawRoundedRectangle(0, 0, size, size, size/2)
 	dc.Clip()
-
-	mask := image.NewRGBA(bounds)
-	dc.SetColor(color.White)
-	dc.Clear()
-	draw.DrawMask(
-		dst,
-		bounds,
-		dst,
-		bounds.Min,
-		mask,
-		bounds.Min,
-		draw.Over,
-	)
-
-	return dst
+	dc.DrawImage(img, 0, 0)
+	return dc.Image()
 }
 
-func getWebpBase64(img *image.RGBA) (string, error) {
+func getWebpBase64(img image.Image) (string, error) {
 	var buf bytes.Buffer
 	err := webp.Encode(&buf, img, &webp.Options{
 		Lossless: true,
