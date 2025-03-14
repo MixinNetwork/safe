@@ -87,13 +87,15 @@ func (node *Node) processAssetIcon(ctx context.Context, asset *bot.AssetNetwork)
 	if err != nil {
 		return "", err
 	}
-	mark, _, err := image.Decode(bytes.NewReader(FOOTMARK))
-	if err != nil {
-		return "", err
+	if asset.AssetID != bot.XINAssetId {
+		mark, _, err := image.Decode(bytes.NewReader(FOOTMARK))
+		if err != nil {
+			return "", err
+		}
+		icon = imaging.Overlay(icon, mark, image.Pt(0, 0), 1.0)
 	}
 
-	combined := imaging.Overlay(icon, mark, image.Pt(0, 0), 1.0)
-	circle := applyCircleMask(combined)
+	circle := applyCircleMask(icon)
 	imgBase64, err := getWebpBase64(circle)
 	if err != nil {
 		return "", err
