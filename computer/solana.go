@@ -214,7 +214,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 			if err != nil {
 				return "", nil, nil, err
 			}
-			tid = common.UniqueId(tid, asset)
+			tid = common.UniqueId(tid, fmt.Sprintf("metadata-%s", asset))
 			key := solanaApp.GenerateKeyForExternalAsset(node.GetMembers(), node.conf.MTG.Genesis.Threshold, asset)
 			assets = append(assets, &solanaApp.DeployedAsset{
 				AssetId:    asset,
