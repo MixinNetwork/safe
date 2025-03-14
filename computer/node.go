@@ -157,10 +157,15 @@ func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNet
 	if ea.Uri.Valid {
 		return ea.Uri.String, nil
 	}
+	iconUrl, err := node.processAssetIcon(ctx, asset)
+	if err != nil {
+		return "", err
+	}
 	meta := solanaApp.Metadata{
-		Name:        fmt.Sprintf("%s (Mixin)", asset.Name),
-		Description: fmt.Sprintf("%s minted by Mixin Computer", asset.Name),
-		Image:       asset.IconURL,
+		Name:        asset.Name,
+		Symbol:      asset.Symbol,
+		Description: fmt.Sprintf("%s bridged through by Mixin Computer", asset.Name),
+		Image:       iconUrl,
 	}
 	data, err := json.Marshal(meta)
 	if err != nil {

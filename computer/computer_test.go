@@ -355,7 +355,7 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 		},
 	})
 	require.Nil(err)
-	cid, stx, assets, err := node.CreateMintsTransaction(ctx, []string{common.SafeLitecoinChainId}, nonce)
+	cid, stx, assets, err := node.CreateMintsTransaction(ctx, []string{common.SafeLitecoinChainId})
 	require.Nil(err)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)

@@ -16,6 +16,9 @@ import (
 	"github.com/dimfeld/httptreemux/v5"
 )
 
+//go:embed assets/mark.png
+var FOOTMARK []byte
+
 //go:embed assets/favicon.ico
 var FAVICON []byte
 var VERSION string

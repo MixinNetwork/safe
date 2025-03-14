@@ -27,6 +27,7 @@ const (
 
 type Metadata struct {
 	Name        string `json:"name"`
+	Symbol      string `json:"symbol"`
 	Description string `json:"description"`
 	Image       string `json:"image"`
 }
