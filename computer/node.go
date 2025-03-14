@@ -164,7 +164,7 @@ func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNet
 	meta := solanaApp.Metadata{
 		Name:        asset.Name,
 		Symbol:      asset.Symbol,
-		Description: fmt.Sprintf("%s bridged through by Mixin Computer", asset.Name),
+		Description: fmt.Sprintf("%s bridged through Mixin Computer", asset.Name),
 		Image:       iconUrl,
 	}
 	data, err := json.Marshal(meta)
