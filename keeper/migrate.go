@@ -9,78 +9,10 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 )
-
-const FinalRequestHash = "373a88f0ac8f2330cc8b92be3b54c2f2fe388fa13aa5591bd11f298547dc89ac"
-
-func (node *Node) getMigrateAsset(ctx context.Context, safe *store.Safe, assetId string) (*store.MigrateAsset, error) {
-	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonObserverDepositEntry, assetId, safe.Holder)
-	return &store.MigrateAsset{
-		Chain:       safe.Chain,
-		Address:     safe.Address,
-		AssetId:     assetId,
-		SafeAssetId: safeAssetId,
-	}, nil
-}
-
-func (node *Node) Migrate(ctx context.Context) error {
-	logger.Printf("keeper.Migrate() ...")
-	err := node.store.MigrateDepositCreated(ctx)
-	logger.Printf("keeper.MigrateDepositCreated() => %v", err)
-	if err != nil {
-		return err
-	}
-	if node.store.CheckFullyMigrated(ctx) {
-		logger.Printf("keeper.CheckFullyMigrated() DONE")
-		return nil
-	}
-	req, err := node.store.ReadUnmigratedLatestRequest(ctx)
-	if err != nil || req == nil {
-		return fmt.Errorf("store.ReadUnmigratedLatestRequest() => %v %v", req, err)
-	}
-	if req.MixinHash.String() != FinalRequestHash {
-		return fmt.Errorf("invalid final request hash: %s", req.MixinHash.String())
-	}
-	logger.Printf("keeper.Migrate() => %v", req)
-
-	safes, err := node.store.ListUnmigratedSafesWithState(ctx)
-	if err != nil {
-		return err
-	}
-	logger.Printf("keeper.Migrate() => unmigrated safes %d", len(safes))
-
-	var ss, es []*store.MigrateAsset
-	for _, safe := range safes {
-		chainAssetId := common.SafeChainAssetId(safe.Chain)
-		ma, err := node.getMigrateAsset(ctx, safe, chainAssetId)
-		if err != nil {
-			return err
-		}
-		ss = append(ss, ma)
-		switch safe.Chain {
-		case common.SafeChainEthereum, common.SafeChainPolygon:
-			bs, err := node.store.ReadUnmigratedEthereumAllBalance(ctx, safe.Address)
-			if err != nil {
-				return err
-			}
-			for _, balance := range bs {
-				ma, err := node.getMigrateAsset(ctx, safe, balance.AssetId)
-				if err != nil {
-					return err
-				}
-				es = append(es, ma)
-			}
-		}
-	}
-	logger.Printf("keeper.Migrate() => unmigrated assets %d %d", len(ss), len(es))
-
-	err = node.store.Migrate(ctx, ss, es)
-	logger.Printf("keeper.Migrate() => %v", err)
-	return err
-}
 
 func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	afterMigrationDeposits := map[string]string{

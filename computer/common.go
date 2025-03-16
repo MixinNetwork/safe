@@ -13,7 +13,7 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )

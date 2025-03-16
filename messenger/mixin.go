@@ -12,7 +12,7 @@ import (
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 )

@@ -10,7 +10,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/shopspring/decimal"
 )
 

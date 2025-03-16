@@ -18,7 +18,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/signer/protocol"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -78,14 +78,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 }
 
 func (node *Node) Boot(ctx context.Context) {
-	err := node.store.Migrate(ctx)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.Migrate2(ctx)
-	if err != nil {
-		panic(err)
-	}
+	node.store.CheckStoreOwner(ctx, node.id)
 	go node.loopBackup(ctx)
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)

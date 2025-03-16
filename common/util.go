@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 )

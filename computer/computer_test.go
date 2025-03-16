@@ -18,7 +18,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"

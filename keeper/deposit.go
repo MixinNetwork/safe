@@ -15,7 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -124,7 +124,6 @@ func (node *Node) CreateHolderDeposit(ctx context.Context, req *common.Request) 
 	}
 }
 
-// FIXME Keeper should deny new deposits when too many unspent outputs
 func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, safeAssetId string, asset *store.Asset, minimum decimal.Decimal) ([]*mtg.Transaction, string) {
 	if asset.Decimals != bitcoin.ValuePrecision {
 		panic(asset.Decimals)

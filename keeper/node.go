@@ -12,7 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
 )
@@ -44,10 +44,6 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, conf *Configuration, s
 func (node *Node) Boot(ctx context.Context) {
 	terminated, err := node.store.ReadTerminate(ctx)
 	if err != nil || terminated {
-		panic(err)
-	}
-	err = node.Migrate(ctx)
-	if err != nil {
 		panic(err)
 	}
 }

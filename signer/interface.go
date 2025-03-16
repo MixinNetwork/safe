@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/MixinNetwork/safe/messenger"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 )
 
 type Configuration struct {

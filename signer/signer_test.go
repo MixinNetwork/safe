@@ -18,7 +18,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/saver"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"

@@ -12,7 +12,7 @@ import (
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/trusted-group/mtg"
+	"github.com/MixinNetwork/safe/mtg"
 )
 
 const (

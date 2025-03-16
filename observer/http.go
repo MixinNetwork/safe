@@ -259,7 +259,7 @@ func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, typ stri
 
 func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	holder := r.URL.Query().Get("holder")
-	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 64)
+	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 32)
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
 	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateDone, offset)
 	if err != nil {
