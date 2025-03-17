@@ -391,6 +391,11 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 		require.Nil(err)
 		require.Equal(int64(common.RequestStateDone), asset.State)
 	}
+
+	call, err := node.store.ReadSystemCallByRequestId(ctx, cid, 0)
+	require.Nil(err)
+	err = node.store.ReleaseLockedNonceAccount(ctx, call.NonceAccount)
+	require.Nil(err)
 }
 
 func testObserverRequestGenerateKey(ctx context.Context, require *require.Assertions, nodes []*Node) {
