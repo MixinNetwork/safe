@@ -131,7 +131,6 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 }
 
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []mixinnet.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
-	retry := 0
 	for {
 		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 		if err != nil {
@@ -151,10 +150,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		}
 		utxos, sufficient := getEnoughUtxosToSpend(utxos, amount)
 		if !sufficient {
-			retry += 1
-			if retry == 10 {
-				return nil, fmt.Errorf("unsufficient balance: %s %s", assetId, amount.String())
-			}
+			logger.Printf("unsufficient balance: %s %s %s", traceId, assetId, amount.String())
 			time.Sleep(10 * time.Second)
 			continue
 		}
