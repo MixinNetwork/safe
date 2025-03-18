@@ -140,12 +140,18 @@ func (node *Node) httpGetAssets(w http.ResponseWriter, r *http.Request, params m
 		common.RenderError(w, r, err)
 		return
 	}
+	um, err := node.store.ListAssetUris(ctx)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
 
 	view := make([]map[string]any, 0)
 	for _, asset := range as {
 		view = append(view, map[string]any{
 			"asset_id": asset.AssetId,
 			"address":  asset.Address,
+			"uri":      um[asset.AssetId],
 		})
 	}
 	common.RenderJSON(w, r, http.StatusOK, view)

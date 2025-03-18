@@ -115,3 +115,25 @@ func (s *SQLite3Store) ListUnrequestedAssets(ctx context.Context) ([]*ExternalAs
 	}
 	return as, nil
 }
+
+func (s *SQLite3Store) ListAssetUris(ctx context.Context) (map[string]string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	query := fmt.Sprintf("SELECT %s FROM external_assets WHERE uri IS NOT NULL AND requested_at IS NOT NULL LIMIT 500", strings.Join(externalAssetCols, ","))
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	um := make(map[string]string)
+	for rows.Next() {
+		asset, err := externalAssetFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		um[asset.AssetId] = asset.Uri.String
+	}
+	return um, nil
+}
