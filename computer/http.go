@@ -130,6 +130,7 @@ func (node *Node) httpGetSystemCall(w http.ResponseWriter, r *http.Request, para
 		"nonce_account": call.NonceAccount,
 		"raw":           call.Raw,
 		"state":         state,
+		"hash":          call.Hash.String,
 	})
 }
 
