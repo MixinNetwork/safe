@@ -6,8 +6,10 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/safe/common"
 )
+
+const MainNetworkName = "main"
+const TestNetworkName = "test"
 
 type DevConfig struct {
 	ProfilePort int    `toml:"profile-port"`
@@ -26,6 +28,6 @@ func handleDevConfig(c *DevConfig) {
 		go http.ListenAndServe(l, http.DefaultServeMux)
 	}
 	if c.Network == "" {
-		c.Network = common.MainNetworkName
+		c.Network = MainNetworkName
 	}
 }

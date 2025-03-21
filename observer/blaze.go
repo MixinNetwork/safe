@@ -9,7 +9,6 @@ import (
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/safe/common"
 )
 
 const (
@@ -83,9 +82,6 @@ func (f mixinBlazeHandler) SyncAck() bool {
 }
 
 func (node *Node) Blaze(ctx context.Context) {
-	if node.Network == common.TestNetworkName {
-		return
-	}
 	mixin := node.safeUser()
 	handler := func(ctx context.Context, botMsg bot.MessageView, clientID string) error {
 		err := node.handleMessage(ctx, botMsg)

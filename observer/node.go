@@ -38,7 +38,6 @@ type Node struct {
 	mixin       *mixin.Client
 	keeperStore *store.SQLite3Store
 	store       *SQLite3Store
-	Network     string
 }
 
 func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
@@ -94,7 +93,6 @@ func (node *Node) Boot(ctx context.Context) {
 	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
 	go node.mixinWithdrawalsLoop(ctx)
 	go node.sendAccountApprovals(ctx)
-	go node.Blaze(ctx)
 	node.snapshotsLoop(ctx)
 }
 

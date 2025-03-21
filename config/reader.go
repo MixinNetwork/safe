@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
 	"github.com/MixinNetwork/safe/signer"
@@ -53,7 +52,7 @@ func (c *Configuration) checkMainnet(role string) {
 	default:
 		panic(role)
 	}
-	if c.Dev != nil && c.Dev.Network != common.MainNetworkName {
+	if c.Dev != nil && c.Dev.Network != MainNetworkName {
 		return
 	}
 
@@ -148,7 +147,7 @@ func (c *Configuration) checkTestnet(role string) {
 	default:
 		panic(role)
 	}
-	if c.Dev == nil || c.Dev.Network != common.TestNetworkName {
+	if c.Dev == nil || c.Dev.Network != TestNetworkName {
 		return
 	}
 
