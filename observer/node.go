@@ -38,6 +38,7 @@ type Node struct {
 	mixin       *mixin.Client
 	keeperStore *store.SQLite3Store
 	store       *SQLite3Store
+	Network     string
 }
 
 func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {

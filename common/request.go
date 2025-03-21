@@ -18,6 +18,9 @@ import (
 )
 
 const (
+	MainNetworkName = "main"
+	TestNetworkName = "test"
+
 	RequestRoleHolder   = 1
 	RequestRoleSigner   = 2
 	RequestRoleObserver = 3
