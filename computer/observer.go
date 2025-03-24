@@ -691,24 +691,3 @@ func (node *Node) readPropertyAsTime(ctx context.Context, key string) time.Time 
 func (node *Node) writeRequestTime(ctx context.Context, key string, offset time.Time) error {
 	return node.store.WriteProperty(ctx, key, offset.Format(time.RFC3339Nano))
 }
-
-func (node *Node) checkNonceAccounts(ctx context.Context) error {
-	nonces, err := node.store.ListNonceAccounts(ctx)
-	if err != nil {
-		return err
-	}
-	for _, nonce := range nonces {
-		hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
-		if err != nil {
-			return err
-		}
-		if hash.String() == nonce.Hash {
-			continue
-		}
-		err = node.store.UpdateNonceAccount(ctx, nonce.Address, hash.String())
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
