@@ -92,5 +92,10 @@ func (node *Node) processAssetIcon(ctx context.Context, asset *bot.AssetNetwork)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("https://kernel.mixin.dev/objects/%s/content", hash.String()), nil
+	iconUrl := fmt.Sprintf("https://kernel.mixin.dev/objects/%s/content", hash.String())
+	err = node.store.UpdateExternalAssetIconUrl(ctx, asset.AssetID, iconUrl)
+	if err != nil {
+		return "", err
+	}
+	return iconUrl, nil
 }

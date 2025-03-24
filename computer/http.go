@@ -141,7 +141,7 @@ func (node *Node) httpGetAssets(w http.ResponseWriter, r *http.Request, params m
 		common.RenderError(w, r, err)
 		return
 	}
-	um, err := node.store.ListAssetUris(ctx)
+	um, err := node.store.ListAssetIconUrls(ctx)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
