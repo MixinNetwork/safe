@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS requests_by_mixin_hash_index ON requests(mixin_hash, mixin_index);
+CREATE INDEX IF NOT EXISTS requests_by_hash ON requests(mixin_hash);
 CREATE INDEX IF NOT EXISTS requests_by_state_created ON requests(state, created_at);
 
 
@@ -123,6 +124,8 @@ CREATE TABLE IF NOT EXISTS external_assets (
   PRIMARY KEY ('asset_id')
 );
 
+CREATE INDEX IF NOT EXISTS assets_by_deployed ON external_assets(icon_url, deployed_at);
+
 
 CREATE TABLE IF NOT EXISTS deployed_assets (
   asset_id        VARCHAR NOT NULL,
@@ -133,7 +136,7 @@ CREATE TABLE IF NOT EXISTS deployed_assets (
   PRIMARY KEY ('asset_id')
 );
 
-CREATE INDEX IF NOT EXISTS assets_by_address ON deployed_assets(address);
+CREATE INDEX IF NOT EXISTS assets_by_address_state ON deployed_assets(address, state);
 
 
 CREATE TABLE IF NOT EXISTS system_calls (
@@ -157,6 +160,12 @@ CREATE TABLE IF NOT EXISTS system_calls (
   PRIMARY KEY ('id')
 );
 
+CREATE INDEX IF NOT EXISTS calls_by_message ON system_calls(message);
+CREATE INDEX IF NOT EXISTS calls_by_hash ON system_calls(hash);
+CREATE INDEX IF NOT EXISTS calls_by_state_withdrawal_created ON system_calls(state, withdrawal_traces, withdrawn_at, created_at);
+CREATE INDEX IF NOT EXISTS calls_by_state_signature_created ON system_calls(state, withdrawal_traces, signature, created_at);
+CREATE INDEX IF NOT EXISTS calls_by_superior_state_created ON system_calls(superior_id, state, created_at);
+
 
 CREATE TABLE IF NOT EXISTS spent_references (
   transaction_hash   VARCHAR NOT NULL,
@@ -169,6 +178,8 @@ CREATE TABLE IF NOT EXISTS spent_references (
   PRIMARY KEY ('transaction_hash')
 );
 
+CREATE INDEX IF NOT EXISTS refs_by_request ON spent_references(request_id);
+
 
 CREATE TABLE IF NOT EXISTS nonce_accounts (
   address        VARCHAR NOT NULL,
@@ -180,6 +191,8 @@ CREATE TABLE IF NOT EXISTS nonce_accounts (
   updated_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('address')
 );
+
+CREATE INDEX IF NOT EXISTS nonces_by_mix_call_updated ON nonce_accounts(mix, call_id, updated_at);
 
 
 CREATE TABLE IF NOT EXISTS confirmed_withdrawals (

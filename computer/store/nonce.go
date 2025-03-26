@@ -205,7 +205,7 @@ func (s *SQLite3Store) ReadNonceAccountByCall(ctx context.Context, callId string
 }
 
 func (s *SQLite3Store) ReadSpareNonceAccount(ctx context.Context) (*NonceAccount, error) {
-	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE mix IS NULL AND call_id IS NULL ORDER BY created_at ASC LIMIT 1", strings.Join(nonceAccountCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE mix IS NULL AND call_id IS NULL ORDER BY updated_at ASC LIMIT 1", strings.Join(nonceAccountCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
 	return nonceAccountFromRow(row)

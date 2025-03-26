@@ -160,7 +160,7 @@ func (s *SQLite3Store) ListAssetIconUrls(ctx context.Context) (map[string]string
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	query := fmt.Sprintf("SELECT %s FROM external_assets WHERE icon_url IS NOT NULL AND requested_at IS NOT NULL LIMIT 500", strings.Join(externalAssetCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM external_assets WHERE icon_url IS NOT NULL AND deployed_at IS NOT NULL LIMIT 500", strings.Join(externalAssetCols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
