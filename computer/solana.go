@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -187,7 +186,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 	var assets []*solanaApp.DeployedAsset
 	if common.CheckTestEnvironment(ctx) {
 		tid = common.UniqueId(tid, common.SafeLitecoinChainId)
-		ltc, err := bot.ReadAsset(ctx, common.SafeLitecoinChainId)
+		ltc, err := common.SafeReadAssetUntilSufficient(ctx, common.SafeLitecoinChainId)
 		if err != nil {
 			panic(err)
 		}
