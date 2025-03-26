@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/dimfeld/httptreemux/v5"
@@ -36,7 +35,6 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/system_calls/:id", node.httpGetSystemCall)
 	router.POST("/deployed_assets", node.httpDeployAssets)
 	router.POST("/nonce_accounts", node.httpLockNonce)
-	router.POST("/storages", node.httpStorageTx)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
 	if err != nil {
@@ -243,26 +241,5 @@ func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params m
 		"mix":           body.Mix,
 		"nonce_address": nonce.Address,
 		"nonce_hash":    nonce.Hash,
-	})
-}
-
-func (node *Node) httpStorageTx(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	ctx := r.Context()
-	var body struct {
-		Tx string `json:"transaction"`
-	}
-	err := json.NewDecoder(r.Body).Decode(&body)
-	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
-		return
-	}
-	hash, err := node.storageSolanaTx(ctx, body.Tx)
-	if err != nil {
-		logger.Printf("node.storageSolanaTx(%s) => %v", body.Tx, err)
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
-		return
-	}
-	common.RenderJSON(w, r, http.StatusOK, map[string]any{
-		"hash": hash,
 	})
 }
