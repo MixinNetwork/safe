@@ -225,11 +225,18 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		}
 	}
 
-	call, err := node.store.ReadSystemCallByRequestId(ctx, tid, 0)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", tid, call, err)
-	}
-	if call != nil {
+	for {
+		call, err := node.store.ReadSystemCallByRequestId(ctx, tid, 0)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", tid, call, err)
+		}
+		if call == nil {
+			break
+		}
+		if call.State == common.RequestStateFailed {
+			tid = common.UniqueId(tid, "retry")
+			continue
+		}
 		return "", nil, nil, nil
 	}
 	nonce, err := node.store.ReadNonceAccountByCall(ctx, tid)

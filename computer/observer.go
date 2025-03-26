@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -18,6 +19,10 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
+)
+
+const (
+	loopInterval = time.Second * 5
 )
 
 func (node *Node) bootObserver(ctx context.Context, version string) {
@@ -35,10 +40,6 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 	if err != nil {
 		panic(err)
 	}
-	// err = node.checkNonceAccounts(ctx)
-	// if err != nil {
-	// 	panic(err)
-	// }
 
 	go node.deployOrConfirmAssetsLoop(ctx)
 
@@ -115,7 +116,7 @@ func (node *Node) deployOrConfirmAssetsLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -126,7 +127,7 @@ func (node *Node) createNonceAccountLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -137,7 +138,7 @@ func (node *Node) releaseNonceAccountLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -148,7 +149,7 @@ func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -159,7 +160,7 @@ func (node *Node) unwithdrawnCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -170,7 +171,7 @@ func (node *Node) unconfirmedCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -181,7 +182,7 @@ func (node *Node) unsignedCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -192,12 +193,12 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(loopInterval)
 	}
 }
 
 func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
-	es, err := node.store.ListUnrequestedAssets(ctx)
+	es, err := node.store.ListUndeployedAssets(ctx)
 	if err != nil || len(es) == 0 {
 		return err
 	}
@@ -211,6 +212,10 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 			as = append(as, a.AssetId)
 			continue
 		}
+		if a.RequestedAt.Valid && time.Now().Before(a.RequestedAt.Time.Add(time.Minute*20)) {
+			continue
+		}
+		as = append(as, a.AssetId)
 		err = node.store.MarkExternalAssetRequested(ctx, a.AssetId)
 		if err != nil {
 			return err
@@ -433,7 +438,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(3 * time.Second)
 	}
 	return nil
 }
@@ -505,6 +510,9 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 				}
 				meta = rpcTx.Meta
 			} else {
+				if call.Type != store.CallTypeMain && strings.Contains(err.Error(), "insufficient lamports") {
+					panic(fmt.Errorf("insufficient lamports to run system call"))
+				}
 				logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
 				return node.processFailedCall(ctx, call)
 			}
@@ -518,7 +526,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 				return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 			}
 			if rpcTx == nil {
-				time.Sleep(1 * time.Second)
+				time.Sleep(3 * time.Second)
 				continue
 			}
 			tx, err = rpcTx.Transaction.GetTransaction()
@@ -555,7 +563,7 @@ func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCa
 			}
 			break
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(3 * time.Second)
 		continue
 	}
 

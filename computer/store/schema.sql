@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS external_assets (
   icon_url        TEXT,
   created_at      TIMESTAMP NOT NULL,
   requested_at    TIMESTAMP,
+  deployed_at     TIMESTAMP,
   PRIMARY KEY ('asset_id')
 );
 

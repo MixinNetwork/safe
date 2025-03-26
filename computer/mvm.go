@@ -339,7 +339,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		if err != nil {
 			panic(err)
 		}
-		if old != nil {
+		if old != nil && old.State == common.RequestStateDone {
 			logger.Printf("processDeployExternalAssets(%s) => asset already existed", assetId)
 			return node.failRequest(ctx, req, "")
 		}
