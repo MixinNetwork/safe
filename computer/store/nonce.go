@@ -39,6 +39,10 @@ func (a *NonceAccount) Account() solanaApp.NonceAccount {
 	}
 }
 
+func (a *NonceAccount) LockedByUserOnly() bool {
+	return a.Mix.Valid && !a.CallId.Valid
+}
+
 func (s *SQLite3Store) WriteNonceAccount(ctx context.Context, address, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

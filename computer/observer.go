@@ -279,7 +279,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		if nonce.UpdatedAt.Add(20 * time.Minute).After(time.Now()) {
 			continue
 		}
-		if nonce.Mix.Valid {
+		if nonce.LockedByUserOnly() {
 			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 			if err != nil {
 				return err
@@ -291,12 +291,11 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if call == nil {
-			return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
-		}
-		switch call.State {
-		case common.RequestStateDone, common.RequestStateFailed:
-			return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+		if call == nil || call.State == common.RequestStateDone || call.State == common.RequestStateFailed {
+			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 	return nil
@@ -374,7 +373,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		extra := []byte{ConfirmFlagNonceAvailable}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 
-		if nonce == nil || nonce.CallId.Valid || !nonce.Mix.Valid {
+		if nonce == nil || !nonce.LockedByUserOnly() {
 			id = common.UniqueId(id, "expire-nonce")
 			extra[0] = ConfirmFlagNonceExpired
 		} else {
