@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
@@ -98,4 +99,39 @@ func (node *Node) processAssetIcon(ctx context.Context, asset *bot.AssetNetwork)
 		return "", err
 	}
 	return iconUrl, nil
+}
+
+func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNetwork) (string, error) {
+	ea, err := node.store.ReadExternalAsset(ctx, asset.AssetID)
+	if err != nil || ea == nil {
+		return "", fmt.Errorf("invalid external asset to mint: %s", asset.AssetID)
+	}
+	if ea.Uri.Valid {
+		return ea.Uri.String, nil
+	}
+	iconUrl, err := node.processAssetIcon(ctx, asset)
+	if err != nil {
+		return "", err
+	}
+	meta := solanaApp.Metadata{
+		Name:        asset.Name,
+		Symbol:      asset.Symbol,
+		Description: fmt.Sprintf("%s bridged through Mixin Computer", asset.Name),
+		Image:       iconUrl,
+	}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return "", err
+	}
+	id := common.UniqueId(asset.AssetID, "storage")
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("https://kernel.mixin.dev/objects/%s", hash.String())
+	err = node.store.UpdateExternalAssetUri(ctx, ea.AssetId, url)
+	if err != nil {
+		return "", err
+	}
+	return url, nil
 }

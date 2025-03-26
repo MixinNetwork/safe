@@ -2,17 +2,16 @@ package computer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/mtg"
@@ -149,37 +148,21 @@ func (node *Node) readSolanaBlockCheckpoint(ctx context.Context) (int64, error) 
 	return height, nil
 }
 
-func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNetwork) (string, error) {
-	ea, err := node.store.ReadExternalAsset(ctx, asset.AssetID)
-	if err != nil || ea == nil {
-		return "", fmt.Errorf("invalid external asset to mint: %s", asset.AssetID)
-	}
-	if ea.Uri.Valid {
-		return ea.Uri.String, nil
-	}
-	iconUrl, err := node.processAssetIcon(ctx, asset)
+func (node *Node) readPropertyAsTime(ctx context.Context, key string) time.Time {
+	val, err := node.store.ReadProperty(ctx, key)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
-	meta := solanaApp.Metadata{
-		Name:        asset.Name,
-		Symbol:      asset.Symbol,
-		Description: fmt.Sprintf("%s bridged through Mixin Computer", asset.Name),
-		Image:       iconUrl,
+	if val == "" {
+		return time.Unix(0, node.conf.Timestamp)
 	}
-	data, err := json.Marshal(meta)
+	ts, err := time.Parse(time.RFC3339Nano, val)
 	if err != nil {
-		return "", err
+		panic(val)
 	}
-	id := common.UniqueId(asset.AssetID, "storage")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.safeUser())
-	if err != nil {
-		return "", err
-	}
-	url := fmt.Sprintf("https://kernel.mixin.dev/objects/%s", hash.String())
-	err = node.store.UpdateExternalAssetUri(ctx, ea.AssetId, url)
-	if err != nil {
-		return "", err
-	}
-	return url, nil
+	return ts
+}
+
+func (node *Node) writeRequestTime(ctx context.Context, key string, offset time.Time) error {
+	return node.store.WriteProperty(ctx, key, offset.Format(time.RFC3339Nano))
 }

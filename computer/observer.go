@@ -672,22 +672,3 @@ func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) 
 	}
 	return hash, nil
 }
-
-func (node *Node) readPropertyAsTime(ctx context.Context, key string) time.Time {
-	val, err := node.store.ReadProperty(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-	if val == "" {
-		return time.Unix(0, node.conf.Timestamp)
-	}
-	ts, err := time.Parse(time.RFC3339Nano, val)
-	if err != nil {
-		panic(val)
-	}
-	return ts
-}
-
-func (node *Node) writeRequestTime(ctx context.Context, key string, offset time.Time) error {
-	return node.store.WriteProperty(ctx, key, offset.Format(time.RFC3339Nano))
-}

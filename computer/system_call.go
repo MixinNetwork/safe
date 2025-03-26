@@ -2,7 +2,9 @@ package computer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
@@ -12,6 +14,8 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
+	solana "github.com/gagliardetto/solana-go"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -169,4 +173,99 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 		}
 	}
 	return am
+}
+
+func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall) (*store.SystemCall, error) {
+	if call.Type != store.CallTypeMain {
+		return nil, nil
+	}
+	if !common.CheckTestEnvironment(ctx) {
+		ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
+		if err != nil {
+			panic(err)
+		}
+		if len(ver.References) != 1 {
+			return nil, nil
+		}
+	}
+
+	postprocess, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	postprocess.Superior = call.RequestId
+	postprocess.Type = store.CallTypePostProcess
+	postprocess.Public = call.Public
+	postprocess.State = common.RequestStatePending
+
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+	if err != nil {
+		panic(err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("store.ReadUser(%s) => nil", call.UserIdFromPublicPath().String())
+	}
+	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+	logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
+	if err != nil {
+		return nil, err
+	}
+	return postprocess, nil
+}
+
+func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req *store.Request) (*store.SystemCall, *solana.Transaction, error) {
+	var references []crypto.Hash
+	if common.CheckTestEnvironment(ctx) {
+		references = outputReferences[req.Output.OutputId]
+	} else {
+		ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
+		if err != nil {
+			panic(err)
+		}
+		if len(ver.References) != 1 {
+			return nil, nil, fmt.Errorf("invalid count of references from request: %v %v", req, ver)
+		}
+		references = ver.References
+	}
+	data := node.readStorageExtraFromObserver(ctx, references[0])
+	id, raw := uuid.Must(uuid.FromBytes(data[:16])).String(), data[16:]
+	return node.buildSystemCallFromBytes(ctx, req, id, raw, true)
+}
+
+// should only return error when fail to parse nonce advance instruction;
+// without fields of superior, type, public, skip_postprocess
+func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Request, id string, raw []byte, withdrawn bool) (*store.SystemCall, *solana.Transaction, error) {
+	tx, err := solana.TransactionFromBytes(raw)
+	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
+	if err != nil {
+		panic(err)
+	}
+	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
+	advance, err := solanaApp.NonceAccountFromTx(tx)
+	logger.Printf("solana.NonceAccountFromTx() => %v %v", advance, err)
+	if err != nil {
+		return nil, nil, err
+	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	call := &store.SystemCall{
+		RequestId:    id,
+		RequestHash:  req.MixinHash.String(),
+		NonceAccount: advance.GetNonceAccount().PublicKey.String(),
+		Message:      hex.EncodeToString(msg),
+		Raw:          tx.MustToBase64(),
+		State:        common.RequestStateInitial,
+		CreatedAt:    req.CreatedAt,
+		UpdatedAt:    req.CreatedAt,
+	}
+	if withdrawn {
+		call.WithdrawalTraces = sql.NullString{Valid: true, String: ""}
+		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
+	}
+	return call, tx, nil
 }

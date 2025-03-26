@@ -24,6 +24,13 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+const (
+	SessionTimeout       = time.Hour
+	MPCFirstMessageRound = 2
+)
+
+var PrepareExtra = []byte("PREPARE")
+
 func (node *Node) bootSigner(ctx context.Context) {
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)
