@@ -53,6 +53,9 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 	for _, output := range outputs {
 		total = total.Add(output.Amount)
 	}
+	if total.IsZero() || req.AssetId != bot.XINAssetId {
+		panic(fmt.Errorf("GetSystemCallReferenceTxs () => invalid request: %v", req))
+	}
 	if total.Compare(plan.OperationPriceAmount) == 1 {
 		amount := total.Sub(plan.OperationPriceAmount)
 		asset, err := common.SafeReadAssetUntilSufficient(ctx, req.AssetId)
@@ -87,7 +90,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
 	}
-	// referenced XIN transaction must be storage transaction
+	// skip referenced storage transaction
 	if ver.Asset.String() == "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc" && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
 		return nil, nil
 	}
