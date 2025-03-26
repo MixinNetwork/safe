@@ -3,6 +3,7 @@ package computer
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -12,11 +13,14 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/common/round"
+	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -406,6 +410,153 @@ func unmarshalSessionMessage(b []byte) ([]byte, *protocol.Message, error) {
 	var msg protocol.Message
 	err := msg.UnmarshalBinary(b[1+b[0]:])
 	return sessionId, &msg, err
+}
+
+func (node *Node) readKeyByFingerPath(ctx context.Context, public string) (string, []byte, []byte, error) {
+	fingerPath, err := hex.DecodeString(public)
+	if err != nil || len(fingerPath) != 16 {
+		return "", nil, nil, fmt.Errorf("node.readKeyByFingerPath(%s) invalid fingerprint", public)
+	}
+	fingerprint := hex.EncodeToString(fingerPath[:8])
+	public, share, err := node.store.ReadKeyByFingerprint(ctx, fingerprint)
+	return public, share, fingerPath[8:], err
+}
+
+func (node *Node) verifySessionHolder(_ context.Context, holder string) bool {
+	point := curve.Edwards25519Point{}
+	err := point.UnmarshalBinary(common.DecodeHexOrPanic(holder))
+	return err == nil
+}
+
+func (node *Node) verifySessionSignature(msg, sig, share, path []byte) (bool, []byte) {
+	public, _ := node.deriveByPath(share, path)
+	pub := ed25519.PublicKey(public)
+	res := ed25519.Verify(pub, msg, sig)
+	logger.Printf("ed25519.Verify(%x, %x) => %t", msg, sig[:], res)
+	return res, sig
+}
+
+func (node *Node) verifySessionSignerResults(_ context.Context, session *store.Session, sessionSigners map[string]string) (bool, []byte) {
+	members := node.GetMembers()
+	switch session.Operation {
+	case OperationTypeKeygenInput:
+		var signed int
+		for _, id := range members {
+			public, found := sessionSigners[id]
+			if found && public == session.Public && public == sessionSigners[string(node.id)] {
+				signed = signed + 1
+			}
+		}
+		exact := len(members)
+		return signed >= exact, nil
+	case OperationTypeSignInput:
+		var signed int
+		var sig []byte
+		for _, id := range members {
+			extra, found := sessionSigners[id]
+			if sig == nil && found {
+				sig = common.DecodeHexOrPanic(extra)
+			}
+			if found && extra != "" && hex.EncodeToString(sig) == extra {
+				signed = signed + 1
+			}
+		}
+		exact := node.threshold + 1
+		return signed >= exact, sig
+	default:
+		panic(session.Id)
+	}
+}
+
+func (node *Node) startOperation(ctx context.Context, op *common.Operation, members []party.ID) error {
+	logger.Printf("node.startOperation(%v)", op)
+
+	switch op.Type {
+	case OperationTypeKeygenInput:
+		return node.startKeygen(ctx, op)
+	case OperationTypeSignInput:
+		return node.startSign(ctx, op, members)
+	default:
+		panic(op.Id)
+	}
+}
+
+func (node *Node) startKeygen(ctx context.Context, op *common.Operation) error {
+	logger.Printf("node.startKeygen(%v)", op)
+	res, err := node.frostKeygen(ctx, op.IdBytes(), curve.Edwards25519{})
+	logger.Printf("node.frostKeygen(%v) => %v", op, err)
+	if err != nil {
+		return node.store.FailSession(ctx, op.Id)
+	}
+
+	op.Public = hex.EncodeToString(res.Public)
+	if common.CheckTestEnvironment(ctx) {
+		extra := []byte{OperationTypeKeygenOutput}
+		extra = append(extra, []byte(op.Public)...)
+		err = node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString(extra))
+		if err != nil {
+			panic(err)
+		}
+	}
+	session, err := node.store.ReadSession(ctx, op.Id)
+	if err != nil {
+		panic(err)
+	}
+	return node.store.WriteKeyIfNotExists(ctx, session, op.Public, res.Share, false)
+}
+
+func (node *Node) startSign(ctx context.Context, op *common.Operation, members []party.ID) error {
+	logger.Printf("node.startSign(%v, %v, %s)\n", op, members, string(node.id))
+	if !slices.Contains(members, node.id) {
+		logger.Printf("node.startSign(%v, %v, %s) exit without committement\n", op, members, string(node.id))
+		return nil
+	}
+	public, share, path, err := node.readKeyByFingerPath(ctx, op.Public)
+	logger.Printf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err)
+	if err != nil {
+		return fmt.Errorf("node.readKeyByFingerPath(%s) => %v", op.Public, err)
+	}
+	if public == "" {
+		return node.store.FailSession(ctx, op.Id)
+	}
+	fingerprint := op.Public[:16]
+	if hex.EncodeToString(common.Fingerprint(public)) != fingerprint {
+		return fmt.Errorf("node.startSign(%v) invalid sum %x %s", op, common.Fingerprint(public), fingerprint)
+	}
+
+	res, err := node.frostSign(ctx, members, public, share, op.Extra, op.IdBytes(), curve.Edwards25519{}, path)
+	logger.Printf("node.frostSign(%v) => %v %v", op, res, err)
+	if err != nil {
+		err = node.store.FailSession(ctx, op.Id)
+		logger.Printf("store.FailSession(%s, startSign) => %v", op.Id, err)
+		return err
+	}
+
+	if common.CheckTestEnvironment(ctx) {
+		extra := []byte{OperationTypeSignOutput}
+		extra = append(extra, res.Signature...)
+		err = node.store.WriteProperty(ctx, "SIGNER:"+op.Id, hex.EncodeToString(extra))
+		if err != nil {
+			panic(err)
+		}
+	}
+	err = node.store.MarkSessionPending(ctx, op.Id, op.Public, res.Signature)
+	logger.Printf("store.MarkSessionPending(%v, startSign) => %x %v\n", op, res.Signature, err)
+	return err
+}
+
+func (node *Node) deriveByPath(share, path []byte) ([]byte, []byte) {
+	conf := frost.EmptyConfig(curve.Edwards25519{})
+	err := conf.UnmarshalBinary(share)
+	if err != nil {
+		panic(err)
+	}
+	pub := common.MarshalPanic(conf.PublicPoint())
+	if mixin.CheckEd25519ValidChildPath(path) {
+		conf = deriveEd25519Child(conf, pub, path)
+		pub = common.MarshalPanic(conf.PublicPoint())
+	}
+	return pub, conf.ChainKey
 }
 
 func (node *Node) processSignerKeygenResults(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {

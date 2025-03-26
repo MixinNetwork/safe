@@ -3,9 +3,7 @@ package computer
 import (
 	"context"
 	"encoding/base64"
-	"encoding/binary"
 	"fmt"
-	"math/big"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	mc "github.com/MixinNetwork/mixin/common"
@@ -14,8 +12,6 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/safe/mtg"
-	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -173,33 +169,4 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 		}
 	}
 	return am
-}
-
-func (node *Node) processSetOperationParams(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeSetOperationParams {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	if len(extra) != 24 {
-		return node.failRequest(ctx, req, "")
-	}
-
-	assetId := uuid.Must(uuid.FromBytes(extra[:16]))
-	abu := new(big.Int).SetUint64(binary.BigEndian.Uint64(extra[16:24]))
-	amount := decimal.NewFromBigInt(abu, -8)
-	params := &store.OperationParams{
-		RequestId:            req.Id,
-		OperationPriceAsset:  assetId.String(),
-		OperationPriceAmount: amount,
-		CreatedAt:            req.CreatedAt,
-	}
-	err := node.store.WriteOperationParamsFromRequest(ctx, params, req)
-	if err != nil {
-		panic(err)
-	}
-	return nil, ""
 }
