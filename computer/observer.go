@@ -446,7 +446,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if balance < 10000000 {
+	if balance < 50000000 {
 		logger.Printf("insufficient balance to send tx: %d", balance)
 		time.Sleep(30 * time.Second)
 		return nil

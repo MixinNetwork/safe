@@ -91,7 +91,7 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
 	hash := tx.Signatures[0]
-	call, err := node.store.ReadSystemCallByMessage(ctx, hash.String())
+	call, err := node.store.ReadSystemCallByHash(ctx, hash.String())
 	if err != nil {
 		panic(err)
 	}
@@ -239,19 +239,13 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		}
 		return "", nil, nil, nil
 	}
-	nonce, err := node.store.ReadNonceAccountByCall(ctx, tid)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("store.ReadNonceAccountByCall(%s) => %v", tid, err)
+	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	if err != nil || nonce == nil {
+		return "", nil, nil, fmt.Errorf("store.ReadSpareNonceAccount(%s) => %v %v", tid, nonce, err)
 	}
-	if nonce == nil {
-		nonce, err = node.store.ReadSpareNonceAccount(ctx)
-		if err != nil || nonce == nil {
-			return "", nil, nil, fmt.Errorf("store.ReadSpareNonceAccount(%s) => %v %v", tid, nonce, err)
-		}
-		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
-		if err != nil {
-			return "", nil, nil, err
-		}
+	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
+	if err != nil {
+		return "", nil, nil, err
 	}
 	tx, err := node.solanaClient().CreateMints(ctx, node.solanaPayer(), node.getMTGAddress(ctx), nonce.Account(), assets)
 	if err != nil {
