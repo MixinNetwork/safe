@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -39,9 +40,7 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", req.MixinHash.String(), ver, err))
 	}
 	if common.CheckTestEnvironment(ctx) {
-		h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
-		h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
-		ver.References = []crypto.Hash{h1, h2}
+		ver.References = readOutputReferences(req.Id)
 	}
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
@@ -52,9 +51,6 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
 		total = total.Add(output.Amount)
-	}
-	if total.IsZero() || req.AssetId != bot.XINAssetId {
-		panic(fmt.Errorf("GetSystemCallReferenceTxs () => invalid request: %v", req))
 	}
 	if total.Compare(plan.OperationPriceAmount) == 1 {
 		amount := total.Sub(plan.OperationPriceAmount)
@@ -94,9 +90,22 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
 	}
+	if common.CheckTestEnvironment(ctx) {
+		value, err := node.store.ReadProperty(ctx, hash)
+		if err != nil {
+			panic(err)
+		}
+		if len(value) > 0 {
+			extra, err := base64.RawURLEncoding.DecodeString(value)
+			if err != nil {
+				panic(err)
+			}
+			ver.Extra = extra
+		}
+	}
 	// skip referenced storage transaction
-	if ver.Asset.String() == "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc" && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
-		h := ver.PayloadHash()
+	if ver.Asset.String() == common.XinKernelAssetId && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
+		h, _ := crypto.HashFromString(hash)
 		return nil, &h, nil
 	}
 	outputs := node.group.ListOutputsByTransactionHash(ctx, hash, req.Sequence)

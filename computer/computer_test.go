@@ -95,7 +95,7 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
-	refs := testStorageSystemCall(ctx, nodes, cid, raw)
+	refs := testStorageSubSystemCall(ctx, nodes, cid, raw)
 
 	id := uuid.Must(uuid.NewV4()).String()
 	signature := solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW")
@@ -190,12 +190,16 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 
 	id := uuid.Must(uuid.NewV4()).String()
+	refs := testStorageSystemCall(ctx, nodes, common.DecodeHexOrPanic("02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000810cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca85002953f9517566994f5066c9478a5e6d0466906e7d844b2d971b2e4f86ff72561c6d6405387e0deff4ac3250e4e4d1986f1bc5e805edd8ca4c48b73b92441afdc070b84fed2e0ca7ecb2a18e32bf10885151641616b3fe4447557683ee699247e1f9cbad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ecf6994777d4d13d8bd64679ac9e173a29ea40653734b52eee914ddc43c820f424071d460ef6501203e6656563c4add1638164d5eba1dee13e9085fb60036f98f10000000000000000000000000000000000000000000000000000000000000000816e66630c3bb724dc59e49f6cc4306e603a6aacca06fa3e34e2b40ad5979d8da5d5ca9e04cf5db590b714ba2fe32cb159133fc1c192b72257fd07d39cb0401ec4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f0000000000106a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea940000006a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a0000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a90ff0530009fc7a19cf8d8d0257f1dc2d478f1368aa89f5e546c6e12d8a4015ec020803050d0004040000000a0d0109030c0b020406070f0f080e20e992d18ecf6840bcd564b7ff16977c720000000000000000b992766700000000"))
+	h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
+	h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
+	refs = append(refs, []crypto.Hash{h1, h2}...)
+
 	hash := "d3b2db9339aee4acb39d0809fc164eb7091621400a9a3d64e338e6ffd035d32f"
 	extra := user.IdBytes()
 	extra = append(extra, uuid.Must(uuid.FromString(id)).Bytes()...)
 	extra = append(extra, FlagWithPostProcess)
-	extra = append(extra, common.DecodeHexOrPanic("02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000810cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca85002953f9517566994f5066c9478a5e6d0466906e7d844b2d971b2e4f86ff72561c6d6405387e0deff4ac3250e4e4d1986f1bc5e805edd8ca4c48b73b92441afdc070b84fed2e0ca7ecb2a18e32bf10885151641616b3fe4447557683ee699247e1f9cbad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ecf6994777d4d13d8bd64679ac9e173a29ea40653734b52eee914ddc43c820f424071d460ef6501203e6656563c4add1638164d5eba1dee13e9085fb60036f98f10000000000000000000000000000000000000000000000000000000000000000816e66630c3bb724dc59e49f6cc4306e603a6aacca06fa3e34e2b40ad5979d8da5d5ca9e04cf5db590b714ba2fe32cb159133fc1c192b72257fd07d39cb0401ec4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f0000000000106a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea940000006a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a0000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a90ff0530009fc7a19cf8d8d0257f1dc2d478f1368aa89f5e546c6e12d8a4015ec020803050d0004040000000a0d0109030c0b020406070f0f080e20e992d18ecf6840bcd564b7ff16977c720000000000000000b992766700000000")...)
-	out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra)
+	out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra, refs)
 	for _, node := range nodes {
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStateInitial)
@@ -235,7 +239,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
 	cid := common.UniqueId(c.RequestId, "prepare")
-	refs := testStorageSystemCall(ctx, nodes, cid, raw)
+	refs = testStorageSubSystemCall(ctx, nodes, cid, raw)
 
 	id = uuid.Must(uuid.NewV4()).String()
 	extra = []byte{ConfirmFlagNonceAvailable}
@@ -267,7 +271,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	for _, node := range nodes {
 		uid := common.UniqueId(id, "user1")
 		mix := bot.NewUUIDMixAddress([]string{uid}, 1)
-		out := testBuildUserRequest(node, id, "", OperationTypeAddUser, []byte(mix.String()))
+		out := testBuildUserRequest(node, id, "", OperationTypeAddUser, []byte(mix.String()), nil)
 		testStep(ctx, require, node, out)
 		user1, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -284,7 +288,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		id2 := common.UniqueId(id, "second")
 		uid = common.UniqueId(id, "user2")
 		mix = bot.NewUUIDMixAddress([]string{uid}, 1)
-		out = testBuildUserRequest(node, id2, "", OperationTypeAddUser, []byte(mix.String()))
+		out = testBuildUserRequest(node, id2, "", OperationTypeAddUser, []byte(mix.String()), nil)
 		testStep(ctx, require, node, out)
 		user2, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -359,7 +363,7 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 	require.Nil(err)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
-	refs := testStorageSystemCall(ctx, nodes, cid, raw)
+	refs := testStorageSubSystemCall(ctx, nodes, cid, raw)
 
 	var extra []byte
 	for _, asset := range assets {
@@ -453,7 +457,21 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 	require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", key)
 }
 
-func testStorageSystemCall(ctx context.Context, nodes []*Node, id string, raw []byte) []crypto.Hash {
+func testStorageSystemCall(ctx context.Context, nodes []*Node, extra []byte) []crypto.Hash {
+	raw := base64.RawURLEncoding.EncodeToString(extra)
+	ref := crypto.Sha256Hash(extra)
+	refs := []crypto.Hash{ref}
+
+	for _, node := range nodes {
+		err := node.store.WriteProperty(ctx, ref.String(), raw)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return refs
+}
+
+func testStorageSubSystemCall(ctx context.Context, nodes []*Node, id string, raw []byte) []crypto.Hash {
 	var refs []crypto.Hash
 	for _, node := range nodes {
 		ref, err := node.storageSubSolanaTx(ctx, id, raw)
@@ -482,7 +500,7 @@ func testObserverRequestSignSystemCall(ctx context.Context, require *require.Ass
 	}
 }
 
-func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte) *mtg.Action {
+func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte, references []crypto.Hash) *mtg.Action {
 	sequence += 10
 	if hash == "" {
 		hash = crypto.Sha256Hash([]byte(id)).String()
@@ -493,6 +511,8 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 	memoStr := testEncodeMixinExtra(node.conf.AppId, memo)
 	memoStr = hex.EncodeToString([]byte(memoStr))
 	timestamp := time.Now().UTC()
+
+	writeOutputReferences(id, references)
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
