@@ -109,6 +109,14 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 	return asset, nil
 }
 
+func (c *Client) RPCGetBalance(ctx context.Context, account solana.PublicKey) (uint64, error) {
+	result, err := c.getRPCClient().GetBalance(ctx, account, rpc.CommitmentConfirmed)
+	if err != nil {
+		return 0, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
+	}
+	return result.Value, nil
+}
+
 func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
 	result, err := c.getRPCClient().GetAccountInfo(ctx, account)
 	if err != nil && !errors.Is(err, rpc.ErrNotFound) {

@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -443,6 +442,16 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 }
 
 func (node *Node) handleSignedCalls(ctx context.Context) error {
+	balance, err := node.solanaClient().RPCGetBalance(ctx, node.solanaPayer())
+	if err != nil {
+		return err
+	}
+	if balance < 10000000 {
+		logger.Printf("insufficient balance to send tx: %d", balance)
+		time.Sleep(30 * time.Second)
+		return nil
+	}
+
 	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
 	calls, err := node.store.ListSignedCalls(ctx)
 	if err != nil {
@@ -494,48 +503,16 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		}
 		tx.Signatures[index] = solana.SignatureFromBytes(sig)
 
-		var meta *rpc.TransactionMeta
-		hash, err := node.solanaClient().SendTransaction(ctx, tx)
+		rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, true)
 		if err != nil {
-			rpcTx, er := node.solanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
-			if er != nil {
-				return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, er)
-			}
-			if rpcTx != nil {
-				hash = tx.Signatures[0].String()
-				tx, err = rpcTx.Transaction.GetTransaction()
-				if err != nil {
-					panic(err)
-				}
-				meta = rpcTx.Meta
-			} else {
-				if call.Type != store.CallTypeMain && strings.Contains(err.Error(), "insufficient lamports") {
-					panic(fmt.Errorf("insufficient lamports to run system call"))
-				}
-				logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
-				return node.processFailedCall(ctx, call)
-			}
+			logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
+			return node.processFailedCall(ctx, call)
 		}
-		for {
-			if meta != nil {
-				break
-			}
-			rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
-			if err != nil {
-				return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
-			}
-			if rpcTx == nil {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			tx, err = rpcTx.Transaction.GetTransaction()
-			if err != nil {
-				panic(err)
-			}
-			meta = rpcTx.Meta
-			break
+		txx, err := rpcTx.Transaction.GetTransaction()
+		if err != nil {
+			return err
 		}
-		err = node.processSuccessedCall(ctx, call, tx, meta)
+		err = node.processSuccessedCall(ctx, call, txx, rpcTx.Meta)
 		if err != nil {
 			return err
 		}

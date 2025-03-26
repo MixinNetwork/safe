@@ -270,7 +270,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	if err != nil {
 		return "", "", err
 	}
-	err = node.SendTransactionUtilConfirm(ctx, tx)
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, false)
 	if err != nil {
 		return "", "", err
 	}
@@ -441,7 +441,21 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 	return changes
 }
 
-func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction) error {
+func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (*rpc.GetTransactionResult, error) {
+	for {
+		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
+		if err != nil {
+			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
+		}
+		if rpcTx == nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return rpcTx, nil
+	}
+}
+
+func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call bool) (*rpc.GetTransactionResult, error) {
 	var h string
 	for {
 		sig, err := node.solanaClient().SendTransaction(ctx, tx)
@@ -450,23 +464,24 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			break
 		}
 		if strings.Contains(err.Error(), "Blockhash not found") {
+			if call {
+				return nil, err
+			}
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		return err
-	}
-	for {
-		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, h)
-		if err != nil {
-			return fmt.Errorf("solana.RPCGetTransaction(%s) => %v", h, err)
+
+		// check if tx already sent
+		rpcTx, er := node.solanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
+		if er != nil {
+			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), er)
 		}
-		if rpcTx == nil {
-			time.Sleep(1 * time.Second)
-			continue
+		if rpcTx != nil {
+			return rpcTx, nil
 		}
-		break
+		return nil, err
 	}
-	return nil
+	return node.ReadTransactionUtilConfirm(ctx, h)
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
