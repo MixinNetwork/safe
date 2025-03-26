@@ -141,7 +141,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	rs, err := node.GetSystemCallReferenceTxs(ctx, req.MixinHash.String())
+	rs, storage, err := node.GetSystemCallReferenceTxs(ctx, req.MixinHash.String())
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -174,11 +174,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	rb := data[25:]
-	if len(rb) == 32 {
-		hash := crypto.Hash(rb)
-		rb = node.readStorageExtraFromObserver(ctx, hash)
-	}
+	rb := node.readStorageExtraFromObserver(ctx, *storage)
 	call, tx, err := node.buildSystemCallFromBytes(ctx, req, cid, rb, false)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
@@ -225,7 +221,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	rs, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
+	rs, _, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
 		err = node.store.ExpireSystemCallWithRequest(ctx, req, call, nil, "")
 		if err != nil {

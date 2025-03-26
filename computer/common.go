@@ -28,7 +28,7 @@ type ReferencedTxAsset struct {
 }
 
 // should only return error when mtg could not find outputs from referenced transaction
-func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash string) ([]*store.SpentReference, error) {
+func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash string) ([]*store.SpentReference, *crypto.Hash, error) {
 	var refs []*store.SpentReference
 	req, err := node.store.ReadRequestByHash(ctx, requestHash)
 	if err != nil || req == nil {
@@ -73,30 +73,35 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 		})
 	}
 
+	var storage *crypto.Hash
 	for _, ref := range ver.References {
-		rs, err := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		rs, hash, err := node.getSystemCallReferenceTx(ctx, req, ref.String())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if len(rs) > 0 {
 			refs = append(refs, rs...)
 		}
+		if hash != nil && storage == nil {
+			storage = hash
+		}
 	}
-	return refs, nil
+	return refs, storage, nil
 }
 
-func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) ([]*store.SpentReference, error) {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) ([]*store.SpentReference, *crypto.Hash, error) {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
 	}
 	// skip referenced storage transaction
 	if ver.Asset.String() == "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc" && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
-		return nil, nil
+		h := ver.PayloadHash()
+		return nil, &h, nil
 	}
 	outputs := node.group.ListOutputsByTransactionHash(ctx, hash, req.Sequence)
 	if len(outputs) == 0 {
-		return nil, fmt.Errorf("unreceived reference %s", hash)
+		return nil, nil, fmt.Errorf("unreceived reference %s", hash)
 	}
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
@@ -117,17 +122,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 			Asset:           asset,
 		},
 	}
-
-	for _, ref := range ver.References {
-		rs, err := node.getSystemCallReferenceTx(ctx, req, ref.String())
-		if err != nil {
-			return nil, err
-		}
-		if len(rs) > 0 {
-			refs = append(refs, rs...)
-		}
-	}
-	return refs, nil
+	return refs, nil, nil
 }
 
 func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {
