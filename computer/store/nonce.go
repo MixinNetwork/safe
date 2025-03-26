@@ -17,15 +17,16 @@ type NonceAccount struct {
 	Hash      string
 	Mix       sql.NullString
 	CallId    sql.NullString
+	UpdatedBy sql.NullString
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-var nonceAccountCols = []string{"address", "hash", "mix", "call_id", "created_at", "updated_at"}
+var nonceAccountCols = []string{"address", "hash", "mix", "call_id", "updated_by", "created_at", "updated_at"}
 
 func nonceAccountFromRow(row Row) (*NonceAccount, error) {
 	var a NonceAccount
-	err := row.Scan(&a.Address, &a.Hash, &a.Mix, &a.CallId, &a.CreatedAt, &a.UpdatedAt)
+	err := row.Scan(&a.Address, &a.Hash, &a.Mix, &a.CallId, &a.UpdatedBy, &a.CreatedAt, &a.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -54,7 +55,7 @@ func (s *SQLite3Store) WriteNonceAccount(ctx context.Context, address, hash stri
 	defer common.Rollback(tx)
 
 	now := time.Now().UTC()
-	vals := []any{address, hash, nil, nil, now, now}
+	vals := []any{address, hash, nil, nil, nil, now, now}
 	err = s.execOne(ctx, tx, buildInsertionSQL("nonce_accounts", nonceAccountCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT nonce_accounts %v", err)
@@ -63,7 +64,7 @@ func (s *SQLite3Store) WriteNonceAccount(ctx context.Context, address, hash stri
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) UpdateNonceAccount(ctx context.Context, address, hash string) error {
+func (s *SQLite3Store) UpdateNonceAccount(ctx context.Context, address, hash, call string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -79,8 +80,8 @@ func (s *SQLite3Store) UpdateNonceAccount(ctx context.Context, address, hash str
 	}
 
 	now := time.Now().UTC()
-	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET hash=?, mix=?, call_id=?, updated_at=? WHERE address=?",
-		hash, nil, nil, now, address)
+	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET hash=?, mix=?, call_id=?, updated_by=?, updated_at=? WHERE address=?",
+		hash, nil, nil, call, now, address)
 	if err != nil {
 		return fmt.Errorf("UPDATE nonce_accounts %v", err)
 	}

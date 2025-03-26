@@ -47,7 +47,7 @@ func TestComputer(t *testing.T) {
 
 func testObserverConfirmPostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
 	node := nodes[0]
-	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", sub.RequestId)
 	require.Nil(err)
 	nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
 	require.Nil(err)
@@ -78,11 +78,12 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 
 func testObserverConfirmMainCall(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) *store.SystemCall {
 	node := nodes[0]
-	err := node.store.UpdateNonceAccount(ctx, call.NonceAccount, "E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX")
+	err := node.store.UpdateNonceAccount(ctx, call.NonceAccount, "E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX", call.RequestId)
 	require.Nil(err)
 	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
 	require.Nil(err)
 	require.Equal("E9esweXgoVfahhRvpWR4kefZXR54qd82ZGhVTbzQtCoX", nonce.Hash)
+	require.Equal(call.RequestId, nonce.UpdatedBy.String)
 	require.False(nonce.CallId.Valid)
 	require.False(nonce.Mix.Valid)
 
@@ -125,7 +126,7 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 
 func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
 	node := nodes[0]
-	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX")
+	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", sub.RequestId)
 	require.Nil(err)
 	nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
 	require.Nil(err)

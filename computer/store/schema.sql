@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS nonce_accounts (
   hash           VARCHAR NOT NULL,
   mix            VARCHAR,
   call_id        VARCHAR,
+  updated_by     VARCHAR,
   created_at     TIMESTAMP NOT NULL,
   updated_at     TIMESTAMP NOT NULL,
   PRIMARY KEY ('address')

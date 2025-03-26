@@ -527,20 +527,22 @@ func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCa
 	if err != nil || nonce == nil {
 		panic(err)
 	}
-	for {
-		newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
-		if err != nil {
-			panic(err)
-		}
-		if newNonceHash.String() != nonce.Hash {
-			err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String())
+	if !nonce.UpdatedBy.Valid || nonce.UpdatedBy.String != call.RequestId {
+		for {
+			newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
 			if err != nil {
 				panic(err)
 			}
-			break
+			if newNonceHash.String() != nonce.Hash {
+				err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String(), call.RequestId)
+				if err != nil {
+					panic(err)
+				}
+				break
+			}
+			time.Sleep(3 * time.Second)
+			continue
 		}
-		time.Sleep(3 * time.Second)
-		continue
 	}
 
 	var references []crypto.Hash
