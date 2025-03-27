@@ -127,13 +127,13 @@ func (inst Create) ValidateAndBuild() (*tokenAta.Instruction, error) {
 
 func (inst *Create) Validate() error {
 	if inst.Payer.IsZero() {
-		return errors.New("Payer not set")
+		return errors.New("payer not set")
 	}
 	if inst.Wallet.IsZero() {
-		return errors.New("Wallet not set")
+		return errors.New("wallet not set")
 	}
 	if inst.Mint.IsZero() {
-		return errors.New("Mint not set")
+		return errors.New("mint not set")
 	}
 	_, _, err := FindAssociatedTokenAddress(
 		inst.Wallet,
