@@ -460,6 +460,15 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			panic(err)
 		}
 		if common.CheckTestEnvironment(ctx) {
+			cs, err := node.store.ListSignedCalls(ctx)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("===")
+			fmt.Println(signature)
+			for i, c := range cs {
+				fmt.Println(i, c.Type, c.Message)
+			}
 			test := getTestSystemConfirmCallMessage(signature)
 			if test != nil {
 				msg = test
