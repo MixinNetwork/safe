@@ -177,9 +177,10 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) (*store.SystemCall, *store.SystemCall) {
 	node := nodes[0]
 	conf := node.conf
-	nonce, err := node.store.ReadSpareNonceAccount(ctx)
+	nonce, err := node.store.ReadNonceAccount(ctx, "DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV")
 	require.Nil(err)
-	require.Equal("DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV", nonce.Address)
+	require.False(nonce.Mix.Valid)
+	require.False(nonce.CallId.Valid)
 	err = node.store.LockNonceAccountWithMix(ctx, nonce.Address, user.MixAddress)
 	require.Nil(err)
 
