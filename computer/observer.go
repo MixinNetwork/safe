@@ -211,6 +211,13 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 			as = append(as, a.AssetId)
 			continue
 		}
+		if old.State == common.RequestStateDone {
+			err = node.store.MarkExternalAssetDeployed(ctx, a.AssetId)
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		if a.RequestedAt.Valid && time.Now().Before(a.RequestedAt.Time.Add(time.Minute*20)) {
 			continue
 		}
