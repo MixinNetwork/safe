@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"time"
 
@@ -360,6 +361,10 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 	}
 	if len(transfers) == 0 {
 		return nil
+	}
+
+	if common.CheckTestEnvironment(ctx) {
+		sort.Slice(transfers, func(i, j int) bool { return transfers[i].AssetId > transfers[j].AssetId })
 	}
 
 	tx, err = node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), user, nonce.Account(), transfers)
