@@ -4,8 +4,8 @@ go 1.24.1
 
 require (
 	filippo.io/edwards25519 v1.1.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.10.1
-	github.com/MixinNetwork/mixin v0.18.24
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.11.1
+	github.com/MixinNetwork/mixin v0.18.25
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/MixinNetwork/trusted-group v0.10.0
 	github.com/blocto/solana-go-sdk v1.30.0
@@ -65,7 +65,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect

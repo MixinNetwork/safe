@@ -455,6 +455,14 @@ func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (
 }
 
 func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call bool) (*rpc.GetTransactionResult, error) {
+	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
+	if err != nil {
+		return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), err)
+	}
+	if rpcTx != nil {
+		return rpcTx, nil
+	}
+
 	var h string
 	for {
 		sig, err := node.solanaClient().SendTransaction(ctx, tx)
@@ -469,16 +477,6 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			time.Sleep(1 * time.Second)
 			continue
 		}
-
-		// check if tx already sent
-		rpcTx, er := node.solanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
-		if er != nil {
-			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), er)
-		}
-		if rpcTx != nil {
-			return rpcTx, nil
-		}
-		return nil, err
 	}
 	return node.ReadTransactionUtilConfirm(ctx, h)
 }

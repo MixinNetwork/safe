@@ -6,10 +6,14 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/MixinNetwork/bot-api-go-client/v3 v3.10.1 h1:MxHvoOm+ncQsUrsIFz1oGdrsSL7jsm70v3Y74lI+42c=
 github.com/MixinNetwork/bot-api-go-client/v3 v3.10.1/go.mod h1:hrRnlftTVJYYabluVCsrBmVoziqFzdKfudwRafk++H8=
+github.com/MixinNetwork/bot-api-go-client/v3 v3.11.1 h1:g3ae3LvvnkUznxNQ55B5O+zsNID0Zd3+Neomm1MpGpA=
+github.com/MixinNetwork/bot-api-go-client/v3 v3.11.1/go.mod h1:ooJdiyeakrOcj4B0CYuS4KFCio+fbFdDMOLeqvGDCLE=
 github.com/MixinNetwork/go-number v0.1.1 h1:Ui/xi0WGiBWI6cPrZaffB6q8lP7m2Zw0CXgOqLXb/3c=
 github.com/MixinNetwork/go-number v0.1.1/go.mod h1:4kaXQW9NOjjO3uZ5ehRVn3m+G+5ENGEKgiwfxea3zGQ=
 github.com/MixinNetwork/mixin v0.18.24 h1:MpM+E8L6NjW0WepXny7BrOM9g3/gOefLNEcN4e+lqs8=
 github.com/MixinNetwork/mixin v0.18.24/go.mod h1:AsbAzLl7ZeYfMaY8xfNG7p8PqiRhhtouxDn+KkWv2bE=
+github.com/MixinNetwork/mixin v0.18.25 h1:DtfoU0/byI1J7GF+0yUGiR44e9EoezYlOc1DsmRHko4=
+github.com/MixinNetwork/mixin v0.18.25/go.mod h1:pClYf43RM16ztDIddfQgy2lhzSi2MU1NEt6gE3t+Szg=
 github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
 github.com/MixinNetwork/multi-party-sig v0.4.1/go.mod h1:mnZyPutnRV2+E6z3v5TpTb7q4HnS7IplS0yy4dPjVGA=
 github.com/MixinNetwork/trusted-group v0.10.0 h1:srbl4fl6B3+EscFG1dRGYXMYLkpO3X8vlt5HDlKGAKY=
@@ -141,6 +145,8 @@ github.com/golang-jwt/jwt v3.2.2+incompatible h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keL
 github.com/golang-jwt/jwt v3.2.2+incompatible/go.mod h1:8pz2t5EyA70fFQQSrl6XZXzqecmYZeUEB8OUGHkxJ+I=
 github.com/golang-jwt/jwt/v5 v5.2.1 h1:OuVbFODueb089Lh128TAcimifWaLhJwVflnrgM17wHk=
 github.com/golang-jwt/jwt/v5 v5.2.1/go.mod h1:pqrtFR0X4osieyHYxtmOUWsAWrfe1Q5UVIyoH402zdk=
+github.com/golang-jwt/jwt/v5 v5.2.2 h1:Rl4B7itRWVtYIHFrSNd7vhTiz9UpLdi6gZhZ3wEeDy8=
+github.com/golang-jwt/jwt/v5 v5.2.2/go.mod h1:pqrtFR0X4osieyHYxtmOUWsAWrfe1Q5UVIyoH402zdk=
 github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 h1:DACJavvAHhabrF08vX0COfcOBJRhZ8lUbR+ZWIs0Y5g=
 github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0/go.mod h1:E/TSTwGwJL78qG/PmXZO1EjYhfJinVAhrmmHX6Z8B9k=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
