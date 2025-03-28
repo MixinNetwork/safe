@@ -690,6 +690,10 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 		return nil, nil
 	}
 
+	if common.CheckTestEnvironment(ctx) {
+		sort.Slice(transfers, func(i, j int) bool { return transfers[i].AssetId > transfers[j].AssetId })
+	}
+
 	return node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
 }
 
