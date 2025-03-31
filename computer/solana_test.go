@@ -149,5 +149,6 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		if s != nil && s.Signature.Valid {
 			return
 		}
+		time.Sleep(5 * time.Second)
 	}
 }

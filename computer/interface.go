@@ -12,7 +12,7 @@ type Configuration struct {
 	AppId                   string             `toml:"app-id"`
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
-	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
+	MonitorConversationId   string             `toml:"monitor-conversation-id"`
 	Timestamp               int64              `toml:"timestamp"`
 	Threshold               int                `toml:"threshold"`
 	AssetId                 string             `toml:"asset-id"`
