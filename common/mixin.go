@@ -150,7 +150,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		}
 		utxos, sufficient := getEnoughUtxosToSpend(utxos, amount)
 		if !sufficient {
-			logger.Printf("unsufficient balance: %s %s %s", traceId, assetId, amount.String())
+			logger.Printf("insufficient balance: %s %s %s", traceId, assetId, amount.String())
 			time.Sleep(10 * time.Second)
 			continue
 		}
