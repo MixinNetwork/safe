@@ -272,10 +272,12 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 }
 
 func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transaction, user solana.PublicKey) error {
-	if !common.CheckTestEnvironment(ctx) {
-		if !tx.IsSigner(node.solanaPayer()) {
-			return fmt.Errorf("tx.IsSigner(payer) => %t", false)
-		}
+	if common.CheckTestEnvironment(ctx) {
+		return nil
+	}
+
+	if !tx.IsSigner(node.solanaPayer()) {
+		return fmt.Errorf("tx.IsSigner(payer) => %t", false)
 	}
 
 	index := -1
