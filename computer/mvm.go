@@ -190,14 +190,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.SkipPostprocess = skipPostprocess
 
-	hasUser := tx.IsSigner(solana.MustPublicKeyFromBase58(user.ChainAddress))
-	hasPayer := tx.IsSigner(node.solanaPayer())
-	if !common.CheckTestEnvironment(ctx) {
-		if !hasPayer || !hasUser {
-			logger.Printf("tx.IsSigner(user) => %t", hasUser)
-			logger.Printf("tx.IsSigner(payer) => %t", hasPayer)
-			return node.refundAndFailRequest(ctx, req, mix, as)
-		}
+	err = node.checkUserSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(user.ChainAddress))
+	if err != nil {
+		logger.Printf("node.checkUserSystemCall(%v) => %v", tx, err)
+		return node.refundAndFailRequest(ctx, req, mix, as)
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs)

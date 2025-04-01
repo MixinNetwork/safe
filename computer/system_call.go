@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"slices"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	mc "github.com/MixinNetwork/mixin/common"
@@ -268,4 +269,26 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	}
 	return call, tx, nil
+}
+
+func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transaction, user solana.PublicKey) error {
+	if !common.CheckTestEnvironment(ctx) {
+		if !tx.IsSigner(node.solanaPayer()) {
+			return fmt.Errorf("tx.IsSigner(payer) => %t", false)
+		}
+	}
+
+	index := -1
+	for i, acc := range tx.Message.AccountKeys {
+		if !acc.Equals(node.solanaPayer()) {
+			continue
+		}
+		index = i
+	}
+	for i, ins := range tx.Message.Instructions {
+		if slices.Contains(ins.Accounts, uint16(index)) {
+			return fmt.Errorf("invalid instruction: %d %v", i, ins)
+		}
+	}
+	return nil
 }
