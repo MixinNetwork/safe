@@ -238,7 +238,7 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	tx, err := solana.TransactionFromBytes(raw)
 	logger.Printf("solana.TransactionFromBytes(%x) => %v %v", raw, tx, err)
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {

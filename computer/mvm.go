@@ -129,17 +129,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(req.Action)
 	}
 
-	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
-	if err != nil {
-		panic(err)
-	}
-	if plan == nil ||
-		!plan.OperationPriceAmount.IsPositive() ||
-		req.AssetId != plan.OperationPriceAsset ||
-		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
-		return node.failRequest(ctx, req, "")
-	}
-
 	rs, storage, err := node.GetSystemCallReferenceTxs(ctx, req.MixinHash.String())
 	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v %v", req.MixinHash.String(), rs, storage, err)
 	if err != nil {
@@ -153,9 +142,22 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		logger.Printf("reference %s is already spent", hash)
 		return node.failRequest(ctx, req, "")
 	}
+	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	data := req.ExtraBytes()
 	id := new(big.Int).SetBytes(data[:8])
+	user, err := node.store.ReadUser(ctx, id)
+	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadUser() => %v", err))
+	} else if user == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	mix, err := bot.NewMixAddressFromString(user.MixAddress)
+	if err != nil {
+		panic(err)
+	}
+
 	cid := uuid.Must(uuid.FromBytes(data[8:24])).String()
 	skipPostprocess := false
 	switch data[24] {
@@ -164,20 +166,24 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	case FlagWithPostProcess:
 	default:
 		logger.Printf("invalid skip postprocess flag: %d", data[24])
-		return node.failRequest(ctx, req, "")
+		return node.refundAndFailRequest(ctx, req, mix, as)
 	}
-	user, err := node.store.ReadUser(ctx, id)
-	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
+
+	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
 	if err != nil {
-		panic(fmt.Errorf("store.ReadUser() => %v", err))
-	} else if user == nil {
-		return node.failRequest(ctx, req, "")
+		panic(err)
+	}
+	if plan == nil ||
+		!plan.OperationPriceAmount.IsPositive() ||
+		req.AssetId != plan.OperationPriceAsset ||
+		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
+		return node.refundAndFailRequest(ctx, req, mix, as)
 	}
 
 	rb := node.readStorageExtraFromObserver(ctx, *storage)
 	call, tx, err := node.buildSystemCallFromBytes(ctx, req, cid, rb, false)
 	if err != nil {
-		return node.failRequest(ctx, req, "")
+		return node.refundAndFailRequest(ctx, req, mix, as)
 	}
 	call.Superior = call.RequestId
 	call.Type = store.CallTypeMain
@@ -186,10 +192,12 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 
 	hasUser := tx.IsSigner(solana.MustPublicKeyFromBase58(user.ChainAddress))
 	hasPayer := tx.IsSigner(node.solanaPayer())
-	if (!hasPayer || !hasUser) && !common.CheckTestEnvironment(ctx) {
-		logger.Printf("tx.IsSigner(user) => %t", hasUser)
-		logger.Printf("tx.IsSigner(payer) => %t", hasPayer)
-		return node.failRequest(ctx, req, "")
+	if !common.CheckTestEnvironment(ctx) {
+		if !hasPayer || !hasUser {
+			logger.Printf("tx.IsSigner(user) => %t", hasUser)
+			logger.Printf("tx.IsSigner(payer) => %t", hasPayer)
+			return node.refundAndFailRequest(ctx, req, mix, as)
+		}
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs)
@@ -772,5 +780,14 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		panic(err)
 	}
 
+	return txs, compaction
+}
+
+func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, mix *bot.MixAddress, as map[string]*ReferencedTxAsset) ([]*mtg.Transaction, string) {
+	txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
+	err := node.store.FailRequest(ctx, req, compaction, txs)
+	if err != nil {
+		panic(err)
+	}
 	return txs, compaction
 }
