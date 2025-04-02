@@ -283,11 +283,11 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 	}
 	for _, nonce := range as {
 		if nonce.LockedByUserOnly() && nonce.Expired() {
+			logger.Printf("observer.ReleaseLockedNonceAccount(%v)", nonce)
 			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 			if err != nil {
 				return err
 			}
-			logger.Printf("observer.ReleaseLockedNonceAccount(%v)", nonce)
 			continue
 		}
 
@@ -297,6 +297,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		}
 		switch {
 		case call == nil || call.State == common.RequestStateFailed:
+			logger.Printf("observer.ReleaseLockedNonceAccount(%v %v)", nonce, call)
 			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 			if err != nil {
 				panic(err)
@@ -429,6 +430,11 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 				return err
 			}
 			references = append(references, hash)
+
+			err = node.store.OccupyNonceAccountByCall(ctx, call.NonceAccount, call.RequestId)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
