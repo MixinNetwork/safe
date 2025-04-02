@@ -438,11 +438,6 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 				return err
 			}
 			references = append(references, hash)
-
-			err = node.store.OccupyNonceAccountByCall(ctx, call.NonceAccount, call.RequestId)
-			if err != nil {
-				return err
-			}
 		}
 
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
@@ -450,6 +445,10 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
 		}, references)
+		if err != nil {
+			return err
+		}
+		err = node.store.OccupyNonceAccountByCall(ctx, call.NonceAccount, call.RequestId)
 		if err != nil {
 			return err
 		}
