@@ -391,12 +391,12 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	callId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
 	hash := solana.SignatureFromBytes(extra[32:]).String()
 
-	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.safeUser(), txId)
+	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.SafeUser(), txId)
 	logger.Printf("common.SafeReadWithdrawalHashUntilSufficient(%s) => %s %v", txId, withdrawalHash, err)
 	if err != nil || withdrawalHash != hash {
 		panic(err)
 	}
-	tx, err := node.solanaClient().RPCGetTransaction(ctx, withdrawalHash)
+	tx, err := node.SolanaClient().RPCGetTransaction(ctx, withdrawalHash)
 	logger.Printf("solana.RPCGetTransaction(%s) => %v %v", withdrawalHash, tx, err)
 	if err != nil || tx == nil {
 		panic(err)
@@ -447,7 +447,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	switch flag {
 	case FlagConfirmCallSuccess:
 		signature := base58.Encode(extra[:64])
-		transaction, err := node.solanaClient().RPCGetTransaction(ctx, signature)
+		transaction, err := node.SolanaClient().RPCGetTransaction(ctx, signature)
 		if err != nil {
 			panic(err)
 		}
@@ -653,7 +653,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		return node.failRequest(ctx, req, "")
 	}
 	// TODO should compare built tx and deposit tx from signature
-	txx, err := node.solanaClient().RPCGetTransaction(ctx, signature.String())
+	txx, err := node.SolanaClient().RPCGetTransaction(ctx, signature.String())
 	if err != nil {
 		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v %v", signature.String(), txx, err))
 	}
@@ -712,7 +712,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	}
 	deposit := ver.DepositData()
 
-	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, deposit.Transaction)
+	rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, deposit.Transaction)
 	if err != nil {
 		panic(err)
 	}
@@ -720,7 +720,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	if err != nil {
 		panic(err)
 	}
-	ts, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
+	ts, err := node.SolanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
 	if err != nil {
 		panic(err)
 	}

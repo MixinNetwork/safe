@@ -409,6 +409,20 @@ func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []strin
 	return &total, nil
 }
 
+func SafeAssetBalanceUntilSufficient(ctx context.Context, su *bot.SafeUser, id string) (*common.Integer, error) {
+	for {
+		balance, err := bot.AssetBalanceWithSafeUser(ctx, id, su)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &balance, err
+	}
+}
+
 func ReadUsers(ctx context.Context, client *mixin.Client, ids []string) ([]*mixin.User, error) {
 	if CheckTestEnvironment(ctx) {
 		var us []*mixin.User

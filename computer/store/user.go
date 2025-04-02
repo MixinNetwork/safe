@@ -130,3 +130,15 @@ func (s *SQLite3Store) WriteUserWithRequest(ctx context.Context, req *Request, i
 
 	return tx.Commit()
 }
+
+func (s *SQLite3Store) CountUsers(ctx context.Context) (int, error) {
+	query := "SELECT COUNT(*) FROM users"
+	row := s.db.QueryRowContext(ctx, query)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}

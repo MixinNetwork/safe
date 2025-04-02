@@ -472,6 +472,18 @@ func (s *SQLite3Store) ListSignedCalls(ctx context.Context) ([]*SystemCall, erro
 	return calls, nil
 }
 
+func (s *SQLite3Store) CountUserSystemCallByState(ctx context.Context, state byte) (int, error) {
+	query := "SELECT COUNT(*) FROM system_calls where call_type=? AND state=?"
+	row := s.db.QueryRowContext(ctx, query, CallTypeMain, state)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}
+
 func (s *SQLite3Store) CheckUnfinishedSubCalls(ctx context.Context, call *SystemCall) (bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

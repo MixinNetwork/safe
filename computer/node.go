@@ -114,7 +114,7 @@ func (node *Node) GetPartySlice() party.IDSlice {
 	return ms
 }
 
-func (node *Node) safeUser() *bot.SafeUser {
+func (node *Node) SafeUser() *bot.SafeUser {
 	return &bot.SafeUser{
 		UserId:            node.conf.MTG.App.AppId,
 		SessionId:         node.conf.MTG.App.SessionId,

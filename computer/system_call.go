@@ -241,7 +241,7 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	if err != nil {
 		return nil, nil, err
 	}
-	err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
@@ -276,13 +276,13 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 		return nil
 	}
 
-	if !tx.IsSigner(node.solanaPayer()) {
+	if !tx.IsSigner(node.SolanaPayer()) {
 		return fmt.Errorf("tx.IsSigner(payer) => %t", false)
 	}
 
 	index := -1
 	for i, acc := range tx.Message.AccountKeys {
-		if !acc.Equals(node.solanaPayer()) {
+		if !acc.Equals(node.SolanaPayer()) {
 			continue
 		}
 		index = i

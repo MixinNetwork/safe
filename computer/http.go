@@ -57,7 +57,7 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"version":  VERSION,
 		"observer": node.conf.ObserverId,
-		"payer":    node.solanaPayer().String(),
+		"payer":    node.SolanaPayer().String(),
 		"members": map[string]any{
 			"app_id":    node.conf.AppId,
 			"members":   node.GetMembers(),

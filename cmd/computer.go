@@ -76,6 +76,10 @@ func ComputerBootCmd(c *cli.Context) error {
 	computer := computer.NewNode(kd, group, messenger, mc.Computer, client)
 	computer.Boot(ctx, version)
 
+	if mmc := mc.Computer.MonitorConversationId; mmc != "" {
+		go MonitorComputer(ctx, computer, db, kd, mc.Computer, group, mmc, version)
+	}
+
 	group.AttachWorker(mc.Computer.AppId, computer)
 	group.RegisterDepositEntry(mc.Computer.AppId, mtg.DepositEntry{
 		Destination: mc.Computer.SolanaDepositEntry,

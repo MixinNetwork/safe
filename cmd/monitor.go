@@ -13,12 +13,15 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/computer"
+	cstore "github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/keeper"
 	kstore "github.com/MixinNetwork/safe/keeper/store"
-	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/signer"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/shopspring/decimal"
 )
 
 type UserStore interface {
@@ -222,6 +225,122 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 		return "", err
 	}
 	state = state + fmt.Sprintf("💸 Failed Transactions: %d\n", tc)
+
+	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
+	return state, nil
+}
+
+func MonitorComputer(ctx context.Context, node *computer.Node, mdb *mtg.SQLite3Store, store *cstore.SQLite3Store, conf *computer.Configuration, group *mtg.Group, conversationId, version string) {
+	logger.Printf("MonitorComputer(%s, %s)", group.GenesisId(), conversationId)
+	startedAt := time.Now()
+
+	app := conf.MTG.App
+	conv, err := bot.ConversationShow(ctx, conversationId, &bot.SafeUser{
+		UserId:            app.AppId,
+		SessionId:         app.SessionId,
+		SessionPrivateKey: app.SessionPrivateKey,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		time.Sleep(1 * time.Minute)
+		msg, err := bundleComputerState(ctx, node, mdb, store, conf, group, startedAt, version)
+		if err != nil {
+			logger.Verbosef("Monitor.bundleComputerState() => %v", err)
+			continue
+		}
+		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverId)
+		time.Sleep(30 * time.Minute)
+	}
+}
+
+func bundleComputerState(ctx context.Context, node *computer.Node, mdb *mtg.SQLite3Store, store *cstore.SQLite3Store, conf *computer.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
+	state := "🧱🧱🧱🧱🧱 Computer 🧱🧱🧱🧱🧱\n"
+	state = state + fmt.Sprintf("⏲️ Run time: %s\n", time.Since(startedAt).String())
+	state = state + fmt.Sprintf("⏲️ Group: %s 𝕋%d\n", mixinnet.HashMembers(grp.GetMembers())[:16], grp.GetThreshold())
+
+	state = state + "\n𝗠𝙏𝗚\n"
+	req, err := store.ReadLatestRequest(ctx)
+	if err != nil {
+		return "", err
+	} else if req != nil {
+		state = state + fmt.Sprintf("🎆 Latest request: %x\n", req.MixinHash[:8])
+	}
+
+	tl, _, err := mdb.ListTransactions(ctx, mtg.TransactionStateInitial, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Initial Transactions: %d\n", len(tl))
+	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSigned, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Signed Transactions: %d\n", len(tl))
+	tl, _, err = mdb.ListTransactions(ctx, mtg.TransactionStateSnapshot, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Snapshot Transactions: %d\n", len(tl))
+	tl, err = mdb.ListConfirmedWithdrawalTransactionsAfter(ctx, time.Time{}, 1000)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🫰 Withdrawal Transactions: %d\n", len(tl))
+
+	state = state + "\n𝗔𝙋𝗣\n"
+	uc, err := store.CountUsers(ctx)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("🔑 Registered Users: %d\n", uc)
+	tc, err := store.CountUserSystemCallByState(ctx, common.RequestStateInitial)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💷 Initial Transactions: %d\n", tc)
+	tc, err = store.CountUserSystemCallByState(ctx, common.RequestStatePending)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💶 Pending Transactions: %d\n", tc)
+	tc, err = store.CountUserSystemCallByState(ctx, common.RequestStateDone)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💵 Done Transactions: %d\n", tc)
+	tc, err = store.CountUserSystemCallByState(ctx, common.RequestStateFailed)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💸 Failed Transactions: %d\n", tc)
+
+	if conf.MTG.App.AppId == conf.ObserverId {
+		state = state + "\nObserver\n"
+		assetBalance, err := common.SafeAssetBalanceUntilSufficient(ctx, node.SafeUser(), conf.ObserverAssetId)
+		if err != nil {
+			return "", err
+		}
+		state = state + fmt.Sprintf("💍 MSOT Balance: %s\n", assetBalance.String())
+		xinBalance, err := common.SafeAssetBalanceUntilSufficient(ctx, node.SafeUser(), mtg.StorageAssetId)
+		if err != nil {
+			return "", err
+		}
+		state = state + fmt.Sprintf("💍 XIN Balance: %s\n", xinBalance.String())
+		solBalance, err := common.SafeAssetBalanceUntilSufficient(ctx, node.SafeUser(), common.SafeSolanaChainId)
+		if err != nil {
+			return "", err
+		}
+		state = state + fmt.Sprintf("💍 SOL Balance: %s\n", solBalance.String())
+
+		balance, err := node.SolanaClient().RPCGetBalance(ctx, node.SolanaPayer())
+		if err != nil {
+			return "", err
+		}
+		state = state + fmt.Sprintf("💍 Onchain SOL Balance: %s %s\n", node.SolanaPayer(), decimal.NewFromUint64(balance).Div(decimal.New(1, -9)).String())
+	}
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
 	return state, nil

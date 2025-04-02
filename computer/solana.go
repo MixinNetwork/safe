@@ -26,7 +26,7 @@ import (
 const SolanaBlockDelay = 32
 
 func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
-	client := node.solanaClient()
+	client := node.SolanaClient()
 
 	for {
 		checkpoint, err := node.readSolanaBlockCheckpoint(ctx)
@@ -58,7 +58,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 }
 
 func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
-	client := node.solanaClient()
+	client := node.SolanaClient()
 	block, err := client.RPCGetBlockByHeight(ctx, uint64(checkpoint))
 	if err != nil {
 		if strings.Contains(err.Error(), "was skipped, or missing in long-term storage") {
@@ -104,7 +104,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 
 	// all balance changes from the creator account of a system call is handled in processSuccessedCall
 	// only process deposits to other user accounts here
-	transfers, err := node.solanaClient().ExtractTransfersFromTransaction(ctx, tx, meta, exception)
+	transfers, err := node.SolanaClient().ExtractTransfersFromTransaction(ctx, tx, meta, exception)
 	if err != nil {
 		panic(err)
 	}
@@ -124,7 +124,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		}
 		decimal := uint8(9)
 		if transfer.TokenAddress != solanaApp.SolanaEmptyAddress {
-			asset, err := node.solanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
+			asset, err := node.SolanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
 			if err != nil {
 				return err
 			}
@@ -160,7 +160,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	if err != nil {
 		return err
 	}
-	tx, err := node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), solana.MustPublicKeyFromBase58(user), nonce.Account(), ts)
+	tx, err := node.SolanaClient().TransferOrBurnTokens(ctx, node.SolanaPayer(), solana.MustPublicKeyFromBase58(user), nonce.Account(), ts)
 	if err != nil {
 		panic(err)
 	}
@@ -248,7 +248,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 	if err != nil {
 		return "", nil, nil, err
 	}
-	tx, err := node.solanaClient().CreateMints(ctx, node.solanaPayer(), node.getMTGAddress(ctx), nonce.Account(), assets)
+	tx, err := node.SolanaClient().CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), nonce.Account(), assets)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -261,7 +261,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
 	nonce := solanaApp.PrivateKeyFromSeed(seed[:])
 
-	tx, err := node.solanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
+	tx, err := node.SolanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
 	if err != nil {
 		return "", "", err
 	}
@@ -270,7 +270,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 		return "", "", err
 	}
 	for {
-		hash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
+		hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
 		if err != nil {
 			return "", "", err
 		}
@@ -367,7 +367,7 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 		sort.Slice(transfers, func(i, j int) bool { return transfers[i].AssetId > transfers[j].AssetId })
 	}
 
-	tx, err = node.solanaClient().TransferOrBurnTokens(ctx, node.solanaPayer(), user, nonce.Account(), transfers)
+	tx, err = node.SolanaClient().TransferOrBurnTokens(ctx, node.SolanaPayer(), user, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -381,7 +381,7 @@ type BalanceChange struct {
 
 func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, user solana.PublicKey) map[string]*BalanceChange {
 	changes := make(map[string]*BalanceChange)
-	err := node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	err := node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
@@ -442,7 +442,7 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 
 func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (*rpc.GetTransactionResult, error) {
 	for {
-		rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, hash)
+		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash)
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
@@ -455,7 +455,7 @@ func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (
 }
 
 func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call bool) (*rpc.GetTransactionResult, error) {
-	rpcTx, err := node.solanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
+	rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
 	if err != nil {
 		return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), err)
 	}
@@ -465,7 +465,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 
 	var h string
 	for {
-		sig, err := node.solanaClient().SendTransaction(ctx, tx)
+		sig, err := node.SolanaClient().SendTransaction(ctx, tx)
 		if err == nil {
 			h = sig
 			break
@@ -694,7 +694,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 		sort.Slice(transfers, func(i, j int) bool { return transfers[i].AssetId > transfers[j].AssetId })
 	}
 
-	return node.solanaClient().TransferOrMintTokens(ctx, node.solanaPayer(), mtg, nonce.Account(), transfers)
+	return node.SolanaClient().TransferOrMintTokens(ctx, node.SolanaPayer(), mtg, nonce.Account(), transfers)
 }
 
 func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.SystemCall) solana.PublicKey {
@@ -711,11 +711,11 @@ func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.S
 	return solana.PublicKeyFromBytes(pub)
 }
 
-func (node *Node) solanaClient() *solanaApp.Client {
+func (node *Node) SolanaClient() *solanaApp.Client {
 	return solanaApp.NewClient(node.conf.SolanaRPC)
 }
 
-func (node *Node) solanaPayer() solana.PublicKey {
+func (node *Node) SolanaPayer() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
 }
 

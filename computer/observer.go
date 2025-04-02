@@ -308,7 +308,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 				}
 			}
 			for {
-				newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+				newNonceHash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
 				if err != nil {
 					panic(err)
 				}
@@ -342,7 +342,7 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 		if asset.ChainID != common.SafeSolanaChainId {
 			continue
 		}
-		fee, err := common.SafeReadWithdrawalFeeUntilSufficient(ctx, node.safeUser(), asset.AssetID, common.SafeSolanaChainId, tx.Destination.String)
+		fee, err := common.SafeReadWithdrawalFeeUntilSufficient(ctx, node.SafeUser(), asset.AssetID, common.SafeSolanaChainId, tx.Destination.String)
 		if err != nil {
 			return err
 		}
@@ -471,7 +471,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 }
 
 func (node *Node) handleSignedCalls(ctx context.Context) error {
-	balance, err := node.solanaClient().RPCGetBalance(ctx, node.solanaPayer())
+	balance, err := node.SolanaClient().RPCGetBalance(ctx, node.SolanaPayer())
 	if err != nil {
 		return err
 	}
@@ -503,7 +503,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = node.solanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+		err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -642,7 +642,7 @@ func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) 
 		return ref, node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(data))
 	}
 	trace := common.UniqueId(hex.EncodeToString(data), "storage-solana-tx")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, trace, *node.safeUser())
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, trace, *node.SafeUser())
 	if err != nil {
 		return crypto.Hash{}, err
 	}
