@@ -443,6 +443,7 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (*rpc.GetTransactionResult, error) {
 	for {
 		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash)
+		logger.Printf("solana.RPCGetTransaction(%s) => %v %v", hash, rpcTx, err)
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
@@ -466,6 +467,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	var h string
 	for {
 		sig, err := node.SolanaClient().SendTransaction(ctx, tx)
+		logger.Printf("solana.SendTransaction(%s) => %s %v", tx.Signatures[0].String(), sig, err)
 		if err == nil {
 			h = sig
 			break
