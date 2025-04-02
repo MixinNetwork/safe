@@ -532,14 +532,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 					panic(err)
 				}
 				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision))
-				dust, err := decimal.NewFromString(asset.Dust)
-				if err != nil {
-					panic(err)
-				}
-				if amount.Cmp(dust) < 0 {
-					logger.Printf("skip burned asset: %s %s", da.AssetId, amount.String())
-					continue
-				}
 				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
 				id = common.UniqueId(id, user.MixAddress)
 				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount.String(), []byte("refund"), id)
