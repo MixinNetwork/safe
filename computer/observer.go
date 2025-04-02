@@ -287,6 +287,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			logger.Printf("observer.ReleaseLockedNonceAccount(%v)", nonce)
 			continue
 		}
 
@@ -402,6 +403,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 
 		if nonce == nil || !nonce.LockedByUserOnly() {
+			logger.Printf("observer.expireSystemCall(%v %v)", call, nonce)
 			id = common.UniqueId(id, "expire-nonce")
 			extra[0] = ConfirmFlagNonceExpired
 		} else {
