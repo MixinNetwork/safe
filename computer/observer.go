@@ -296,7 +296,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 			return err
 		}
 		switch {
-		case call == nil || call.State == common.RequestStateFailed:
+		case (call == nil && nonce.Expired()) || call.State == common.RequestStateFailed:
 			logger.Printf("observer.ReleaseLockedNonceAccount(%v %v)", nonce, call)
 			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 			if err != nil {
@@ -324,8 +324,6 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 				}
 				break
 			}
-		case call.State == common.RequestStateInitial || call.State == common.RequestStatePending:
-			continue
 		}
 	}
 	return nil
