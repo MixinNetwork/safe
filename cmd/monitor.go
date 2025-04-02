@@ -339,7 +339,7 @@ func bundleComputerState(ctx context.Context, node *computer.Node, mdb *mtg.SQLi
 		if err != nil {
 			return "", err
 		}
-		state = state + fmt.Sprintf("💍 Onchain SOL Balance: %s %s\n", node.SolanaPayer(), decimal.NewFromUint64(balance).Div(decimal.New(1, -9)).String())
+		state = state + fmt.Sprintf("💍 Onchain SOL Balance: %s %s\n", node.SolanaPayer(), decimal.NewFromUint64(balance).Div(decimal.New(1, 9)).String())
 	}
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", version)
