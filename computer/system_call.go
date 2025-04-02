@@ -288,6 +288,9 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 		index = i
 	}
 	for i, ins := range tx.Message.Instructions {
+		if i == 0 {
+			continue
+		}
 		if slices.Contains(ins.Accounts, uint16(index)) {
 			return fmt.Errorf("invalid instruction: %d %v", i, ins)
 		}
