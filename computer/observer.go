@@ -282,10 +282,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		return err
 	}
 	for _, nonce := range as {
-		if nonce.UpdatedAt.Add(20 * time.Minute).After(time.Now()) {
-			continue
-		}
-		if nonce.LockedByUserOnly() {
+		if nonce.LockedByUserOnly() && nonce.Expired() {
 			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 			if err != nil {
 				return err
@@ -297,11 +294,36 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if call == nil || call.State == common.RequestStateDone || call.State == common.RequestStateFailed {
+		switch {
+		case call == nil || call.State == common.RequestStateFailed:
 			err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 			if err != nil {
 				panic(err)
 			}
+		case call.State == common.RequestStateDone:
+			if nonce.UpdatedBy.Valid && nonce.UpdatedBy.String == call.RequestId {
+				err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+				if err != nil {
+					panic(err)
+				}
+			}
+			for {
+				newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+				if err != nil {
+					panic(err)
+				}
+				if newNonceHash.String() == nonce.Hash {
+					time.Sleep(3 * time.Second)
+					continue
+				}
+				err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String(), call.RequestId)
+				if err != nil {
+					panic(err)
+				}
+				break
+			}
+		case call.State == common.RequestStateInitial || call.State == common.RequestStatePending:
+			continue
 		}
 	}
 	return nil
@@ -530,33 +552,11 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 
 // deposited assets to run system call and new assets received in system call are all handled here
 func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCall, txx *solana.Transaction, meta *rpc.TransactionMeta) error {
-	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
-	if err != nil || nonce == nil {
-		panic(err)
-	}
-	if !nonce.UpdatedBy.Valid || nonce.UpdatedBy.String != call.RequestId {
-		for {
-			newNonceHash, err := node.solanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
-			if err != nil {
-				panic(err)
-			}
-			if newNonceHash.String() != nonce.Hash {
-				err = node.store.UpdateNonceAccount(ctx, nonce.Address, newNonceHash.String(), call.RequestId)
-				if err != nil {
-					panic(err)
-				}
-				break
-			}
-			time.Sleep(3 * time.Second)
-			continue
-		}
-	}
-
 	var references []crypto.Hash
 	id := common.UniqueId(call.RequestId, "confirm-success")
 	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
 		cid := common.UniqueId(id, "post-process")
-		nonce, err = node.store.ReadSpareNonceAccount(ctx)
+		nonce, err := node.store.ReadSpareNonceAccount(ctx)
 		if err != nil {
 			return err
 		}

@@ -44,6 +44,10 @@ func (a *NonceAccount) LockedByUserOnly() bool {
 	return a.Mix.Valid && !a.CallId.Valid
 }
 
+func (a *NonceAccount) Expired() bool {
+	return a.UpdatedAt.Add(20 * time.Minute).Before(time.Now())
+}
+
 func (s *SQLite3Store) WriteNonceAccount(ctx context.Context, address, hash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -73,11 +77,6 @@ func (s *SQLite3Store) UpdateNonceAccount(ctx context.Context, address, hash, ca
 		return err
 	}
 	defer common.Rollback(tx)
-
-	existed, err := s.checkExistence(ctx, tx, "SELECT address FROM nonce_accounts WHERE address=?", address)
-	if err != nil || !existed {
-		return fmt.Errorf("store.UpdateNonceAccount(%s) => %t %v", address, existed, err)
-	}
 
 	now := time.Now().UTC()
 	err = s.execOne(ctx, tx, "UPDATE nonce_accounts SET hash=?, mix=?, call_id=?, updated_by=?, updated_at=? WHERE address=?",
