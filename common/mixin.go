@@ -130,6 +130,17 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 	}
 }
 
+func NewSafeTransactionUntilSufficient(ctx context.Context, client *mixin.Client, b *mixin.TransactionBuilder, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
+	for {
+		tx, err := client.MakeTransaction(ctx, b, outputs)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return tx, err
+	}
+}
+
 func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []mixinnet.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
@@ -158,7 +169,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		b.Memo = memo
 		b.Hint = traceId
 
-		tx, err := client.MakeTransaction(ctx, b, []*mixin.TransactionOutput{
+		tx, err := NewSafeTransactionUntilSufficient(ctx, client, b, []*mixin.TransactionOutput{
 			{
 				Address: mixin.RequireNewMixAddress(receivers, byte(receiversThreshold)),
 				Amount:  amount,
