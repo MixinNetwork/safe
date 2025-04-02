@@ -265,7 +265,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	if err != nil {
 		return "", "", err
 	}
-	_, err = node.SendTransactionUtilConfirm(ctx, tx, false)
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil)
 	if err != nil {
 		return "", "", err
 	}
@@ -455,7 +455,7 @@ func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (
 	}
 }
 
-func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call bool) (*rpc.GetTransactionResult, error) {
+func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall) (*rpc.GetTransactionResult, error) {
 	rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
 	if err != nil {
 		return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), err)
@@ -464,21 +464,27 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 		return rpcTx, nil
 	}
 
+	id := ""
+	if call != nil {
+		id = call.RequestId
+	}
+
 	var h string
 	for {
 		sig, err := node.SolanaClient().SendTransaction(ctx, tx)
-		logger.Printf("solana.SendTransaction(%s) => %s %v", tx.Signatures[0].String(), sig, err)
+		logger.Printf("solana.SendTransaction(%s) => %s %v", id, sig, err)
 		if err == nil {
 			h = sig
 			break
 		}
 		if strings.Contains(err.Error(), "Blockhash not found") {
-			if call {
+			if call != nil {
 				return nil, err
 			}
 			time.Sleep(1 * time.Second)
 			continue
 		}
+		return nil, err
 	}
 	return node.ReadTransactionUtilConfirm(ctx, h)
 }

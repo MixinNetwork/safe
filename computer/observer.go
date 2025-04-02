@@ -547,7 +547,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		}
 		tx.Signatures[index] = solana.SignatureFromBytes(sig)
 
-		rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, true)
+		rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
 		if err != nil {
 			logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
 			return node.processFailedCall(ctx, call)
