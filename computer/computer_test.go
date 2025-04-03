@@ -297,6 +297,10 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(mix.String(), user2.MixAddress)
 		require.Equal(big.NewInt(0).Add(start, big.NewInt(1)).String(), user2.UserId)
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user2.Public)
+
+		us, err := node.store.ListNewUsersAfter(ctx, time.Time{})
+		require.Nil(err)
+		require.Len(us, 2)
 	}
 	return user
 }
