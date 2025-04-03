@@ -434,6 +434,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
+		logger.Printf("observer.handleUnconfirmedCall(%s)", call.RequestId)
 		nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
 		if err != nil {
 			return err
@@ -478,6 +479,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
 		}, references)
+		logger.Printf("observer.confirmNonce(%s %d %d)", call.RequestId, OperationTypeConfirmNonce, extra[0])
 		if err != nil {
 			return err
 		}
@@ -513,7 +515,6 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		time.Sleep(3 * time.Second)
 	}
 	return nil
 }
@@ -592,7 +593,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		time.Sleep(1 * time.Minute)
+		time.Sleep(3 * time.Second)
 	}
 	return nil
 }
@@ -682,6 +683,7 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 }
 
 func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) (crypto.Hash, error) {
+	logger.Printf("observer.storageSubSolanaTx(%s)", id)
 	data := uuid.Must(uuid.FromString(id)).Bytes()
 	data = append(data, rb...)
 	if common.CheckTestEnvironment(ctx) {
