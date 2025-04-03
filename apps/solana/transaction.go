@@ -78,6 +78,52 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	return tx, nil
 }
 
+func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*solana.Transaction, error) {
+	client := c.getRPCClient()
+	payer, err := solana.PrivateKeyFromBase58(key)
+	if err != nil {
+		panic(err)
+	}
+	dst, err := solana.PublicKeyFromBase58(user)
+	if err != nil {
+		panic(err)
+	}
+
+	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
+		ctx,
+		nonceAccountSize,
+		rpc.CommitmentConfirmed,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
+	}
+	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+	}
+	blockhash := block.Value.Blockhash
+
+	tx, err := solana.NewTransaction(
+		[]solana.Instruction{
+			system.NewTransferInstruction(
+				rentExemptBalance,
+				payer.PublicKey(),
+				dst,
+			).Build(),
+		},
+		blockhash,
+		solana.TransactionPayer(payer.PublicKey()),
+	)
+	if err != nil {
+		panic(err)
+	}
+	_, err = tx.Sign(BuildSignersGetter(payer))
+	if err != nil {
+		panic(err)
+	}
+	return tx, nil
+}
+
 func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, assets []*DeployedAsset) (*solana.Transaction, error) {
 	client := c.getRPCClient()
 	builder := buildInitialTxWithNonceAccount(payer, nonce)

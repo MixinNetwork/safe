@@ -40,6 +40,7 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 		panic(err)
 	}
 
+	go node.initializeUsersLoop(ctx)
 	go node.deployOrConfirmAssetsLoop(ctx)
 
 	go node.createNonceAccountLoop(ctx)
@@ -106,6 +107,17 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 		Type:  OperationTypeSetOperationParams,
 		Extra: extra,
 	}, nil)
+}
+
+func (node *Node) initializeUsersLoop(ctx context.Context) {
+	for {
+		err := node.initializeUsers(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(loopInterval)
+	}
 }
 
 func (node *Node) deployOrConfirmAssetsLoop(ctx context.Context) {
@@ -194,6 +206,27 @@ func (node *Node) signedCallLoop(ctx context.Context) {
 
 		time.Sleep(loopInterval)
 	}
+}
+
+func (node *Node) initializeUsers(ctx context.Context) error {
+	offset := node.readPropertyAsTime(ctx, store.UserInitializeTimeKey)
+	us, err := node.store.ListNewUsersAfter(ctx, offset)
+	if err != nil || len(us) == 0 {
+		return err
+	}
+
+	for _, u := range us {
+		err := node.InitializeAccount(ctx, u)
+		if err != nil {
+			return err
+		}
+		err = node.writeRequestTime(ctx, store.UserInitializeTimeKey, u.CreatedAt)
+		if err != nil {
+			return err
+		}
+		time.Sleep(loopInterval)
+	}
+	return nil
 }
 
 func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
@@ -549,7 +582,6 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 
 		rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
 		if err != nil {
-			logger.Printf("solana.SendTransaction(%s) => %v", call.RequestId, err)
 			return node.processFailedCall(ctx, call)
 		}
 		txx, err := rpcTx.Transaction.GetTransaction()

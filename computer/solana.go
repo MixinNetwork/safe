@@ -182,6 +182,15 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	}, []crypto.Hash{hash})
 }
 
+func (node *Node) InitializeAccount(ctx context.Context, user *store.User) error {
+	tx, err := node.SolanaClient().InitializeAccount(ctx, node.conf.SolanaKey, user.ChainAddress)
+	if err != nil {
+		return err
+	}
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil)
+	return err
+}
+
 func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (string, *solana.Transaction, []*solanaApp.DeployedAsset, error) {
 	tid := fmt.Sprintf("OBSERVER:%s:MEMBERS:%v:%d", node.id, node.GetMembers(), node.conf.MTG.Genesis.Threshold)
 	var assets []*solanaApp.DeployedAsset

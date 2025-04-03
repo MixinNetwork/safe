@@ -27,7 +27,7 @@ type User struct {
 
 var userCols = []string{"user_id", "request_id", "mix_address", "chain_address", "public", "created_at"}
 
-func userFromRow(row *sql.Row) (*User, error) {
+func userFromRow(row Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.UserId, &u.RequestId, &u.MixAddress, &u.ChainAddress, &u.Public, &u.CreatedAt)
 	if err == sql.ErrNoRows {
@@ -141,4 +141,26 @@ func (s *SQLite3Store) CountUsers(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	return count, err
+}
+
+func (s *SQLite3Store) ListNewUsersAfter(ctx context.Context, offset time.Time) ([]*User, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	sql := fmt.Sprintf("SELECT %s FROM users WHERE created_at>? ORDER BY created_at ASC LIMIT 100", strings.Join(userCols, ","))
+	rows, err := s.db.QueryContext(ctx, sql, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var us []*User
+	for rows.Next() {
+		call, err := userFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		us = append(us, call)
+	}
+	return us, nil
 }

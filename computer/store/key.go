@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	UserInitializeTimeKey           = "user-initialize-time"
 	KeygenRequestTimeKey            = "keygen-request-time"
 	NonceAccountRequestTimeKey      = "nonce-request-time"
 	WithdrawalConfirmRequestTimeKey = "withdrawal-request-time"
