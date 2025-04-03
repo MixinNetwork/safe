@@ -91,7 +91,7 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 
 	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
 		ctx,
-		nonceAccountSize,
+		165,
 		rpc.CommitmentConfirmed,
 	)
 	if err != nil {
