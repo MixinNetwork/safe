@@ -401,7 +401,7 @@ func (node *Node) handleFeeInfo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ratio := xinPrice.Div(solPrice).BigFloat()
+	ratio := xinPrice.Div(solPrice)
 
 	extra := []byte(ratio.String())
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
@@ -484,7 +484,8 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		extra := []byte{ConfirmFlagNonceAvailable}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 
-		if nonce == nil || !nonce.LockedByUserOnly() {
+		fee, err := node.getSystemCallFeeFromXin(ctx, call)
+		if nonce == nil || !nonce.LockedByUserOnly() || err != nil {
 			logger.Printf("observer.expireSystemCall(%v %v)", call, nonce)
 			id = common.UniqueId(id, "expire-nonce")
 			extra[0] = ConfirmFlagNonceExpired
@@ -498,7 +499,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			tx, err := node.transferOrMintTokens(ctx, call, nonce)
+			tx, err := node.transferOrMintTokens(ctx, call, nonce, fee)
 			if err != nil {
 				return err
 			}

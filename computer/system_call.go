@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -30,6 +29,8 @@ type ReferencedTxAsset struct {
 }
 
 // should only return error when mtg could not find outputs from referenced transaction
+// all assets needed in system call should be referenced
+// extra amount of XIN is used for fees in system call like rent
 func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash string) ([]*store.SpentReference, *crypto.Hash, error) {
 	var refs []*store.SpentReference
 	req, err := node.store.ReadRequestByHash(ctx, requestHash)
@@ -42,32 +43,6 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 	}
 	if common.CheckTestEnvironment(ctx) {
 		ver.References = readOutputReferences(req.Id)
-	}
-
-	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
-	if err != nil {
-		panic(err)
-	}
-	outputs := node.group.ListOutputsByTransactionHash(ctx, req.MixinHash.String(), req.Sequence)
-	total := decimal.NewFromInt(0)
-	for _, output := range outputs {
-		total = total.Add(output.Amount)
-	}
-	if total.Compare(plan.OperationPriceAmount) == 1 {
-		amount := total.Sub(plan.OperationPriceAmount)
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, req.AssetId)
-		if err != nil {
-			panic(err)
-		}
-		refs = append(refs, &store.SpentReference{
-			TransactionHash: req.MixinHash.String(),
-			RequestId:       req.Id,
-			RequestHash:     req.MixinHash.String(),
-			ChainId:         bot.EthereumChainId,
-			AssetId:         bot.XINAssetId,
-			Amount:          amount.String(),
-			Asset:           asset,
-		})
 	}
 
 	var storage *crypto.Hash
@@ -174,6 +149,63 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 		}
 	}
 	return am
+}
+
+// should only return error when no valid fees found
+func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.SystemCall) (*store.SpentReference, error) {
+	req, err := node.store.ReadRequestByHash(ctx, call.RequestHash)
+	if err != nil {
+		panic(err)
+	}
+	extra := req.ExtraBytes()
+	if len(extra) != 41 {
+		return nil, nil
+	}
+	feeId := uuid.Must(uuid.FromBytes(extra[25:])).String()
+
+	fee, err := node.store.ReadValidFeeInfo(ctx, feeId)
+	if err != nil {
+		panic(err)
+	}
+	if fee == nil {
+		return nil, fmt.Errorf("invalid fee id: %s", feeId)
+	}
+	ratio, err := decimal.NewFromString(fee.Ratio)
+	if err != nil {
+		panic(err)
+	}
+	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
+	if err != nil {
+		panic(err)
+	}
+	outputs := node.group.ListOutputsByTransactionHash(ctx, req.MixinHash.String(), req.Sequence)
+	total := decimal.NewFromInt(0)
+	for _, output := range outputs {
+		total = total.Add(output.Amount)
+	}
+	if common.CheckTestEnvironment(ctx) {
+		total = decimal.NewFromFloat(0.19461941 + 0.001)
+	}
+	if total.Compare(plan.OperationPriceAmount) == 0 {
+		return nil, nil
+	}
+	feeOnXin := total.Sub(plan.OperationPriceAmount)
+	feeOnSol := feeOnXin.Div(ratio).RoundCeil(8).String()
+
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, common.SafeSolanaChainId)
+	if err != nil {
+		panic(err)
+	}
+
+	return &store.SpentReference{
+		TransactionHash: req.MixinHash.String(),
+		RequestId:       req.Id,
+		RequestHash:     req.MixinHash.String(),
+		ChainId:         common.SafeSolanaChainId,
+		AssetId:         common.SafeSolanaChainId,
+		Amount:          feeOnSol,
+		Asset:           asset,
+	}, nil
 }
 
 func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall) (*store.SystemCall, error) {

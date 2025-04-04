@@ -40,8 +40,19 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 		panic(req.Action)
 	}
 
+	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
+	if err != nil {
+		panic(err)
+	}
+	if plan == nil ||
+		!plan.OperationPriceAmount.IsPositive() ||
+		req.AssetId != plan.OperationPriceAsset ||
+		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
+		return node.failRequest(ctx, req, "")
+	}
+
 	mix := string(req.ExtraBytes())
-	_, err := bot.NewMixAddressFromString(mix)
+	_, err = bot.NewMixAddressFromString(mix)
 	logger.Printf("common.NewAddressFromString(%s) => %v", mix, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
@@ -145,6 +156,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	data := req.ExtraBytes()
+	if len(data) != 25 && len(data) != 41 {
+		logger.Printf("invalid extra length of request to create system call: %d", len(data))
+		return node.failRequest(ctx, req, "")
+	}
 	id := new(big.Int).SetBytes(data[:8])
 	user, err := node.store.ReadUser(ctx, id)
 	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
@@ -166,7 +181,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	case FlagWithPostProcess:
 	default:
 		logger.Printf("invalid skip postprocess flag: %d", data[24])
-		return node.refundAndFailRequest(ctx, req, mix, as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
 	}
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
@@ -177,13 +192,13 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		!plan.OperationPriceAmount.IsPositive() ||
 		req.AssetId != plan.OperationPriceAsset ||
 		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
-		return node.refundAndFailRequest(ctx, req, mix, as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
 	}
 
 	rb := node.readStorageExtraFromObserver(ctx, *storage)
 	call, tx, err := node.buildSystemCallFromBytes(ctx, req, cid, rb, false)
 	if err != nil {
-		return node.refundAndFailRequest(ctx, req, mix, as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
 	}
 	call.Superior = call.RequestId
 	call.Type = store.CallTypeMain
@@ -193,7 +208,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	err = node.checkUserSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(user.ChainAddress))
 	if err != nil {
 		logger.Printf("node.checkUserSystemCall(%v) => %v", tx, err)
-		return node.refundAndFailRequest(ctx, req, mix, as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs)
@@ -771,8 +786,8 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	return txs, compaction
 }
 
-func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, mix *bot.MixAddress, as map[string]*ReferencedTxAsset) ([]*mtg.Transaction, string) {
-	txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
+func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, members []string, threshod int, as map[string]*ReferencedTxAsset) ([]*mtg.Transaction, string) {
+	txs, compaction := node.buildRefundTxs(ctx, req, as, members, threshod)
 	err := node.store.FailRequest(ctx, req, compaction, txs)
 	if err != nil {
 		panic(err)

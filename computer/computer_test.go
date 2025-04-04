@@ -35,6 +35,7 @@ func TestComputer(t *testing.T) {
 	testObserverRequestGenerateKey(ctx, require, nodes)
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverSetPriceParams(ctx, require, nodes)
+	testObserverUpdateNetworInfo(ctx, require, nodes)
 	testObserverRequestDeployAsset(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
@@ -191,6 +192,17 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, decimal.NewFromInt(5000000))
 	require.Nil(err)
 
+	solAmount, err := decimal.NewFromString("0.23456789")
+	require.Nil(err)
+	fee, err := node.store.ReadLatestFeeInfo(ctx)
+	require.Nil(err)
+	ratio, err := decimal.NewFromString(fee.Ratio)
+	require.Nil(err)
+	xinAmount := solAmount.Mul(ratio).RoundCeil(8).String()
+	require.Equal("0.19461941", xinAmount)
+	xinFee, err := decimal.NewFromString(xinAmount)
+	require.Nil(err)
+
 	id := uuid.Must(uuid.NewV4()).String()
 	refs := testStorageSystemCall(ctx, nodes, common.DecodeHexOrPanic("02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000810cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca85002953f9517566994f5066c9478a5e6d0466906e7d844b2d971b2e4f86ff72561c6d6405387e0deff4ac3250e4e4d1986f1bc5e805edd8ca4c48b73b92441afdc070b84fed2e0ca7ecb2a18e32bf10885151641616b3fe4447557683ee699247e1f9cbad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ecf6994777d4d13d8bd64679ac9e173a29ea40653734b52eee914ddc43c820f424071d460ef6501203e6656563c4add1638164d5eba1dee13e9085fb60036f98f10000000000000000000000000000000000000000000000000000000000000000816e66630c3bb724dc59e49f6cc4306e603a6aacca06fa3e34e2b40ad5979d8da5d5ca9e04cf5db590b714ba2fe32cb159133fc1c192b72257fd07d39cb0401ec4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f0000000000106a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea940000006a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a0000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a90ff0530009fc7a19cf8d8d0257f1dc2d478f1368aa89f5e546c6e12d8a4015ec020803050d0004040000000a0d0109030c0b020406070f0f080e20e992d18ecf6840bcd564b7ff16977c720000000000000000b992766700000000"))
 	h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
@@ -201,7 +213,8 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	extra := user.IdBytes()
 	extra = append(extra, uuid.Must(uuid.FromString(id)).Bytes()...)
 	extra = append(extra, FlagWithPostProcess)
-	out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra, refs)
+	extra = append(extra, uuid.Must(uuid.FromString(fee.Id)).Bytes()...)
+	out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra, refs, &xinFee)
 	for _, node := range nodes {
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStateInitial)
@@ -224,7 +237,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	c := cs[0]
 	nonce, err = node.store.ReadNonceAccount(ctx, c.NonceAccount)
 	require.Nil(err)
-	require.True(nonce.Mix.Valid)
+	require.True(nonce.LockedByUserOnly())
 	user, err = node.store.ReadUser(ctx, c.UserIdFromPublicPath())
 	require.Nil(err)
 	require.Equal(user.MixAddress, nonce.Mix.String)
@@ -235,7 +248,12 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
 	require.Equal("8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG", nonce.Hash)
-	stx, err := node.transferOrMintTokens(ctx, c, nonce)
+	extraFee, err := node.getSystemCallFeeFromXin(ctx, c)
+	require.Nil(err)
+	feeActual, err := decimal.NewFromString(extraFee.Amount)
+	require.Nil(err)
+	require.True(feeActual.Cmp(solAmount) > 0)
+	stx, err := node.transferOrMintTokens(ctx, c, nonce, extraFee)
 	require.Nil(err)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
@@ -273,7 +291,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	for _, node := range nodes {
 		uid := common.UniqueId(id, "user1")
 		mix := bot.NewUUIDMixAddress([]string{uid}, 1)
-		out := testBuildUserRequest(node, id, "", OperationTypeAddUser, []byte(mix.String()), nil)
+		out := testBuildUserRequest(node, id, "", OperationTypeAddUser, []byte(mix.String()), nil, nil)
 		testStep(ctx, require, node, out)
 		user1, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -290,7 +308,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		id2 := common.UniqueId(id, "second")
 		uid = common.UniqueId(id, "user2")
 		mix = bot.NewUUIDMixAddress([]string{uid}, 1)
-		out = testBuildUserRequest(node, id2, "", OperationTypeAddUser, []byte(mix.String()), nil)
+		out = testBuildUserRequest(node, id2, "", OperationTypeAddUser, []byte(mix.String()), nil, nil)
 		testStep(ctx, require, node, out)
 		user2, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -321,6 +339,33 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 	count, err := node.store.CountNonceAccounts(ctx)
 	require.Nil(err)
 	require.Equal(4, count)
+}
+
+func testObserverUpdateNetworInfo(ctx context.Context, require *require.Assertions, nodes []*Node) {
+	for _, node := range nodes {
+		fee, err := node.store.ReadLatestFeeInfo(ctx)
+		require.Nil(err)
+		require.Nil(fee)
+
+		xinPrice, err := decimal.NewFromString("105.23")
+		require.Nil(err)
+		solPrice, err := decimal.NewFromString("126.83")
+		require.Nil(err)
+		ratio := xinPrice.Div(solPrice).String()
+		require.Equal("0.8296932902310179", ratio)
+
+		id := common.UniqueId("OperationTypeUpdateFeeInfo", string(node.id))
+		id = common.UniqueId(id, ratio)
+		extra := []byte(ratio)
+
+		out := testBuildObserverRequest(node, id, OperationTypeUpdateFeeInfo, extra, nil)
+		testStep(ctx, require, node, out)
+
+		fee, err = node.store.ReadLatestFeeInfo(ctx)
+		require.Nil(err)
+		require.NotNil(fee)
+		require.Equal(ratio, fee.Ratio)
+	}
 }
 
 func testObserverSetPriceParams(ctx context.Context, require *require.Assertions, nodes []*Node) {
@@ -506,7 +551,7 @@ func testObserverRequestSignSystemCall(ctx context.Context, require *require.Ass
 	}
 }
 
-func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte, references []crypto.Hash) *mtg.Action {
+func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte, references []crypto.Hash, fee *decimal.Decimal) *mtg.Action {
 	sequence += 10
 	if hash == "" {
 		hash = crypto.Sha256Hash([]byte(id)).String()
@@ -518,6 +563,11 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 	memoStr = hex.EncodeToString([]byte(memoStr))
 	timestamp := time.Now().UTC()
 
+	amount, _ := decimal.NewFromString("0.001")
+	if fee != nil {
+		amount = amount.Add(*fee)
+	}
+
 	writeOutputReferences(id, references)
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
@@ -527,7 +577,7 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 			Senders:            []string{string(node.id)},
 			AssetId:            mtg.StorageAssetId,
 			Extra:              memoStr,
-			Amount:             decimal.New(1, 1),
+			Amount:             amount,
 			SequencerCreatedAt: timestamp,
 			Sequence:           sequence,
 		},

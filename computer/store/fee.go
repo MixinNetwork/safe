@@ -27,7 +27,7 @@ func feeFromRow(row Row) (*FeeInfo, error) {
 	return &f, err
 }
 
-func (s *SQLite3Store) WriteFeeInfo(ctx context.Context, req *Request, ratio string) error {
+func (s *SQLite3Store) WriteFeeInfoWithRequest(ctx context.Context, req *Request, ratio string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -51,12 +51,24 @@ func (s *SQLite3Store) WriteFeeInfo(ctx context.Context, req *Request, ratio str
 		return fmt.Errorf("INSERT fees %v", err)
 	}
 
+	err = s.finishRequest(ctx, tx, req, nil, "")
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
 func (s *SQLite3Store) ReadLatestFeeInfo(ctx context.Context) (*FeeInfo, error) {
 	query := fmt.Sprintf("SELECT %s FROM fees ORDER BY created_at DESC LIMIT 1", strings.Join(feeCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
+
+	return feeFromRow(row)
+}
+
+func (s *SQLite3Store) ReadValidFeeInfo(ctx context.Context, id string) (*FeeInfo, error) {
+	query := fmt.Sprintf("SELECT %s FROM fees WHERE fee_id=? ORDER BY created_at DESC LIMIT 2", strings.Join(feeCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
 
 	return feeFromRow(row)
 }

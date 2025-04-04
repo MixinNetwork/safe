@@ -635,7 +635,10 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 
 	changes := make(map[string]*big.Int)
 	for _, t := range transfers {
-		if t.Receiver == solanaApp.SolanaEmptyAddress || t.Sender == mtgAddress || t.Receiver == mtgAddress {
+		if t.Receiver == solanaApp.SolanaEmptyAddress ||
+			t.Sender == node.SolanaPayer().String() ||
+			t.Sender == mtgAddress ||
+			t.Receiver == mtgAddress {
 			continue
 		}
 
@@ -664,7 +667,7 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 	return changes, nil
 }
 
-func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount) (*solana.Transaction, error) {
+func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.SpentReference) (*solana.Transaction, error) {
 	mtg := node.getMTGAddress(ctx)
 	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 	if err != nil || user == nil {
@@ -676,6 +679,9 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	rs, _, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
 		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
+	}
+	if fee != nil {
+		rs = append(rs, fee)
 	}
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	for _, asset := range assets {

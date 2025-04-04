@@ -206,13 +206,10 @@ func (node *Node) processUpdateFeeInfo(ctx context.Context, req *store.Request) 
 	}
 
 	extra := req.ExtraBytes()
-	ratio, ok := new(big.Float).SetString(string(extra))
-	logger.Printf("processUpdateFeeInfo(%s) => %t", string(extra), ok)
-	if !ok {
-		return node.failRequest(ctx, req, "")
-	}
+	ratio := string(extra)
 
-	err := node.store.WriteFeeInfo(ctx, req, ratio.String())
+	err := node.store.WriteFeeInfoWithRequest(ctx, req, ratio)
+	logger.Printf("node.WriteFeeInfoWithRequest(%s) => %v", ratio, err)
 	if err != nil {
 		panic(err)
 	}

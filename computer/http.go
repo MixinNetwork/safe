@@ -270,7 +270,7 @@ func (node *Node) httpGetFeeOnXin(w http.ResponseWriter, r *http.Request, params
 	if err != nil {
 		panic(err)
 	}
-	xinAmount := body.SolAmount.Mul(ratio).StringFixed(8)
+	xinAmount := body.SolAmount.Mul(ratio).RoundCeil(8)
 
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"fee_id":     fee.Id,
