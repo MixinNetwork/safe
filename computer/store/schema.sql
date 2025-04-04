@@ -204,6 +204,16 @@ CREATE TABLE IF NOT EXISTS confirmed_withdrawals (
 );
 
 
+CREATE TABLE IF NOT EXISTS fees (
+  fee_id         VARCHAR NOT NULL,
+  ratio          VARCHAR NOT NULL,
+  created_at     TIMESTAMP NOT NULL,
+  PRIMARY KEY ('fee_id')
+);
+
+CREATE INDEX IF NOT EXISTS fees_by_created ON fees(created_at);
+
+
 CREATE TABLE IF NOT EXISTS action_results (
   output_id       VARCHAR NOT NULL,
   compaction      VARCHAR NOT NULL,

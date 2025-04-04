@@ -46,6 +46,7 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 	go node.createNonceAccountLoop(ctx)
 	go node.releaseNonceAccountLoop(ctx)
 
+	go node.feeInfoLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
 
 	go node.unconfirmedCallLoop(ctx)
@@ -150,6 +151,17 @@ func (node *Node) releaseNonceAccountLoop(ctx context.Context) {
 		}
 
 		time.Sleep(loopInterval)
+	}
+}
+
+func (node *Node) feeInfoLoop(ctx context.Context) {
+	for {
+		err := node.handleFeeInfo(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		time.Sleep(40 * time.Minute)
 	}
 }
 
@@ -295,7 +307,7 @@ func (node *Node) createNonceAccounts(ctx context.Context) error {
 		return err
 	}
 	requested := node.readPropertyAsTime(ctx, store.NonceAccountRequestTimeKey)
-	if requested.Add(1 * time.Minute).After(time.Now().UTC()) {
+	if requested.Add(10 * time.Second).After(time.Now().UTC()) {
 		return nil
 	}
 	address, hash, err := node.CreateNonceAccount(ctx, count)
@@ -370,6 +382,33 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (node *Node) handleFeeInfo(ctx context.Context) error {
+	xin, err := common.SafeReadAssetUntilSufficient(ctx, common.XinKernelAssetId)
+	if err != nil {
+		return err
+	}
+	sol, err := common.SafeReadAssetUntilSufficient(ctx, common.SafeSolanaChainId)
+	if err != nil {
+		return err
+	}
+	xinPrice, err := decimal.NewFromString(xin.PriceUSD)
+	if err != nil {
+		return err
+	}
+	solPrice, err := decimal.NewFromString(sol.PriceUSD)
+	if err != nil {
+		return err
+	}
+	ratio := xinPrice.Div(solPrice).BigFloat()
+
+	extra := []byte(ratio.String())
+	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    common.UniqueId(time.Now().String(), fmt.Sprintf("%s:fee", node.id)),
+		Type:  OperationTypeUpdateFeeInfo,
+		Extra: extra,
+	}, nil)
 }
 
 func (node *Node) handleWithdrawalsFee(ctx context.Context) error {

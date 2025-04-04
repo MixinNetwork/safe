@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/dimfeld/httptreemux/v5"
+	"github.com/shopspring/decimal"
 )
 
 //go:embed assets/mark.png
@@ -35,6 +36,7 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/system_calls/:id", node.httpGetSystemCall)
 	router.POST("/deployed_assets", node.httpDeployAssets)
 	router.POST("/nonce_accounts", node.httpLockNonce)
+	router.POST("/fee", node.httpGetFeeOnXin)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
 	if err != nil {
@@ -241,5 +243,37 @@ func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params m
 		"mix":           body.Mix,
 		"nonce_address": nonce.Address,
 		"nonce_hash":    nonce.Hash,
+	})
+}
+
+func (node *Node) httpGetFeeOnXin(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	ctx := r.Context()
+	var body struct {
+		SolAmount decimal.Decimal `json:"sol_amount"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+
+	fee, err := node.store.ReadLatestFeeInfo(ctx)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if fee == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "fee"})
+		return
+	}
+	ratio, err := decimal.NewFromString(fee.Ratio)
+	if err != nil {
+		panic(err)
+	}
+	xinAmount := body.SolAmount.Mul(ratio).StringFixed(8)
+
+	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+		"fee_id":     fee.Id,
+		"xin_amount": xinAmount,
 	})
 }

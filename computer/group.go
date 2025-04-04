@@ -107,6 +107,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleObserver
 	case OperationTypeDeposit:
 		return RequestRoleObserver
+	case OperationTypeUpdateFeeInfo:
+		return RequestRoleObserver
 	case OperationTypeKeygenOutput:
 		return RequestRoleSigner
 	case OperationTypeSignPrepare:
@@ -127,7 +129,7 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 			panic(err)
 		}
 		if count == 0 {
-			logger.Printf("processRequest (%v) => store.CountKeys() => %d", req, count)
+			logger.Printf("processRequest(%v) => store.CountKeys() => %d", req, count)
 			return node.failRequest(ctx, req, "")
 		}
 	}
@@ -159,6 +161,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processSignerPrepare(ctx, req)
 	case OperationTypeSignOutput:
 		return node.processSignerSignatureResponse(ctx, req)
+	case OperationTypeUpdateFeeInfo:
+		return node.processUpdateFeeInfo(ctx, req)
 	default:
 		panic(req.Action)
 	}
@@ -187,6 +191,28 @@ func (node *Node) processSetOperationParams(ctx context.Context, req *store.Requ
 		CreatedAt:            req.CreatedAt,
 	}
 	err := node.store.WriteOperationParamsFromRequest(ctx, params, req)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
+}
+
+func (node *Node) processUpdateFeeInfo(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleObserver {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeUpdateFeeInfo {
+		panic(req.Action)
+	}
+
+	extra := req.ExtraBytes()
+	ratio, ok := new(big.Float).SetString(string(extra))
+	logger.Printf("processUpdateFeeInfo(%s) => %t", string(extra), ok)
+	if !ok {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err := node.store.WriteFeeInfo(ctx, req, ratio.String())
 	if err != nil {
 		panic(err)
 	}

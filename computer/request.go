@@ -35,6 +35,7 @@ const (
 	OperationTypeConfirmWithdrawal    = 15
 	OperationTypeConfirmCall          = 16
 	OperationTypeSignInput            = 17
+	OperationTypeUpdateFeeInfo        = 18
 
 	// signer operation
 	OperationTypeKeygenOutput = 20
