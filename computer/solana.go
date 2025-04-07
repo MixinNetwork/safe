@@ -313,8 +313,8 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 				continue
 			}
 
-			if !change.Amount.IsPositive() {
-				panic(fmt.Errorf("invalid change for system call: %s %s %v", tx.Signatures[0].String(), change.Amount.String(), call))
+			if !change.Amount.IsPositive() && address != solanaApp.SolanaEmptyAddress {
+				panic(fmt.Errorf("invalid change for system call: %s %s %v", tx.Signatures[0].String(), call.RequestId, change))
 			}
 			da, err := node.store.ReadDeployedAssetByAddress(ctx, address)
 			if err != nil {
