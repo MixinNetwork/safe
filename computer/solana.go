@@ -395,16 +395,16 @@ type BalanceChange struct {
 }
 
 func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, user solana.PublicKey) map[string]*BalanceChange {
-	changes := make(map[string]*BalanceChange)
 	err := node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
-
 	as, err := tx.AccountMetaList()
 	if err != nil {
 		panic(err)
 	}
+
+	changes := make(map[string]*BalanceChange)
 	for index, account := range as {
 		if !account.PublicKey.Equals(user) {
 			continue
@@ -417,42 +417,48 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 		}
 	}
 
-	for _, tb := range meta.PreTokenBalances {
-		if !tb.Owner.Equals(user) {
+	preMap := buildBalanceMap(meta.PreTokenBalances, user)
+	postMap := buildBalanceMap(meta.PostTokenBalances, user)
+	for address, tb := range preMap {
+		post := postMap[address]
+		if post == nil {
+			changes[address] = &BalanceChange{
+				Amount:   tb.Amount.Neg(),
+				Decimals: tb.Decimals,
+			}
+			continue
+		}
+		amount := post.Amount.Sub(tb.Amount)
+		changes[address] = &BalanceChange{
+			Amount:   amount,
+			Decimals: tb.Decimals,
+		}
+	}
+	for address, c := range postMap {
+		if changes[address] != nil {
+			continue
+		}
+		changes[address] = c
+	}
+	return changes
+}
+
+func buildBalanceMap(balances []rpc.TokenBalance, owner solana.PublicKey) map[string]*BalanceChange {
+	bm := make(map[string]*BalanceChange)
+	for _, tb := range balances {
+		if !tb.Owner.Equals(owner) {
 			continue
 		}
 		amount, err := decimal.NewFromString(tb.UiTokenAmount.UiAmountString)
 		if err != nil {
 			panic(err)
 		}
-		changes[tb.Mint.String()] = &BalanceChange{
+		bm[tb.Mint.String()] = &BalanceChange{
 			Amount:   amount,
 			Decimals: tb.UiTokenAmount.Decimals,
 		}
 	}
-	for _, tb := range meta.PostTokenBalances {
-		if !tb.Owner.Equals(user) {
-			continue
-		}
-		amount, err := decimal.NewFromString(tb.UiTokenAmount.UiAmountString)
-		if err != nil {
-			panic(err)
-		}
-		key := tb.Mint.String()
-		old := changes[key]
-		if old == nil {
-			changes[key] = &BalanceChange{
-				Amount:   amount,
-				Decimals: tb.UiTokenAmount.Decimals,
-			}
-		} else {
-			changes[key] = &BalanceChange{
-				Amount:   amount.Sub(old.Amount),
-				Decimals: tb.UiTokenAmount.Decimals,
-			}
-		}
-	}
-	return changes
+	return bm
 }
 
 func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (*rpc.GetTransactionResult, error) {
