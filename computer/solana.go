@@ -325,6 +325,9 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 			}
 			isSolAsset := true
 			assetId := ethereum.BuildChainAssetId(solanaApp.SolanaChainBase, address)
+			if address == solanaApp.SolanaEmptyAddress {
+				assetId = solanaApp.SolanaChainBase
+			}
 			chainId := solanaApp.SolanaChainBase
 			if da != nil {
 				isSolAsset = false
