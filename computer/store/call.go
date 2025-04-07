@@ -196,9 +196,11 @@ func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
 
-	err = s.writeSystemCall(ctx, tx, sub)
-	if err != nil {
-		return err
+	if sub != nil {
+		err = s.writeSystemCall(ctx, tx, sub)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = s.finishRequest(ctx, tx, req, txs, compaction)

@@ -262,8 +262,8 @@ func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req
 		if err != nil {
 			panic(err)
 		}
-		if len(ver.References) != 1 {
-			return nil, nil, fmt.Errorf("invalid count of references from request: %v %v", req, ver)
+		if len(ver.References) == 0 {
+			return nil, nil, nil
 		}
 		references = ver.References
 	}

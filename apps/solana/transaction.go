@@ -466,3 +466,19 @@ func ExtractMintsFromTransaction(tx *solana.Transaction) []string {
 	}
 	return assets
 }
+
+func GetSignatureIndexOfAccount(tx solana.Transaction, publicKey solana.PublicKey) (int, error) {
+	index := -1
+	accounts, err := tx.AccountMetaList()
+	if err != nil {
+		return index, err
+	}
+	for i, account := range accounts {
+		if !account.PublicKey.Equals(publicKey) {
+			continue
+		}
+		index = i
+		break
+	}
+	return index, nil
+}

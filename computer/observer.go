@@ -503,15 +503,17 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			tb, err := tx.MarshalBinary()
-			if err != nil {
-				panic(err)
+			if tx != nil {
+				tb, err := tx.MarshalBinary()
+				if err != nil {
+					panic(err)
+				}
+				hash, err := node.storageSubSolanaTx(ctx, cid, tb)
+				if err != nil {
+					return err
+				}
+				references = append(references, hash)
 			}
-			hash, err := node.storageSubSolanaTx(ctx, cid, tb)
-			if err != nil {
-				return err
-			}
-			references = append(references, hash)
 		}
 
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
@@ -601,25 +603,17 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			panic(err)
 		}
 
-		accounts, err := tx.AccountMetaList()
-		if err != nil {
-			return err
-		}
-		index := -1
-		for i, account := range accounts {
-			if !account.PublicKey.Equals(publicKey) {
-				continue
-			}
-			index = i
-		}
-		if index == -1 {
-			return fmt.Errorf("invalid solana tx signature: %s", call.RequestId)
-		}
-		sig, err := base64.StdEncoding.DecodeString(call.Signature.String)
+		index, err := solanaApp.GetSignatureIndexOfAccount(*tx, publicKey)
 		if err != nil {
 			panic(err)
 		}
-		tx.Signatures[index] = solana.SignatureFromBytes(sig)
+		if index >= 0 {
+			sig, err := base64.StdEncoding.DecodeString(call.Signature.String)
+			if err != nil {
+				panic(err)
+			}
+			tx.Signatures[index] = solana.SignatureFromBytes(sig)
+		}
 
 		rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
 		if err != nil {

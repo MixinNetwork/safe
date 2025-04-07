@@ -671,13 +671,6 @@ func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers 
 }
 
 func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.SpentReference) (*solana.Transaction, error) {
-	mtg := node.getMTGAddress(ctx)
-	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-	if err != nil || user == nil {
-		return nil, fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err)
-	}
-	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
-
 	var transfers []solanaApp.TokenTransfers
 	rs, _, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
 	if err != nil {
@@ -686,6 +679,16 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 	if fee != nil {
 		rs = append(rs, fee)
 	}
+	if len(rs) == 0 {
+		return nil, nil
+	}
+
+	mtg := node.getMTGAddress(ctx)
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err)
+	}
+	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	for _, asset := range assets {
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))

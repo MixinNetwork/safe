@@ -256,21 +256,32 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
-		user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-		logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath().String(), user, err)
-		if err != nil {
-			panic(call.RequestId)
-		}
-		if user == nil {
-			return node.failRequest(ctx, req, "")
-		}
-		prepare.Superior = call.RequestId
-		prepare.Type = store.CallTypePrepare
-		prepare.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
-		err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
-		logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
-		if err != nil {
-			return node.failRequest(ctx, req, "")
+		if prepare != nil {
+			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+			logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath().String(), user, err)
+			if err != nil {
+				panic(call.RequestId)
+			}
+			if user == nil {
+				return node.failRequest(ctx, req, "")
+			}
+			prepare.Superior = call.RequestId
+			prepare.Type = store.CallTypePrepare
+			prepare.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
+			err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+			logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
+			if err != nil {
+				return node.failRequest(ctx, req, "")
+			}
+
+			index, err := solanaApp.GetSignatureIndexOfAccount(*tx, node.getMTGAddress(ctx))
+			if err != nil {
+				panic(err)
+			}
+			if index == -1 {
+				prepare.State = common.RequestStatePending
+				prepare.Signature = sql.NullString{Valid: true, String: ""}
+			}
 		}
 
 		var txs []*mtg.Transaction
