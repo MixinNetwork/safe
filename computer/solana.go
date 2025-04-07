@@ -699,6 +699,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 				Destination: destination,
 				Amount:      amount.BigInt().Uint64(),
 				Decimals:    uint8(asset.Decimal),
+				Fee:         asset.Fee,
 			})
 			continue
 		}

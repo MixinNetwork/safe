@@ -57,6 +57,7 @@ type TokenTransfers struct {
 	Destination solana.PublicKey
 	Amount      uint64
 	Decimals    uint8
+	Fee         bool
 }
 
 type Transfer struct {

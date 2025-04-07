@@ -77,7 +77,7 @@ func ComputerBootCmd(c *cli.Context) error {
 	computer.Boot(ctx, version)
 
 	if mmc := mc.Computer.MonitorConversationId; mmc != "" {
-		go MonitorComputer(ctx, computer, db, kd, mc.Computer, group, mmc, version)
+		go MonitorComputer(ctx, computer, client, db, kd, mc.Computer, group, mmc, version)
 	}
 
 	group.AttachWorker(mc.Computer.AppId, computer)

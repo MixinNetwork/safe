@@ -230,7 +230,7 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	return state, nil
 }
 
-func MonitorComputer(ctx context.Context, node *computer.Node, mdb *mtg.SQLite3Store, store *cstore.SQLite3Store, conf *computer.Configuration, group *mtg.Group, conversationId, version string) {
+func MonitorComputer(ctx context.Context, node *computer.Node, mixin *mixin.Client, mdb *mtg.SQLite3Store, store *cstore.SQLite3Store, conf *computer.Configuration, group *mtg.Group, conversationId, version string) {
 	logger.Printf("MonitorComputer(%s, %s)", group.GenesisId(), conversationId)
 	startedAt := time.Now()
 
@@ -246,7 +246,7 @@ func MonitorComputer(ctx context.Context, node *computer.Node, mdb *mtg.SQLite3S
 
 	for {
 		time.Sleep(1 * time.Minute)
-		msg, err := bundleComputerState(ctx, node, mdb, store, conf, group, startedAt, version)
+		msg, err := bundleComputerState(ctx, node, mixin, mdb, store, conf, group, startedAt, version)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleComputerState() => %v", err)
 			continue
@@ -256,7 +256,7 @@ func MonitorComputer(ctx context.Context, node *computer.Node, mdb *mtg.SQLite3S
 	}
 }
 
-func bundleComputerState(ctx context.Context, node *computer.Node, mdb *mtg.SQLite3Store, store *cstore.SQLite3Store, conf *computer.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
+func bundleComputerState(ctx context.Context, node *computer.Node, mixin *mixin.Client, mdb *mtg.SQLite3Store, store *cstore.SQLite3Store, conf *computer.Configuration, grp *mtg.Group, startedAt time.Time, version string) (string, error) {
 	state := "🧱🧱🧱🧱🧱 Computer 🧱🧱🧱🧱🧱\n"
 	state = state + fmt.Sprintf("⏲️ Run time: %s\n", time.Since(startedAt).String())
 	state = state + fmt.Sprintf("⏲️ Group: %s 𝕋%d\n", mixinnet.HashMembers(grp.GetMembers())[:16], grp.GetThreshold())
@@ -317,13 +317,13 @@ func bundleComputerState(ctx context.Context, node *computer.Node, mdb *mtg.SQLi
 	}
 	state = state + fmt.Sprintf("💸 Failed Transactions: %d\n", tc)
 
+	state = state + "\nBalances\n"
+	_, c, err := common.SafeAssetBalance(ctx, mixin, []string{conf.MTG.App.AppId}, 1, conf.ObserverAssetId)
+	if err != nil {
+		return "", err
+	}
+	state = state + fmt.Sprintf("💍 MSOT outputs: %d\n", c)
 	if conf.MTG.App.AppId == conf.ObserverId {
-		state = state + "\nObserver\n"
-		assetBalance, err := common.SafeAssetBalanceUntilSufficient(ctx, node.SafeUser(), conf.ObserverAssetId)
-		if err != nil {
-			return "", err
-		}
-		state = state + fmt.Sprintf("💍 MSOT Balance: %s\n", assetBalance.String())
 		xinBalance, err := common.SafeAssetBalanceUntilSufficient(ctx, node.SafeUser(), mtg.StorageAssetId)
 		if err != nil {
 			return "", err
@@ -339,7 +339,7 @@ func bundleComputerState(ctx context.Context, node *computer.Node, mdb *mtg.SQLi
 		if err != nil {
 			return "", err
 		}
-		state = state + fmt.Sprintf("💍 Onchain SOL Balance: %s %s\n", node.SolanaPayer(), decimal.NewFromUint64(balance).Div(decimal.New(1, 9)).String())
+		state = state + fmt.Sprintf("💍 Payer %s Balance: %s SOL\n", node.SolanaPayer(), decimal.NewFromUint64(balance).Div(decimal.New(1, 9)).String())
 	}
 
 	state = state + fmt.Sprintf("🦷 Binary version: %s", version)

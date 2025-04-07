@@ -52,6 +52,7 @@ type SpentReference struct {
 	CreatedAt       time.Time
 
 	Asset *bot.AssetNetwork
+	Fee   bool
 }
 
 var systemCallCols = []string{"id", "superior_id", "request_hash", "call_type", "nonce_account", "public", "skip_postprocess", "message", "raw", "state", "withdrawal_traces", "withdrawn_at", "signature", "request_signer_at", "hash", "created_at", "updated_at"}

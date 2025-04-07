@@ -291,10 +291,14 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		panic(transfer.AssetId)
 	}
 	if transfer.AssetId == transfer.ChainId {
+		src := source
+		if transfer.Fee {
+			src = payer
+		}
 		builder.AddInstruction(
 			system.NewTransferInstruction(
 				transfer.Amount,
-				source,
+				src,
 				transfer.Destination,
 			).Build(),
 		)

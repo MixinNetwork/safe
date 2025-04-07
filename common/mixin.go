@@ -407,17 +407,17 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 	}
 }
 
-func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, error) {
+func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, int, error) {
 	utxos, err := listSafeUtxosUntilSufficient(ctx, client, members, threshold, assetId)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var total common.Integer
 	for _, o := range utxos {
 		amt := common.NewIntegerFromString(o.Amount.String())
 		total = total.Add(amt)
 	}
-	return &total, nil
+	return &total, len(utxos), nil
 }
 
 func SafeAssetBalanceUntilSufficient(ctx context.Context, su *bot.SafeUser, id string) (*common.Integer, error) {

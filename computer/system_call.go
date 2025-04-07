@@ -26,6 +26,7 @@ type ReferencedTxAsset struct {
 	Address string
 	AssetId string
 	ChainId string
+	Fee     bool
 }
 
 // should only return error when mtg could not find outputs from referenced transaction
@@ -135,6 +136,11 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 			Amount:  amt,
 			AssetId: ref.AssetId,
 			ChainId: ref.Asset.ChainID,
+			Fee:     ref.Fee,
+		}
+		if ra.Fee {
+			am["fee"] = ra
+			continue
 		}
 		old := am[ref.AssetId]
 		if old != nil {
@@ -205,6 +211,7 @@ func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.Syste
 		AssetId:         common.SafeSolanaChainId,
 		Amount:          feeOnSol,
 		Asset:           asset,
+		Fee:             true,
 	}, nil
 }
 
