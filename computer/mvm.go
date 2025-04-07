@@ -142,7 +142,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 
 	rs, storage, err := node.GetSystemCallReferenceTxs(ctx, req.MixinHash.String())
 	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v %v", req.MixinHash.String(), rs, storage, err)
-	if err != nil {
+	if err != nil || storage == nil {
 		return node.failRequest(ctx, req, "")
 	}
 	hash, err := node.store.CheckReferencesSpent(ctx, rs)
