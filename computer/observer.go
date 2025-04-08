@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -571,65 +572,70 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		time.Sleep(30 * time.Second)
 		return nil
 	}
-
-	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
 	calls, err := node.store.ListSignedCalls(ctx)
 	if err != nil {
 		return err
 	}
+
+	var wg sync.WaitGroup
 	for _, call := range calls {
-		logger.Printf("node.handleSignedCalls(%s)", call.RequestId)
-		if call.Type == store.CallTypeMain {
-			pending, err := node.store.CheckUnfinishedSubCalls(ctx, call)
-			if err != nil {
-				panic(err)
-			}
-			if pending {
-				continue
-			}
-		}
-
-		publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
-		tx, err := solana.TransactionFromBase64(call.Raw)
-		if err != nil {
-			return err
-		}
-		err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
-		if err != nil {
-			return err
-		}
-		_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
-		if err != nil {
-			panic(err)
-		}
-
-		index, err := solanaApp.GetSignatureIndexOfAccount(*tx, publicKey)
-		if err != nil {
-			panic(err)
-		}
-		if index >= 0 {
-			sig, err := base64.StdEncoding.DecodeString(call.Signature.String)
-			if err != nil {
-				panic(err)
-			}
-			tx.Signatures[index] = solana.SignatureFromBytes(sig)
-		}
-
-		rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
-		if err != nil {
-			return node.processFailedCall(ctx, call)
-		}
-		txx, err := rpcTx.Transaction.GetTransaction()
-		if err != nil {
-			return err
-		}
-		err = node.processSuccessedCall(ctx, call, txx, rpcTx.Meta)
-		if err != nil {
-			return err
-		}
-		time.Sleep(3 * time.Second)
+		wg.Add(1)
+		go node.handleSignedCall(ctx, &wg, call)
 	}
+	wg.Wait()
 	return nil
+}
+
+func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call *store.SystemCall) error {
+	logger.Printf("node.handleSignedCall(%s)", call.RequestId)
+	defer wg.Done()
+
+	if call.Type == store.CallTypeMain {
+		pending, err := node.store.CheckUnfinishedSubCalls(ctx, call)
+		if err != nil {
+			panic(err)
+		}
+		if pending {
+			return nil
+		}
+	}
+
+	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
+	publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
+	tx, err := solana.TransactionFromBase64(call.Raw)
+	if err != nil {
+		return err
+	}
+	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
+	if err != nil {
+		panic(err)
+	}
+
+	index, err := solanaApp.GetSignatureIndexOfAccount(*tx, publicKey)
+	if err != nil {
+		panic(err)
+	}
+	if index >= 0 {
+		sig, err := base64.StdEncoding.DecodeString(call.Signature.String)
+		if err != nil {
+			panic(err)
+		}
+		tx.Signatures[index] = solana.SignatureFromBytes(sig)
+	}
+
+	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
+	if err != nil {
+		return node.processFailedCall(ctx, call)
+	}
+	txx, err := rpcTx.Transaction.GetTransaction()
+	if err != nil {
+		return err
+	}
+	return node.processSuccessedCall(ctx, call, txx, rpcTx.Meta)
 }
 
 // deposited assets to run system call and new assets received in system call are all handled here
