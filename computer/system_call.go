@@ -215,7 +215,7 @@ func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.Syste
 	}, nil
 }
 
-func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall) (*store.SystemCall, error) {
+func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall, data []byte) (*store.SystemCall, error) {
 	if call.Type != store.CallTypeMain {
 		return nil, nil
 	}
@@ -229,7 +229,7 @@ func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, ca
 		}
 	}
 
-	postprocess, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+	postprocess, tx, err := node.getSubSystemCallFromExtra(ctx, req, data)
 	if err != nil {
 		return nil, err
 	}
@@ -253,21 +253,7 @@ func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, ca
 	return postprocess, nil
 }
 
-func (node *Node) getSubSystemCallFromReferencedStorage(ctx context.Context, req *store.Request) (*store.SystemCall, *solana.Transaction, error) {
-	var references []crypto.Hash
-	if common.CheckTestEnvironment(ctx) {
-		references = outputReferences[req.Output.OutputId]
-	} else {
-		ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
-		if err != nil {
-			panic(err)
-		}
-		if len(ver.References) == 0 {
-			return nil, nil, nil
-		}
-		references = ver.References
-	}
-	data := node.readStorageExtraFromObserver(ctx, references[0])
+func (node *Node) getSubSystemCallFromExtra(ctx context.Context, req *store.Request, data []byte) (*store.SystemCall, *solana.Transaction, error) {
 	id, raw := uuid.Must(uuid.FromBytes(data[:16])).String(), data[16:]
 	return node.buildSystemCallFromBytes(ctx, req, id, raw, true)
 }
@@ -311,7 +297,7 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	return call, tx, nil
 }
 
-func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transaction, user solana.PublicKey) error {
+func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transaction) error {
 	if common.CheckTestEnvironment(ctx) {
 		return nil
 	}
@@ -336,4 +322,10 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 		}
 	}
 	return nil
+}
+
+func attachSystemCall(extra []byte, cid string, raw []byte) []byte {
+	extra = append(extra, uuid.Must(uuid.FromString(cid)).Bytes()...)
+	extra = append(extra, raw...)
+	return extra
 }

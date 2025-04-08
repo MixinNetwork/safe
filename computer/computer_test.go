@@ -60,7 +60,7 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
@@ -97,16 +97,20 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
-	refs := testStorageSubSystemCall(ctx, nodes, cid, raw)
 
 	id := uuid.Must(uuid.NewV4()).String()
 	signature := solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW")
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
+	extra = attachSystemCall(extra, cid, raw)
+
 	var postprocess *store.SystemCall
+	out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, refs)
-		testStep(ctx, require, node, out)
+		go testStep(ctx, require, node, out)
+	}
+	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
+	for _, node := range nodes {
 		main, err := node.store.ReadSystemCallByRequestId(ctx, call.RequestId, common.RequestStateDone)
 		require.Nil(err)
 		require.NotNil(main)
@@ -117,11 +121,10 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 		require.Equal(store.CallTypePostProcess, sub.Type)
 		require.Len(sub.GetWithdrawalIds(), 0)
 		require.True(sub.WithdrawnAt.Valid)
-		require.False(sub.Signature.Valid)
-		require.False(sub.RequestSignerAt.Valid)
+		require.True(sub.Signature.Valid)
+		require.True(sub.RequestSignerAt.Valid)
 		postprocess = sub
 	}
-	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
 	return postprocess
 }
 
@@ -140,7 +143,7 @@ func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions
 	extra := []byte{FlagConfirmCallSuccess}
 	extra = append(extra, signature[:]...)
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 
 		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
@@ -163,7 +166,7 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 	extra = append(extra, uuid.Must(uuid.FromString(callId)).Bytes()...)
 	extra = append(extra, sig[:]...)
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra)
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
 		require.Nil(err)
@@ -186,10 +189,14 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 
 	sequence += 10
-	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "", sequence, decimal.NewFromInt(1000000))
+	amt, err := decimal.NewFromString("0.01")
+	require.Nil(err)
+	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "", sequence, amt)
 	require.Nil(err)
 	sequence += 10
-	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, decimal.NewFromInt(5000000))
+	amt, err = decimal.NewFromString("0.005")
+	require.Nil(err)
+	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, amt)
 	require.Nil(err)
 
 	solAmount, err := decimal.NewFromString("0.23456789")
@@ -225,7 +232,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
 		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
-		require.False(call.RequestSignerAt.Valid)
+		require.True(call.RequestSignerAt.Valid)
 		count, err := node.store.TestCountSpentReferences(ctx, call.RequestId)
 		require.Nil(err)
 		require.Equal(2, count)
@@ -259,15 +266,19 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
 	cid := common.UniqueId(c.RequestId, "prepare")
-	refs = testStorageSubSystemCall(ctx, nodes, cid, raw)
 
 	id = uuid.Must(uuid.NewV4()).String()
 	extra = []byte{ConfirmFlagNonceAvailable}
 	extra = append(extra, uuid.Must(uuid.FromString(c.RequestId)).Bytes()...)
-	out = testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra, refs)
+	extra = attachSystemCall(extra, cid, raw)
+
+	out = testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra)
 	var sub *store.SystemCall
 	for _, node := range nodes {
-		testStep(ctx, require, node, out)
+		go testStep(ctx, require, node, out)
+	}
+	time.Sleep(10 * time.Second)
+	for _, node := range nodes {
 		call, err := node.store.ReadSystemCallByRequestId(ctx, c.RequestId, common.RequestStateInitial)
 		require.Nil(err)
 		require.Len(call.GetWithdrawalIds(), 1)
@@ -358,7 +369,7 @@ func testObserverUpdateNetworInfo(ctx context.Context, require *require.Assertio
 		id = common.UniqueId(id, ratio)
 		extra := []byte(ratio)
 
-		out := testBuildObserverRequest(node, id, OperationTypeUpdateFeeInfo, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeUpdateFeeInfo, extra)
 		testStep(ctx, require, node, out)
 
 		fee, err = node.store.ReadLatestFeeInfo(ctx)
@@ -385,7 +396,7 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 		extra := uuid.Must(uuid.FromString(node.conf.OperationPriceAssetId)).Bytes()
 		extra = binary.BigEndian.AppendUint64(extra, uint64(amount.IntPart()))
 
-		out := testBuildObserverRequest(node, id, OperationTypeSetOperationParams, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeSetOperationParams, extra)
 		testStep(ctx, require, node, out)
 
 		params, err = node.store.ReadLatestOperationParams(ctx, time.Now().UTC())
@@ -414,20 +425,19 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 	require.Nil(err)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)
-	refs := testStorageSubSystemCall(ctx, nodes, cid, raw)
 
 	var extra []byte
+	extra = append(extra, byte(len(assets)))
 	for _, asset := range assets {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
+	extra = attachSystemCall(extra, cid, raw)
+
 	id := uuid.Must(uuid.NewV4()).String()
+	out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra)
 	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra, refs)
-		testStep(ctx, require, node, out)
-		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
-		require.Nil(err)
-		require.NotNil(call)
+		go testStep(ctx, require, node, out)
 	}
 	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
 
@@ -436,11 +446,14 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 	extra = []byte{FlagConfirmCallSuccess}
 	extra = append(extra, sig[:]...)
 	for _, node := range nodes {
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
+		require.Nil(err)
+		require.NotNil(call)
 		asset, err := node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId, common.RequestStateInitial)
 		require.Nil(err)
 		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", asset.Address)
 		require.Equal(int64(common.RequestStateInitial), asset.State)
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
 		asset, err = node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId, common.RequestStateDone)
 		require.Nil(err)
@@ -471,7 +484,7 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 		require.Nil(err)
 		require.Equal("fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b", key)
 
-		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, extra, nil)
+		out := testBuildObserverRequest(node, id, OperationTypeKeygenInput, extra)
 		sessionId = out.OutputId
 		testStep(ctx, require, node, out)
 		sessions, err := node.store.ListPreparedSessions(ctx, 500)
@@ -522,27 +535,9 @@ func testStorageSystemCall(ctx context.Context, nodes []*Node, extra []byte) []c
 	return refs
 }
 
-func testStorageSubSystemCall(ctx context.Context, nodes []*Node, id string, raw []byte) []crypto.Hash {
-	var refs []crypto.Hash
-	for _, node := range nodes {
-		ref, err := node.storageSubSolanaTx(ctx, id, raw)
-		if err != nil {
-			panic(err)
-		}
-		refs = []crypto.Hash{ref}
-	}
-	return refs
-}
-
 func testObserverRequestSignSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, cid string) {
-	id := uuid.Must(uuid.NewV4()).String()
-	extra := uuid.Must(uuid.FromString(cid)).Bytes()
-	out := testBuildObserverRequest(nodes[0], id, OperationTypeSignInput, extra, nil)
 	for _, node := range nodes {
-		testStep(ctx, require, node, out)
-	}
-	for _, node := range nodes {
-		testWaitOperation(ctx, node, id)
+		testWaitOperation(ctx, node, cid)
 	}
 	for _, node := range nodes {
 		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, 0)
@@ -584,22 +579,22 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 	}
 }
 
-func testBuildObserverRequest(node *Node, id string, action byte, extra []byte, references []crypto.Hash) *mtg.Action {
+func testBuildObserverRequest(node *Node, id string, action byte, extra []byte) *mtg.Action {
 	sequence += 10
 	memo := []byte{action}
 	memo = append(memo, extra...)
-	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
+	signed := node.signObserverExtra(memo)
+	memoStr := mtg.EncodeMixinExtraBase64(node.conf.AppId, signed)
 	memoStr = hex.EncodeToString([]byte(memoStr))
 	timestamp := time.Now().UTC()
 
-	writeOutputReferences(id, references)
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
 			TransactionHash:    crypto.Sha256Hash([]byte(id)).String(),
 			AppId:              node.conf.AppId,
 			Senders:            []string{string(node.id)},
-			AssetId:            node.conf.ObserverAssetId,
+			AssetId:            bot.XINAssetId,
 			Extra:              memoStr,
 			Amount:             decimal.New(1, 1),
 			SequencerCreatedAt: timestamp,
@@ -687,6 +682,11 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	conf.Computer.SolanaDepositEntry = "4jGVQSJrCfgLNSvTfwTLejm88bUXppqwvBzFZADtsY2F"
 	conf.Computer.MPCKeyNumber = 3
 
+	seed := crypto.Sha256Hash([]byte("computer-test"))
+	key := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
+	conf.Computer.MTG.App.SpendPrivateKey = key.String()
+	conf.Computer.ObserverPublicKey = key.Public().String()
+
 	if rpc := os.Getenv("SOLANARPC"); rpc != "" {
 		conf.Computer.SolanaRPC = rpc
 	}
@@ -717,21 +717,21 @@ func testInitOutputs(ctx context.Context, require *require.Assertions, nodes []*
 		sequence += uint64(i + 1)
 	}
 	for i := range 100 {
-		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, conf.ObserverAssetId, "", "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, mtg.StorageAssetId, "", "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
 	for i := range 100 {
-		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, mtg.StorageAssetId, "", "", uint64(sequence), decimal.NewFromInt(1))
+		_, err := testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "", "", uint64(sequence), decimal.NewFromInt(1))
 		require.Nil(err)
 		sequence += uint64(i + 1)
 	}
 	for _, node := range nodes {
 		os := node.group.ListOutputsForAsset(ctx, conf.AppId, conf.AssetId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
 		require.Len(os, 100)
-		os = node.group.ListOutputsForAsset(ctx, conf.AppId, conf.ObserverAssetId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
-		require.Len(os, 100)
 		os = node.group.ListOutputsForAsset(ctx, conf.AppId, mtg.StorageAssetId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
+		require.Len(os, 100)
+		os = node.group.ListOutputsForAsset(ctx, conf.AppId, common.SafeSolanaChainId, start, sequence, mtg.SafeUtxoStateUnspent, 500)
 		require.Len(os, 100)
 	}
 }

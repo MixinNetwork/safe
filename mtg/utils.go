@@ -119,7 +119,7 @@ func DecodeMixinExtraBase64(extra string) (string, []byte) {
 	return aid.String(), data[16:]
 }
 
-func encodeMixinExtra(appId string, extra []byte) string {
+func EncodeMixinExtraBase64(appId string, extra []byte) string {
 	gid, err := uuid.FromString(appId)
 	if err != nil {
 		panic(err)
@@ -127,14 +127,6 @@ func encodeMixinExtra(appId string, extra []byte) string {
 	data := gid.Bytes()
 	data = append(data, extra...)
 	s := base64.RawURLEncoding.EncodeToString(data)
-	return s
-}
-
-func EncodeMixinExtraBase64(appId string, extra []byte) string {
-	s := encodeMixinExtra(appId, extra)
-	if len(s) >= common.ExtraSizeGeneralLimit {
-		panic(len(extra))
-	}
 	return s
 }
 

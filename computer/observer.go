@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -276,6 +275,7 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	if len(as) == 0 {
 		return nil
 	}
+
 	tid, tx, assets, err := node.CreateMintsTransaction(ctx, as)
 	if err != nil || tx == nil {
 		return err
@@ -284,22 +284,18 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	hash, err := node.storageSubSolanaTx(ctx, tid, data)
-	if err != nil {
-		return err
-	}
-	references := []crypto.Hash{hash}
-
-	var extra []byte
+	extra := []byte{byte(len(assets))}
 	for _, asset := range assets {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
+	extra = attachSystemCall(extra, tid, data)
+
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    tid,
 		Type:  OperationTypeDeployExternalAssets,
 		Extra: extra,
-	}, references)
+	}, nil)
 }
 
 func (node *Node) createNonceAccounts(ctx context.Context) error {
@@ -480,7 +476,6 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			return err
 		}
 
-		var references []crypto.Hash
 		id := common.UniqueId(call.RequestId, "confirm-nonce")
 		extra := []byte{ConfirmFlagNonceAvailable}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
@@ -509,11 +504,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 				if err != nil {
 					panic(err)
 				}
-				hash, err := node.storageSubSolanaTx(ctx, cid, tb)
-				if err != nil {
-					return err
-				}
-				references = append(references, hash)
+				extra = attachSystemCall(extra, cid, tb)
 			}
 		}
 
@@ -521,7 +512,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			Id:    id,
 			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
-		}, references)
+		}, nil)
 		logger.Printf("observer.confirmNonce(%s %d %d)", call.RequestId, OperationTypeConfirmNonce, extra[0])
 		if err != nil {
 			return err
@@ -642,8 +633,11 @@ func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call
 
 // deposited assets to run system call and new assets received in system call are all handled here
 func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCall, txx *solana.Transaction, meta *rpc.TransactionMeta) error {
-	var references []crypto.Hash
 	id := common.UniqueId(call.RequestId, "confirm-success")
+	txId := txx.Signatures[0]
+	extra := []byte{FlagConfirmCallSuccess}
+	extra = append(extra, txId[:]...)
+
 	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
 		cid := common.UniqueId(id, "post-process")
 		nonce, err := node.store.ReadSpareNonceAccount(ctx)
@@ -660,27 +654,22 @@ func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCa
 			if err != nil {
 				panic(err)
 			}
-			hash, err := node.storageSubSolanaTx(ctx, cid, data)
-			if err != nil {
-				return err
-			}
-			references = append(references, hash)
+			extra = attachSystemCall(extra, cid, data)
 		}
 	}
 
-	txId := txx.Signatures[0]
-	extra := []byte{FlagConfirmCallSuccess}
-	extra = append(extra, txId[:]...)
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeConfirmCall,
 		Extra: extra,
-	}, references)
+	}, nil)
 }
 
 func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall) error {
-	var references []crypto.Hash
 	id := common.UniqueId(call.RequestId, "confirm-fail")
+	extra := []byte{FlagConfirmCallFail}
+	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
+
 	if call.Type == store.CallTypeMain {
 		cid := common.UniqueId(id, "post-process")
 		nonce, err := node.store.ReadSpareNonceAccount(ctx)
@@ -699,11 +688,7 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 		if err != nil {
 			panic(err)
 		}
-		hash, err := node.storageSubSolanaTx(ctx, cid, data)
-		if err != nil {
-			return err
-		}
-		references = append(references, hash)
+		extra = attachSystemCall(extra, cid, data)
 	}
 
 	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
@@ -715,27 +700,9 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 		return err
 	}
 
-	extra := []byte{FlagConfirmCallFail}
-	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeConfirmCall,
 		Extra: extra,
-	}, references)
-}
-
-func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) (crypto.Hash, error) {
-	data := uuid.Must(uuid.FromString(id)).Bytes()
-	data = append(data, rb...)
-	if common.CheckTestEnvironment(ctx) {
-		ref := crypto.Sha256Hash(data)
-		return ref, node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(data))
-	}
-	trace := common.UniqueId(hex.EncodeToString(data), "storage-solana-tx")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, trace, *node.SafeUser())
-	if err != nil {
-		return crypto.Hash{}, err
-	}
-	logger.Printf("observer.storageSubSolanaTx(%s) => %s", id, hash.String())
-	return hash, nil
+	}, nil)
 }

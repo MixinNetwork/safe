@@ -152,6 +152,9 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfers) error {
 	id := common.UniqueId(depositHash.String(), user)
 	cid := common.UniqueId(id, "deposit")
+	extra := solana.MustPublicKeyFromBase58(user).Bytes()
+	extra = append(extra, depositHash[:]...)
+
 	nonce, err := node.store.ReadSpareNonceAccount(ctx)
 	if err != nil {
 		return err
@@ -168,18 +171,13 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	if err != nil {
 		panic(err)
 	}
-	hash, err := node.storageSubSolanaTx(ctx, cid, data)
-	if err != nil {
-		return err
-	}
+	extra = attachSystemCall(extra, cid, data)
 
-	extra := solana.MustPublicKeyFromBase58(user).Bytes()
-	extra = append(extra, depositHash[:]...)
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
 		Id:    id,
 		Type:  OperationTypeDeposit,
 		Extra: extra,
-	}, []crypto.Hash{hash})
+	}, nil)
 }
 
 func (node *Node) InitializeAccount(ctx context.Context, user *store.User) error {

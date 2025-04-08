@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
@@ -67,28 +68,41 @@ func DecodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, e
 }
 
 func (node *Node) parseRequest(out *mtg.Action) (*store.Request, error) {
-	switch out.AssetId {
-	case node.conf.ObserverAssetId:
-		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
-			panic(out.TransactionHash)
-		}
-		return node.parseObserverRequest(out)
-	case node.conf.AssetId:
+	switch {
+	case node.conf.AssetId == out.AssetId:
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			panic(out.TransactionHash)
 		}
 		return node.parseSignerResponse(out)
+	case bot.XINAssetId == out.AssetId && node.verifyObserverRequest(out):
+		return node.parseObserverRequest(out)
 	default:
 		return node.parseUserRequest(out)
 	}
+}
+
+func (node *Node) signObserverExtra(extra []byte) []byte {
+	key := crypto.Key(common.DecodeHexOrPanic(node.conf.MTG.App.SpendPrivateKey))
+	msg := crypto.Sha256Hash(extra)
+	sig := key.Sign(msg)
+	return append(sig[:], extra...)
+}
+
+func (node *Node) verifyObserverRequest(out *mtg.Action) bool {
+	_, extra := mtg.DecodeMixinExtraHEX(out.Extra)
+	if len(extra) < 65 {
+		return false
+	}
+	pub := crypto.Key(common.DecodeHexOrPanic(node.conf.ObserverPublicKey))
+	sig := crypto.Signature(extra[:64])
+	hash := crypto.Sha256Hash(extra[64:])
+	return pub.Verify(hash, sig)
 }
 
 func (node *Node) requestRole(assetId string) uint8 {
 	switch assetId {
 	case node.conf.AssetId:
 		return RequestRoleSigner
-	case node.conf.ObserverAssetId:
-		return RequestRoleObserver
 	default:
 		return RequestRoleUser
 	}
@@ -105,8 +119,7 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*store.Request, error) 
 	if len(m) < 2 {
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
-	role := node.requestRole(out.AssetId)
-	return DecodeRequest(out, m, role)
+	return DecodeRequest(out, m[64:], uint8(RequestRoleObserver))
 }
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*store.Request, error) {

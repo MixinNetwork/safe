@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
@@ -102,20 +104,38 @@ func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common
 	}
 
 	traceId := fmt.Sprintf("SESSION:%s:OBSERVER:%s", op.Id, string(node.id))
-	return node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.ObserverAssetId, traceId, references)
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, bot.XINAssetId, traceId, references)
 }
 
 func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, assetId, traceId string, references []crypto.Hash) error {
+	amount := "0.00000001"
 	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
-	amount := decimal.NewFromInt(1)
+	amt, err := decimal.NewFromString(amount)
+	if err != nil {
+		panic(err)
+	}
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
 
 	if common.CheckTestEnvironment(ctx) {
 		return node.mtgQueueTestOutput(ctx, memo)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, assetId, m, common.ToMixinnetHash(references), node.conf.MTG.App.SpendPrivateKey)
+	if len(memo) <= mc.ExtraSizeGeneralLimit {
+		_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amt, traceId, assetId, m, common.ToMixinnetHash(references), node.conf.MTG.App.SpendPrivateKey)
+		return err
+	}
+
+	var refs []string
+	for _, ref := range references {
+		refs = append(refs, ref.String())
+	}
+	_, err = bot.CreateObjectStorageTransaction(ctx, []*bot.TransactionRecipient{
+		{
+			MixAddress: bot.NewUUIDMixAddress(node.conf.MTG.Genesis.Members, byte(node.conf.MTG.Genesis.Threshold)),
+			Amount:     amount,
+		},
+	}, nil, memo, traceId, refs, "", node.SafeUser())
 	return err
 }
 

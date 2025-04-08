@@ -366,7 +366,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 }
 
 func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
-	extra := encodeMixinExtra(tx.AppId, []byte(tx.Memo))
+	extra := EncodeMixinExtraBase64(tx.AppId, []byte(tx.Memo))
 	extra = hex.EncodeToString([]byte(extra))
 	return testBuildOutput(group, require, tx.AssetId, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }

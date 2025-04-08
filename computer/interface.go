@@ -17,7 +17,7 @@ type Configuration struct {
 	Threshold               int                `toml:"threshold"`
 	AssetId                 string             `toml:"asset-id"`
 	ObserverId              string             `toml:"observer-id"`
-	ObserverAssetId         string             `toml:"observer-asset-id"`
+	ObserverPublicKey       string             `toml:"observer-spend-public-key"`
 	OperationPriceAssetId   string             `toml:"operation-price-asset-id"`
 	OperationPriceAmount    string             `toml:"operation-price-amount"`
 	MPCKeyNumber            int                `toml:"mpc-key-number"`

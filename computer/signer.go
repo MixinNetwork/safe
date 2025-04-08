@@ -52,6 +52,11 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 		}
 
 		for _, s := range sessions {
+			if common.CheckTestEnvironment(ctx) {
+				if s.CreatedAt.Add(10 * time.Second).After(time.Now()) {
+					break
+				}
+			}
 			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", s.Id, string(node.id))
 			extra := []byte{OperationTypeSignPrepare}
 			extra = append(extra, uuid.Must(uuid.FromString(s.Id)).Bytes()...)
@@ -682,11 +687,11 @@ func (node *Node) processSignerPrepare(ctx context.Context, req *store.Request) 
 	}
 
 	s, err := node.store.ReadSession(ctx, session)
-	if err != nil || s == nil {
+	if err != nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", session, s, err))
 	}
-	if s.PreparedAt.Valid {
-		logger.Printf("session %s is prepared", s.Id)
+	if s == nil || s.PreparedAt.Valid {
+		logger.Printf("invalid session %v", s)
 		return node.failRequest(ctx, req, "")
 	}
 

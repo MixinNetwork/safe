@@ -205,7 +205,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.SkipPostprocess = skipPostprocess
 
-	err = node.checkUserSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(user.ChainAddress))
+	err = node.checkUserSystemCall(ctx, tx)
 	if err != nil {
 		logger.Printf("node.checkUserSystemCall(%v) => %v", tx, err)
 		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
@@ -230,7 +230,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 
 	extra := req.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
-	callId := uuid.Must(uuid.FromBytes(extra)).String()
+	callId := uuid.Must(uuid.FromBytes(extra[0:16])).String()
 
 	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
@@ -253,7 +253,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	switch flag {
 	case ConfirmFlagNonceAvailable:
 		var sessions []*store.Session
-		prepare, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+		prepare, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[16:])
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
@@ -275,7 +275,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 				return node.failRequest(ctx, req, "")
 			}
 			sessions = append(sessions, &store.Session{
-				Id:         common.UniqueId(req.Id, prepare.RequestId),
+				Id:         prepare.RequestId,
 				RequestId:  prepare.RequestId,
 				MixinHash:  req.MixinHash.String(),
 				MixinIndex: req.Output.OutputIndex,
@@ -321,7 +321,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			prepare.State = common.RequestStatePending
 		}
 		sessions = append(sessions, &store.Session{
-			Id:         req.Id,
+			Id:         call.RequestId,
 			RequestId:  call.RequestId,
 			MixinHash:  req.MixinHash.String(),
 			MixinIndex: req.Output.OutputIndex,
@@ -371,9 +371,10 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 
 	as := make(map[string]*solanaApp.DeployedAsset)
 	extra := req.ExtraBytes()
+	n, extra := extra[0], extra[1:]
 	offset := 0
 	for {
-		if offset == len(extra) {
+		if len(as) == int(n) {
 			break
 		}
 		assetId := uuid.Must(uuid.FromBytes(extra[offset : offset+16])).String()
@@ -406,7 +407,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		logger.Verbosef("processDeployExternalAssets() => %s %s", assetId, address)
 	}
 
-	call, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+	call, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[offset:])
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -419,8 +420,19 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 	call.Type = store.CallTypeMint
 	call.Public = node.getMTGPublicWithPath(ctx)
 	call.State = common.RequestStatePending
+	session := &store.Session{
+		Id:         call.RequestId,
+		RequestId:  call.RequestId,
+		MixinHash:  req.MixinHash.String(),
+		MixinIndex: req.Output.OutputIndex,
+		Index:      0,
+		Operation:  OperationTypeSignInput,
+		Public:     call.Public,
+		Extra:      call.Message,
+		CreatedAt:  req.CreatedAt,
+	}
 
-	err = node.store.WriteMintCallWithRequest(ctx, req, call, as)
+	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
 	logger.Printf("store.WriteMintCallWithRequest(%v) => %v", call, err)
 	if err != nil {
 		panic(err)
@@ -554,7 +566,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				return node.failRequest(ctx, req, "")
 			}
 		case store.CallTypeMain:
-			postprocess, err := node.getPostprocessCall(ctx, req, call)
+			postprocess, err := node.getPostprocessCall(ctx, req, call, extra[64:])
 			logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
 			if err != nil {
 				return node.failRequest(ctx, req, "")
@@ -562,7 +574,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			if postprocess != nil {
 				sub = postprocess
 				sessions = append(sessions, &store.Session{
-					Id:         req.Id,
+					Id:         postprocess.RequestId,
 					RequestId:  postprocess.RequestId,
 					MixinHash:  req.MixinHash.String(),
 					MixinIndex: req.Output.OutputIndex,
@@ -624,7 +636,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		call = c
 		call.State = common.RequestStateFailed
 
-		postprocess, err := node.getPostprocessCall(ctx, req, call)
+		postprocess, err := node.getPostprocessCall(ctx, req, call, extra[16:])
 		logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
@@ -676,7 +688,7 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 	}
 
 	session := &store.Session{
-		Id:         req.Id,
+		Id:         call.RequestId,
 		RequestId:  call.RequestId,
 		MixinHash:  req.MixinHash.String(),
 		MixinIndex: req.Output.OutputIndex,
@@ -724,9 +736,9 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		return node.failRequest(ctx, req, "")
 	}
 
-	call, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
+	call, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[96:])
 	if err != nil {
-		logger.Printf("node.getSubSystemCallFromReferencedStorage(%v) => %v", req, err)
+		logger.Printf("node.getSubSystemCallFromExtra(%v) => %v", req, err)
 		return node.failRequest(ctx, req, "")
 	}
 	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), userAddress)

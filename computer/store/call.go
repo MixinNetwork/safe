@@ -141,7 +141,7 @@ func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, assets map[string]*solanaApp.DeployedAsset) error {
+func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*solanaApp.DeployedAsset) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -154,6 +154,15 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 	err = s.writeSystemCall(ctx, tx, call)
 	if err != nil {
 		return err
+	}
+
+	cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
+		"extra", "state", "created_at", "updated_at"}
+	vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
+		session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
+	if err != nil {
+		return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 	}
 
 	for _, asset := range assets {

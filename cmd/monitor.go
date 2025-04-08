@@ -318,11 +318,11 @@ func bundleComputerState(ctx context.Context, node *computer.Node, mixin *mixin.
 	state = state + fmt.Sprintf("💸 Failed Transactions: %d\n", tc)
 
 	state = state + "\nBalances\n"
-	_, c, err := common.SafeAssetBalance(ctx, mixin, []string{conf.MTG.App.AppId}, 1, conf.ObserverAssetId)
+	_, c, err := common.SafeAssetBalance(ctx, mixin, []string{conf.MTG.App.AppId}, 1, conf.AssetId)
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("💍 MSOT outputs: %d\n", c)
+	state = state + fmt.Sprintf("💍 MSST outputs: %d\n", c)
 	if conf.MTG.App.AppId == conf.ObserverId {
 		xinBalance, err := common.SafeAssetBalanceUntilSufficient(ctx, node.SafeUser(), mtg.StorageAssetId)
 		if err != nil {
