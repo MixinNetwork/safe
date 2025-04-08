@@ -553,14 +553,20 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				if err != nil || da == nil {
 					panic(err)
 				}
+
 				asset, err := common.SafeReadAssetUntilSufficient(ctx, da.AssetId)
 				if err != nil {
 					panic(err)
 				}
-				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision))
+				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision)).String()
+				amt := mc.NewIntegerFromString(amount)
+				if amt.Sign() == 0 {
+					continue
+				}
+
 				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
 				id = common.UniqueId(id, user.MixAddress)
-				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount.String(), []byte("refund"), id)
+				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount, []byte("refund"), id)
 				if tx == nil {
 					compaction = da.AssetId
 					txs = nil
@@ -569,7 +575,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				txs = append(txs, tx)
 			}
 		}
-
 	case FlagConfirmCallFail:
 		callId := uuid.Must(uuid.FromBytes(extra)).String()
 		c, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
