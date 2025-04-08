@@ -539,7 +539,9 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	logger.Printf("observer.ListUnsignedCalls() => %d", len(calls))
 	for _, call := range calls {
+		logger.Printf("observer.processUnsignedCalls(%s)", call.RequestId)
 		now := time.Now().UTC()
 		if call.RequestSignerAt.Valid && call.RequestSignerAt.Time.Add(20*time.Minute).After(now) {
 			continue
