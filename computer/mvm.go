@@ -275,7 +275,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 				return node.failRequest(ctx, req, "")
 			}
 			sessions = append(sessions, &store.Session{
-				Id:         req.Id,
+				Id:         common.UniqueId(req.Id, prepare.RequestId),
 				RequestId:  prepare.RequestId,
 				MixinHash:  req.MixinHash.String(),
 				MixinIndex: req.Output.OutputIndex,
