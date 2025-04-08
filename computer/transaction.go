@@ -95,6 +95,7 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.A
 }
 
 func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common.Operation, references []crypto.Hash) error {
+	logger.Printf("observer.sendObserverTransactionToGroup(%v)", op)
 	extra := encodeOperation(op)
 	if len(extra) > 160 {
 		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))

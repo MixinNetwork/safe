@@ -628,6 +628,7 @@ func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call
 	}
 
 	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
+	logger.Printf("observer.SendTransactionUtilConfirm(%s) => %v", tx.Signatures[0].String(), err)
 	if err != nil {
 		return node.processFailedCall(ctx, call)
 	}
@@ -723,7 +724,6 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 }
 
 func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) (crypto.Hash, error) {
-	logger.Printf("observer.storageSubSolanaTx(%s)", id)
 	data := uuid.Must(uuid.FromString(id)).Bytes()
 	data = append(data, rb...)
 	if common.CheckTestEnvironment(ctx) {
@@ -735,5 +735,6 @@ func (node *Node) storageSubSolanaTx(ctx context.Context, id string, rb []byte) 
 	if err != nil {
 		return crypto.Hash{}, err
 	}
+	logger.Printf("observer.storageSubSolanaTx(%s) => %s", id, hash.String())
 	return hash, nil
 }
