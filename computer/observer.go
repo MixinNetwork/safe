@@ -487,7 +487,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 
 		fee, err := node.getSystemCallFeeFromXin(ctx, call)
 		if nonce == nil || !nonce.LockedByUserOnly() || err != nil {
-			logger.Printf("observer.expireSystemCall(%v %v)", call, nonce)
+			logger.Printf("observer.expireSystemCall(%v %v %v)", call, nonce, err)
 			id = common.UniqueId(id, "expire-nonce")
 			extra[0] = ConfirmFlagNonceExpired
 		} else {
@@ -540,11 +540,11 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 		return err
 	}
 	for _, call := range calls {
-		logger.Printf("observer.processUnsignedCalls(%s %d)", call.RequestId, len(calls))
 		now := time.Now().UTC()
 		if call.RequestSignerAt.Valid && call.RequestSignerAt.Time.Add(20*time.Minute).After(now) {
 			continue
 		}
+		logger.Printf("observer.processUnsignedCalls(%s %d)", call.RequestId, len(calls))
 		offset := call.CreatedAt
 		if call.RequestSignerAt.Valid {
 			offset = call.RequestSignerAt.Time
