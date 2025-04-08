@@ -662,6 +662,10 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 	if call == nil || call.Signature.Valid || call.State == common.RequestStateFailed {
 		return node.failRequest(ctx, req, "")
 	}
+	if call.RequestSignerAt.Valid && call.RequestSignerAt.Time.Add(20*time.Minute).After(req.CreatedAt) {
+		return node.failRequest(ctx, req, "")
+	}
+
 	old, err := node.store.ReadSession(ctx, req.Id)
 	logger.Printf("store.ReadSession(%s) => %v %v", req.Id, old, err)
 	if err != nil {
