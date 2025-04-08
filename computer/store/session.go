@@ -204,7 +204,7 @@ func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*S
 	defer s.mutex.Unlock()
 
 	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
-	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NULL AND prepared_at IS NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
+	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NULL AND prepared_at IS NULL ORDER BY operation DESC, created_at ASC, sub_index ASC, session_id ASC LIMIT %d", cols, limit)
 	return s.listSessionsByQuery(ctx, sql, common.RequestStateInitial)
 }
 

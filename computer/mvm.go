@@ -252,6 +252,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 
 	switch flag {
 	case ConfirmFlagNonceAvailable:
+		var sessions []*store.Session
 		prepare, tx, err := node.getSubSystemCallFromReferencedStorage(ctx, req)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
@@ -273,6 +274,17 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
+			sessions = append(sessions, &store.Session{
+				Id:         req.Id,
+				RequestId:  prepare.RequestId,
+				MixinHash:  req.MixinHash.String(),
+				MixinIndex: req.Output.OutputIndex,
+				Index:      0,
+				Operation:  OperationTypeSignInput,
+				Public:     prepare.Public,
+				Extra:      prepare.Message,
+				CreatedAt:  req.CreatedAt,
+			})
 
 			index, err := solanaApp.GetSignatureIndexOfAccount(*tx, node.getMTGAddress(ctx))
 			if err != nil {
@@ -301,14 +313,26 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			txs = append(txs, tx)
 			ids = append(ids, tx.TraceId)
 		}
+		call.RequestSignerAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 		call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
 		if len(txs) == 0 {
 			call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 			call.State = common.RequestStatePending
 			prepare.State = common.RequestStatePending
 		}
+		sessions = append(sessions, &store.Session{
+			Id:         req.Id,
+			RequestId:  call.RequestId,
+			MixinHash:  req.MixinHash.String(),
+			MixinIndex: req.Output.OutputIndex,
+			Index:      1,
+			Operation:  OperationTypeSignInput,
+			Public:     call.Public,
+			Extra:      call.Message,
+			CreatedAt:  req.CreatedAt,
+		})
 
-		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, prepare, txs, "")
+		err = node.store.ConfirmNonceAvailableWithRequest(ctx, req, call, prepare, sessions, txs, "")
 		if err != nil {
 			panic(err)
 		}
@@ -468,6 +492,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 
 	var call, sub *store.SystemCall
 	var assets []string
+	var sessions []*store.Session
 	var txs []*mtg.Transaction
 	var compaction string
 	switch flag {
@@ -536,6 +561,17 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 			if postprocess != nil {
 				sub = postprocess
+				sessions = append(sessions, &store.Session{
+					Id:         req.Id,
+					RequestId:  postprocess.RequestId,
+					MixinHash:  req.MixinHash.String(),
+					MixinIndex: req.Output.OutputIndex,
+					Index:      0,
+					Operation:  OperationTypeSignInput,
+					Public:     postprocess.Public,
+					Extra:      postprocess.Message,
+					CreatedAt:  req.CreatedAt,
+				})
 			}
 		case store.CallTypePostProcess:
 			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
@@ -601,7 +637,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		return node.failRequest(ctx, req, "")
 	}
 
-	err := node.store.ConfirmSystemCallWithRequest(ctx, req, call, sub, assets, txs, compaction)
+	err := node.store.ConfirmSystemCallWithRequest(ctx, req, call, sub, assets, sessions, txs, compaction)
 	if err != nil {
 		panic(err)
 	}

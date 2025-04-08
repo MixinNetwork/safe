@@ -180,7 +180,7 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, sessions []*Session, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -200,6 +200,17 @@ func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req
 		err = s.writeSystemCall(ctx, tx, sub)
 		if err != nil {
 			return err
+		}
+	}
+
+	for _, session := range sessions {
+		cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
+			"extra", "state", "created_at", "updated_at"}
+		vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
+			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
+		err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 		}
 	}
 
@@ -269,7 +280,7 @@ func (s *SQLite3Store) MarkSystemCallWithdrawnWithRequest(ctx context.Context, r
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, assets []string, txs []*mtg.Transaction, compaction string) error {
+func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Request, call, sub *SystemCall, assets []string, sessions []*Session, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -289,6 +300,17 @@ func (s *SQLite3Store) ConfirmSystemCallWithRequest(ctx context.Context, req *Re
 		err = s.writeSystemCall(ctx, tx, sub)
 		if err != nil {
 			return err
+		}
+	}
+
+	for _, session := range sessions {
+		cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
+			"extra", "state", "created_at", "updated_at"}
+		vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
+			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
+		err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
 		}
 	}
 

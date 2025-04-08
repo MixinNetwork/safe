@@ -294,14 +294,15 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 		panic(err)
 	}
 	call := &store.SystemCall{
-		RequestId:    id,
-		RequestHash:  req.MixinHash.String(),
-		NonceAccount: advance.GetNonceAccount().PublicKey.String(),
-		Message:      hex.EncodeToString(msg),
-		Raw:          tx.MustToBase64(),
-		State:        common.RequestStateInitial,
-		CreatedAt:    req.CreatedAt,
-		UpdatedAt:    req.CreatedAt,
+		RequestId:       id,
+		RequestHash:     req.MixinHash.String(),
+		NonceAccount:    advance.GetNonceAccount().PublicKey.String(),
+		Message:         hex.EncodeToString(msg),
+		Raw:             tx.MustToBase64(),
+		State:           common.RequestStateInitial,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+		RequestSignerAt: sql.NullTime{Valid: true, Time: req.CreatedAt},
 	}
 	if withdrawn {
 		call.WithdrawalTraces = sql.NullString{Valid: true, String: ""}

@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE UNIQUE INDEX IF NOT EXISTS sessions_by_mixin_hash_index ON sessions(mixin_hash, mixin_index, sub_index);
 CREATE INDEX IF NOT EXISTS sessions_by_state_created ON sessions(state, created_at);
+CREATE INDEX IF NOT EXISTS sessions_by_state_operation_created_index ON sessions(state, operation, created_at, sub_index);
 
 
 CREATE TABLE IF NOT EXISTS session_signers (
