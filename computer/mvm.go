@@ -688,7 +688,7 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 	}
 
 	session := &store.Session{
-		Id:         call.RequestId,
+		Id:         req.Id,
 		RequestId:  call.RequestId,
 		MixinHash:  req.MixinHash.String(),
 		MixinIndex: req.Output.OutputIndex,

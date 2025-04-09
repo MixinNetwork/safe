@@ -579,7 +579,6 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 }
 
 func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call *store.SystemCall) error {
-	logger.Printf("node.handleSignedCall(%s)", call.RequestId)
 	defer wg.Done()
 
 	if call.Type == store.CallTypeMain {
@@ -592,6 +591,7 @@ func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call
 		}
 	}
 
+	logger.Printf("node.handleSignedCall(%s)", call.RequestId)
 	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
 	publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
 	tx, err := solana.TransactionFromBase64(call.Raw)
