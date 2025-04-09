@@ -729,7 +729,7 @@ func (node *Node) transferOrMintTokens(ctx context.Context, call *store.SystemCa
 
 	if common.CheckTestEnvironment(ctx) {
 		sort.Slice(transfers, func(i, j int) bool {
-			return transfers[i].AssetId > transfers[j].AssetId && transfers[i].Amount > transfers[j].Amount
+			return transfers[i].AssetId > transfers[j].AssetId || transfers[i].Amount > transfers[j].Amount
 		})
 	}
 
