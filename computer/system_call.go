@@ -219,15 +219,6 @@ func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, ca
 	if call.Type != store.CallTypeMain {
 		return nil, nil
 	}
-	if !common.CheckTestEnvironment(ctx) {
-		ver, err := common.VerifyKernelTransaction(ctx, node.group, req.Output, KernelTimeout)
-		if err != nil {
-			panic(err)
-		}
-		if len(ver.References) != 1 {
-			return nil, nil
-		}
-	}
 
 	postprocess, tx, err := node.getSubSystemCallFromExtra(ctx, req, data)
 	if err != nil {
