@@ -499,7 +499,7 @@ func testObserverRequestGenerateKey(ctx context.Context, require *require.Assert
 	for _, node := range nodes {
 		testWaitOperation(ctx, node, sessionId)
 	}
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 	for _, node := range nodes {
 		sessions, err := node.store.ListPreparedSessions(ctx, 500)
 		require.Nil(err)

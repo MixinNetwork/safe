@@ -179,12 +179,10 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
 			extra := op.IdBytes()
 			extra = append(extra, op.Extra...)
-			op = &common.Operation{
+			err := node.sendSignerTransactionToGroup(ctx, traceId, &common.Operation{
 				Type:  op.Type,
 				Extra: extra,
-			}
-			err := node.sendSignerTransactionToGroup(ctx, traceId, op, nil)
-			logger.Printf("node.sendSignerTransactionToGroup(%v) => %v", op, err)
+			}, nil)
 			if err != nil {
 				break
 			}

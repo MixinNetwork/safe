@@ -106,7 +106,7 @@ func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common
 }
 
 func (node *Node) sendSignerTransactionToGroup(ctx context.Context, traceId string, op *common.Operation, references []crypto.Hash) error {
-	logger.Printf("node.sendSignerTransactionToGroup(%v)", op)
+	logger.Printf("node.sendSignerTransactionToGroup(%s %v)", node.id, op)
 	extra := encodeOperation(op)
 
 	return node.sendTransactionToGroupUntilSufficient(ctx, extra, "1", node.conf.AssetId, traceId, references)
