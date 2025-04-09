@@ -121,7 +121,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, reci
 		logger.Verbosef("common.mixin.CreateObjectStorageTransaction(%s) => %v", sTraceId, err)
 		if err != nil {
 			// FIXME the sdk error in signature
-			if mtg.CheckRetryableError(err) || strings.Contains(err.Error(), "signature verification failed") {
+			if mtg.CheckRetryableError(err) || CheckTransactionRetryError(err.Error()) || strings.Contains(err.Error(), "signature verification failed") {
 				time.Sleep(3 * time.Second)
 				continue
 			}
