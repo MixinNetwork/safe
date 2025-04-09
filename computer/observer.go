@@ -513,7 +513,6 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
 		}, nil)
-		logger.Printf("observer.confirmNonce(%s %d %d)", call.RequestId, OperationTypeConfirmNonce, extra[0])
 		if err != nil {
 			return err
 		}
@@ -521,6 +520,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		logger.Printf("observer.confirmNonce(%s %d %d)", call.RequestId, OperationTypeConfirmNonce, extra[0])
 	}
 	return nil
 }

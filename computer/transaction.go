@@ -133,7 +133,7 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 			MixAddress: bot.NewUUIDMixAddress(node.conf.MTG.Genesis.Members, byte(node.conf.MTG.Genesis.Threshold)),
 			Amount:     amount,
 		},
-	}, nil, memo, traceId, refs, "", node.SafeUser())
+	}, nil, []byte(m), traceId, refs, "", node.SafeUser())
 	return err
 }
 
