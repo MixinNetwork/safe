@@ -99,9 +99,7 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.A
 func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common.Operation, references []crypto.Hash) error {
 	logger.Printf("observer.sendObserverTransactionToGroup(%v)", op)
 	extra := encodeOperation(op)
-	if len(extra) > 160 {
-		panic(fmt.Errorf("node.sendSignerResultTransaction(%v) omitted %x", op, extra))
-	}
+	extra = node.signObserverExtra(extra)
 
 	traceId := fmt.Sprintf("SESSION:%s:OBSERVER:%s", op.Id, string(node.id))
 	return node.sendTransactionToGroupUntilSufficient(ctx, extra, bot.XINAssetId, traceId, references)
@@ -121,7 +119,7 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 		return node.mtgQueueTestOutput(ctx, memo)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	if len(memo) <= mc.ExtraSizeGeneralLimit {
+	if len(memo)+16 <= mc.ExtraSizeGeneralLimit {
 		_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amt, traceId, assetId, m, common.ToMixinnetHash(references), node.conf.MTG.App.SpendPrivateKey)
 		return err
 	}
