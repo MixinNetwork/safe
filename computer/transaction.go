@@ -97,16 +97,22 @@ func (node *Node) buildTransactionWithReferences(ctx context.Context, act *mtg.A
 }
 
 func (node *Node) sendObserverTransactionToGroup(ctx context.Context, op *common.Operation, references []crypto.Hash) error {
-	logger.Printf("observer.sendObserverTransactionToGroup(%v)", op)
+	logger.Printf("node.sendObserverTransactionToGroup(%v)", op)
 	extra := encodeOperation(op)
 	extra = node.signObserverExtra(extra)
 
 	traceId := fmt.Sprintf("SESSION:%s:OBSERVER:%s", op.Id, string(node.id))
-	return node.sendTransactionToGroupUntilSufficient(ctx, extra, bot.XINAssetId, traceId, references)
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, "0.00000001", bot.XINAssetId, traceId, references)
 }
 
-func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, assetId, traceId string, references []crypto.Hash) error {
-	amount := "0.00000001"
+func (node *Node) sendSignerTransactionToGroup(ctx context.Context, traceId string, op *common.Operation, references []crypto.Hash) error {
+	logger.Printf("node.sendSignerTransactionToGroup(%v)", op)
+	extra := encodeOperation(op)
+
+	return node.sendTransactionToGroupUntilSufficient(ctx, extra, "1", node.conf.AssetId, traceId, references)
+}
+
+func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, amount, assetId, traceId string, references []crypto.Hash) error {
 	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
 	amt, err := decimal.NewFromString(amount)

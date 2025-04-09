@@ -57,12 +57,16 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 					break
 				}
 			}
+
 			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", s.Id, string(node.id))
-			extra := []byte{OperationTypeSignPrepare}
-			extra = append(extra, uuid.Must(uuid.FromString(s.Id)).Bytes()...)
+			extra := uuid.Must(uuid.FromString(s.Id)).Bytes()
 			extra = append(extra, PrepareExtra...)
-			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.AssetId, traceId, nil)
-			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
+			op := &common.Operation{
+				Type:  OperationTypeSignPrepare,
+				Extra: extra,
+			}
+			err := node.sendSignerTransactionToGroup(ctx, traceId, op, nil)
+			logger.Printf("node.sendSignerTransactionToGroup(%v) => %v", op, err)
 			if err != nil {
 				break
 			}
@@ -171,13 +175,16 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			default:
 				panic(op.Id)
 			}
-			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
 
-			extra := []byte{op.Type}
-			extra = append(extra, op.IdBytes()...)
+			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:RESULT", op.Id, string(node.id))
+			extra := op.IdBytes()
 			extra = append(extra, op.Extra...)
-			err := node.sendTransactionToGroupUntilSufficient(ctx, extra, node.conf.AssetId, traceId, nil)
-			logger.Printf("node.sendTransactionToGroupUntilSufficient(%x %s) => %v", extra, traceId, err)
+			op = &common.Operation{
+				Type:  op.Type,
+				Extra: extra,
+			}
+			err := node.sendSignerTransactionToGroup(ctx, traceId, op, nil)
+			logger.Printf("node.sendSignerTransactionToGroup(%v) => %v", op, err)
 			if err != nil {
 				break
 			}
