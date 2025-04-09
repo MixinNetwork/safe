@@ -89,7 +89,7 @@ func (node *Node) processAssetIcon(ctx context.Context, asset *bot.AssetNetwork)
 	}
 
 	trace := common.UniqueId(asset.AssetID, "footmark-webp-icon")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, trace, *node.SafeUser())
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, nil, data, trace, *node.SafeUser())
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +124,7 @@ func (node *Node) checkExternalAssetUri(ctx context.Context, asset *bot.AssetNet
 		return "", err
 	}
 	id := common.UniqueId(asset.AssetID, "storage")
-	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, data, id, *node.SafeUser())
+	hash, err := common.WriteStorageUntilSufficient(ctx, node.mixin, nil, data, id, *node.SafeUser())
 	if err != nil {
 		return "", err
 	}

@@ -124,16 +124,12 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 		return err
 	}
 
-	var refs []string
-	for _, ref := range references {
-		refs = append(refs, ref.String())
-	}
-	_, err = bot.CreateObjectStorageTransaction(ctx, []*bot.TransactionRecipient{
+	_, err = common.WriteStorageUntilSufficient(ctx, node.mixin, []*bot.TransactionRecipient{
 		{
 			MixAddress: bot.NewUUIDMixAddress(node.conf.MTG.Genesis.Members, byte(node.conf.MTG.Genesis.Threshold)),
 			Amount:     amount,
 		},
-	}, nil, []byte(m), traceId, refs, "", node.SafeUser())
+	}, []byte(m), traceId, *node.SafeUser())
 	return err
 }
 

@@ -92,7 +92,7 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 	return int(limit)
 }
 
-func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
+func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, recipients []*bot.TransactionRecipient, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
 	for {
 		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
@@ -117,7 +117,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, extr
 			continue
 		}
 
-		_, err = bot.CreateObjectStorageTransaction(ctx, nil, nil, extra, sTraceId, nil, "", &su)
+		_, err = bot.CreateObjectStorageTransaction(ctx, recipients, nil, extra, sTraceId, nil, "", &su)
 		logger.Verbosef("common.mixin.CreateObjectStorageTransaction(%s) => %v", sTraceId, err)
 		if err != nil {
 			// FIXME the sdk error in signature
