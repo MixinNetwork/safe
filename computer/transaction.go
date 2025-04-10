@@ -120,14 +120,14 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 		panic(err)
 	}
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
-	logger.Printf("node.sendTransactionToGroupUntilSufficient() => %s", traceId)
 
 	if common.CheckTestEnvironment(ctx) {
 		return node.mtgQueueTestOutput(ctx, memo)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	if len(memo)+16 <= mc.ExtraSizeGeneralLimit {
+	if len([]byte(m)) <= mc.ExtraSizeGeneralLimit {
 		_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amt, traceId, assetId, m, common.ToMixinnetHash(references), node.conf.MTG.App.SpendPrivateKey)
+		logger.Printf("node.SendTransactionUntilSufficient(%s) => %v", traceId, err)
 		return err
 	}
 
@@ -137,6 +137,7 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 			Amount:     amount,
 		},
 	}, []byte(m), traceId, *node.SafeUser())
+	logger.Printf("node.WriteStorageUntilSufficient(%s) => %v", traceId, err)
 	return err
 }
 

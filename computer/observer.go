@@ -607,21 +607,21 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	}
 
 	var wg sync.WaitGroup
-	for _, calls := range callSequence {
+	for key, calls := range callSequence {
 		wg.Add(1)
-		go node.handleSignedCallSequence(ctx, &wg, calls)
+		go node.handleSignedCallSequence(ctx, &wg, key, calls)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGroup, calls []*store.SystemCall) error {
+func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGroup, key string, calls []*store.SystemCall) error {
 	defer wg.Done()
 	var ids []string
 	for _, c := range calls {
 		ids = append(ids, c.RequestId)
 	}
-	logger.Printf("node.handleSignedCallSequence(%s)", strings.Join(ids, ","))
+	logger.Printf("node.handleSignedCallSequence(%s) => %s", key, strings.Join(ids, ","))
 	if len(calls) > 2 {
 		panic(fmt.Errorf("invalid call sequence length: %s", strings.Join(ids, ",")))
 	}
