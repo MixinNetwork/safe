@@ -708,7 +708,18 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.State = common.RequestStatePending
 
-	err = node.store.WriteSubCallWithRequest(ctx, req, call)
+	session := &store.Session{
+		Id:         call.RequestId,
+		RequestId:  call.RequestId,
+		MixinHash:  req.MixinHash.String(),
+		MixinIndex: req.Output.OutputIndex,
+		Index:      0,
+		Operation:  OperationTypeSignInput,
+		Public:     call.Public,
+		Extra:      call.Message,
+		CreatedAt:  req.CreatedAt,
+	}
+	err = node.store.WriteDepositCallWithRequest(ctx, req, call, session)
 	if err != nil {
 		panic(err)
 	}

@@ -119,7 +119,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request, call *SystemCall) error {
+func (s *SQLite3Store) WriteDepositCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -130,6 +130,10 @@ func (s *SQLite3Store) WriteSubCallWithRequest(ctx context.Context, req *Request
 	defer common.Rollback(tx)
 
 	err = s.writeSystemCall(ctx, tx, call)
+	if err != nil {
+		return err
+	}
+	err = s.writeSession(ctx, tx, session)
 	if err != nil {
 		return err
 	}
@@ -156,14 +160,9 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 	if err != nil {
 		return err
 	}
-
-	cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
-		"extra", "state", "created_at", "updated_at"}
-	vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
-		session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
-	err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
+	err = s.writeSession(ctx, tx, session)
 	if err != nil {
-		return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
+		return err
 	}
 
 	for _, asset := range assets {
