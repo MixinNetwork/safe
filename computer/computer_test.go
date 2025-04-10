@@ -131,33 +131,6 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	return postprocess
 }
 
-func testObserverConfirmSubCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
-	node := nodes[0]
-	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", sub.RequestId)
-	require.Nil(err)
-	nonce, err := node.store.ReadNonceAccount(ctx, sub.NonceAccount)
-	require.Nil(err)
-	require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
-	require.False(nonce.CallId.Valid)
-	require.False(nonce.Mix.Valid)
-
-	id := uuid.Must(uuid.NewV4()).String()
-	signature := solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb")
-	extra := []byte{FlagConfirmCallSuccess}
-	extra = append(extra, signature[:]...)
-	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
-		testStep(ctx, require, node, out)
-
-		sub, err := node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStateDone)
-		require.Nil(err)
-		require.NotNil(sub)
-		call, err := node.store.ReadSystemCallByRequestId(ctx, sub.Superior, common.RequestStatePending)
-		require.Nil(err)
-		require.NotNil(call)
-	}
-}
-
 func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call, sub *store.SystemCall) {
 	tid := call.GetWithdrawalIds()[0]
 	callId := call.RequestId
