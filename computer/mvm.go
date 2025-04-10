@@ -572,7 +572,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		}
 		return nil, ""
 	case FlagConfirmCallFail:
-		callId := uuid.Must(uuid.FromBytes(extra)).String()
+		callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
 		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
 		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
 		if err != nil {
