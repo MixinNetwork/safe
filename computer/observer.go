@@ -496,7 +496,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			tx, err := node.transferOrMintTokens(ctx, call, nonce, fee)
+			tx, err := node.CreatePrepareTransaction(ctx, call, nonce, fee)
 			if err != nil {
 				return err
 			}
@@ -653,6 +653,11 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 	}
 	sigs = append(sigs, preTx.Signatures[0])
 
+	err = node.checkCreatedAtaUntilSufficient(ctx, preTx)
+	if err != nil {
+		return err
+	}
+
 	tx, meta, err := node.handleSignedCall(ctx, calls[1])
 	if err != nil {
 		return node.processFailedCall(ctx, calls[1])
@@ -660,6 +665,25 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 	sigs = append(sigs, tx.Signatures[0])
 
 	return node.processSuccessedCall(ctx, calls[1], tx, meta, sigs)
+}
+
+func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
+	as := solanaApp.ExtractCreatedAtasFromTransaction(ctx, tx)
+	for _, a := range as {
+		mint, err := node.getAccountUntilSufficient(ctx, a.Mint)
+		if err != nil {
+			return err
+		}
+		ata, _, err := solanaApp.FindAssociatedTokenAddress(a.Wallet, a.Mint, mint.Value.Owner)
+		if err != nil {
+			panic(err)
+		}
+		_, err = node.getAccountUntilSufficient(ctx, ata)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) (*solana.Transaction, *rpc.TransactionMeta, error) {

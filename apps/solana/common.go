@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/blocto/solana-go-sdk/types"
 	"github.com/gagliardetto/solana-go"
+	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gofrs/uuid"
@@ -194,6 +195,41 @@ func ExtractBurnsFromTransaction(ctx context.Context, tx *solana.Transaction) []
 	}
 
 	return bs
+}
+
+func ExtractCreatedAtasFromTransaction(ctx context.Context, tx *solana.Transaction) []*tokenAta.Create {
+	var as []*tokenAta.Create
+	msg := tx.Message
+
+	for _, cix := range msg.Instructions {
+		programKey, err := msg.Program(cix.ProgramIDIndex)
+		if err != nil {
+			panic(err)
+		}
+		if programKey != tokenAta.ProgramID {
+			continue
+		}
+		accounts, err := cix.ResolveInstructionAccounts(&msg)
+		if err != nil {
+			panic(err)
+		}
+		ix, err := tokenAta.DecodeInstruction(accounts, cix.Data)
+		if err != nil {
+			panic(err)
+		}
+		if a, ok := ix.Impl.(*tokenAta.Create); ok {
+			as = append(as, a)
+		}
+		if a, ok := ix.Impl.(*Create); ok {
+			as = append(as, &tokenAta.Create{
+				Payer:  a.Payer,
+				Wallet: a.Wallet,
+				Mint:   a.Mint,
+			})
+		}
+	}
+
+	return as
 }
 
 func DecodeSystemTransfer(accounts solana.AccountMetaSlice, data []byte) (*system.Transfer, bool) {
