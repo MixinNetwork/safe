@@ -41,7 +41,6 @@ func TestComputer(t *testing.T) {
 	user := testUserRequestAddUsers(ctx, require, nodes)
 	call, sub := testUserRequestSystemCall(ctx, require, nodes, mds, user)
 	testConfirmWithdrawal(ctx, require, nodes, call, sub)
-	testObserverConfirmSubCall(ctx, require, nodes, sub)
 	postprocess := testObserverConfirmMainCall(ctx, require, nodes, call)
 	testObserverConfirmPostprocessCall(ctx, require, nodes, postprocess)
 }
@@ -57,7 +56,7 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 
 	id := uuid.Must(uuid.NewV4()).String()
 	signature := solana.MustSignatureFromBase58("5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR")
-	extra := []byte{FlagConfirmCallSuccess}
+	extra := []byte{FlagConfirmCallSuccess, 1}
 	extra = append(extra, signature[:]...)
 	for _, node := range nodes {
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
@@ -89,8 +88,6 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	require.False(nonce.Mix.Valid)
 
 	cid := common.UniqueId(call.RequestId, "post-process")
-	nonce, err = node.store.ReadSpareNonceAccount(ctx)
-	require.Nil(err)
 	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 	require.Nil(err)
 	stx := node.CreatePostprocessTransaction(ctx, call, nonce, nil, nil)
@@ -99,9 +96,15 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	require.Nil(err)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	signature := solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW")
+	signatures := []solana.Signature{
+		solana.MustSignatureFromBase58("2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb"),
+		solana.MustSignatureFromBase58("39XBTQ7v6874uQb3vpF4zLe2asgNXjoBgQDkNiWya9ZW7UuG6DgY7kP4DFTRaGUo48NZF4qiZFGs1BuWJyCzRLtW"),
+	}
 	extra := []byte{FlagConfirmCallSuccess}
-	extra = append(extra, signature[:]...)
+	extra = append(extra, byte(len(signatures)))
+	for _, sig := range signatures {
+		extra = append(extra, sig[:]...)
+	}
 	extra = attachSystemCall(extra, cid, raw)
 
 	var postprocess *store.SystemCall
@@ -443,7 +446,7 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 
 	id = common.UniqueId(id, "confirm")
 	sig := solana.MustSignatureFromBase58("MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi")
-	extra = []byte{FlagConfirmCallSuccess}
+	extra = []byte{FlagConfirmCallSuccess, 1}
 	extra = append(extra, sig[:]...)
 	for _, node := range nodes {
 		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)

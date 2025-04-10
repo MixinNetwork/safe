@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -564,43 +565,114 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 		time.Sleep(30 * time.Second)
 		return nil
 	}
-	calls, err := node.store.ListSignedCalls(ctx)
+
+	callMap, err := node.store.ListSignedCalls(ctx)
 	if err != nil {
 		return err
 	}
+	callSequence := make(map[string][]*store.SystemCall)
+	for _, call := range callMap {
+		switch call.Type {
+		case store.CallTypeDeposit, store.CallTypeMint, store.CallTypePostProcess:
+			key := fmt.Sprintf("%s:%s", call.Type, call.RequestId)
+			callSequence[key] = append(callSequence[key], call)
+		case store.CallTypeMain:
+			pending, err := node.store.CheckUnfinishedSubCalls(ctx, call)
+			if err != nil {
+				panic(err)
+			}
+			// should be processed with its prepare call together
+			if pending {
+				continue
+			}
+			key := fmt.Sprintf("%s:%s", store.CallTypeMain, call.UserIdFromPublicPath().String())
+			// should be processed after previous main call being confirmed
+			if len(callSequence[key]) > 0 {
+				continue
+			}
+			callSequence[key] = append(callSequence[key], call)
+		case store.CallTypePrepare:
+			main := callMap[call.Superior]
+			if main == nil {
+				continue
+			}
+			key := fmt.Sprintf("%s:%s", store.CallTypeMain, main.UserIdFromPublicPath().String())
+			// should be processed after previous main call being confirmed
+			if len(callSequence[key]) > 0 {
+				continue
+			}
+			callSequence[key] = append(callSequence[key], call)
+			callSequence[key] = append(callSequence[key], main)
+		}
+	}
 
 	var wg sync.WaitGroup
-	for _, call := range calls {
+	for _, calls := range callSequence {
 		wg.Add(1)
-		go node.handleSignedCall(ctx, &wg, call)
+		go node.handleSignedCallSequence(ctx, &wg, calls)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call *store.SystemCall) error {
+func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGroup, calls []*store.SystemCall) error {
 	defer wg.Done()
 
-	if call.Type == store.CallTypeMain {
-		pending, err := node.store.CheckUnfinishedSubCalls(ctx, call)
+	if len(calls) == 1 {
+		call := calls[0]
+
+		if call.Type == store.CallTypeMain {
+			pending, err := node.store.CheckUnfinishedSubCalls(ctx, call)
+			if err != nil {
+				panic(err)
+			}
+			if pending {
+				return nil
+			}
+		}
+
+		tx, meta, err := node.handleSignedCall(ctx, call)
 		if err != nil {
-			panic(err)
+			return node.processFailedCall(ctx, call)
 		}
-		if pending {
-			return nil
-		}
+		return node.processSuccessedCall(ctx, call, tx, meta, []solana.Signature{tx.Signatures[0]})
 	}
 
+	if len(calls) != 2 {
+		var ids []string
+		for _, c := range calls {
+			ids = append(ids, c.RequestId)
+		}
+		panic(fmt.Errorf("invalid call sequence length: %s", strings.Join(ids, ",")))
+	}
+
+	var sigs []solana.Signature
+	preTx, _, err := node.handleSignedCall(ctx, calls[0])
+	if err != nil {
+		return node.processFailedCall(ctx, calls[0])
+	}
+	sigs = append(sigs, preTx.Signatures[0])
+
+	tx, meta, err := node.handleSignedCall(ctx, calls[1])
+	if err != nil {
+		return node.processFailedCall(ctx, calls[1])
+	}
+	sigs = append(sigs, tx.Signatures[0])
+
+	return node.processSuccessedCall(ctx, calls[1], tx, meta, sigs)
+}
+
+func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) (*solana.Transaction, *rpc.TransactionMeta, error) {
 	logger.Printf("node.handleSignedCall(%s)", call.RequestId)
 	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
 	publicKey := node.getUserSolanaPublicKeyFromCall(ctx, call)
 	tx, err := solana.TransactionFromBase64(call.Raw)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
 	if err != nil {
@@ -622,21 +694,23 @@ func (node *Node) handleSignedCall(ctx context.Context, wg *sync.WaitGroup, call
 	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
 	logger.Printf("observer.SendTransactionUtilConfirm(%s) => %v", tx.Signatures[0].String(), err)
 	if err != nil {
-		return node.processFailedCall(ctx, call)
+		return nil, nil, err
 	}
 	txx, err := rpcTx.Transaction.GetTransaction()
 	if err != nil {
-		return err
+		panic(err)
 	}
-	return node.processSuccessedCall(ctx, call, txx, rpcTx.Meta)
+	return txx, rpcTx.Meta, nil
 }
 
 // deposited assets to run system call and new assets received in system call are all handled here
-func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCall, txx *solana.Transaction, meta *rpc.TransactionMeta) error {
+func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCall, txx *solana.Transaction, meta *rpc.TransactionMeta, hashes []solana.Signature) error {
 	id := common.UniqueId(call.RequestId, "confirm-success")
-	txId := txx.Signatures[0]
 	extra := []byte{FlagConfirmCallSuccess}
-	extra = append(extra, txId[:]...)
+	extra = append(extra, byte(len(hashes)))
+	for _, hash := range hashes {
+		extra = append(extra, hash[:]...)
+	}
 
 	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
 		cid := common.UniqueId(id, "post-process")

@@ -91,13 +91,9 @@ func (s *SQLite3Store) TestWriteSignSession(ctx context.Context, call *SystemCal
 	}
 
 	for _, session := range sessions {
-		cols := []string{"session_id", "request_id", "mixin_hash", "mixin_index", "sub_index", "operation", "public",
-			"extra", "state", "created_at", "updated_at"}
-		vals := []any{session.Id, session.RequestId, session.MixinHash, session.MixinIndex, session.Index, session.Operation, session.Public,
-			session.Extra, common.RequestStateInitial, session.CreatedAt, session.CreatedAt}
-		err = s.execOne(ctx, tx, buildInsertionSQL("sessions", cols), vals...)
+		err = s.writeSession(ctx, tx, session)
 		if err != nil {
-			return fmt.Errorf("SQLite3Store INSERT sessions %v", err)
+			return err
 		}
 	}
 

@@ -502,78 +502,57 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 	extra := req.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
 
-	var call, sub *store.SystemCall
-	var assets []string
-	var sessions []*store.Session
-	var txs []*mtg.Transaction
-	var compaction string
 	switch flag {
 	case FlagConfirmCallSuccess:
-		signature := base58.Encode(extra[:64])
-		transaction, err := node.SolanaClient().RPCGetTransaction(ctx, signature)
-		if err != nil {
-			panic(err)
-		}
-		if transaction == nil {
-			logger.Printf("transaction not found: %s", signature)
+		n, extra := int(extra[0]), extra[1:]
+		if n == 0 || n > 2 {
+			logger.Printf("invalid length of signature: %d", n)
 			return node.failRequest(ctx, req, "")
 		}
-		tx, err := transaction.Transaction.GetTransaction()
-		if err != nil {
-			panic(err)
-		}
-		msg, err := tx.Message.MarshalBinary()
-		if err != nil {
-			panic(err)
-		}
-		if common.CheckTestEnvironment(ctx) {
-			cs, err := node.store.ListSignedCalls(ctx)
+		if n == 1 {
+			signature := base58.Encode(extra[:64])
+			call, tx, err := node.checkConfirmCallSignature(ctx, signature)
 			if err != nil {
-				panic(err)
+				logger.Printf("node.checkConfirmCallSignature(%s) => %v", signature, err)
+				return node.failRequest(ctx, req, "")
 			}
-			fmt.Println("===")
-			fmt.Println(signature)
-			for i, c := range cs {
-				fmt.Println(i, c.Type, c.Message)
-			}
-			test := getTestSystemConfirmCallMessage(signature)
-			if test != nil {
-				msg = test
-			}
-		}
-		call, err = node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
-		if err != nil || call == nil {
-			panic(fmt.Errorf("store.ReadSystemCallByMessage(%x) => %v %v", msg, call, err))
-		}
-		if call.State != common.RequestStatePending {
-			logger.Printf("invalid call state: %s %d", call.RequestId, call.State)
-			return node.failRequest(ctx, req, "")
-		}
-		call.State = common.RequestStateDone
-		call.Hash = sql.NullString{Valid: true, String: signature}
 
-		switch call.Type {
-		case store.CallTypeMint:
-			if common.CheckTestEnvironment(ctx) {
-				tx, err = solana.TransactionFromBase64(call.Raw)
+			switch call.Type {
+			case store.CallTypeDeposit:
+				err := node.store.ConfirmSystemCallsWithRequest(ctx, req, []*store.SystemCall{call}, nil, nil)
 				if err != nil {
 					panic(err)
 				}
+				return nil, ""
+			case store.CallTypeMint:
+				return node.confirmMintSystemCall(ctx, req, call, tx)
+			case store.CallTypePostProcess:
+				return node.confirmPostprocessSystemCall(ctx, req, call, tx)
 			}
-			assets = solanaApp.ExtractMintsFromTransaction(tx)
-			logger.Printf("ExtractMintsFromTransaction(%v) => %v", tx, assets)
-			if len(assets) == 0 {
+		}
+
+		var calls []*store.SystemCall
+		var session *store.Session
+		var sub *store.SystemCall
+		for i := range n {
+			signature := base58.Encode(extra[i*64 : (i+1)*64])
+			call, _, err := node.checkConfirmCallSignature(ctx, signature)
+			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
-		case store.CallTypeMain:
-			postprocess, err := node.getPostprocessCall(ctx, req, call, extra[64:])
+			calls = append(calls, call)
+			if call.Type == store.CallTypePrepare {
+				continue
+			}
+
+			postprocess, err := node.getPostprocessCall(ctx, req, call, extra[(i+1)*64:])
 			logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
 			if postprocess != nil {
 				sub = postprocess
-				sessions = append(sessions, &store.Session{
+				session = &store.Session{
 					Id:         postprocess.RequestId,
 					RequestId:  postprocess.RequestId,
 					MixinHash:  req.MixinHash.String(),
@@ -583,77 +562,55 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 					Public:     postprocess.Public,
 					Extra:      postprocess.Message,
 					CreatedAt:  req.CreatedAt,
-				})
-			}
-		case store.CallTypePostProcess:
-			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-			if err != nil {
-				panic(err)
-			}
-			mix, err := bot.NewMixAddressFromString(user.MixAddress)
-			if err != nil {
-				panic(err)
-			}
-			bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
-			for _, burn := range bs {
-				address := burn.GetMintAccount().PublicKey.String()
-				da, err := node.store.ReadDeployedAssetByAddress(ctx, address)
-				if err != nil || da == nil {
-					panic(err)
 				}
+			}
 
-				asset, err := common.SafeReadAssetUntilSufficient(ctx, da.AssetId)
-				if err != nil {
-					panic(err)
-				}
-				amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision)).String()
-				amt := mc.NewIntegerFromString(amount)
-				if amt.Sign() == 0 {
-					continue
-				}
-
-				id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
-				id = common.UniqueId(id, user.MixAddress)
-				tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount, []byte("refund"), id)
-				if tx == nil {
-					compaction = da.AssetId
-					txs = nil
-					break
-				}
-				txs = append(txs, tx)
-			}
 		}
-	case FlagConfirmCallFail:
-		callId := uuid.Must(uuid.FromBytes(extra)).String()
-		c, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
-		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, c, err)
+		err := node.store.ConfirmSystemCallsWithRequest(ctx, req, calls, sub, session)
 		if err != nil {
 			panic(err)
 		}
-		if c == nil {
+		return nil, ""
+	case FlagConfirmCallFail:
+		callId := uuid.Must(uuid.FromBytes(extra)).String()
+		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
+		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
+		if err != nil {
+			panic(err)
+		}
+		if call == nil {
 			return node.failRequest(ctx, req, "")
 		}
-		call = c
-		call.State = common.RequestStateFailed
 
 		postprocess, err := node.getPostprocessCall(ctx, req, call, extra[16:])
 		logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
+		var session *store.Session
 		if postprocess != nil {
-			sub = postprocess
+			session = &store.Session{
+				Id:         postprocess.RequestId,
+				RequestId:  postprocess.RequestId,
+				MixinHash:  req.MixinHash.String(),
+				MixinIndex: req.Output.OutputIndex,
+				Index:      0,
+				Operation:  OperationTypeSignInput,
+				Public:     postprocess.Public,
+				Extra:      postprocess.Message,
+				CreatedAt:  req.CreatedAt,
+			}
 		}
+
+		err = node.store.FailSystemCallWithRequest(ctx, req, call, postprocess, session)
+		if err != nil {
+			panic(err)
+		}
+		return nil, ""
 	default:
 		logger.Printf("invalid confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")
 	}
-
-	err := node.store.ConfirmSystemCallWithRequest(ctx, req, call, sub, assets, sessions, txs, compaction)
-	if err != nil {
-		panic(err)
-	}
-	return txs, compaction
 }
 
 func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
@@ -747,7 +704,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		return node.failRequest(ctx, req, "")
 	}
 	call.Superior = call.RequestId
-	call.Type = store.CallTypeMain
+	call.Type = store.CallTypeDeposit
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.State = common.RequestStatePending
 
@@ -861,4 +818,114 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, 
 		panic(err)
 	}
 	return txs, compaction
+}
+
+func (node *Node) checkConfirmCallSignature(ctx context.Context, signature string) (*store.SystemCall, *solana.Transaction, error) {
+	transaction, err := node.SolanaClient().RPCGetTransaction(ctx, signature)
+	if err != nil {
+		panic(err)
+	}
+	if transaction == nil {
+		return nil, nil, fmt.Errorf("checkConfirmCallSignature(%s) => not found", signature)
+	}
+	tx, err := transaction.Transaction.GetTransaction()
+	if err != nil {
+		panic(err)
+	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	if common.CheckTestEnvironment(ctx) {
+		cs, err := node.store.ListSignedCalls(ctx)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("===")
+		fmt.Println(signature)
+		for _, c := range cs {
+			fmt.Println(c.Type, c.Message)
+		}
+		test := getTestSystemConfirmCallMessage(signature)
+		if test != nil {
+			msg = test
+		}
+	}
+
+	call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
+	if err != nil {
+		panic(fmt.Errorf("store.ReadSystemCallByMessage(%x) => %v", msg, err))
+	}
+	if call == nil || call.State != common.RequestStatePending {
+		return nil, nil, fmt.Errorf("checkConfirmCallSignature(%s) => invalid call %v", signature, call)
+	}
+	call.State = common.RequestStateDone
+	call.Signature = sql.NullString{Valid: true, String: signature}
+	return call, tx, nil
+}
+
+func (node *Node) confirmMintSystemCall(ctx context.Context, req *store.Request, call *store.SystemCall, tx *solana.Transaction) ([]*mtg.Transaction, string) {
+	if common.CheckTestEnvironment(ctx) {
+		txx, err := solana.TransactionFromBase64(call.Raw)
+		if err != nil {
+			panic(err)
+		}
+		tx = txx
+	}
+	assets := solanaApp.ExtractMintsFromTransaction(tx)
+	logger.Printf("ExtractMintsFromTransaction(%v) => %v", tx, assets)
+	if len(assets) == 0 {
+		logger.Printf("node.processConfirmedCall(%s) => invalid mint call", call.RequestId)
+		return node.failRequest(ctx, req, "")
+	}
+	err := node.store.ConfirmMintSystemCallWithRequest(ctx, req, call, assets)
+	if err != nil {
+		panic(err)
+	}
+	return nil, ""
+}
+
+func (node *Node) confirmPostprocessSystemCall(ctx context.Context, req *store.Request, call *store.SystemCall, tx *solana.Transaction) ([]*mtg.Transaction, string) {
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+	if err != nil {
+		panic(err)
+	}
+	mix, err := bot.NewMixAddressFromString(user.MixAddress)
+	if err != nil {
+		panic(err)
+	}
+
+	var txs []*mtg.Transaction
+	bs := solanaApp.ExtractBurnsFromTransaction(ctx, tx)
+	for _, burn := range bs {
+		address := burn.GetMintAccount().PublicKey.String()
+		da, err := node.store.ReadDeployedAssetByAddress(ctx, address)
+		if err != nil || da == nil {
+			panic(err)
+		}
+
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, da.AssetId)
+		if err != nil {
+			panic(err)
+		}
+		amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision)).String()
+		amt := mc.NewIntegerFromString(amount)
+		if amt.Sign() == 0 {
+			continue
+		}
+
+		id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
+		id = common.UniqueId(id, user.MixAddress)
+		tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount, []byte("refund"), id)
+		if tx == nil {
+			return node.failRequest(ctx, req, da.AssetId)
+		}
+		txs = append(txs, tx)
+	}
+
+	err = node.store.ConfirmPostprocessSystemCallWithRequest(ctx, req, call, txs)
+	if err != nil {
+		panic(err)
+	}
+	return txs, ""
 }

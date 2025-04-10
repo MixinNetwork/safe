@@ -216,7 +216,7 @@ func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.Syste
 }
 
 func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall, data []byte) (*store.SystemCall, error) {
-	if call.Type != store.CallTypeMain {
+	if call.Type != store.CallTypeMain || len(data) == 0 {
 		return nil, nil
 	}
 
