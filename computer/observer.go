@@ -617,6 +617,14 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 
 func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGroup, calls []*store.SystemCall) error {
 	defer wg.Done()
+	var ids []string
+	for _, c := range calls {
+		ids = append(ids, c.RequestId)
+	}
+	logger.Printf("node.handleSignedCallSequence(%s)", strings.Join(ids, ","))
+	if len(calls) > 2 {
+		panic(fmt.Errorf("invalid call sequence length: %s", strings.Join(ids, ",")))
+	}
 
 	if len(calls) == 1 {
 		call := calls[0]
@@ -636,14 +644,6 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 			return node.processFailedCall(ctx, call)
 		}
 		return node.processSuccessedCall(ctx, call, tx, meta, []solana.Signature{tx.Signatures[0]})
-	}
-
-	if len(calls) != 2 {
-		var ids []string
-		for _, c := range calls {
-			ids = append(ids, c.RequestId)
-		}
-		panic(fmt.Errorf("invalid call sequence length: %s", strings.Join(ids, ",")))
 	}
 
 	var sigs []solana.Signature

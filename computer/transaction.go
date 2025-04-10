@@ -120,6 +120,7 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 		panic(err)
 	}
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
+	logger.Printf("node.sendTransactionToGroupUntilSufficient() => %s", traceId)
 
 	if common.CheckTestEnvironment(ctx) {
 		return node.mtgQueueTestOutput(ctx, memo)
