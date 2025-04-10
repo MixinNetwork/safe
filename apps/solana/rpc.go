@@ -125,13 +125,18 @@ func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*
 	return result, nil
 }
 
-func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
+func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
+	commitment := rpc.CommitmentConfirmed
+	if finalized {
+		commitment = rpc.CommitmentFinalized
+	}
+
 	r, err := c.getRPCClient().GetTransaction(ctx,
 		solana.MustSignatureFromBase58(signature),
 		&rpc.GetTransactionOpts{
 			Encoding:                       solana.EncodingBase58,
 			MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
-			Commitment:                     rpc.CommitmentConfirmed,
+			Commitment:                     commitment,
 		},
 	)
 	if err != nil || r.Meta == nil {

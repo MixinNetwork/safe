@@ -171,7 +171,7 @@ func (node *Node) InitializeAccount(ctx context.Context, user *store.User) error
 	if err != nil {
 		return err
 	}
-	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil)
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil, false)
 	return err
 }
 
@@ -258,7 +258,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	if err != nil {
 		return "", "", err
 	}
-	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil)
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil, false)
 	if err != nil {
 		return "", "", err
 	}
@@ -445,9 +445,9 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner solana.PublicKey) map[st
 	return bm
 }
 
-func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (*rpc.GetTransactionResult, error) {
+func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string, finalized bool) (*rpc.GetTransactionResult, error) {
 	for {
-		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash)
+		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
 		logger.Printf("solana.RPCGetTransaction(%s) => %v %v", hash, rpcTx, err)
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
@@ -460,8 +460,8 @@ func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string) (
 	}
 }
 
-func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall) (*rpc.GetTransactionResult, error) {
-	rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String())
+func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall, finalized bool) (*rpc.GetTransactionResult, error) {
+	rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String(), finalized)
 	if err != nil {
 		return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), err)
 	}
@@ -491,7 +491,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 		}
 		return nil, err
 	}
-	return node.ReadTransactionUtilConfirm(ctx, h)
+	return node.ReadTransactionUtilConfirm(ctx, h, finalized)
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
