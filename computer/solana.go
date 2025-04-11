@@ -530,6 +530,10 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner solana.PublicKey) map[st
 }
 
 func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string, finalized bool) (*rpc.GetTransactionResult, error) {
+	interval := 3
+	if finalized {
+		interval = 10
+	}
 	for {
 		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
 		logger.Printf("solana.RPCGetTransaction(%s) => %v %v", hash, rpcTx, err)
@@ -537,7 +541,7 @@ func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string, f
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
 		if rpcTx == nil {
-			time.Sleep(1 * time.Second)
+			time.Sleep(time.Duration(interval) * time.Second)
 			continue
 		}
 		return rpcTx, nil

@@ -197,8 +197,8 @@ func ExtractBurnsFromTransaction(ctx context.Context, tx *solana.Transaction) []
 	return bs
 }
 
-func ExtractCreatedAtasFromTransaction(ctx context.Context, tx *solana.Transaction) []*tokenAta.Create {
-	var as []*tokenAta.Create
+func ExtractCreatedAtasFromTransaction(ctx context.Context, tx *solana.Transaction) []solana.PublicKey {
+	var as []solana.PublicKey
 	msg := tx.Message
 
 	for _, cix := range msg.Instructions {
@@ -218,14 +218,12 @@ func ExtractCreatedAtasFromTransaction(ctx context.Context, tx *solana.Transacti
 			panic(err)
 		}
 		if a, ok := ix.Impl.(*tokenAta.Create); ok {
-			as = append(as, a)
+			ata := a.GetAccounts()[1]
+			as = append(as, ata.PublicKey)
 		}
 		if a, ok := ix.Impl.(*Create); ok {
-			as = append(as, &tokenAta.Create{
-				Payer:  a.Payer,
-				Wallet: a.Wallet,
-				Mint:   a.Mint,
-			})
+			ata := a.GetAccounts()[1]
+			as = append(as, ata.PublicKey)
 		}
 	}
 

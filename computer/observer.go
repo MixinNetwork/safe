@@ -669,16 +669,8 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 
 func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
 	as := solanaApp.ExtractCreatedAtasFromTransaction(ctx, tx)
-	for _, a := range as {
-		mint, err := node.getAccountUntilSufficient(ctx, a.Mint)
-		if err != nil {
-			return err
-		}
-		ata, _, err := solanaApp.FindAssociatedTokenAddress(a.Wallet, a.Mint, mint.Value.Owner)
-		if err != nil {
-			panic(err)
-		}
-		_, err = node.getAccountUntilSufficient(ctx, ata)
+	for _, ata := range as {
+		_, err := node.getAccountUntilSufficient(ctx, ata)
 		if err != nil {
 			return err
 		}
