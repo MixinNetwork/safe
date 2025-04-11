@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/MixinNetwork/safe/mtg"
 	bin "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	lookup "github.com/gagliardetto/solana-go/programs/address-lookup-table"
@@ -123,6 +125,24 @@ func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*
 		return nil, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
 	}
 	return result, nil
+}
+
+func (c *Client) ReadAccountUntilSufficient(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+	for {
+		acc, err := c.RPCGetAccount(ctx, address)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if acc == nil {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return acc, err
+	}
 }
 
 func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {

@@ -15,7 +15,6 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/safe/mtg"
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
@@ -174,24 +173,6 @@ func (node *Node) InitializeAccount(ctx context.Context, user *store.User) error
 	}
 	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil, false)
 	return err
-}
-
-func (node *Node) getAccountUntilSufficient(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	for {
-		acc, err := node.SolanaClient().RPCGetAccount(ctx, address)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if acc == nil {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		return acc, err
-	}
 }
 
 func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (string, *solana.Transaction, []*solanaApp.DeployedAsset, error) {
