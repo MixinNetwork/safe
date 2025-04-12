@@ -309,8 +309,8 @@ func (node *Node) processSolanaSafeProposeAccount(ctx context.Context, req *comm
 	}
 
 	tx := solana.BuildSquadsSafe(solana.BuildSquadsSafeParams{
-		Members:   []sg.PublicKey{sg.MPK(req.Holder), sg.MPK(signer), sg.MPK(observer)},
-		Creator:   sg.MPK(req.Holder),
+		Members:   []sg.PublicKey{solana.MPK(req.Holder), solana.MPK(signer), solana.MPK(observer)},
+		Creator:   solana.MPK(req.Holder),
 		Nonce:     arp.NonceAccount,
 		BlockHash: arp.BlockHash,
 		Payer:     arp.PayerAccount,
@@ -411,7 +411,7 @@ func (node *Node) processSolanaSafeApproveAccount(ctx context.Context, req *comm
 		panic(err)
 	}
 
-	holder := sg.MPK(req.Holder)
+	holder := solana.MPK(req.Holder)
 	sig := sg.SignatureFromBytes(extra[16:])
 	err = solana.AddSignature(tx, holder, sig)
 	logger.Printf("solana.AddSignature(%v) => %v", req, err)

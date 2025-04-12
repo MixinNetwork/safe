@@ -24,15 +24,19 @@ import (
 )
 
 var (
-	testSolanaKeyHolder      = common.Must(sg.NewRandomPrivateKey())
-	testSolanaKeyObserver    = common.Must(sg.NewRandomPrivateKey())
-	testSolanaKeyDummyHolder = common.Must(sg.NewRandomPrivateKey())
+	testSolanaKeyHolder      = sg.MustPrivateKeyFromBase58("3Md1AnGnmDxSwrDjz9cbwRfGAVNvPR2pH9SGftLdeFZEx7HXSTA8seXahRH3KbjbXAAXRpqqqvLFyugLLjxE3HW8")
+	testSolanaKeyObserver    = sg.MustPrivateKeyFromBase58("3NZzws9DKasavm5E6mERiiiB5qqKAze7eznzxJe9Hkq6fvSwizC9M644BToWPZnJmNPGxqfRcYaEQTtspa1wkeQ1")
+	testSolanaKeyDummyHolder = sg.MustPrivateKeyFromBase58("2UVbe4ZGaX5r9oQWSSLAMHB9m6C7iAoDN8ijXSmATgv6BaBuhqk9eGNH7ALV6WL3PMFzhaMcZxtVzQZbwcQMKRHM")
+
+	testSolanaNonceAccount = sg.MPK("FHwzoFkcHxc2xMgTPWjvyra87DBQqwGsS78yCx2EUboh")
+	testSolanaBlockhash    = sg.MPK("3qmjGHDNkk6QC5G4P3SjJauD7Wgdwtgbw9p8fp4dPTqC")
+	testSolanaPayerAccount = sg.MPK("FB1J65JHc1nkgSiuEpSW6fD65MJw6VBT7dN6AyMpGU9B")
 
 	testSolanaBondAssetId         = "08823f4a-6fd4-311e-8ddd-9478e163cf91"
 	testSolanaUSDTAssetId         = "218bc6f4-7927-3f8e-8568-3a3725b74361"
 	testSolanaUSDTBondAssetId     = "edc249f5-d792-3091-a359-23c67ce0d595"
 	testSolanaUSDTAddress         = "H7UPvz5Gouue7Joihvu9jbX4CM4jjxTh3c57FZ2Pkhva"
-	testSolanaTransactionReceiver = common.Must(sg.NewRandomPrivateKey()).PublicKey()
+	testSolanaTransactionReceiver = sg.MPK("3Maas91CwJdYr1wk59buvPEnBx3dkLQpQNopfPfwUARe")
 )
 
 func TestSolanaKeeper(t *testing.T) {
@@ -54,8 +58,10 @@ func TestSolanaKeeper(t *testing.T) {
 func testSolanaPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
 	logger.SetLevel(logger.INFO)
 	ctx, signers, _ := signer.TestPrepare(require)
-	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveEdwards25519Default)
-	chainCode := common.DecodeHexOrPanic(cc)
+	public := signer.TestFROSTPrepareKeys(ctx, require, signers, common.CurveEdwards25519Default)
+
+	// placeholder for chain code
+	chainCode := [32]byte{}
 
 	root, err := os.MkdirTemp("", "safe-keeper-test-")
 	require.Nil(err)
@@ -67,9 +73,9 @@ func testSolanaPrepare(require *require.Assertions) (context.Context, *Node, *mt
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveEdwards25519Default)
 
 	id := uuid.Must(uuid.NewV4()).String()
-	extra := append([]byte{common.RequestRoleSigner}, chainCode...)
+	extra := append([]byte{common.RequestRoleSigner}, chainCode[:]...)
 	extra = append(extra, common.RequestFlagNone)
-	out := testBuildSignerOutput(node, id, mpc, common.OperationTypeKeygenOutput, extra, common.CurveEdwards25519Default)
+	out := testBuildSignerOutput(node, id, public, common.OperationTypeKeygenOutput, extra, common.CurveEdwards25519Default)
 	testStep(ctx, require, node, out)
 	v, err := node.store.ReadProperty(ctx, id)
 	require.Nil(err)
@@ -77,7 +83,7 @@ func testSolanaPrepare(require *require.Assertions) (context.Context, *Node, *mt
 	testSpareKeys(ctx, require, node, 0, 1, 0, common.CurveEdwards25519Default)
 
 	id = uuid.Must(uuid.NewV4()).String()
-	observer := testEthereumPublicKey(testEthereumKeyObserver)
+	observer := hex.EncodeToString(testSolanaKeyObserver.PublicKey().Bytes())
 	occ := make([]byte, 32)
 	extra = append([]byte{common.RequestRoleObserver}, occ...)
 	extra = append(extra, common.RequestFlagNone)
@@ -90,7 +96,7 @@ func testSolanaPrepare(require *require.Assertions) (context.Context, *Node, *mt
 
 	batch := byte(64)
 	id = uuid.Must(uuid.NewV4()).String()
-	dummy := testSolanaKeyHolder.PublicKey().String()
+	dummy := hex.EncodeToString(testSolanaKeyHolder.PublicKey().Bytes())
 	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveEdwards25519Default)
 	testStep(ctx, require, node, out)
 	signerMembers := node.GetSigners()
@@ -113,20 +119,21 @@ func testSolanaPrepare(require *require.Assertions) (context.Context, *Node, *mt
 		testSolanaUpdateAccountPrice(ctx, require, node)
 	}
 
-	rid, stx := testSolanaProposeAccount(ctx, require, node, mpc, observer)
+	rid, stx := testSolanaProposeAccount(ctx, require, node, public, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveEdwards25519Default)
 	testSolanaApproveAccount(ctx, require, node, rid, stx)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveEdwards25519Default)
 	for i := 0; i < 10; i++ {
-		testSolanaUpdateNetworkStatus(ctx, require, node, 52430860, "2N15TVoQkjcKfwzJU3wcb31nSkd6f8UVwLoM5TjCTrVB")
+		testSolanaUpdateNetworkStatus(ctx, require, node, 373789745, "BMgyjNfP89GiUZ4YbXrFHcWP797dAk8ZFRDZ31heKZzT")
 	}
 
-	holder := testSolanaKeyHolder.PublicKey().String()
+	holder := hex.EncodeToString(testSolanaKeyHolder.PublicKey().Bytes())
 	safe, err := node.store.ReadSafe(ctx, holder)
 	require.Nil(err)
-	require.Equal(int64(1), safe.Nonce)
+	require.NotNil(safe)
+	require.Equal(int64(0), safe.Nonce)
 
-	return ctx, node, db, mpc, signers
+	return ctx, node, db, public, signers
 }
 
 func testSolanaProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, rid string) string {
@@ -278,7 +285,7 @@ func testSolanaUpdateAccountPrice(ctx context.Context, require *require.Assertio
 	extra = append(extra, uuid.Must(uuid.FromString(testAccountPriceAssetId)).Bytes()...)
 	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
-	dummy := testSolanaKeyHolder.PublicKey().String()
+	dummy := hex.EncodeToString(testSolanaKeyHolder.PublicKey().Bytes())
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveEdwards25519Default)
 	testStep(ctx, require, node, out)
 
@@ -289,10 +296,22 @@ func testSolanaUpdateAccountPrice(ctx context.Context, require *require.Assertio
 	require.Equal("0.0001", plan.TransactionMinimum.String())
 }
 
+func testSolanaRecipient() []byte {
+	extra := binary.BigEndian.AppendUint16(nil, 0)
+	extra = append(extra, 1, 1)
+	id := uuid.FromStringOrNil(testSafeBondReceiverId)
+	extra = append(extra, id.Bytes()...)
+	extra = append(extra, testSolanaNonceAccount[:]...)
+	extra = append(extra, testSolanaBlockhash[:]...)
+	extra = append(extra, testSolanaPayerAccount[:]...)
+	return extra
+}
+
 func testSolanaProposeAccount(ctx context.Context, require *require.Assertions, node *Node, signer, observer string) (string, *sg.Transaction) {
 	id := uuid.Must(uuid.NewV4()).String()
-	holder := testSolanaKeyHolder.PublicKey().String()
-	extra := testRecipient()
+	holder := hex.EncodeToString(testSolanaKeyHolder.PublicKey().Bytes())
+
+	extra := testSolanaRecipient()
 	price := decimal.NewFromFloat(testAccountPriceAmount)
 	out := testBuildHolderRequest(node, id, holder, common.ActionSolanaSafeProposeAccount, testAccountPriceAssetId, extra, price)
 	testStep(ctx, require, node, out)
@@ -300,7 +319,7 @@ func testSolanaProposeAccount(ctx context.Context, require *require.Assertions, 
 	stx, err := sg.TransactionFromBytes(b)
 	require.Nil(err)
 
-	safeAddress := solana.GetDefaultAuthorityPDA(solana.GetMultisigPDA(sg.MPK(holder))).String()
+	safeAddress := solana.GetDefaultAuthorityPDA(solana.GetMultisigPDA(testSolanaKeyHolder.PublicKey())).String()
 	require.Equal(safeAddress, solana.GetAuthorityAddressFromCreateTx(stx).String())
 
 	sp, err := node.store.ReadSafeProposal(ctx, id)
@@ -319,7 +338,7 @@ func testSolanaProposeAccount(ctx context.Context, require *require.Assertions, 
 
 func testSolanaApproveAccount(ctx context.Context, require *require.Assertions, node *Node, rid string, stx *sg.Transaction) {
 	approveRequestId := uuid.Must(uuid.NewV4()).String()
-	holder := testSolanaKeyHolder.PublicKey().String()
+	holder := hex.EncodeToString(testSolanaKeyHolder.PublicKey().Bytes())
 
 	safeAddress := solana.GetAuthorityAddressFromCreateTx(stx).String()
 	sp, err := node.store.ReadSafeProposalByAddress(ctx, safeAddress)
@@ -364,7 +383,7 @@ func testSolanaUpdateNetworkStatus(ctx context.Context, require *require.Asserti
 	extra = binary.BigEndian.AppendUint64(extra, uint64(fee))
 	extra = binary.BigEndian.AppendUint64(extra, height)
 	extra = append(extra, hash[:]...)
-	dummy := testSolanaKeyDummyHolder.PublicKey().String()
+	dummy := hex.EncodeToString(testSolanaKeyDummyHolder.PublicKey().Bytes())
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveEdwards25519Default)
 	testStep(ctx, require, node, out)
 }

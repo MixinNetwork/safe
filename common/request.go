@@ -172,8 +172,10 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 	}
 	timelock := time.Duration(hours) * time.Hour
 
-	if req.Action == ActionSolanaSafeProposeAccount && timelock != 0 {
-		return nil, fmt.Errorf("solana timelock must be 0")
+	if req.Action == ActionSolanaSafeProposeAccount {
+		if timelock != 0 {
+			return nil, fmt.Errorf("solana timelock must be 0")
+		}
 	} else if timelock < bitcoin.TimeLockMinimum || timelock > bitcoin.TimeLockMaximum {
 		return nil, fmt.Errorf("timelock %d hours", hours)
 	}

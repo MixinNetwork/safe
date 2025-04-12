@@ -879,7 +879,7 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	v, _ := node.store.ReadProperty(ctx, id)
 	var om map[string]any
 	err := json.Unmarshal([]byte(v), &om)
-	require.Nil(err)
+	require.Nil(err, "id: %q, val: %q", id, v)
 	require.Equal(node.conf.ObserverUserId, om["receivers"].([]any)[0])
 	switch typ {
 	case common.ActionBitcoinSafeApproveAccount:
@@ -917,6 +917,8 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 	case common.ActionBitcoinSafeProposeAccount, common.ActionBitcoinSafeProposeTransaction:
 	case common.ActionEthereumSafeProposeAccount, common.ActionEthereumSafeProposeTransaction:
 		crv = common.CurveSecp256k1ECDSAPolygon
+	case common.ActionSolanaSafeProposeAccount, common.ActionSolanaSafeProposeTransaction:
+		crv = common.CurveEdwards25519Default
 	}
 	op := &common.Operation{
 		Id:     id,
@@ -978,6 +980,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	path := bitcoinDefaultDerivationPath()
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin:
+	case common.CurveEdwards25519Default:
 	case common.CurveSecp256k1ECDSAEthereum, common.CurveSecp256k1ECDSAPolygon:
 		path = ethereumDefaultDerivationPath()
 	default:

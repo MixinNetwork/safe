@@ -207,8 +207,8 @@ func (node *Node) verifySolanaNetworkInfo(info, old *store.NetworkInfo) (bool, e
 			return false, fmt.Errorf("malicious solana block or node not in sync? %s %v", info.Hash, err)
 		}
 
-		if block.Blockhash.String() != info.Hash {
-			return false, fmt.Errorf("malicious solana block %s", info.Hash)
+		if hex.EncodeToString(block.Blockhash[:]) != info.Hash {
+			return false, fmt.Errorf("malicious solana block %s, %s", info.Hash, hex.EncodeToString(block.Blockhash[:]))
 		}
 	}
 	return true, nil

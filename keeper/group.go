@@ -62,6 +62,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 
 	role := node.getActionRole(req.Action)
 	if role == 0 || role != req.Role {
+		logger.Printf("node.getActionRole(%v,%v) => %v %v", req.Id,req.Action, role, req.Role)
 		return nil, ""
 	}
 
@@ -99,17 +100,17 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionMigrateSafeToken:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount:
+	case common.ActionBitcoinSafeProposeAccount, common.ActionEthereumSafeProposeAccount, common.ActionSolanaSafeProposeAccount:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount:
+	case common.ActionBitcoinSafeApproveAccount, common.ActionEthereumSafeApproveAccount, common.ActionSolanaSafeApproveAccount:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction:
+	case common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction, common.ActionSolanaSafeProposeTransaction:
 		return common.RequestRoleHolder
-	case common.ActionBitcoinSafeApproveTransaction, common.ActionEthereumSafeApproveTransaction:
+	case common.ActionBitcoinSafeApproveTransaction, common.ActionEthereumSafeApproveTransaction, common.ActionSolanaSafeApproveTransaction:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeRevokeTransaction, common.ActionEthereumSafeRevokeTransaction:
+	case common.ActionBitcoinSafeRevokeTransaction, common.ActionEthereumSafeRevokeTransaction, common.ActionSolanaSafeRevokeTransaction:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeCloseAccount, common.ActionEthereumSafeCloseAccount:
+	case common.ActionBitcoinSafeCloseAccount, common.ActionEthereumSafeCloseAccount, common.ActionSolanaSafeCloseAccount:
 		return common.RequestRoleObserver
 	case common.ActionEthereumSafeRefundTransaction:
 		return common.RequestRoleObserver
