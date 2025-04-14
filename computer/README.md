@@ -32,16 +32,18 @@ When Skip Flag is set to 1, postprocess system call would not be proposed to ref
 
 When FEE ID is provided and extra amount of XIN is sent to computer, the same worth of SOL would be transfered to user account on Solana for rents to create accounts during the system call.
 
+The bytes of Solana transaction should be saved in a storage transaction, and the storage transaction must be referenced by the XIN transaction to make System Call.
+
 ## Solana Runtime
 
 A MIX account wants to create BTC/SOL pool to the Raydium program.
 
 1. Send XIN transaction with extra to computer group to add a User. Then query the HTTP API to get the UID, e.g. 432483921937, and user account address.
-2. Fetch fee payer address, nonce account address and nonce hash from HTTP API, then build Solana transaction with this fee payer address, nonce advance instruction and create pool insturction.
-3. Fetch fee id and amount of XIN for the same worth of SOL to pay the rents of created account needed in Solana transaction.
+2. Fetch fee payer address, nonce account address and nonce hash from HTTP API, then build Solana transaction with this fee payer address, nonce advance instruction and create pool insturctions.
+3. Fetch fee id and amount of XIN for the same worth of SOL to pay the rents of created account needed in System Call.
 4. Send the XIN transaction with 0.001 XIN for operation and extra amount of XIN for rents, and it should reference a storage transaction of Solana transaction, a BTC transaction and a SOL transaction for liquidity.
 
-The group receives the XIN transaciton and will check the transaction payer, the nonce account and the fee, then build the prepare System Call to transfer SOL and mint BTC from group account to user account ahead of System Call created by user. And the mpc would start to generate the signatures for the two System Call. The transaction created by observer should include the following instructions:
+The group receives the XIN transaciton and will check referenced transactions, the amount of received fee, the payer and the nonce account of storaged Solana transaction, then build the prepare System Call to transfer SOL and mint BTC from group account to user account in preparetion for System Call created by user. And the mpc would start to generate the signatures for these two System Calls. The prepare System Call created by observer includes the following instructions:
 
 1. advance nonce
 2. transfer SOL for rent to user account
@@ -51,12 +53,9 @@ The group receives the XIN transaciton and will check the transaction payer, the
 
 The user and the group both have an account on Solana Chain, and are both controlled by the MPC multisig. The group withdraws SOL to the group account at first. After the SOL withdrawal being confirmed by Solana blockchain, the observer sends a notification to the group. 
 
-Then observer will send the prepare System Call and the user System Call in order with the generated signatures. After the two transaction are both confirmed, the observer should update the hash of used nocne account and notifies to the group with a post-process System Call to burn the rest amount of BTC, transfer the rest amount of SOL and transfer the received LP token to the deposit entry of group. 
+Then observer will send the prepare System Call and the user System Call in order with the generated signatures. After the two transaction are both confirmed, the observer should update the hashes of used nocne accounts and notify the group with a post-process System Call to burn the rest amount of BTC, transfer the rest amount of SOL and transfer the received LP token to the deposit entry of group. 
 
-After the group mpc generates the signature of post-process signature, the observer node would send it to the Solana Network and notifies group when it is confirmed. The group would refund the same amount of BTC to the MIX account, and transfer the SOL and LP token to the MIX account after receiving the deposit.
-
-1. advance nonce.
-2. burn the left BTC token in user account.
+After the group mpc generates the signature of post-process signature, the observer node would send it to the Solana Network and notify the group when it is confirmed. The group would refund the same amount of BTC to the MIX account, and transfer the SOL and LP token to the MIX account after receiving the deposits.
 
 In addition, the observer keeps scanning the Solana blocks, and would create a system call to transfer deposit to the user account. Whenever the group receives a mixin deposit transaction, in this case, the LP token, the group will just send the LP token to the MIX account.
 
