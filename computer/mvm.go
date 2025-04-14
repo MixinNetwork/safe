@@ -89,6 +89,8 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 // System call operation full lifecycle:
 //
 //  1. user creates system call with locked nonce
+//     memo: user id (8 bytes) | call id (16 bytes) | skip post-process flag (1 byte) | fee id (16 bytes if needed)
+//     if memo includes the fee id and mtg receives extra amount of XIN (> 0.001), same value of SOL would be tranfered to user account in prepare system call.
 //     processSystemCall
 //     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL, signature: NULL)
 //
@@ -119,7 +121,7 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 //     (prepare system call state: done)
 //     (user    system call state: pending)
 //
-//  5. observer runs, confirms main call successfully
+//  5. observer runs, confirms prepare and main call successfully in order
 //     and creates post-process system call to transfer solana assets to mtg deposit entry and burn external assets
 //     mvm makes sign requests for post-process system call
 //     processConfirmCall
