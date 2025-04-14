@@ -4,9 +4,7 @@ Safe Computer is a decentralized computer for financial computing. This computer
 
 ## Spec
 
-Send transactions to the computer group, each transaction costs some XIN, could be multiple outputs or a XIN transaction references the previous transactions.
-
-It's better to increase the maximum references count in Mixin Kernel.
+Send a XIN transaction to the computer group, and the XIN transaction could reference the previous transactions.
 
 With transaction extra to determine the 2 operation.
 
@@ -24,42 +22,43 @@ The UID is bigger than 2^48. Smaller UID is the system user. But the UID is neve
 
 One transaction could make one system call.
 
-2 | UID(uint64) | Solana Encoded Tx
+2 | UID(uint64) | CALL ID (uuid) | Skip Flag (byte) | FEE ID (optional, uuid)
 
 UID is the asset recipient, and a invalid UID or non existing UID will lose the assets.
+
+CALL ID is a uuid and could be specified by creator.
+
+When Skip Flag is set to 1, postprocess system call would not be proposed to refund rest assets or transfer newly received assets to MIX account.
+
+When FEE ID is provided and extra amount of XIN is sent to computer, the same worth of SOL would be transfered to user account on Solana for rents to create accounts during the system call.
 
 ## Solana Runtime
 
 A MIX account wants to create BTC/SOL pool to the Raydium program.
 
-1. Send XIN transaction with extra to computer group to add a User. Then query the HTTP API to get the UID, e.g. 432483921937, and information to build transaction on Solana, including fee payer address, user account address and assigned nonce account with hash on Solana Network.
-2. Build the Solana transaction with fee payer, nonce account hash, and  instruction to create pool on Raydium.
-3. Send three transactions to the computer group. BTC, SOL, and XIN references the two transactions, with extra: 2 | 432483921937 | Solana Encoded Tx
+1. Send XIN transaction with extra to computer group to add a User. Then query the HTTP API to get the UID, e.g. 432483921937, and user account address.
+2. Fetch fee payer address, nonce account address and nonce hash from HTTP API, then build Solana transaction with this fee payer address, nonce advance instruction and create pool insturction.
+3. Fetch fee id and amount of XIN for the same worth of SOL to pay the rents of created account needed in Solana transaction.
+4. Send the XIN transaction with 0.001 XIN for operation and extra amount of XIN for rents, and it should reference a storage transaction of Solana transaction, a BTC transaction and a SOL transaction for liquidity.
 
-The XIN transaction to create System Call may have the memo exceeds the length limit. It could be done by sending the storage transaction with the first output as a storage output to burn the XIN, and the second output to computer group.
-
-The group receives the XIN transaciton and will check the fee is enough, then make system calls according to the extra.
-
-The user and the group both have an account on Solana Chain, and are both controlled by the MPC multisig. The group withdraws SOL to the group account at first. After the SOL withdrawal is confirmed by Solana blockchain, the observer sends a notification to the group and then send a transaction to group to create a new preparing system call to transfer SOL and mint BTC to the user account with another spare nonce account controlled by the observer. The transaction created by observer should be with the following instructions:
+The group receives the XIN transaciton and will check the transaction payer, the nonce account and the fee, then build the prepare System Call to transfer SOL and mint BTC from group account to user account ahead of System Call created by user. And the mpc would start to generate the signatures for the two System Call. The transaction created by observer should include the following instructions:
 
 1. advance nonce
-2. transfer SOL to user account
-3. create the spl token of BTC if necessary
+2. transfer SOL for rent to user account
+3. transfer SOL for liquidity to user account
 4. create the associated token address of user account if necessary
 5. mint spl token of BTC to user account
 
-After the transaction that transfered and minted the assets is confirmed, the observer should update the hash of used nocne account and sends a notification to the group. Then requests the group to sign the system call created by user.
+The user and the group both have an account on Solana Chain, and are both controlled by the MPC multisig. The group withdraws SOL to the group account at first. After the SOL withdrawal being confirmed by Solana blockchain, the observer sends a notification to the group. 
 
-Then each group members sign the transaction in one go, combines the signature and wait observer to send it to the network. To combine the signature, each node sends a transaction to the group. And there is a member signature to the data for the group to check. 
+Then observer will send the prepare System Call and the user System Call in order with the generated signatures. After the two transaction are both confirmed, the observer should update the hash of used nocne account and notifies to the group with a post-process System Call to burn the rest amount of BTC, transfer the rest amount of SOL and transfer the received LP token to the deposit entry of group. 
 
-After the transaction confirmed, there should be LP tokens in the user account and maybe some BTC because of slippage. We have an observer node to scan the Solana blockchain and finds the extra and rest tokens in user account after System Call. The observer will create a postprocess system call to the computer group, which should be with the following instructions:
+After the group mpc generates the signature of post-process signature, the observer node would send it to the Solana Network and notifies group when it is confirmed. The group would refund the same amount of BTC to the MIX account, and transfer the SOL and LP token to the MIX account after receiving the deposit.
 
 1. advance nonce.
 2. burn the left BTC token in user account.
 
-Then sign the transaction in one go, and broadcast, and marking the transaction in pending state. The observer finds the transaction successful, then send a notification to the group. The group will sends BTC to the user MIX account.
-
-In addition, the observer keeps scanning the Solana blocks, and would create a system call to transfer LP token to group deposit entry once observer finds the user system call confirmed. Whenever the group receives a mixin deposit transaction, in this case, the LP token, the group will just send the LP token to the user MIX account.
+In addition, the observer keeps scanning the Solana blocks, and would create a system call to transfer deposit to the user account. Whenever the group receives a mixin deposit transaction, in this case, the LP token, the group will just send the LP token to the MIX account.
 
 The observer is one member of the computer group. And any member could be the observer. There could be multiple observers, and the observer notifications could be duplicated, but the group could identify it because the notification is just a Solana transaction hash.
 
