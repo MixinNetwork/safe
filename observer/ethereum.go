@@ -180,7 +180,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	logger.Printf("keeperStore.ReadSafeByAddress(%s, %s) => %v %v", transfer.Hash, transfer.Receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
-	} else if safe == nil {
+	} else if safe == nil || safe.Chain != chain {
 		return nil
 	}
 
