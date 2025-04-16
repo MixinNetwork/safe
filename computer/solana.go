@@ -15,6 +15,7 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
+	"github.com/MixinNetwork/safe/mtg"
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
@@ -530,37 +531,50 @@ func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string, f
 }
 
 func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall, finalized bool) (*rpc.GetTransactionResult, error) {
-	rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, tx.Signatures[0].String(), finalized)
-	if err != nil {
-		return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", tx.Signatures[0].String(), err)
-	}
-	if rpcTx != nil {
-		return rpcTx, nil
-	}
-
 	id := ""
 	if call != nil {
 		id = call.RequestId
 	}
 
-	var h string
+	hash := tx.Signatures[0].String()
 	for {
-		sig, err := node.SolanaClient().SendTransaction(ctx, tx)
-		logger.Printf("solana.SendTransaction(%s) => %s %v", id, sig, err)
-		if err == nil {
-			h = sig
-			break
-		}
-		if strings.Contains(err.Error(), "Blockhash not found") {
-			if call != nil {
-				return nil, err
-			}
-			time.Sleep(1 * time.Second)
+		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		return nil, err
+		if err != nil {
+			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
+		}
+		if rpcTx != nil {
+			return rpcTx, nil
+		}
+
+		sig, sendError := node.SolanaClient().SendTransaction(ctx, tx)
+		logger.Printf("solana.SendTransaction(%s) => %s %v", id, sig, sendError)
+		if sendError == nil || mtg.CheckRetryableError(sendError) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		rpcTx, err = node.SolanaClient().RPCGetTransaction(ctx, hash, false)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
+		}
+		// transaction confirmed after re-sending failure
+		if rpcTx != nil {
+			if finalized {
+				return node.ReadTransactionUtilConfirm(ctx, hash, finalized)
+			}
+			return rpcTx, nil
+		}
+
+		return nil, sendError
 	}
-	return node.ReadTransactionUtilConfirm(ctx, h, finalized)
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
