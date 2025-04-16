@@ -642,30 +642,46 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 
 		tx, meta, err := node.handleSignedCall(ctx, call)
 		if err != nil {
-			return node.processFailedCall(ctx, call)
+			err = node.processFailedCall(ctx, call)
+			if err != nil {
+				panic(err)
+			}
 		}
-		return node.processSuccessedCall(ctx, call, tx, meta, []solana.Signature{tx.Signatures[0]})
+		err = node.processSuccessedCall(ctx, call, tx, meta, []solana.Signature{tx.Signatures[0]})
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	var sigs []solana.Signature
 	preTx, _, err := node.handleSignedCall(ctx, calls[0])
 	if err != nil {
-		return node.processFailedCall(ctx, calls[0])
+		err = node.processFailedCall(ctx, calls[0])
+		if err != nil {
+			panic(err)
+		}
 	}
 	sigs = append(sigs, preTx.Signatures[0])
 
 	err = node.checkCreatedAtaUntilSufficient(ctx, preTx)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	tx, meta, err := node.handleSignedCall(ctx, calls[1])
 	if err != nil {
-		return node.processFailedCall(ctx, calls[1])
+		err = node.processFailedCall(ctx, calls[1])
+		if err != nil {
+			panic(err)
+		}
 	}
 	sigs = append(sigs, tx.Signatures[0])
 
-	return node.processSuccessedCall(ctx, calls[1], tx, meta, sigs)
+	err = node.processSuccessedCall(ctx, calls[1], tx, meta, sigs)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }
 
 func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
@@ -761,6 +777,7 @@ func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCa
 }
 
 func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall) error {
+	logger.Printf("node.processFailedCall(%s)", call.RequestId)
 	id := common.UniqueId(call.RequestId, "confirm-fail")
 	extra := []byte{FlagConfirmCallFail}
 	extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
