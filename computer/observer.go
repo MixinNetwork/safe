@@ -646,11 +646,13 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 			if err != nil {
 				panic(err)
 			}
+			return nil
 		}
 		err = node.processSuccessedCall(ctx, call, tx, meta, []solana.Signature{tx.Signatures[0]})
 		if err != nil {
 			panic(err)
 		}
+		return nil
 	}
 
 	var sigs []solana.Signature
@@ -660,6 +662,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 		if err != nil {
 			panic(err)
 		}
+		return nil
 	}
 	sigs = append(sigs, preTx.Signatures[0])
 
@@ -674,6 +677,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 		if err != nil {
 			panic(err)
 		}
+		return nil
 	}
 	sigs = append(sigs, tx.Signatures[0])
 
