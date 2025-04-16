@@ -807,9 +807,11 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 	if err != nil {
 		return err
 	}
-	err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
-	if err != nil {
-		return err
+	if nonce.CallId.Valid {
+		err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+		if err != nil {
+			return err
+		}
 	}
 
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
