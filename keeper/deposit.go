@@ -368,6 +368,11 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	if isSafe && confirmations > 0 {
 		confirmations = 1000000
 	}
+	if slices.Contains([]string{ // FIXME observer sends block height zero deposits
+		"0x88d0b3eee00e0361ca98974c70825d55013f7d563ae18e9e3b4cbc5268d4c2d8",
+	}, deposit.Hash) {
+		confirmations = 1000000
+	}
 	if !ethereum.CheckFinalization(confirmations, safe.Chain) {
 		return nil, fmt.Errorf("ethereum.CheckFinalization(%s)", etx.Hash)
 	}
