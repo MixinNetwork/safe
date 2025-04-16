@@ -308,7 +308,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 
 	tx, output, err := bitcoin.RPCGetTransactionOutput(deposit.Chain, rpc, deposit.Hash, int64(deposit.Index))
 	logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", deposit.Hash, deposit.Index, output, err)
-	if err != nil || output == nil {
+	if err != nil || output == nil || output.Height < 1 {
 		return nil, fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.Hash, err)
 	}
 	if output.Address != receiver || output.Satoshi != input.Satoshi {
@@ -349,7 +349,8 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 
 	rpc, chainId := node.ethereumParams(safe.Chain)
 	t, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
-	if err != nil || t == nil {
+	logger.Printf("ethereum.VerifyDeposit(%s, %d) => %v %v %v", deposit.Hash, deposit.Index, t, etx, err)
+	if err != nil || t == nil || etx.BlockHeight < 1 {
 		return nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", deposit.Hash, err)
 	}
 	if t.Receiver != safe.Address {
