@@ -11,9 +11,11 @@ import (
 	meta "github.com/blocto/solana-go-sdk/program/metaplex/token_metadata"
 	"github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
+	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/shopspring/decimal"
 )
 
 const ()
@@ -28,6 +30,8 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	if err != nil {
 		panic(err)
 	}
+
+	computerPriceIns := c.getPriorityFeeInstruction(ctx)
 
 	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
 		ctx,
@@ -58,6 +62,7 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 				solana.SysVarRecentBlockHashesPubkey,
 				solana.SysVarRentPubkey,
 			).Build(),
+			computerPriceIns,
 		},
 		blockhash,
 		solana.TransactionPayer(payer.PublicKey()),
@@ -83,6 +88,8 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 		panic(err)
 	}
 
+	computerPriceIns := c.getPriorityFeeInstruction(ctx)
+
 	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
 		ctx,
 		NormalAccountSize,
@@ -104,6 +111,7 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 				payer.PublicKey(),
 				dst,
 			).Build(),
+			computerPriceIns,
 		},
 		blockhash,
 		solana.TransactionPayer(payer.PublicKey()),
@@ -120,7 +128,7 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 
 func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, assets []*DeployedAsset) (*solana.Transaction, error) {
 	client := c.GetRPCClient()
-	builder := buildInitialTxWithNonceAccount(payer, nonce)
+	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
 
 	rent, err := client.GetMinimumBalanceForRentExemption(ctx, mintSize, rpc.CommitmentConfirmed)
 	if err != nil {
@@ -199,7 +207,7 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 }
 
 func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
-	builder := buildInitialTxWithNonceAccount(payer, nonce)
+	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
 
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
@@ -249,7 +257,7 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 }
 
 func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []*TokenTransfers) (*solana.Transaction, error) {
-	builder := buildInitialTxWithNonceAccount(payer, nonce)
+	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
 
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
@@ -365,6 +373,19 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		panic(fmt.Errorf("invalid token program id: %s", tokenProgram.String()))
 	}
 	return builder, nil
+}
+
+func (c *Client) getPriorityFeeInstruction(ctx context.Context) *computebudget.Instruction {
+	recentFees, err := c.GetRPCClient().GetRecentPrioritizationFees(ctx, []solana.PublicKey{})
+	if err != nil {
+		panic(err)
+	}
+	total := decimal.NewFromInt(0)
+	for _, fee := range recentFees {
+		total = total.Add(decimal.NewFromUint64(fee.PrioritizationFee))
+	}
+	fee := total.Div(decimal.NewFromInt(int64(len(recentFees)))).BigInt().Uint64()
+	return computebudget.NewSetComputeUnitPriceInstruction(fee).Build()
 }
 
 func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, exception *solana.PublicKey) ([]*Transfer, error) {

@@ -675,7 +675,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 				continue
 			}
 			return fmt.Errorf("invalid token program instruction: %d", index)
-		case tokenAta.ProgramID:
+		case tokenAta.ProgramID, solana.ComputeBudget:
 		default:
 			return fmt.Errorf("invalid program key: %s", programKey.String())
 		}
@@ -728,6 +728,7 @@ func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transacti
 				continue
 			}
 			return fmt.Errorf("invalid token program instruction: %d", index)
+		case solana.ComputeBudget:
 		default:
 			return fmt.Errorf("invalid program key: %s", programKey.String())
 		}

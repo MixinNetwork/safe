@@ -115,7 +115,7 @@ func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *s
 	}
 }
 
-func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) *solana.TransactionBuilder {
+func (c *Client) buildInitialTxWithNonceAccount(ctx context.Context, payer solana.PublicKey, nonce NonceAccount) *solana.TransactionBuilder {
 	b := solana.NewTransactionBuilder()
 	b.SetRecentBlockHash(nonce.Hash)
 	b.SetFeePayer(payer)
@@ -124,6 +124,9 @@ func buildInitialTxWithNonceAccount(payer solana.PublicKey, nonce NonceAccount) 
 		solana.SysVarRecentBlockHashesPubkey,
 		payer,
 	).Build())
+
+	computerPriceIns := c.getPriorityFeeInstruction(ctx)
+	b.AddInstruction(computerPriceIns)
 	return b
 }
 
@@ -187,9 +190,12 @@ func ExtractBurnsFromTransaction(ctx context.Context, tx *solana.Transaction) []
 		if err != nil {
 			panic(err)
 		}
-		if programKey != token.ProgramID {
+		switch programKey {
+		case solana.TokenProgramID, solana.Token2022ProgramID:
+		default:
 			continue
 		}
+
 		accounts, err := cix.ResolveInstructionAccounts(&msg)
 		if err != nil {
 			panic(err)
