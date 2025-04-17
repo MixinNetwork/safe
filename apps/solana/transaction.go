@@ -16,16 +16,10 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
-const (
-	nonceAccountSize uint64 = 80
-	mintSize         uint64 = 82
-
-	maxNameLength   = 32
-	maxSymbolLength = 10
-)
+const ()
 
 func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
-	client := c.getRPCClient()
+	client := c.GetRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
 	if err != nil {
 		panic(err)
@@ -79,7 +73,7 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 }
 
 func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*solana.Transaction, error) {
-	client := c.getRPCClient()
+	client := c.GetRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
 	if err != nil {
 		panic(err)
@@ -91,11 +85,11 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 
 	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
 		ctx,
-		165,
+		NormalAccountSize,
 		rpc.CommitmentConfirmed,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
+		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", NormalAccountSize, err)
 	}
 	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
 	if err != nil {
@@ -125,7 +119,7 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 }
 
 func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, assets []*DeployedAsset) (*solana.Transaction, error) {
-	client := c.getRPCClient()
+	client := c.GetRPCClient()
 	builder := buildInitialTxWithNonceAccount(payer, nonce)
 
 	rent, err := client.GetMinimumBalanceForRentExemption(ctx, mintSize, rpc.CommitmentConfirmed)

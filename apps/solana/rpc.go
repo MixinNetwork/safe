@@ -42,7 +42,7 @@ type Asset struct {
 	Decimals uint32
 }
 
-func (c *Client) getRPCClient() *rpc.Client {
+func (c *Client) GetRPCClient() *rpc.Client {
 	if c.rpcClient == nil {
 		c.rpcClient = rpc.New(c.rpcEndpoint)
 	}
@@ -50,7 +50,7 @@ func (c *Client) getRPCClient() *rpc.Client {
 }
 
 func (c *Client) RPCGetBlockHeight(ctx context.Context) (uint64, error) {
-	client := c.getRPCClient()
+	client := c.GetRPCClient()
 	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return 0, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
@@ -59,7 +59,7 @@ func (c *Client) RPCGetBlockHeight(ctx context.Context) (uint64, error) {
 }
 
 func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
-	client := c.getRPCClient()
+	client := c.GetRPCClient()
 	block, err := client.GetBlockWithOpts(ctx, height, &rpc.GetBlockOpts{
 		Encoding:                       solana.EncodingBase64,
 		Commitment:                     rpc.CommitmentConfirmed,
@@ -81,7 +81,7 @@ func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMe
 	opt := map[string]any{
 		"id": address,
 	}
-	err := c.getRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{opt})
+	err := c.GetRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{opt})
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMe
 
 func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
 	var mint token.Mint
-	err := c.getRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
+	err := c.GetRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 }
 
 func (c *Client) RPCGetBalance(ctx context.Context, account solana.PublicKey) (uint64, error) {
-	result, err := c.getRPCClient().GetBalance(ctx, account, rpc.CommitmentConfirmed)
+	result, err := c.GetRPCClient().GetBalance(ctx, account, rpc.CommitmentConfirmed)
 	if err != nil {
 		return 0, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
 	}
@@ -120,7 +120,7 @@ func (c *Client) RPCGetBalance(ctx context.Context, account solana.PublicKey) (u
 }
 
 func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	result, err := c.getRPCClient().GetAccountInfo(ctx, account)
+	result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
 	if err != nil && !errors.Is(err, rpc.ErrNotFound) {
 		return nil, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
 	}
@@ -151,7 +151,7 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finali
 		commitment = rpc.CommitmentFinalized
 	}
 
-	r, err := c.getRPCClient().GetTransaction(ctx,
+	r, err := c.GetRPCClient().GetTransaction(ctx,
 		solana.MustSignatureFromBase58(signature),
 		&rpc.GetTransactionOpts{
 			Encoding:                       solana.EncodingBase58,
@@ -170,7 +170,7 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finali
 }
 
 func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.PublicKey) ([]*token.Account, error) {
-	r, err := c.getRPCClient().GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
+	r, err := c.GetRPCClient().GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
 		ProgramId: &token.ProgramID,
 	}, nil)
 	if err != nil {
@@ -223,7 +223,7 @@ func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Min
 }
 
 func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
-	client := c.getRPCClient()
+	client := c.GetRPCClient()
 	sig, err := client.SendTransaction(ctx, tx)
 	if err != nil {
 		return "", err
@@ -251,7 +251,7 @@ func (c *Client) ProcessTransactionWithAddressLookups(ctx context.Context, txx *
 		return nil
 	}
 
-	rpcClient := c.getRPCClient()
+	rpcClient := c.GetRPCClient()
 
 	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
 	for _, key := range tblKeys {

@@ -89,6 +89,10 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		exception = &user
 	}
 
+	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
 	// all balance changes from the creator account of a system call is handled in processSuccessedCall
 	// only process deposits to other user accounts here
 	transfers, err := node.SolanaClient().ExtractTransfersFromTransaction(ctx, tx, meta, exception)
@@ -103,6 +107,16 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	if len(changes) == 0 {
 		return nil
 	}
+
+	rentExemptBalance, err := node.SolanaClient().GetRPCClient().GetMinimumBalanceForRentExemption(
+		ctx,
+		solanaApp.NormalAccountSize,
+		rpc.CommitmentConfirmed,
+	)
+	if err != nil {
+		panic(err)
+	}
+
 	tsMap := make(map[string][]*solanaApp.TokenTransfers)
 	for _, transfer := range transfers {
 		key := fmt.Sprintf("%s:%s", transfer.Receiver, transfer.TokenAddress)
@@ -117,9 +131,17 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			}
 			decimal = uint8(asset.Decimals)
 		}
-		if transfer.TokenAddress == solanaApp.SolanaEmptyAddress && transfer.Value.Uint64() == 1 {
-			continue
-
+		if transfer.TokenAddress == solanaApp.SolanaEmptyAddress {
+			if transfer.Value.Uint64() == 1 {
+				continue
+			}
+			index, err := tx.GetAccountIndex(solana.MustPublicKeyFromBase58(transfer.Receiver))
+			if err != nil {
+				panic(err)
+			}
+			if meta.PreBalances[index] <= rentExemptBalance {
+				continue
+			}
 		}
 		tsMap[transfer.Receiver] = append(tsMap[transfer.Receiver], &solanaApp.TokenTransfers{
 			SolanaAsset: true,

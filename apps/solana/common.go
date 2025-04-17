@@ -21,6 +21,13 @@ import (
 )
 
 const (
+	nonceAccountSize  uint64 = 80
+	mintSize          uint64 = 82
+	NormalAccountSize uint64 = 165
+
+	maxNameLength   = 32
+	maxSymbolLength = 10
+
 	SolanaEmptyAddress   = "11111111111111111111111111111111"
 	WrappedSolanaAddress = "So11111111111111111111111111111111111111112"
 	SolanaChainBase      = "64692c23-8971-4cf4-84a7-4dd1271dd887"
