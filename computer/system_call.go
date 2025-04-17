@@ -297,12 +297,9 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 		return fmt.Errorf("tx.IsSigner(payer) => %t", false)
 	}
 
-	index := -1
-	for i, acc := range tx.Message.AccountKeys {
-		if !acc.Equals(node.SolanaPayer()) {
-			continue
-		}
-		index = i
+	index, err := solanaApp.GetSignatureIndexOfAccount(*tx, node.SolanaPayer())
+	if err != nil {
+		return err
 	}
 	for i, ins := range tx.Message.Instructions {
 		if i == 0 {
