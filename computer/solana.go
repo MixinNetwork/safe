@@ -117,6 +117,10 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			}
 			decimal = uint8(asset.Decimals)
 		}
+		if transfer.TokenAddress == solanaApp.SolanaEmptyAddress && transfer.Value.Uint64() == 1 {
+			continue
+
+		}
 		tsMap[transfer.Receiver] = append(tsMap[transfer.Receiver], &solanaApp.TokenTransfers{
 			SolanaAsset: true,
 			AssetId:     transfer.AssetId,
