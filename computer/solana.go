@@ -91,6 +91,9 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 
 	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
+		if strings.Contains(err.Error(), "get account info: not found") {
+			return nil
+		}
 		panic(err)
 	}
 	// all balance changes from the creator account of a system call is handled in processSuccessedCall
