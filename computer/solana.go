@@ -566,6 +566,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	}
 
 	hash := tx.Signatures[0].String()
+	retry := 5
 	for {
 		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
 		if mtg.CheckRetryableError(err) {
@@ -602,6 +603,11 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			return rpcTx, nil
 		}
 
+		retry -= 1
+		if retry > 0 {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
 		return nil, sendError
 	}
 }
