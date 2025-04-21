@@ -181,14 +181,17 @@ func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	if b.Hash != hash {
+		panic(string(res))
+	}
 	if b.BlockNumber != "" {
 		blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
 		if err != nil {
-			return nil, err
+			panic(b.BlockNumber)
 		}
 		b.BlockHeight = blockHeight
 	}
-	return &b, err
+	return &b, nil
 }
 
 func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace, error) {

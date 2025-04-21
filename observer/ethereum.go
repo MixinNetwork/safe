@@ -180,7 +180,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	logger.Printf("keeperStore.ReadSafeByAddress(%s, %s) => %v %v", transfer.Hash, transfer.Receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
-	} else if safe == nil {
+	} else if safe == nil || safe.Chain != chain {
 		return nil
 	}
 
@@ -276,6 +276,9 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	}
 	if match == nil {
 		panic(fmt.Errorf("malicious ethereum deposit %s", deposit.TransactionHash))
+	}
+	if etx.BlockHeight < 1 {
+		return nil
 	}
 	confirmations := info.Height - etx.BlockHeight + 1
 	if info.Height < etx.BlockHeight {

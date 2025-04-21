@@ -272,6 +272,9 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if output.Address != deposit.Receiver || output.Satoshi != bitcoin.ParseSatoshi(deposit.Amount) {
 		panic(fmt.Errorf("malicious bitcoin deposit %s", deposit.TransactionHash))
 	}
+	if output.Height < 1 {
+		return nil
+	}
 	confirmations := info.Height - output.Height + 1
 	if info.Height < output.Height {
 		confirmations = 0

@@ -93,7 +93,6 @@ func (node *Node) Boot(ctx context.Context) {
 	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
 	go node.mixinWithdrawalsLoop(ctx)
 	go node.sendAccountApprovals(ctx)
-	go node.Blaze(ctx)
 	node.snapshotsLoop(ctx)
 }
 

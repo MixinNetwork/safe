@@ -81,6 +81,9 @@ func ObserverBootCmd(c *cli.Context) error {
 	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin)
 	readme := c.App.Metadata["README"].(string)
 	go node.StartHTTP(version, readme)
+	if mc.Dev.Network == config.MainNetworkName {
+		go node.Blaze(ctx)
+	}
 	node.Boot(ctx)
 	return nil
 }
