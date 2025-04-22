@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -21,6 +20,7 @@ import (
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
@@ -124,8 +124,8 @@ func ObserverFillAccountants(c *cli.Context) error {
 	}
 	defer db.Close()
 
-	input := strings.Split(c.String("input"), ":")[0]
-	index, _ := strconv.ParseUint(strings.Split(c.String("input"), ":")[1], 10, 32)
+	input := util.SplitIds(c.String("input"), ":")[0]
+	index, _ := strconv.ParseUint(util.SplitIds(c.String("input"), ":")[1], 10, 32)
 	inputs := []*bitcoin.Input{{
 		TransactionHash: input,
 		Index:           uint32(index),
@@ -225,7 +225,7 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 	publics := make(map[string]string)
 	for scanner.Scan() {
 		hd := scanner.Text()
-		hdp := strings.Split(hd, ":")
+		hdp := util.SplitIds(hd, ":")
 		if len(hdp) != 3 {
 			return nil, fmt.Errorf("invalid pair %s", hd)
 		}

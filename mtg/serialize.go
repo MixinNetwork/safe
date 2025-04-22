@@ -6,6 +6,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -205,7 +206,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		OpponentAppId: opponentAppId,
 		State:         state,
 		AssetId:       assetId,
-		Receivers:     strings.Split(receivers, ","),
+		Receivers:     util.SplitIds(receivers, ","),
 		Threshold:     treshold,
 		Amount:        amount,
 		Memo:          memo,

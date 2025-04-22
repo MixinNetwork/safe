@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -99,15 +100,13 @@ func transactionFromRow(row Row) (*Transaction, error) {
 		t.Raw = r
 	}
 
-	t.Receivers = strings.Split(rs, ",")
-	if refs != "" {
-		for _, r := range strings.Split(refs, ",") {
-			ref, err := crypto.HashFromString(r)
-			if err != nil {
-				return nil, err
-			}
-			t.references = append(t.references, ref)
+	t.Receivers = util.SplitIds(rs, ",")
+	for _, r := range util.SplitIds(refs, ",") {
+		ref, err := crypto.HashFromString(r)
+		if err != nil {
+			return nil, err
 		}
+		t.references = append(t.references, ref)
 	}
 	return &t, nil
 }
@@ -132,7 +131,7 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[assetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if len(outputs) == 0 {
 		// FIXME remove this, and the application test should create some utxos
-		if CheckTestEnvironment(ctx) {
+		if util.CheckTestEnvironment(ctx) {
 			return tx
 		}
 		panic(tx.TraceId)
@@ -368,7 +367,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		if err != nil {
 			panic(err)
 		}
-		if !CheckTestEnvironment(ctx) {
+		if !util.CheckTestEnvironment(ctx) {
 			if len(ver.SignaturesMap) != len(ver.Inputs) {
 				panic(tx.TraceId)
 			}
@@ -433,7 +432,7 @@ func (tx *Transaction) RequestID() string {
 }
 
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeMultisigRequest, error) {
-	if CheckTestEnvironment(ctx) {
+	if util.CheckTestEnvironment(ctx) {
 		rb, _ := hex.DecodeString(raw)
 		ver, _ := common.UnmarshalVersionedTransaction(rb)
 		hash := ver.PayloadHash()
@@ -465,7 +464,7 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 }
 
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeMultisigRequest) (*mixin.SafeMultisigRequest, error) {
-	if CheckTestEnvironment(ctx) {
+	if util.CheckTestEnvironment(ctx) {
 		rb, _ := hex.DecodeString(input.RawTransaction)
 		ver, _ := common.UnmarshalVersionedTransaction(rb)
 		hash := ver.PayloadHash()

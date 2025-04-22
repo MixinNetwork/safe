@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -61,10 +62,12 @@ func outputFromRow(row Row) (*UnifiedOutput, error) {
 	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &o.Extra, &o.State, &o.Sequence, &o.SequencerCreatedAt, &o.updatedAt, &signers, &o.SignedBy, &o.TraceId, &o.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
+	} else if err != nil {
+		return nil, err
 	}
-	o.Senders = strings.Split(senders, ",")
-	o.Signers = strings.Split(signers, ",")
-	return &o, err
+	o.Senders = util.SplitIds(senders, ",")
+	o.Signers = util.SplitIds(signers, ",")
+	return &o, nil
 }
 
 func (o *UnifiedOutput) checkId() bool {
