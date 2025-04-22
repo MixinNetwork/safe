@@ -573,14 +573,6 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		if call == nil && strings.Contains(err.Error(), "Blockhash not found") {
-			retry -= 1
-			if retry > 0 {
-				time.Sleep(500 * time.Millisecond)
-				continue
-			}
-			return nil, err
-		}
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
@@ -593,6 +585,14 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 		if sendError == nil || mtg.CheckRetryableError(sendError) {
 			time.Sleep(500 * time.Millisecond)
 			continue
+		}
+		if call == nil && strings.Contains(sendError.Error(), "Blockhash not found") {
+			retry -= 1
+			if retry > 0 {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			return nil, err
 		}
 
 		rpcTx, err = node.SolanaClient().RPCGetTransaction(ctx, hash, false)
