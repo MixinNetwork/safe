@@ -217,6 +217,7 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	// the empty signature is ",,"
 	sigsStr := strings.Split(string(signature), ",")
 
 	signatures := make([][]byte, 3)

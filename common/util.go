@@ -79,13 +79,12 @@ func ExpandTilde(path string) string {
 func CheckTransactionRetryError(err string) bool {
 	switch {
 	case strings.Contains(err, "locked by other transaction"):
-		return true
 	case strings.Contains(err, "spent by other transaction"):
-		return true
 	case strings.Contains(err, "inputs locked by another transaction"):
-		return true
+	default:
+		return false
 	}
-	return false
+	return true
 }
 
 func Rollback(txn *sql.Tx) {

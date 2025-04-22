@@ -46,6 +46,9 @@ func CheckRetryableError(err error) bool {
 }
 
 func NewMixAddress(ctx context.Context, members []string, threshold byte) (*mixin.MixAddress, bool, error) {
+	if len(members) == 0 || threshold == 0 {
+		panic(len(members))
+	}
 	if util.CheckTestEnvironment(ctx) {
 		for i, m := range members {
 			_, err := mixinnet.AddressFromString(m)
