@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type SafeProposal struct {
@@ -67,8 +68,8 @@ func safeFromRow(row *sql.Row) (*Safe, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	s.Receivers = strings.Split(receivers, ";")
-	return &s, err
+	s.Receivers = util.SplitIds(receivers, ";")
+	return &s, nil
 }
 
 func safeProposalFromRow(row *sql.Row) (*SafeProposal, error) {
@@ -80,8 +81,8 @@ func safeProposalFromRow(row *sql.Row) (*SafeProposal, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	s.Receivers = strings.Split(receivers, ";")
-	return &s, err
+	s.Receivers = util.SplitIds(receivers, ";")
+	return &s, nil
 }
 
 func (s *SQLite3Store) ReadSafeProposal(ctx context.Context, requestId string) (*SafeProposal, error) {
@@ -295,7 +296,7 @@ func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Sa
 		if err != nil {
 			return nil, err
 		}
-		s.Receivers = strings.Split(receivers, ";")
+		s.Receivers = util.SplitIds(receivers, ";")
 		safes = append(safes, &s)
 	}
 	return safes, nil

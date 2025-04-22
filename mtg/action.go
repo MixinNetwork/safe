@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 )
 
 const (
@@ -51,10 +52,12 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.TransactionRequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &a.Extra, &a.State, &a.SequencerCreatedAt, &a.updatedAt, &signers, &a.SignedBy, &a.TraceId, &a.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
+	} else if err != nil {
+		return nil, err
 	}
-	a.Senders = SplitIds(senders)
-	a.Signers = SplitIds(signers)
-	return &a, err
+	a.Senders = util.SplitIds(senders, ",")
+	a.Signers = util.SplitIds(signers, ",")
+	return &a, nil
 }
 
 func (a *Action) TestAttachActionToGroup(g *Group) {

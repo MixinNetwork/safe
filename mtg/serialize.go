@@ -7,6 +7,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -256,7 +257,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx.Receivers = SplitIds(receivers)
+		tx.Receivers = util.SplitIds(receivers, ",")
 		tx.Threshold = int(threshold)
 	}
 	return tx, nil

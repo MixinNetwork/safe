@@ -14,49 +14,15 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
-type contextKeyTyp string
-
-const (
-	contextKeyEnvironment = contextKeyTyp("environment")
-)
-
-func EnableTestEnvironment(ctx context.Context) context.Context {
-	return context.WithValue(ctx, contextKeyEnvironment, "test")
-}
-
-func CheckTestEnvironment(ctx context.Context) bool {
-	val := ctx.Value(contextKeyEnvironment)
-	if val == nil {
-		return false
-	}
-	env, ok := val.(string)
-	return ok && env == "test"
-}
-
 func UniqueId(a, b string) string {
-	return mixin.UniqueConversationID(a, b)
-}
-
-func SplitIds(s string) []string {
-	if strings.TrimSpace(s) != s {
-		panic(s)
-	}
-	if s == "" {
-		return make([]string, 0)
-	}
-	a := strings.Split(s, ",")
-	for _, e := range a {
-		if strings.TrimSpace(e) == "" {
-			panic(s)
-		}
-	}
-	return a
+	return util.UniqueId(a, b)
 }
 
 func CheckRetryableError(err error) bool {
@@ -80,10 +46,7 @@ func CheckRetryableError(err error) bool {
 }
 
 func NewMixAddress(ctx context.Context, members []string, threshold byte) (*mixin.MixAddress, bool, error) {
-	if len(members) == 0 || threshold == 0 {
-		panic(len(members))
-	}
-	if CheckTestEnvironment(ctx) {
+	if util.CheckTestEnvironment(ctx) {
 		for i, m := range members {
 			_, err := mixinnet.AddressFromString(m)
 			if err == nil {
@@ -190,7 +153,7 @@ func (grp *Group) ReadKernelTransactionUntilSufficient(ctx context.Context, txHa
 }
 
 func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
-	if CheckTestEnvironment(ctx) {
+	if util.CheckTestEnvironment(ctx) {
 		hash, err := crypto.HashFromString(txHash)
 		if err != nil {
 			return nil, err
@@ -283,7 +246,7 @@ type SafeTransactionRequest struct {
 }
 
 func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*SafeTransactionRequest, error) {
-	if CheckTestEnvironment(ctx) {
+	if util.CheckTestEnvironment(ctx) {
 		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
 		if err != nil {
 			return nil, err
@@ -365,7 +328,7 @@ func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Tra
 
 func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transaction, tr []*TransactionRecipient) (map[int]*mixin.GhostKeys, error) {
 	gkm := make(map[int]*mixin.GhostKeys, len(tr))
-	if CheckTestEnvironment(ctx) {
+	if util.CheckTestEnvironment(ctx) {
 		if tx.TraceId == "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3" {
 			tr[1].MixAddress.Threshold = 2
 			mask, _ := mixinnet.KeyFromString("f18e0e276648b1d42063f8bcf9d5a57252f4048c9939ded0999a0e263716976e")

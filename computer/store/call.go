@@ -13,6 +13,7 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 const (
@@ -70,10 +71,7 @@ func systemCallFromRow(row Row) (*SystemCall, error) {
 }
 
 func (c *SystemCall) GetWithdrawalIds() []string {
-	if !c.WithdrawalTraces.Valid {
-		return []string{}
-	}
-	return mtg.SplitIds(c.WithdrawalTraces.String)
+	return util.SplitIds(c.WithdrawalTraces.String, ",")
 }
 
 func (c *SystemCall) UserIdFromPublicPath() *big.Int {

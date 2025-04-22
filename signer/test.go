@@ -18,8 +18,9 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/protocols/cmp"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/messenger"
-	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/saver"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
@@ -83,7 +84,7 @@ func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 	const public = "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b"
 	sid := common.UniqueId("prepare", public)
 	for _, node := range nodes {
-		parts := strings.Split(testFROSTKeys[node.id], ";")
+		parts := util.SplitIds(testFROSTKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
 		conf, _ := hex.DecodeString(share)
 		require.Equal(public, pub)
@@ -102,7 +103,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 	const chainCode = "f555b08a9871213c0d52fee12e1bd365990b956880491b2b1a106f84584aa3a2"
 	sid := common.UniqueId("prepare", public)
 	for _, node := range nodes {
-		parts := strings.Split(testCMPKeys[node.id], ";")
+		parts := util.SplitIds(testCMPKeys[node.id], ";")
 		pub, share := parts[0], parts[1]
 		sb, _ := hex.DecodeString(share)
 		require.Equal(public, pub)
@@ -293,12 +294,7 @@ func testStartSaver(require *require.Assertions) (*saver.SQLite3Store, int) {
 	store, err := saver.OpenSQLite3Store(dir + "/data.sqlite3")
 	require.Nil(err)
 	port := getFreePort()
-	go func() {
-		err := saver.StartHTTP(store, port)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	go func() { _ = saver.StartHTTP(store, port) }()
 	return store, port
 }
 

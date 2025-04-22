@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
@@ -56,7 +57,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 		return []*Transaction{}, ""
 	}
 	memo := string(b)
-	items := SplitIds(memo)
+	items := util.SplitIds(memo, ",")
 
 	var txs []*Transaction
 	var storageTraceId string
@@ -426,7 +427,7 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
-	ctx = EnableTestEnvironment(ctx)
+	ctx = util.EnableTestEnvironment(ctx)
 
 	f, _ := os.ReadFile("./example.toml")
 	var conf Configuration

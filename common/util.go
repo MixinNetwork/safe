@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"crypto/md5"
 	"crypto/sha256"
 	"database/sql"
 	"encoding"
@@ -12,9 +11,8 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
-	"github.com/gofrs/uuid/v5"
 )
 
 func MarshalPanic(m encoding.BinaryMarshaler) []byte {
@@ -47,20 +45,15 @@ func Fingerprint(public string) []byte {
 }
 
 func UniqueId(a, b string) string {
-	minID, maxID := a, b
-	if strings.Compare(a, b) > 0 {
-		maxID, minID = a, b
-	}
-
-	return uuidHash([]byte(minID + maxID))
+	return util.UniqueId(a, b)
 }
 
 func EnableTestEnvironment(ctx context.Context) context.Context {
-	return mtg.EnableTestEnvironment(ctx)
+	return util.EnableTestEnvironment(ctx)
 }
 
 func CheckTestEnvironment(ctx context.Context) bool {
-	return mtg.CheckTestEnvironment(ctx)
+	return util.CheckTestEnvironment(ctx)
 }
 
 func CheckUnique(args ...any) bool {
@@ -81,15 +74,6 @@ func ExpandTilde(path string) string {
 	}
 	path = strings.Replace(path, "~", home, 1)
 	return path
-}
-
-func uuidHash(b []byte) string {
-	h := md5.New()
-	h.Write(b)
-	sum := h.Sum(nil)
-	sum[6] = (sum[6] & 0x0f) | 0x30
-	sum[8] = (sum[8] & 0x3f) | 0x80
-	return uuid.Must(uuid.FromBytes(sum)).String()
 }
 
 func CheckTransactionRetryError(err string) bool {

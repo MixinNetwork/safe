@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
@@ -73,7 +74,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	if err != nil {
 		return nil, err
 	}
-	if !CheckTestEnvironment(ctx) {
+	if !util.CheckTestEnvironment(ctx) {
 		_, err := client.UserMe(ctx)
 		if err != nil {
 			return nil, err
