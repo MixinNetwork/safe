@@ -192,6 +192,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 
 func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Transaction) error {
 	totalAmount := make(map[string]common.Integer)
+	outputsLimit := make(map[string]int)
 	for _, t := range txs {
 		err := t.check(ctx, act)
 		if err != nil {
@@ -203,16 +204,21 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 			amount = common.NewInteger(0)
 		}
 		totalAmount[t.AssetId] = amount.Add(common.NewIntegerFromString(t.Amount))
+		outputsLimit[t.AssetId] += OutputsBatchSize
 	}
 
 	for asset, amount := range totalAmount {
-		outputs := grp.ListOutputsForAsset(ctx, act.AppId, asset, 0, act.Sequence, SafeUtxoStateUnspent, 0)
+		limit := outputsLimit[asset]
+		if limit == 0 {
+			panic(asset)
+		}
+		outputs := grp.ListOutputsForAsset(ctx, act.AppId, asset, 0, act.Sequence, SafeUtxoStateUnspent, limit)
 		total := common.NewInteger(0)
 		for _, os := range outputs {
 			total = total.Add(common.NewIntegerFromString(os.Amount.String()))
 		}
 		if total.Cmp(amount) < 0 {
-			return fmt.Errorf("insufficient balance for asset %s: %s %s", asset, total.String(), amount.String())
+			return fmt.Errorf("insufficient balance for asset %s: %s %s", asset, total, amount)
 		}
 	}
 	return nil
