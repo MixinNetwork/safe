@@ -589,10 +589,10 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 		if call == nil && strings.Contains(sendError.Error(), "Blockhash not found") {
 			retry -= 1
 			if retry > 0 {
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(5 * time.Second)
 				continue
 			}
-			return nil, err
+			return nil, sendError
 		}
 
 		rpcTx, err = node.SolanaClient().RPCGetTransaction(ctx, hash, false)
