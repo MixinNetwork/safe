@@ -793,7 +793,7 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 		}
 		tx := node.CreatePostprocessTransaction(ctx, call, nonce, nil, nil)
 		if tx == nil {
-			panic(fmt.Errorf("fail to build post-process transaction for failed call: %v", call))
+			return nil
 		}
 		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 		if err != nil {
