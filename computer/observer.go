@@ -42,6 +42,11 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 		panic(err)
 	}
 
+	err = node.checkNonceAccounts(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	go node.initializeUsersLoop(ctx)
 	go node.deployOrConfirmAssetsLoop(ctx)
 
@@ -110,6 +115,51 @@ func (node *Node) sendPriceInfo(ctx context.Context) error {
 		Type:  OperationTypeSetOperationParams,
 		Extra: extra,
 	}, nil)
+}
+
+func (node *Node) checkNonceAccounts(ctx context.Context) error {
+	calls, err := node.store.CountUserSystemCallByState(ctx, common.RequestStateInitial)
+	if err != nil {
+		panic(err)
+	}
+	if calls > 0 {
+		return nil
+	}
+	calls, err = node.store.CountUserSystemCallByState(ctx, common.RequestStateInitial)
+	if err != nil {
+		panic(err)
+	}
+	if calls > 0 {
+		return nil
+	}
+	ns, err := node.store.ListLockedNonceAccounts(ctx)
+	if err != nil {
+		panic(err)
+	}
+	if len(ns) > 0 {
+		return nil
+	}
+
+	ns, err = node.store.ListNonceAccounts(ctx)
+	if err != nil {
+		panic(err)
+	}
+	count := 0
+	for _, nonce := range ns {
+		hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+		if err != nil {
+			panic(err)
+		}
+		if hash.String() == nonce.Hash {
+			continue
+		}
+		count += 1
+		logger.Printf("solana.checkNonceAccount(%s) => %s %s", nonce.Account().Address, nonce.Account().Hash, hash.String())
+	}
+	if count > 0 {
+		panic(count)
+	}
+	return nil
 }
 
 func (node *Node) initializeUsersLoop(ctx context.Context) {
