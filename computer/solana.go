@@ -130,6 +130,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		if transfer.TokenAddress != solanaApp.SolanaEmptyAddress {
 			asset, err := node.SolanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
 			if err != nil {
+				logger.Printf("solana.RPCGetAsset(%s) => %v", transfer.TokenAddress, err)
 				return err
 			}
 			decimal = uint8(asset.Decimals)
@@ -159,6 +160,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	for user, ts := range tsMap {
 		err = node.solanaProcessDepositTransaction(ctx, hash, user, ts)
 		if err != nil {
+			logger.Printf("node.solanaProcessDepositTransaction(%s) => %v", hash, err)
 			return err
 		}
 	}
