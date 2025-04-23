@@ -78,10 +78,7 @@ func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMe
 			Metadata AssetMetadata `json:"metadata"`
 		} `json:"content"`
 	}
-	opt := map[string]any{
-		"id": address,
-	}
-	err := c.GetRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{opt})
+	err := c.GetRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{address})
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +89,13 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 	var mint token.Mint
 	err := c.GetRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
 	if err != nil {
+		fmt.Println("GetAccountDataInto")
 		return nil, err
 	}
 
 	metadata, err := c.getAssetMetadata(ctx, address)
 	if err != nil {
+		fmt.Println("getAssetMetadata")
 		return nil, err
 	}
 
