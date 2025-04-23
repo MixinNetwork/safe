@@ -89,13 +89,11 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 	var mint token.Mint
 	err := c.GetRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
 	if err != nil {
-		fmt.Println("GetAccountDataInto")
 		return nil, err
 	}
 
 	metadata, err := c.getAssetMetadata(ctx, address)
 	if err != nil {
-		fmt.Println("getAssetMetadata")
 		return nil, err
 	}
 
