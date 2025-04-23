@@ -233,6 +233,15 @@ func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params m
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "nonce"})
 		return
 	}
+	hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if hash.String() != nonce.Hash {
+		panic(fmt.Errorf("inconsistent nonce hash: %s %s %s", nonce.Address, nonce.Hash, hash.String()))
+	}
+
 	err = node.store.LockNonceAccountWithMix(ctx, nonce.Address, body.Mix)
 	if err != nil {
 		common.RenderError(w, r, err)
