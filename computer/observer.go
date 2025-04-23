@@ -792,18 +792,17 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 			panic(err)
 		}
 		tx := node.CreatePostprocessTransaction(ctx, call, nonce, nil, nil)
-		if tx == nil {
-			return nil
+		if tx != nil {
+			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
+			if err != nil {
+				return err
+			}
+			data, err := tx.MarshalBinary()
+			if err != nil {
+				panic(err)
+			}
+			extra = attachSystemCall(extra, cid, data)
 		}
-		err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
-		if err != nil {
-			return err
-		}
-		data, err := tx.MarshalBinary()
-		if err != nil {
-			panic(err)
-		}
-		extra = attachSystemCall(extra, cid, data)
 	}
 
 	nonce, err := node.store.ReadNonceAccount(ctx, call.NonceAccount)
