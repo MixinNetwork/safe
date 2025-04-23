@@ -144,7 +144,6 @@ func (node *Node) checkNonceAccounts(ctx context.Context) error {
 	if err != nil {
 		panic(err)
 	}
-	count := 0
 	for _, nonce := range ns {
 		hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
 		if err != nil {
@@ -153,11 +152,11 @@ func (node *Node) checkNonceAccounts(ctx context.Context) error {
 		if hash.String() == nonce.Hash {
 			continue
 		}
-		count += 1
 		logger.Printf("solana.checkNonceAccount(%s) => %s %s", nonce.Account().Address, nonce.Account().Hash, hash.String())
-	}
-	if count > 0 {
-		panic(count)
+		err = node.store.UpdateNonceAccount(ctx, nonce.Address, hash.String(), "")
+		if err != nil {
+			panic(err)
+		}
 	}
 	return nil
 }
