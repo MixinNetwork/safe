@@ -384,12 +384,12 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		}
 
 		call, err := node.store.ReadSystemCallByRequestId(ctx, nonce.CallId.String, 0)
-		logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", nonce.CallId.String, call, err)
 		if err != nil {
 			return err
 		}
 		if call == nil {
 			if nonce.Expired() {
+				logger.Printf("observer.releaseNonceAccounts()")
 				err = node.ReleaseLockedNonceAccount(ctx, nonce)
 				if err != nil {
 					panic(err)
@@ -399,12 +399,14 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		}
 		switch call.State {
 		case common.RequestStateFailed:
+			logger.Printf("observer.releaseNonceAccount(%v)", call)
 			err = node.ReleaseLockedNonceAccount(ctx, nonce)
 			if err != nil {
 				panic(err)
 			}
 		case common.RequestStateDone:
 			if nonce.UpdatedBy.Valid && nonce.UpdatedBy.String == call.RequestId {
+				logger.Printf("observer.releaseNonceAccount(%v)", call)
 				err = node.ReleaseLockedNonceAccount(ctx, nonce)
 				if err != nil {
 					panic(err)
