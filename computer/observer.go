@@ -778,9 +778,9 @@ func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) 
 	}
 
 	finalized := false
-	if call != nil && call.Type == store.CallTypePrepare {
-		finalized = true
-	}
+	// if call != nil && call.Type == store.CallTypePrepare {
+	// 	finalized = true
+	// }
 	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call, finalized)
 	if err != nil {
 		return nil, nil, err

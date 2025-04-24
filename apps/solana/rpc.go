@@ -291,7 +291,10 @@ func (c *Client) GetAccountInfo(ctx context.Context, address solana.PublicKey) (
 
 func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
 	client := c.GetRPCClient()
-	sig, err := client.SendTransaction(ctx, tx)
+	sig, err := client.SendTransactionWithOpts(ctx, tx, rpc.TransactionOpts{
+		SkipPreflight:       false,
+		PreflightCommitment: rpc.CommitmentProcessed,
+	})
 	if err != nil {
 		return "", err
 	}
