@@ -470,6 +470,18 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 	return tx
 }
 
+func (node *Node) ReleaseLockedNonceAccount(ctx context.Context, nonce *store.NonceAccount) error {
+	logger.Printf("observer.ReleaseLockedNonceAccount(%s)", nonce.Address)
+	hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+	if err != nil {
+		panic(err)
+	}
+	if hash.String() != nonce.Hash {
+		panic(fmt.Errorf("observer.ReleaseLockedNonceAccount(%s) => inconsistent hash %s %s ", nonce.Address, nonce.Hash, hash.String()))
+	}
+	return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
+}
+
 type BalanceChange struct {
 	Amount   decimal.Decimal
 	Decimals uint8
