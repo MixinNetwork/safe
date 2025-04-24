@@ -175,11 +175,11 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 				Amount:  amount,
 			},
 		})
-		if CheckTransactionRetryError(err.Error()) {
-			time.Sleep(3 * time.Second)
-			continue
-		}
 		if err != nil {
+			if CheckTransactionRetryError(err.Error()) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
 			return nil, err
 		}
 		tx.References = references
