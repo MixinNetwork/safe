@@ -219,6 +219,17 @@ func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Min
 	return &token, nil
 }
 
+func (c *Client) GetAccountInfo(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+	for {
+		info, err := c.GetRPCClient().GetAccountInfo(ctx, address)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return info, err
+	}
+}
+
 func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
 	client := c.GetRPCClient()
 	sig, err := client.SendTransaction(ctx, tx)
@@ -248,11 +259,9 @@ func (c *Client) ProcessTransactionWithAddressLookups(ctx context.Context, txx *
 		return nil
 	}
 
-	rpcClient := c.GetRPCClient()
-
 	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
 	for _, key := range tblKeys {
-		info, err := rpcClient.GetAccountInfo(ctx, key)
+		info, err := c.GetAccountInfo(ctx, key)
 		if err != nil {
 			return fmt.Errorf("get account info: %w", err)
 		}
