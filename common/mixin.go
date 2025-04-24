@@ -162,7 +162,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		utxos, sufficient := getEnoughUtxosToSpend(utxos, amount)
 		if !sufficient {
 			logger.Printf("insufficient balance: %s %s %s", traceId, assetId, amount.String())
-			time.Sleep(10 * time.Second)
+			time.Sleep(3 * time.Second)
 			continue
 		}
 		b := mixin.NewSafeTransactionBuilder(utxos)
@@ -175,6 +175,10 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 				Amount:  amount,
 			},
 		})
+		if CheckTransactionRetryError(err.Error()) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
