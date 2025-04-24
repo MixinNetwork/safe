@@ -50,78 +50,113 @@ func (c *Client) GetRPCClient() *rpc.Client {
 }
 
 func (c *Client) RPCGetBlockHeight(ctx context.Context) (uint64, error) {
-	client := c.GetRPCClient()
-	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		return 0, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+	for {
+		client := c.GetRPCClient()
+		block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil {
+			return 0, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+		}
+		return block.Context.Slot, nil
 	}
-	return block.Context.Slot, nil
 }
 
 func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
-	client := c.GetRPCClient()
-	block, err := client.GetBlockWithOpts(ctx, height, &rpc.GetBlockOpts{
-		Encoding:                       solana.EncodingBase64,
-		Commitment:                     rpc.CommitmentConfirmed,
-		MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
-		TransactionDetails:             rpc.TransactionDetailsFull,
-	})
-	if err != nil && !errors.Is(err, rpc.ErrNotFound) {
-		return nil, err
+	for {
+		client := c.GetRPCClient()
+		block, err := client.GetBlockWithOpts(ctx, height, &rpc.GetBlockOpts{
+			Encoding:                       solana.EncodingBase64,
+			Commitment:                     rpc.CommitmentConfirmed,
+			MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
+			TransactionDetails:             rpc.TransactionDetailsFull,
+		})
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil && !errors.Is(err, rpc.ErrNotFound) {
+			return nil, err
+		}
+		return block, nil
 	}
-	return block, nil
 }
 
 func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMetadata, error) {
-	var resp struct {
-		Content struct {
-			Metadata AssetMetadata `json:"metadata"`
-		} `json:"content"`
+	for {
+		var resp struct {
+			Content struct {
+				Metadata AssetMetadata `json:"metadata"`
+			} `json:"content"`
+		}
+		err := c.GetRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{address})
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &resp.Content.Metadata, nil
 	}
-	err := c.GetRPCClient().RPCCallForInto(ctx, &resp, "getAsset", []any{address})
-	if err != nil {
-		return nil, err
-	}
-	return &resp.Content.Metadata, nil
 }
 
 func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
 	var mint token.Mint
-	err := c.GetRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
-	if err != nil {
-		return nil, err
-	}
+	for {
+		err := c.GetRPCClient().GetAccountDataInto(ctx, solana.MPK(address), &mint)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 
-	metadata, err := c.getAssetMetadata(ctx, address)
-	if err != nil {
-		return nil, err
-	}
+		metadata, err := c.getAssetMetadata(ctx, address)
+		if err != nil {
+			return nil, err
+		}
 
-	asset := &Asset{
-		Address:  address,
-		Id:       GenerateAssetId(address),
-		Decimals: uint32(mint.Decimals),
-		Symbol:   metadata.Symbol,
-		Name:     metadata.Name,
+		asset := &Asset{
+			Address:  address,
+			Id:       GenerateAssetId(address),
+			Decimals: uint32(mint.Decimals),
+			Symbol:   metadata.Symbol,
+			Name:     metadata.Name,
+		}
+		return asset, nil
 	}
-
-	return asset, nil
 }
 
 func (c *Client) RPCGetBalance(ctx context.Context, account solana.PublicKey) (uint64, error) {
-	result, err := c.GetRPCClient().GetBalance(ctx, account, rpc.CommitmentConfirmed)
-	if err != nil {
-		return 0, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
+	for {
+		result, err := c.GetRPCClient().GetBalance(ctx, account, rpc.CommitmentConfirmed)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil {
+			return 0, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
+		}
+		return result.Value, nil
 	}
-	return result.Value, nil
 }
 
 func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
-	if err != nil && !errors.Is(err, rpc.ErrNotFound) {
-		return nil, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
+	for {
+		result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil && !errors.Is(err, rpc.ErrNotFound) {
+			return nil, fmt.Errorf("solana.GetAccountInfo(%s) => %v", account, err)
+		}
+		return result, nil
 	}
-	return result, nil
 }
 
 func (c *Client) ReadAccountUntilSufficient(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
@@ -143,80 +178,104 @@ func (c *Client) ReadAccountUntilSufficient(ctx context.Context, address solana.
 }
 
 func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
-	commitment := rpc.CommitmentConfirmed
-	if finalized {
-		commitment = rpc.CommitmentFinalized
-	}
-
-	r, err := c.GetRPCClient().GetTransaction(ctx,
-		solana.MustSignatureFromBase58(signature),
-		&rpc.GetTransactionOpts{
-			Encoding:                       solana.EncodingBase58,
-			MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
-			Commitment:                     commitment,
-		},
-	)
-	if err != nil || r.Meta == nil {
-		if strings.Contains(err.Error(), "not found") {
-			return nil, nil
+	for {
+		commitment := rpc.CommitmentConfirmed
+		if finalized {
+			commitment = rpc.CommitmentFinalized
 		}
-		return nil, fmt.Errorf("solana.GetTransaction(%s) => %v", signature, err)
-	}
 
-	return r, nil
+		r, err := c.GetRPCClient().GetTransaction(ctx,
+			solana.MustSignatureFromBase58(signature),
+			&rpc.GetTransactionOpts{
+				Encoding:                       solana.EncodingBase58,
+				MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
+				Commitment:                     commitment,
+			},
+		)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil || r.Meta == nil {
+			if strings.Contains(err.Error(), "not found") {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("solana.GetTransaction(%s) => %v", signature, err)
+		}
+
+		return r, nil
+	}
 }
 
 func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.PublicKey) ([]*token.Account, error) {
-	r, err := c.GetRPCClient().GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
-		ProgramId: &token.ProgramID,
-	}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	as := make([]*token.Account, len(r.Value))
-	for i, account := range r.Value {
-		var a token.Account
-		err := bin.NewBinDecoder(account.Account.Data.GetBinary()).Decode(&a)
-		if err != nil {
-			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+	for {
+		r, err := c.GetRPCClient().GetTokenAccountsByOwner(ctx, owner, &rpc.GetTokenAccountsConfig{
+			ProgramId: &token.ProgramID,
+		}, nil)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
 		}
-		as[i] = &a
+		if err != nil {
+			return nil, err
+		}
+
+		as := make([]*token.Account, len(r.Value))
+		for i, account := range r.Value {
+			var a token.Account
+			err := bin.NewBinDecoder(account.Account.Data.GetBinary()).Decode(&a)
+			if err != nil {
+				return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+			}
+			as[i] = &a
+		}
+		return as, nil
 	}
-	return as, nil
 }
 
 func (c *Client) GetNonceAccountHash(ctx context.Context, nonce solana.PublicKey) (*solana.Hash, error) {
-	account, err := c.RPCGetAccount(ctx, nonce)
-	if err != nil {
-		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
+	for {
+		account, err := c.RPCGetAccount(ctx, nonce)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
+		}
+		if account == nil {
+			return nil, nil
+		}
+		var nonceAccountData system.NonceAccount
+		err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData)
+		if err != nil {
+			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+		}
+		hash := solana.Hash(nonceAccountData.Nonce)
+		return &hash, nil
 	}
-	if account == nil {
-		return nil, nil
-	}
-	var nonceAccountData system.NonceAccount
-	err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData)
-	if err != nil {
-		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
-	}
-	hash := solana.Hash(nonceAccountData.Nonce)
-	return &hash, nil
 }
 
 func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Mint, error) {
-	account, err := c.RPCGetAccount(ctx, mint)
-	if err != nil {
-		return nil, fmt.Errorf("solana.GetMint() => %v", err)
+	for {
+		account, err := c.RPCGetAccount(ctx, mint)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("solana.GetMint() => %v", err)
+		}
+		if account == nil {
+			return nil, nil
+		}
+		var token token.Mint
+		err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token)
+		if err != nil {
+			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+		}
+		return &token, nil
 	}
-	if account == nil {
-		return nil, nil
-	}
-	var token token.Mint
-	err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token)
-	if err != nil {
-		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
-	}
-	return &token, nil
 }
 
 func (c *Client) GetAccountInfo(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
