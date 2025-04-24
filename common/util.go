@@ -78,6 +78,7 @@ func ExpandTilde(path string) string {
 
 func CheckTransactionRetryError(err string) bool {
 	switch {
+	case strings.Contains(err, "locked by another transaction"):
 	case strings.Contains(err, "locked by other transaction"):
 	case strings.Contains(err, "spent by other transaction"):
 	case strings.Contains(err, "inputs locked by another transaction"):
