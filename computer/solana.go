@@ -24,7 +24,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const SolanaBlockDelay = 32
+const (
+	SolanaBlockDelay = 32
+	SolanaTxRetry    = 10
+)
 
 func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 	client := node.SolanaClient()
@@ -580,7 +583,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	}
 
 	hash := tx.Signatures[0].String()
-	retry := 5
+	retry := SolanaTxRetry
 	for {
 		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
 		if mtg.CheckRetryableError(err) {
@@ -600,13 +603,21 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		if call == nil && strings.Contains(sendError.Error(), "Blockhash not found") {
-			retry -= 1
-			if retry > 0 {
-				time.Sleep(5 * time.Second)
-				continue
+		if strings.Contains(sendError.Error(), "Blockhash not found") {
+			// retry when observer send tx without nonce account
+			if call == nil {
+				retry -= 1
+				if retry > 0 {
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				return nil, sendError
 			}
-			return nil, sendError
+
+			// outdated nonce account hash when sending tx at first time
+			if retry == SolanaTxRetry {
+				return nil, sendError
+			}
 		}
 
 		rpcTx, err = node.SolanaClient().RPCGetTransaction(ctx, hash, false)
