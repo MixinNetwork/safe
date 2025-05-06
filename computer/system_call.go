@@ -257,7 +257,7 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	if err != nil {
 		return nil, nil, err
 	}
-	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	err = node.processTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}

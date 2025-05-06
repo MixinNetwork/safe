@@ -756,7 +756,7 @@ func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) 
 	if err != nil {
 		panic(err)
 	}
-	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	err = node.processTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
@@ -782,8 +782,8 @@ func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) 
 	// 	finalized = true
 	// }
 	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call, finalized)
-	if err != nil {
-		return nil, nil, err
+	if err != nil || rpcTx == nil {
+		return nil, nil, fmt.Errorf("node.SendTransactionUtilConfirm(%s) => %v %v", call.RequestId, rpcTx, err)
 	}
 	txx, err := rpcTx.Transaction.GetTransaction()
 	if err != nil {

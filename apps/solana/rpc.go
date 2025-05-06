@@ -10,7 +10,6 @@ import (
 	"github.com/MixinNetwork/safe/mtg"
 	bin "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
-	lookup "github.com/gagliardetto/solana-go/programs/address-lookup-table"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -292,50 +291,4 @@ func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (s
 		return "", err
 	}
 	return sig.String(), nil
-}
-
-// processTransactionWithAddressLookups resolves the address lookups in the transaction.
-func (c *Client) ProcessTransactionWithAddressLookups(ctx context.Context, txx *solana.Transaction) error {
-	if txx.Message.IsResolved() {
-		return nil
-	}
-
-	if !txx.Message.IsVersioned() {
-		// tx is not versioned, ignore
-		return nil
-	}
-
-	tblKeys := txx.Message.GetAddressTableLookups().GetTableIDs()
-	if len(tblKeys) == 0 {
-		return nil
-	}
-	numLookups := txx.Message.GetAddressTableLookups().NumLookups()
-	if numLookups == 0 {
-		return nil
-	}
-
-	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
-	for _, key := range tblKeys {
-		info, err := c.RPCGetAccountInfo(ctx, key)
-		if err != nil {
-			return fmt.Errorf("get account info: %w", err)
-		}
-
-		tableContent, err := lookup.DecodeAddressLookupTableState(info.GetBinary())
-		if err != nil {
-			return fmt.Errorf("decode address lookup table state: %w", err)
-		}
-
-		resolutions[key] = tableContent.Addresses
-	}
-
-	if err := txx.Message.SetAddressTables(resolutions); err != nil {
-		return fmt.Errorf("set address tables: %w", err)
-	}
-
-	if err := txx.Message.ResolveLookups(); err != nil {
-		return fmt.Errorf("resolve lookups: %w", err)
-	}
-
-	return nil
 }

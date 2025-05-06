@@ -18,6 +18,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	solana "github.com/gagliardetto/solana-go"
+	lookup "github.com/gagliardetto/solana-go/programs/address-lookup-table"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -107,7 +108,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		exception = &user
 	}
 
-	err = node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	err = node.processTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		if strings.Contains(err.Error(), "get account info: not found") {
 			return nil
@@ -505,8 +506,54 @@ type BalanceChange struct {
 	Decimals uint8
 }
 
+// processTransactionWithAddressLookups resolves the address lookups in the transaction.
+func (node *Node) processTransactionWithAddressLookups(ctx context.Context, txx *solana.Transaction) error {
+	if txx.Message.IsResolved() {
+		return nil
+	}
+
+	if !txx.Message.IsVersioned() {
+		// tx is not versioned, ignore
+		return nil
+	}
+
+	tblKeys := txx.Message.GetAddressTableLookups().GetTableIDs()
+	if len(tblKeys) == 0 {
+		return nil
+	}
+	numLookups := txx.Message.GetAddressTableLookups().NumLookups()
+	if numLookups == 0 {
+		return nil
+	}
+
+	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
+	for _, key := range tblKeys {
+		info, err := node.RPCGetAccountInfo(ctx, key)
+		if err != nil {
+			return fmt.Errorf("get account info: %w", err)
+		}
+
+		tableContent, err := lookup.DecodeAddressLookupTableState(info.GetBinary())
+		if err != nil {
+			return fmt.Errorf("decode address lookup table state: %w", err)
+		}
+
+		resolutions[key] = tableContent.Addresses
+	}
+
+	if err := txx.Message.SetAddressTables(resolutions); err != nil {
+		return fmt.Errorf("set address tables: %w", err)
+	}
+
+	if err := txx.Message.ResolveLookups(); err != nil {
+		return fmt.Errorf("resolve lookups: %w", err)
+	}
+
+	return nil
+}
+
 func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, user solana.PublicKey) map[string]*BalanceChange {
-	err := node.SolanaClient().ProcessTransactionWithAddressLookups(ctx, tx)
+	err := node.processTransactionWithAddressLookups(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
@@ -871,6 +918,37 @@ func (node *Node) RPCGetAccount(ctx context.Context, account solana.PublicKey) (
 	}
 
 	acc, err := node.SolanaClient().RPCGetAccount(ctx, account)
+	if err != nil {
+		panic(err)
+	}
+	b, err := json.Marshal(acc)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
+	if err != nil {
+		panic(err)
+	}
+	return acc, nil
+}
+
+func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+	key := fmt.Sprintf("getAccountInfo:%s", account.String())
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		var r rpc.GetAccountInfoResult
+		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
+		if err != nil {
+			panic(err)
+		}
+		return &r, nil
+	}
+
+	acc, err := node.SolanaClient().RPCGetAccountInfo(ctx, account)
 	if err != nil {
 		panic(err)
 	}

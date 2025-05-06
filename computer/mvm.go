@@ -765,6 +765,13 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	if err != nil {
 		panic(err)
 	}
+	if err := node.processTransactionWithAddressLookups(ctx, tx); err != nil {
+		// FIXME handle address table closed
+		if strings.Contains(err.Error(), "get account info: not found") {
+			return nil, ""
+		}
+		panic(err)
+	}
 	ts, err := node.SolanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
 	if err != nil {
 		panic(err)
