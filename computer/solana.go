@@ -868,7 +868,7 @@ func (node *Node) SolanaClient() *solanaApp.Client {
 }
 
 func (node *Node) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
-	key := fmt.Sprintf("getTransaction:%s:%t", signature)
+	key := fmt.Sprintf("getTransaction:%s", signature)
 	value, err := node.store.ReadCache(ctx, key)
 	if err != nil {
 		panic(err)
