@@ -117,7 +117,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	}
 	// all balance changes from the creator account of a system call is handled in processSuccessedCall
 	// only process deposits to other user accounts here
-	transfers, err := node.SolanaClient().ExtractTransfersFromTransaction(ctx, tx, meta, exception)
+	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, meta, exception)
 	if err != nil {
 		panic(err)
 	}

@@ -772,7 +772,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		}
 		panic(err)
 	}
-	ts, err := node.SolanaClient().ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
+	ts, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
 	if err != nil {
 		panic(err)
 	}

@@ -388,7 +388,7 @@ func (c *Client) getPriorityFeeInstruction(ctx context.Context) *computebudget.I
 	return computebudget.NewSetComputeUnitPriceInstruction(fee).Build()
 }
 
-func (c *Client) ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, exception *solana.PublicKey) ([]*Transfer, error) {
+func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, exception *solana.PublicKey) ([]*Transfer, error) {
 	if meta.Err != nil {
 		// Transaction failed, ignore
 		return nil, nil
