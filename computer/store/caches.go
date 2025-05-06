@@ -50,6 +50,11 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 		return err
 	}
 
+	existed, err := s.checkExistence(ctx, tx, "SELECT key FROM caches WHERE key=?", k)
+	if err != nil || existed {
+		return err
+	}
+
 	cols := []string{"key", "value", "created_at"}
 	vals := []any{k, v, time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
