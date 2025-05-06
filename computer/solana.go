@@ -888,7 +888,10 @@ func (node *Node) RPCGetTransaction(ctx context.Context, signature string, final
 
 	tx, err := node.SolanaClient().RPCGetTransaction(ctx, signature, finalized)
 	if err != nil {
-		return nil, err
+		panic(err)
+	}
+	if tx == nil {
+		return nil, nil
 	}
 	b, err := json.Marshal(tx)
 	if err != nil {
@@ -921,6 +924,9 @@ func (node *Node) RPCGetAccount(ctx context.Context, account solana.PublicKey) (
 	if err != nil {
 		panic(err)
 	}
+	if acc == nil {
+		return nil, nil
+	}
 	b, err := json.Marshal(acc)
 	if err != nil {
 		panic(err)
@@ -952,6 +958,9 @@ func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKe
 	if err != nil {
 		panic(err)
 	}
+	if acc == nil {
+		return nil, nil
+	}
 	b, err := json.Marshal(acc)
 	if err != nil {
 		panic(err)
@@ -982,6 +991,9 @@ func (node *Node) RPCGetAsset(ctx context.Context, account string) (*solanaApp.A
 	asset, err := node.SolanaClient().RPCGetAsset(ctx, account)
 	if err != nil {
 		panic(err)
+	}
+	if asset == nil {
+		return nil, nil
 	}
 	b, err := json.Marshal(asset)
 	if err != nil {
