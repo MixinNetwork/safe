@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -43,18 +44,31 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		if checkpoint+SolanaBlockDelay > int64(height)+1 {
-			logger.Printf("current %d > limit %d", checkpoint+SolanaBlockDelay, int64(height)+1)
-			time.Sleep(time.Second * 5)
-			continue
+		offset := checkpoint
+
+		var wg sync.WaitGroup
+		wg.Add(10)
+		for i := range 10 {
+			go func(i int) {
+				defer wg.Done()
+				current := checkpoint + int64(i)
+				if current+SolanaBlockDelay > int64(height)+1 {
+					logger.Printf("current %d > limit %d", current+SolanaBlockDelay, int64(height)+1)
+					return
+				}
+				err := node.solanaReadBlock(ctx, current)
+				logger.Printf("node.solanaReadBlock(%d) => %v", current, err)
+				if err != nil {
+					panic(err)
+				}
+				if current > offset {
+					offset = current
+				}
+			}(i)
 		}
-		err = node.solanaReadBlock(ctx, checkpoint)
-		logger.Printf("node.solanaReadBlock(%d) => %v", checkpoint, err)
-		if err != nil {
-			time.Sleep(time.Second * 5)
-			continue
-		}
-		err = node.writeRequestNumber(ctx, store.SolanaScanHeightKey, checkpoint+1)
+		wg.Wait()
+
+		err = node.writeRequestNumber(ctx, store.SolanaScanHeightKey, offset+1)
 		if err != nil {
 			panic(err)
 		}
