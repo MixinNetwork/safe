@@ -307,7 +307,7 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 		return builder, nil
 	}
 
-	mintAccount, err := c.ReadAccountUntilSufficient(ctx, transfer.Mint)
+	mintAccount, err := c.RPCGetAccount(ctx, transfer.Mint)
 	if err != nil {
 		panic(err)
 	}

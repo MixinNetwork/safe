@@ -17,7 +17,7 @@ var SCHEMA string
 
 type SQLite3Store struct {
 	db    *sql.DB
-	mutex *sync.Mutex
+	mutex *sync.RWMutex
 }
 
 type SignResult struct {
@@ -32,7 +32,7 @@ func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 	}
 	return &SQLite3Store{
 		db:    db,
-		mutex: new(sync.Mutex),
+		mutex: new(sync.RWMutex),
 	}, nil
 }
 
@@ -113,4 +113,12 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 
 type Row interface {
 	Scan(dest ...any) error
+}
+
+func rollBack(txn *sql.Tx) {
+	err := txn.Rollback()
+	const already = "transaction has already been committed or rolled back"
+	if err != nil && !strings.Contains(err.Error(), already) {
+		panic(err)
+	}
 }

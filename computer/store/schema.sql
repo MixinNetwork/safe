@@ -215,6 +215,16 @@ CREATE TABLE IF NOT EXISTS fees (
 CREATE INDEX IF NOT EXISTS fees_by_created ON fees(created_at);
 
 
+CREATE TABLE IF NOT EXISTS caches (
+  key           VARCHAR NOT NULL,
+  value         TEXT NOT NULL,
+  created_at    TIMESTAMP NOT NULL,
+  PRIMARY KEY ('key')
+);
+
+CREATE INDEX IF NOT EXISTS caches_by_created ON caches(created_at);
+
+
 CREATE TABLE IF NOT EXISTS action_results (
   output_id       VARCHAR NOT NULL,
   compaction      VARCHAR NOT NULL,

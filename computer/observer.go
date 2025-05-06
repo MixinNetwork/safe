@@ -740,7 +740,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
 	as := solanaApp.ExtractCreatedAtasFromTransaction(ctx, tx)
 	for _, ata := range as {
-		_, err := node.SolanaClient().ReadAccountUntilSufficient(ctx, ata)
+		_, err := node.RPCGetAccount(ctx, ata)
 		if err != nil {
 			return err
 		}

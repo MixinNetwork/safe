@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"sort"
@@ -129,7 +130,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		return nil
 	}
 
-	rentExemptBalance, err := node.SolanaClient().GetRPCClient().GetMinimumBalanceForRentExemption(
+	rentExemptBalance, err := node.RPCGetMinimumBalanceForRentExemption(
 		ctx,
 		solanaApp.NormalAccountSize,
 		rpc.CommitmentConfirmed,
@@ -146,7 +147,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		}
 		decimal := uint8(9)
 		if transfer.TokenAddress != solanaApp.SolanaEmptyAddress {
-			asset, err := node.SolanaClient().RPCGetAsset(ctx, transfer.TokenAddress)
+			asset, err := node.RPCGetAsset(ctx, transfer.TokenAddress)
 			if err != nil {
 				logger.Printf("solana.RPCGetAsset(%s) => %v", transfer.TokenAddress, err)
 				return err
@@ -572,25 +573,6 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner solana.PublicKey) map[st
 	return bm
 }
 
-func (node *Node) ReadTransactionUtilConfirm(ctx context.Context, hash string, finalized bool) (*rpc.GetTransactionResult, error) {
-	interval := 3
-	if finalized {
-		interval = 10
-	}
-	for {
-		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
-		logger.Printf("solana.RPCGetTransaction(%s) => %v %v", hash, rpcTx, err)
-		if err != nil {
-			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
-		}
-		if rpcTx == nil {
-			time.Sleep(time.Duration(interval) * time.Second)
-			continue
-		}
-		return rpcTx, nil
-	}
-}
-
 func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall, finalized bool) (*rpc.GetTransactionResult, error) {
 	id := ""
 	if call != nil {
@@ -600,7 +582,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	hash := tx.Signatures[0].String()
 	retry := SolanaTxRetry
 	for {
-		rpcTx, err := node.SolanaClient().RPCGetTransaction(ctx, hash, finalized)
+		rpcTx, err := node.RPCGetTransaction(ctx, hash, finalized)
 		if mtg.CheckRetryableError(err) {
 			time.Sleep(500 * time.Millisecond)
 			continue
@@ -635,7 +617,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			}
 		}
 
-		rpcTx, err = node.SolanaClient().RPCGetTransaction(ctx, hash, false)
+		rpcTx, err = node.RPCGetTransaction(ctx, hash, false)
 		if mtg.CheckRetryableError(err) {
 			time.Sleep(500 * time.Millisecond)
 			continue
@@ -646,7 +628,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 		// transaction confirmed after re-sending failure
 		if rpcTx != nil {
 			if finalized {
-				return node.ReadTransactionUtilConfirm(ctx, hash, finalized)
+				return node.RPCGetTransaction(ctx, hash, finalized)
 			}
 			return rpcTx, nil
 		}
@@ -846,6 +828,125 @@ func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.S
 
 func (node *Node) SolanaClient() *solanaApp.Client {
 	return solanaApp.NewClient(node.conf.SolanaRPC)
+}
+
+func (node *Node) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
+	key := fmt.Sprintf("getTransaction:%s:%t", signature, finalized)
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		var r rpc.GetTransactionResult
+		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
+		if err != nil {
+			panic(err)
+		}
+		return &r, nil
+	}
+
+	tx, err := node.SolanaClient().RPCGetTransaction(ctx, signature, finalized)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(tx)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
+	if err != nil {
+		panic(err)
+	}
+	return tx, nil
+}
+
+func (node *Node) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+	key := fmt.Sprintf("getAccountInfo:%s", account.String())
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		var r rpc.GetAccountInfoResult
+		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
+		if err != nil {
+			panic(err)
+		}
+		return &r, nil
+	}
+
+	acc, err := node.SolanaClient().RPCGetAccount(ctx, account)
+	if err != nil {
+		panic(err)
+	}
+	b, err := json.Marshal(acc)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
+	if err != nil {
+		panic(err)
+	}
+	return acc, nil
+}
+
+func (node *Node) RPCGetAsset(ctx context.Context, account string) (*solanaApp.Asset, error) {
+	key := fmt.Sprintf("getAsset:%s", account)
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		var a solanaApp.Asset
+		err = json.Unmarshal(common.DecodeHexOrPanic(value), &a)
+		if err != nil {
+			panic(err)
+		}
+		return &a, nil
+	}
+
+	asset, err := node.SolanaClient().RPCGetAsset(ctx, account)
+	if err != nil {
+		panic(err)
+	}
+	b, err := json.Marshal(asset)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
+	if err != nil {
+		panic(err)
+	}
+	return asset, nil
+}
+
+func (node *Node) RPCGetMinimumBalanceForRentExemption(ctx context.Context, dataSize uint64, commitment rpc.CommitmentType) (uint64, error) {
+	key := fmt.Sprintf("getMinimumBalanceForRentExemption:%d:%s", dataSize, commitment)
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		rent, err := decimal.NewFromString(value)
+		if err != nil {
+			panic(err)
+		}
+		return rent.BigInt().Uint64(), nil
+	}
+
+	r, err := node.RPCGetMinimumBalanceForRentExemption(ctx, dataSize, commitment)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteCache(ctx, key, fmt.Sprintf("%d", r))
+	if err != nil {
+		panic(err)
+	}
+	return r, nil
 }
 
 func (node *Node) SolanaPayer() solana.PublicKey {

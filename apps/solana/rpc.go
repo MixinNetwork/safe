@@ -35,11 +35,11 @@ type AssetMetadata struct {
 }
 
 type Asset struct {
-	Address  string
-	Id       string
-	Symbol   string
-	Name     string
-	Decimals uint32
+	Address  string `json:"address"`
+	Id       string `json:"id"`
+	Symbol   string `json:"symbol"`
+	Name     string `json:"name"`
+	Decimals uint32 `json:"decimals"`
 }
 
 func (c *Client) GetRPCClient() *rpc.Client {
@@ -159,24 +159,6 @@ func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*
 	}
 }
 
-func (c *Client) ReadAccountUntilSufficient(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	for {
-		acc, err := c.RPCGetAccount(ctx, address)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if acc == nil {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		return acc, err
-	}
-}
-
 func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
 	for {
 		commitment := rpc.CommitmentConfirmed
@@ -204,6 +186,17 @@ func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finali
 		}
 
 		return r, nil
+	}
+}
+
+func (c *Client) RPCGetMinimumBalanceForRentExemption(ctx context.Context, dataSize uint64, commitment rpc.CommitmentType) (lamport uint64, err error) {
+	for {
+		r, err := c.GetRPCClient().GetMinimumBalanceForRentExemption(ctx, dataSize, commitment)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return r, err
 	}
 }
 
@@ -278,17 +271,6 @@ func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Min
 	}
 }
 
-func (c *Client) GetAccountInfo(ctx context.Context, address solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	for {
-		info, err := c.GetRPCClient().GetAccountInfo(ctx, address)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		return info, err
-	}
-}
-
 func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
 	client := c.GetRPCClient()
 	sig, err := client.SendTransactionWithOpts(ctx, tx, rpc.TransactionOpts{
@@ -323,7 +305,7 @@ func (c *Client) ProcessTransactionWithAddressLookups(ctx context.Context, txx *
 
 	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
 	for _, key := range tblKeys {
-		info, err := c.GetAccountInfo(ctx, key)
+		info, err := c.RPCGetAccount(ctx, key)
 		if err != nil {
 			return fmt.Errorf("get account info: %w", err)
 		}
