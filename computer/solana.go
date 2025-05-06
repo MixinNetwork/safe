@@ -27,6 +27,7 @@ import (
 
 const (
 	SolanaBlockDelay = 32
+	SolanaBlockBatch = 30
 	SolanaTxRetry    = 10
 )
 
@@ -47,8 +48,8 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		offset := checkpoint
 
 		var wg sync.WaitGroup
-		wg.Add(10)
-		for i := range 10 {
+		wg.Add(SolanaBlockBatch)
+		for i := range SolanaBlockBatch {
 			go func(i int) {
 				defer wg.Done()
 				current := checkpoint + int64(i)
