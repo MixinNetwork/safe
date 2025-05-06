@@ -17,7 +17,6 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	"github.com/MixinNetwork/safe/mtg"
 	solana "github.com/gagliardetto/solana-go"
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
@@ -583,10 +582,6 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	retry := SolanaTxRetry
 	for {
 		rpcTx, err := node.RPCGetTransaction(ctx, hash, finalized)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
@@ -596,7 +591,8 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 
 		sig, sendError := node.SolanaClient().SendTransaction(ctx, tx)
 		logger.Printf("solana.SendTransaction(%s) => %s %v", id, sig, sendError)
-		if sendError == nil || mtg.CheckRetryableError(sendError) {
+		if sendError == nil {
+			retry -= 1
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -617,11 +613,9 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			}
 		}
 
+		retry -= 1
 		rpcTx, err = node.RPCGetTransaction(ctx, hash, false)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
+		logger.Printf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
@@ -633,7 +627,6 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			return rpcTx, nil
 		}
 
-		retry -= 1
 		if retry > 0 {
 			time.Sleep(500 * time.Millisecond)
 			continue
