@@ -535,7 +535,7 @@ func (node *Node) processTransactionWithAddressLookups(ctx context.Context, txx 
 
 		tableContent, err := lookup.DecodeAddressLookupTableState(info.GetBinary())
 		if err != nil {
-			return fmt.Errorf("decode address lookup table state: %w", err)
+			return fmt.Errorf("decode address lookup table state: %s %w", key, err)
 		}
 
 		resolutions[key] = tableContent.Addresses
@@ -956,7 +956,7 @@ func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKe
 	acc, err := node.SolanaClient().RPCGetAccountInfo(ctx, account)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return nil, nil
+			return nil, err
 		}
 		panic(err)
 	}
