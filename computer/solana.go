@@ -1011,7 +1011,6 @@ func (node *Node) RPCGetMinimumBalanceForRentExemption(ctx context.Context, data
 	if err != nil {
 		panic(err)
 	}
-
 	if value != "" {
 		rent, err := decimal.NewFromString(value)
 		if err != nil {
@@ -1020,7 +1019,7 @@ func (node *Node) RPCGetMinimumBalanceForRentExemption(ctx context.Context, data
 		return rent.BigInt().Uint64(), nil
 	}
 
-	r, err := node.RPCGetMinimumBalanceForRentExemption(ctx, dataSize, commitment)
+	r, err := node.SolanaClient().RPCGetMinimumBalanceForRentExemption(ctx, dataSize, commitment)
 	if err != nil {
 		panic(err)
 	}
