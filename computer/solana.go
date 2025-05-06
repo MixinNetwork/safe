@@ -944,7 +944,6 @@ func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKe
 	if err != nil {
 		panic(err)
 	}
-
 	if value != "" {
 		var r rpc.GetAccountInfoResult
 		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
@@ -956,6 +955,9 @@ func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKe
 
 	acc, err := node.SolanaClient().RPCGetAccountInfo(ctx, account)
 	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, nil
+		}
 		panic(err)
 	}
 	if acc == nil {
