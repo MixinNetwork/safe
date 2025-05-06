@@ -905,7 +905,7 @@ func (node *Node) RPCGetTransaction(ctx context.Context, signature string, final
 }
 
 func (node *Node) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	key := fmt.Sprintf("getAccountInfo:%s", account.String())
+	key := fmt.Sprintf("getAccount:%s", account.String())
 	value, err := node.store.ReadCache(ctx, key)
 	if err != nil {
 		panic(err)
