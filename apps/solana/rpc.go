@@ -159,6 +159,17 @@ func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*
 	}
 }
 
+func (c *Client) RPCGetAccountInfo(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+	for {
+		result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return result, err
+	}
+}
+
 func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
 	for {
 		commitment := rpc.CommitmentConfirmed
@@ -305,7 +316,7 @@ func (c *Client) ProcessTransactionWithAddressLookups(ctx context.Context, txx *
 
 	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
 	for _, key := range tblKeys {
-		info, err := c.RPCGetAccount(ctx, key)
+		info, err := c.RPCGetAccountInfo(ctx, key)
 		if err != nil {
 			return fmt.Errorf("get account info: %w", err)
 		}

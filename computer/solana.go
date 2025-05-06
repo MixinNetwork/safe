@@ -613,7 +613,6 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			}
 		}
 
-		retry -= 1
 		rpcTx, err = node.RPCGetTransaction(ctx, hash, false)
 		logger.Printf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		if err != nil {
@@ -627,6 +626,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			return rpcTx, nil
 		}
 
+		retry -= 1
 		if retry > 0 {
 			time.Sleep(500 * time.Millisecond)
 			continue
