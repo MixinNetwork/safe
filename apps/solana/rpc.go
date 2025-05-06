@@ -169,19 +169,14 @@ func (c *Client) RPCGetAccountInfo(ctx context.Context, account solana.PublicKey
 	}
 }
 
-func (c *Client) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
+func (c *Client) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
 	for {
-		commitment := rpc.CommitmentConfirmed
-		if finalized {
-			commitment = rpc.CommitmentFinalized
-		}
-
 		r, err := c.GetRPCClient().GetTransaction(ctx,
 			solana.MustSignatureFromBase58(signature),
 			&rpc.GetTransactionOpts{
 				Encoding:                       solana.EncodingBase58,
 				MaxSupportedTransactionVersion: &rpc.MaxSupportedTransactionVersion1,
-				Commitment:                     commitment,
+				Commitment:                     rpc.CommitmentConfirmed,
 			},
 		)
 		if mtg.CheckRetryableError(err) {

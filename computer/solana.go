@@ -222,7 +222,7 @@ func (node *Node) InitializeAccount(ctx context.Context, user *store.User) error
 	if err != nil {
 		return err
 	}
-	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil, false)
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil)
 	return err
 }
 
@@ -309,7 +309,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	if err != nil {
 		return "", "", err
 	}
-	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil, false)
+	_, err = node.SendTransactionUtilConfirm(ctx, tx, nil)
 	if err != nil {
 		return "", "", err
 	}
@@ -619,7 +619,7 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner solana.PublicKey) map[st
 	return bm
 }
 
-func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall, finalized bool) (*rpc.GetTransactionResult, error) {
+func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall) (*rpc.GetTransactionResult, error) {
 	id := ""
 	if call != nil {
 		id = call.RequestId
@@ -628,7 +628,7 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 	hash := tx.Signatures[0].String()
 	retry := SolanaTxRetry
 	for {
-		rpcTx, err := node.RPCGetTransaction(ctx, hash, finalized)
+		rpcTx, err := node.RPCGetTransaction(ctx, hash)
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
@@ -660,16 +660,13 @@ func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Tra
 			}
 		}
 
-		rpcTx, err = node.RPCGetTransaction(ctx, hash, false)
+		rpcTx, err = node.RPCGetTransaction(ctx, hash)
 		logger.Printf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		if err != nil {
 			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
 		}
 		// transaction confirmed after re-sending failure
 		if rpcTx != nil {
-			if finalized {
-				return node.RPCGetTransaction(ctx, hash, finalized)
-			}
 			return rpcTx, nil
 		}
 
@@ -870,8 +867,8 @@ func (node *Node) SolanaClient() *solanaApp.Client {
 	return solanaApp.NewClient(node.conf.SolanaRPC)
 }
 
-func (node *Node) RPCGetTransaction(ctx context.Context, signature string, finalized bool) (*rpc.GetTransactionResult, error) {
-	key := fmt.Sprintf("getTransaction:%s:%t", signature, finalized)
+func (node *Node) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
+	key := fmt.Sprintf("getTransaction:%s:%t", signature)
 	value, err := node.store.ReadCache(ctx, key)
 	if err != nil {
 		panic(err)
@@ -886,7 +883,7 @@ func (node *Node) RPCGetTransaction(ctx context.Context, signature string, final
 		return &r, nil
 	}
 
-	tx, err := node.SolanaClient().RPCGetTransaction(ctx, signature, finalized)
+	tx, err := node.SolanaClient().RPCGetTransaction(ctx, signature)
 	if err != nil {
 		panic(err)
 	}

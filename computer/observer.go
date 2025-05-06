@@ -777,11 +777,7 @@ func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) 
 		tx.Signatures[index] = solana.SignatureFromBytes(sig)
 	}
 
-	finalized := false
-	// if call != nil && call.Type == store.CallTypePrepare {
-	// 	finalized = true
-	// }
-	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call, finalized)
+	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, call)
 	if err != nil || rpcTx == nil {
 		return nil, nil, fmt.Errorf("node.SendTransactionUtilConfirm(%s) => %v %v", call.RequestId, rpcTx, err)
 	}

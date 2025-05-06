@@ -460,7 +460,7 @@ func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Reque
 	if err != nil || withdrawalHash != hash {
 		panic(err)
 	}
-	tx, err := node.RPCGetTransaction(ctx, withdrawalHash, false)
+	tx, err := node.RPCGetTransaction(ctx, withdrawalHash)
 	logger.Printf("solana.RPCGetTransaction(%s) => %v %v", withdrawalHash, tx, err)
 	if err != nil || tx == nil {
 		panic(err)
@@ -687,7 +687,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		return node.failRequest(ctx, req, "")
 	}
 	// TODO should compare built tx and deposit tx from signature
-	txx, err := node.RPCGetTransaction(ctx, signature.String(), false)
+	txx, err := node.RPCGetTransaction(ctx, signature.String())
 	if err != nil {
 		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v %v", signature.String(), txx, err))
 	}
@@ -757,7 +757,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	}
 	deposit := ver.DepositData()
 
-	rpcTx, err := node.RPCGetTransaction(ctx, deposit.Transaction, false)
+	rpcTx, err := node.RPCGetTransaction(ctx, deposit.Transaction)
 	if err != nil {
 		panic(err)
 	}
@@ -841,7 +841,7 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, 
 }
 
 func (node *Node) checkConfirmCallSignature(ctx context.Context, signature string) (*store.SystemCall, *solana.Transaction, error) {
-	transaction, err := node.RPCGetTransaction(ctx, signature, false)
+	transaction, err := node.RPCGetTransaction(ctx, signature)
 	if err != nil {
 		panic(err)
 	}
