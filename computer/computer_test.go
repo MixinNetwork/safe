@@ -428,7 +428,7 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 		asset, err := node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId, common.RequestStateInitial)
 		require.Nil(err)
 		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", asset.Address)
-		require.Equal(8, asset.Decimals)
+		require.Equal(int64(8), asset.Decimals)
 		require.Equal(int64(common.RequestStateInitial), asset.State)
 		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
 		testStep(ctx, require, node, out)
