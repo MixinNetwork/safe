@@ -925,11 +925,7 @@ func (node *Node) confirmPostprocessSystemCall(ctx context.Context, req *store.R
 			panic(err)
 		}
 
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, da.AssetId)
-		if err != nil {
-			panic(err)
-		}
-		amount := decimal.New(int64(*burn.Amount), -int32(asset.Precision)).String()
+		amount := decimal.New(int64(*burn.Amount), -int32(da.Decimals)).String()
 		amt := mc.NewIntegerFromString(amount)
 		if amt.Sign() == 0 {
 			continue
