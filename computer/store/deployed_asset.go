@@ -10,11 +10,11 @@ import (
 	"github.com/MixinNetwork/safe/common"
 )
 
-var deployedAssetCols = []string{"asset_id", "chain_id", "address", "state", "created_at"}
+var deployedAssetCols = []string{"asset_id", "chain_id", "address", "decimals", "state", "created_at"}
 
 func deployedAssetFromRow(row Row) (*solanaApp.DeployedAsset, error) {
 	var a solanaApp.DeployedAsset
-	err := row.Scan(&a.AssetId, &a.ChainId, &a.Address, &a.State, &a.CreatedAt)
+	err := row.Scan(&a.AssetId, &a.ChainId, &a.Address, &a.Decimals, &a.State, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

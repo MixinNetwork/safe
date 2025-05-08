@@ -44,6 +44,7 @@ type DeployedAsset struct {
 	AssetId   string
 	ChainId   string
 	Address   string
+	Decimals  int64
 	State     int64
 	CreatedAt time.Time
 

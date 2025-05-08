@@ -33,14 +33,12 @@ const (
 )
 
 func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
-	client := node.SolanaClient()
-
 	for {
 		checkpoint, err := node.readSolanaBlockCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
-		height, err := client.RPCGetBlockHeight(ctx)
+		height, err := node.SolanaClient().RPCGetBlockHeight(ctx)
 		if err != nil {
 			logger.Printf("solana.RPCGetBlockHeight => %v", err)
 			time.Sleep(time.Second * 5)
@@ -78,8 +76,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 }
 
 func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
-	client := node.SolanaClient()
-	block, err := client.RPCGetBlockByHeight(ctx, uint64(checkpoint))
+	block, err := node.SolanaClient().RPCGetBlockByHeight(ctx, uint64(checkpoint))
 	if err != nil {
 		if strings.Contains(err.Error(), "was skipped, or missing") {
 			return nil

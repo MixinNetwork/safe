@@ -151,6 +151,7 @@ func (node *Node) httpGetAssets(w http.ResponseWriter, r *http.Request, params m
 		view = append(view, map[string]any{
 			"asset_id": asset.AssetId,
 			"address":  asset.Address,
+			"decimals": asset.Decimals,
 			"uri":      um[asset.AssetId],
 		})
 	}

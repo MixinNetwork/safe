@@ -401,10 +401,11 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 			return node.failRequest(ctx, req, "")
 		}
 		as[address] = &solanaApp.DeployedAsset{
-			AssetId: assetId,
-			ChainId: asset.ChainID,
-			Address: address,
-			Asset:   asset,
+			AssetId:  assetId,
+			ChainId:  asset.ChainID,
+			Address:  address,
+			Decimals: int64(asset.Precision),
+			Asset:    asset,
 		}
 		logger.Verbosef("processDeployExternalAssets() => %s %s", assetId, address)
 	}

@@ -172,7 +172,7 @@ func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Reques
 			continue
 		}
 
-		vals := []any{asset.AssetId, asset.ChainId, asset.Address, common.RequestStateInitial, req.CreatedAt}
+		vals := []any{asset.AssetId, asset.ChainId, asset.Address, asset.Decimals, common.RequestStateInitial, req.CreatedAt}
 		err = s.execOne(ctx, tx, buildInsertionSQL("deployed_assets", deployedAssetCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT deployed_assets %v", err)
