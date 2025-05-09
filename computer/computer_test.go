@@ -43,6 +43,13 @@ func TestComputer(t *testing.T) {
 	testConfirmWithdrawal(ctx, require, nodes, call, sub)
 	postprocess := testObserverConfirmMainCall(ctx, require, nodes, call)
 	testObserverConfirmPostprocessCall(ctx, require, nodes, postprocess)
+
+	node := nodes[0]
+	err := node.store.WriteFailedCallIfNotExist(ctx, call, "test-error")
+	require.Nil(err)
+	reason, err := node.store.ReadFailReason(ctx, call.RequestId)
+	require.Nil(err)
+	require.Equal("test-error", reason)
 }
 
 func testObserverConfirmPostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {

@@ -123,14 +123,24 @@ func (node *Node) httpGetSystemCall(w http.ResponseWriter, r *http.Request, para
 		state = "failed"
 	}
 
-	common.RenderJSON(w, r, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"id":            call.RequestId,
 		"user_id":       call.UserIdFromPublicPath().String(),
 		"nonce_account": call.NonceAccount,
 		"raw":           call.Raw,
 		"state":         state,
 		"hash":          call.Hash.String,
-	})
+	}
+	if call.State == common.RequestStateFailed {
+		reason, err := node.store.ReadFailReason(ctx, call.RequestId)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
+		resp["reason"] = reason
+	}
+
+	common.RenderJSON(w, r, http.StatusOK, resp)
 }
 
 func (node *Node) httpGetAssets(w http.ResponseWriter, r *http.Request, params map[string]string) {

@@ -691,7 +691,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 
 		tx, meta, err := node.handleSignedCall(ctx, call)
 		if err != nil {
-			err = node.processFailedCall(ctx, call)
+			err = node.processFailedCall(ctx, call, err)
 			if err != nil {
 				panic(err)
 			}
@@ -707,7 +707,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 	var sigs []solana.Signature
 	preTx, _, err := node.handleSignedCall(ctx, calls[0])
 	if err != nil {
-		err = node.processFailedCall(ctx, calls[0])
+		err = node.processFailedCall(ctx, calls[0], err)
 		if err != nil {
 			panic(err)
 		}
@@ -722,7 +722,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 
 	tx, meta, err := node.handleSignedCall(ctx, calls[1])
 	if err != nil {
-		err = node.processFailedCall(ctx, calls[1])
+		err = node.processFailedCall(ctx, calls[1], err)
 		if err != nil {
 			panic(err)
 		}
@@ -824,7 +824,7 @@ func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCa
 	}, nil)
 }
 
-func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall) error {
+func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall, callError error) error {
 	logger.Printf("node.processFailedCall(%s)", call.RequestId)
 	id := common.UniqueId(call.RequestId, "confirm-fail")
 	extra := []byte{FlagConfirmCallFail}
@@ -848,6 +848,11 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall)
 			}
 			extra = attachSystemCall(extra, cid, data)
 		}
+	}
+
+	err := node.store.WriteFailedCallIfNotExist(ctx, call, callError.Error())
+	if err != nil {
+		return err
 	}
 
 	return node.sendObserverTransactionToGroup(ctx, &common.Operation{

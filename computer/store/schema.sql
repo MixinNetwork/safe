@@ -226,6 +226,14 @@ CREATE TABLE IF NOT EXISTS caches (
 CREATE INDEX IF NOT EXISTS caches_by_created ON caches(created_at);
 
 
+CREATE TABLE IF NOT EXISTS failed_calls (
+  call_id       VARCHAR NOT NULL,
+  reason        TEXT NOT NULL,
+  created_at    TIMESTAMP NOT NULL,
+  PRIMARY KEY ('call_id')
+);
+
+
 CREATE TABLE IF NOT EXISTS action_results (
   output_id       VARCHAR NOT NULL,
   compaction      VARCHAR NOT NULL,
