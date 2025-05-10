@@ -524,13 +524,16 @@ func (node *Node) processTransactionWithAddressLookups(ctx context.Context, txx 
 	}
 
 	resolutions := make(map[solana.PublicKey]solana.PublicKeySlice)
-	for _, key := range tblKeys {
-		info, err := node.RPCGetAccountInfo(ctx, key)
-		if err != nil {
-			return fmt.Errorf("get account info: %w", err)
+	infos, err := node.RPCGetMultipleAccounts(ctx, tblKeys)
+	if err != nil {
+		return fmt.Errorf("node.RPCGetMultipleAccounts() => %v", err)
+	}
+	for index, info := range infos.Value {
+		if info == nil {
+			continue
 		}
-
-		tableContent, err := lookup.DecodeAddressLookupTableState(info.GetBinary())
+		key := tblKeys[index]
+		tableContent, err := lookup.DecodeAddressLookupTableState(info.Data.GetBinary())
 		if err != nil {
 			return fmt.Errorf("decode address lookup table state: %s %w", key, err)
 		}
@@ -932,40 +935,30 @@ func (node *Node) RPCGetAccount(ctx context.Context, account solana.PublicKey) (
 	return acc, nil
 }
 
-func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	key := fmt.Sprintf("getAccountInfo:%s", account.String())
-	value, err := node.store.ReadCache(ctx, key)
+func (node *Node) RPCGetMultipleAccounts(ctx context.Context, as solana.PublicKeySlice) (*rpc.GetMultipleAccountsResult, error) {
+	accounts, err := node.SolanaClient().RPCGetMultipleAccounts(ctx, as)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	if value != "" {
-		var r rpc.GetAccountInfoResult
-		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
+	for index, acc := range accounts.Value {
+		if acc == nil {
+			continue
+		}
+		account := &rpc.GetAccountInfoResult{
+			RPCContext: accounts.RPCContext,
+			Value:      acc,
+		}
+		key := fmt.Sprintf("getAccountInfo:%s", as[index].String())
+		b, err := json.Marshal(account)
 		if err != nil {
 			panic(err)
 		}
-		return &r, nil
-	}
-
-	acc, err := node.SolanaClient().RPCGetAccountInfo(ctx, account)
-	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			return nil, nil
+		err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
+		if err != nil {
+			panic(err)
 		}
-		panic(err)
 	}
-	if acc == nil {
-		return nil, nil
-	}
-	b, err := json.Marshal(acc)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
-	if err != nil {
-		panic(err)
-	}
-	return acc, nil
+	return accounts, nil
 }
 
 func (node *Node) RPCGetAsset(ctx context.Context, account string) (*solanaApp.Asset, error) {

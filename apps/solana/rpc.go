@@ -158,14 +158,14 @@ func (c *Client) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*
 	}
 }
 
-func (c *Client) RPCGetAccountInfo(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
+func (c *Client) RPCGetMultipleAccounts(ctx context.Context, accounts solana.PublicKeySlice) (*rpc.GetMultipleAccountsResult, error) {
 	for {
-		result, err := c.GetRPCClient().GetAccountInfo(ctx, account)
+		as, err := c.GetRPCClient().GetMultipleAccounts(ctx, accounts...)
 		if mtg.CheckRetryableError(err) {
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		return result, err
+		return as, err
 	}
 }
 
