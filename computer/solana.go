@@ -950,7 +950,7 @@ func (node *Node) RPCGetAccountInfo(ctx context.Context, account solana.PublicKe
 	acc, err := node.SolanaClient().RPCGetAccountInfo(ctx, account)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return nil, err
+			return nil, nil
 		}
 		panic(err)
 	}
