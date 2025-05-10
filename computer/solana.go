@@ -530,7 +530,7 @@ func (node *Node) processTransactionWithAddressLookups(ctx context.Context, txx 
 	}
 	for index, info := range infos.Value {
 		if info == nil {
-			continue
+			return fmt.Errorf("get account info: not found")
 		}
 		key := tblKeys[index]
 		tableContent, err := lookup.DecodeAddressLookupTableState(info.Data.GetBinary())
@@ -546,7 +546,7 @@ func (node *Node) processTransactionWithAddressLookups(ctx context.Context, txx 
 	}
 
 	if err := txx.Message.ResolveLookups(); err != nil {
-		return fmt.Errorf("resolve lookups: %w", err)
+		return fmt.Errorf("resolve lookups: %w ", err)
 	}
 
 	return nil
