@@ -281,6 +281,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
 	start := big.NewInt(0).Add(store.StartUserId, big.NewInt(1))
 	var user *store.User
+	var as []string
 	id := uuid.Must(uuid.NewV4()).String()
 	for _, node := range nodes {
 		uid := common.UniqueId(id, "user1")
@@ -297,6 +298,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Nil(err)
 		public, _ := node.deriveByPath(share, user1.IdBytes())
 		require.Equal(solana.PublicKeyFromBytes(public).String(), user1.ChainAddress)
+		as = append(as, user1.ChainAddress)
 		user = user1
 
 		id2 := common.UniqueId(id, "second")
@@ -309,11 +311,23 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		require.Equal(mix.String(), user2.MixAddress)
 		require.Equal(big.NewInt(0).Add(start, big.NewInt(1)).String(), user2.UserId)
 		require.Equal("4375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca8500295", user2.Public)
+		as = append(as, user2.ChainAddress)
 
 		us, err := node.store.ListNewUsersAfter(ctx, time.Time{})
 		require.Nil(err)
 		require.Len(us, 2)
 	}
+
+	c, err := nodes[0].store.CheckInternalAccounts(ctx, []string{"1", "2"})
+	require.Nil(err)
+	require.Equal(0, c)
+	c, err = nodes[0].store.CheckInternalAccounts(ctx, as)
+	require.Nil(err)
+	require.Equal(2, c)
+	as = append(as, "1")
+	c, err = nodes[0].store.CheckInternalAccounts(ctx, as)
+	require.Nil(err)
+	require.Equal(2, c)
 	return user
 }
 

@@ -143,6 +143,26 @@ func (s *SQLite3Store) CountUsers(ctx context.Context) (int, error) {
 	return count, err
 }
 
+func (s *SQLite3Store) CheckInternalAccounts(ctx context.Context, accounts []string) (int, error) {
+	placeholders := strings.Repeat("?, ", len(accounts))
+	placeholders = strings.TrimSuffix(placeholders, ", ")
+
+	args := make([]any, len(accounts))
+	for i, addr := range accounts {
+		args[i] = addr
+	}
+
+	query := fmt.Sprintf("SELECT COUNT(1) FROM users WHERE address IN (%s)", placeholders)
+	row := s.db.QueryRowContext(ctx, query, args...)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}
+
 func (s *SQLite3Store) ListNewUsersAfter(ctx context.Context, offset time.Time) ([]*User, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

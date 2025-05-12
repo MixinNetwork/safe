@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -94,6 +95,11 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
+	internal := node.checkInternalAccountsFromMeta(ctx, tx, meta)
+	if !internal {
+		return nil
+	}
+
 	hash := tx.Signatures[0]
 	call, err := node.store.ReadSystemCallByHash(ctx, hash.String())
 	if err != nil {
@@ -499,6 +505,7 @@ func (node *Node) ReleaseLockedNonceAccount(ctx context.Context, nonce *store.No
 }
 
 type BalanceChange struct {
+	Owner    solana.PublicKey
 	Amount   decimal.Decimal
 	Decimals uint8
 }
@@ -575,8 +582,8 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 		}
 	}
 
-	preMap := buildBalanceMap(meta.PreTokenBalances, user)
-	postMap := buildBalanceMap(meta.PostTokenBalances, user)
+	preMap := buildBalanceMap(meta.PreTokenBalances, &user)
+	postMap := buildBalanceMap(meta.PostTokenBalances, &user)
 	for address, tb := range preMap {
 		post := postMap[address]
 		if post == nil {
@@ -601,17 +608,74 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 	return changes
 }
 
-func buildBalanceMap(balances []rpc.TokenBalance, owner solana.PublicKey) map[string]*BalanceChange {
+func (node *Node) checkInternalAccountsFromMeta(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) bool {
+	var accounts []string
+
+	for index, post := range meta.PostBalances {
+		increase := decimal.NewFromUint64(post).Sub(decimal.NewFromUint64(meta.PreBalances[index]))
+		if !increase.IsPositive() {
+			continue
+		}
+		accounts = append(accounts, tx.Message.AccountKeys[index].String())
+	}
+
+	changes := make(map[string]*BalanceChange)
+	preMap := buildBalanceMap(meta.PreTokenBalances, nil)
+	postMap := buildBalanceMap(meta.PostTokenBalances, nil)
+	for key, tb := range preMap {
+		post := postMap[key]
+		if post == nil {
+			changes[key] = &BalanceChange{
+				Owner:    tb.Owner,
+				Amount:   tb.Amount.Neg(),
+				Decimals: tb.Decimals,
+			}
+			continue
+		}
+		amount := post.Amount.Sub(tb.Amount)
+		changes[key] = &BalanceChange{
+			Owner:    tb.Owner,
+			Amount:   amount,
+			Decimals: tb.Decimals,
+		}
+	}
+	for key, c := range postMap {
+		if changes[key] != nil {
+			continue
+		}
+		changes[key] = c
+	}
+	for _, c := range changes {
+		if !c.Amount.IsPositive() || slices.Contains(accounts, c.Owner.String()) {
+			continue
+		}
+		accounts = append(accounts, c.Owner.String())
+	}
+
+	c, err := node.store.CheckInternalAccounts(ctx, accounts)
+	if err != nil {
+		panic(err)
+	}
+
+	return c > 0
+}
+
+func buildBalanceMap(balances []rpc.TokenBalance, owner *solana.PublicKey) map[string]*BalanceChange {
 	bm := make(map[string]*BalanceChange)
 	for _, tb := range balances {
-		if !tb.Owner.Equals(owner) {
+		if owner != nil && !tb.Owner.Equals(*owner) {
 			continue
+		}
+		key := tb.Mint.String()
+		if owner == nil {
+			key = fmt.Sprintf("%s:%s", tb.Owner.String(), tb.Mint.String())
 		}
 		amount, err := decimal.NewFromString(tb.UiTokenAmount.UiAmountString)
 		if err != nil {
 			panic(err)
 		}
-		bm[tb.Mint.String()] = &BalanceChange{
+		bm[key] = &BalanceChange{
+			Owner:    *tb.Owner,
 			Amount:   amount,
 			Decimals: tb.UiTokenAmount.Decimals,
 		}
