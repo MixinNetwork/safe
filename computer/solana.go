@@ -611,12 +611,20 @@ func (node *Node) buildUserBalanceChangesFromMeta(ctx context.Context, tx *solan
 func (node *Node) checkInternalAccountsFromMeta(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) bool {
 	var accounts []string
 
+	al := len(tx.Message.AccountKeys)
 	for index, post := range meta.PostBalances {
+		if index >= al {
+			continue
+		}
 		increase := decimal.NewFromUint64(post).Sub(decimal.NewFromUint64(meta.PreBalances[index]))
 		if !increase.IsPositive() {
 			continue
 		}
 		accounts = append(accounts, tx.Message.AccountKeys[index].String())
+	}
+
+	for _, acc := range meta.LoadedAddresses.Writable {
+		accounts = append(accounts, acc.String())
 	}
 
 	changes := make(map[string]*BalanceChange)
