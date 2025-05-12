@@ -232,48 +232,36 @@ func (c *Client) RPCGetTokenAccountsByOwner(ctx context.Context, owner solana.Pu
 }
 
 func (c *Client) GetNonceAccountHash(ctx context.Context, nonce solana.PublicKey) (*solana.Hash, error) {
-	for {
-		account, err := c.RPCGetAccount(ctx, nonce)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
-		}
-		if account == nil {
-			return nil, nil
-		}
-		var nonceAccountData system.NonceAccount
-		err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData)
-		if err != nil {
-			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
-		}
-		hash := solana.Hash(nonceAccountData.Nonce)
-		return &hash, nil
+	account, err := c.RPCGetAccount(ctx, nonce)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetAccountInfo() => %v", err)
 	}
+	if account == nil {
+		return nil, nil
+	}
+	var nonceAccountData system.NonceAccount
+	err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&nonceAccountData)
+	if err != nil {
+		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+	}
+	hash := solana.Hash(nonceAccountData.Nonce)
+	return &hash, nil
 }
 
 func (c *Client) GetMint(ctx context.Context, mint solana.PublicKey) (*token.Mint, error) {
-	for {
-		account, err := c.RPCGetAccount(ctx, mint)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("solana.GetMint() => %v", err)
-		}
-		if account == nil {
-			return nil, nil
-		}
-		var token token.Mint
-		err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token)
-		if err != nil {
-			return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
-		}
-		return &token, nil
+	account, err := c.RPCGetAccount(ctx, mint)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetMint() => %v", err)
 	}
+	if account == nil {
+		return nil, nil
+	}
+	var token token.Mint
+	err = bin.NewBinDecoder(account.Value.Data.GetBinary()).Decode(&token)
+	if err != nil {
+		return nil, fmt.Errorf("solana.NewBinDecoder() => %v", err)
+	}
+	return &token, nil
 }
 
 func (c *Client) SendTransaction(ctx context.Context, tx *solana.Transaction) (string, error) {
