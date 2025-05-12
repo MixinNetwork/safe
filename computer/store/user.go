@@ -152,7 +152,7 @@ func (s *SQLite3Store) CheckInternalAccounts(ctx context.Context, accounts []str
 		args[i] = addr
 	}
 
-	query := fmt.Sprintf("SELECT COUNT(1) FROM users WHERE address IN (%s)", placeholders)
+	query := fmt.Sprintf("SELECT COUNT(1) FROM users WHERE chain_address IN (%s)", placeholders)
 	row := s.db.QueryRowContext(ctx, query, args...)
 
 	var count int
