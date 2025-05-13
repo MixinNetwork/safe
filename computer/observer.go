@@ -748,6 +748,16 @@ func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana
 	return nil
 }
 
+func (node *Node) checkMintsUntilSufficient(ctx context.Context, ts []*solanaApp.TokenTransfers) error {
+	for _, t := range ts {
+		_, err := node.RPCGetAccount(ctx, t.Mint)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) (*solana.Transaction, *rpc.TransactionMeta, error) {
 	logger.Printf("node.handleSignedCall(%s)", call.RequestId)
 	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)

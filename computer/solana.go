@@ -493,6 +493,11 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 		sort.Slice(transfers, func(i, j int) bool { return transfers[i].AssetId > transfers[j].AssetId })
 	}
 
+	err = node.checkMintsUntilSufficient(ctx, transfers)
+	if err != nil {
+		panic(err)
+	}
+
 	tx, err = node.SolanaClient().TransferOrBurnTokens(ctx, node.SolanaPayer(), user, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
