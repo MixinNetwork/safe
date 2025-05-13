@@ -399,6 +399,11 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 	if err != nil {
 		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
 	}
+	// fee_id may be expired when post-process, skip error
+	fee, _ := node.getSystemCallFeeFromXin(ctx, call)
+	if fee != nil {
+		rs = append(rs, fee)
+	}
 	assets := node.GetSystemCallRelatedAsset(ctx, rs)
 	am := make(map[string]*ReferencedTxAsset)
 	for _, a := range assets {
@@ -452,6 +457,9 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 	for _, asset := range assets {
 		if asset.Amount.IsZero() {
 			continue
+		}
+		if asset.Amount.IsNegative() {
+			panic(fmt.Errorf("invalid amount to post process: %s %s", call.RequestId, tx.Signatures[0].String()))
 		}
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
