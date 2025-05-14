@@ -536,6 +536,10 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			logger.Printf("observer.expireSystemCall(%v %v %v)", call, nonce, err)
 			id = common.UniqueId(id, "expire-nonce")
 			extra[0] = ConfirmFlagNonceExpired
+			err = node.store.WriteFailedCallIfNotExist(ctx, call, "expired or invalid nonce")
+			if err != nil {
+				return err
+			}
 		} else {
 			cid := common.UniqueId(id, "storage")
 			nonce, err := node.store.ReadSpareNonceAccount(ctx)
