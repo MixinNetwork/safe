@@ -933,7 +933,7 @@ func (node *Node) confirmPostprocessSystemCall(ctx context.Context, req *store.R
 
 		id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
 		id = common.UniqueId(id, user.MixAddress)
-		tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amount, []byte("refund"), id)
+		tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amt.String(), []byte("refund"), id)
 		if tx == nil {
 			return node.failRequest(ctx, req, da.AssetId)
 		}
