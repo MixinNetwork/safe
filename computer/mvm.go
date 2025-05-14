@@ -881,7 +881,7 @@ func (node *Node) checkConfirmCallSignature(ctx context.Context, signature strin
 		return nil, nil, fmt.Errorf("checkConfirmCallSignature(%s) => invalid call %v", signature, call)
 	}
 	call.State = common.RequestStateDone
-	call.Signature = sql.NullString{Valid: true, String: signature}
+	call.Hash = sql.NullString{Valid: true, String: signature}
 	return call, tx, nil
 }
 
