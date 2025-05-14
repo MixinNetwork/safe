@@ -557,6 +557,10 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 				}
 				extra = attachSystemCall(extra, cid, tb)
 			}
+			err = node.store.OccupyNonceAccountByCall(ctx, call.NonceAccount, call.RequestId)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
@@ -564,10 +568,6 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			Type:  OperationTypeConfirmNonce,
 			Extra: extra,
 		}, nil)
-		if err != nil {
-			return err
-		}
-		err = node.store.OccupyNonceAccountByCall(ctx, call.NonceAccount, call.RequestId)
 		if err != nil {
 			return err
 		}
