@@ -455,11 +455,8 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 
 	var transfers []*solanaApp.TokenTransfers
 	for _, asset := range assets {
-		if asset.Amount.IsZero() {
+		if !asset.Amount.IsPositive() {
 			continue
-		}
-		if asset.Amount.IsNegative() {
-			panic(fmt.Errorf("invalid amount to post process: %s %s", call.RequestId, tx.Signatures[0].String()))
 		}
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
