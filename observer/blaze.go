@@ -36,7 +36,7 @@ type AppInfo struct {
 	GeneratedKeys   string `json:"generated_keys,omitempty"`
 }
 
-type MtgInfo struct {
+type MTGInfo struct {
 	InitialTxs  string `json:"initial_transactions"`
 	SignedTxs   string `json:"signed_transactions"`
 	SnapshotTxs string `json:"snapshot_transactions"`
@@ -55,7 +55,7 @@ type StatsInfo struct {
 	Type    string  `json:"type"`
 	Runtime string  `json:"runtime"`
 	Group   string  `json:"group"`
-	Mtg     MtgInfo `json:"mtg"`
+	MTG     MTGInfo `json:"mtg"`
 	App     AppInfo `json:"app"`
 }
 
@@ -147,21 +147,21 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		case "⏲️ Group":
 			stats.Group = value
 		case "🎆 Latest request":
-			stats.Mtg.LatestRequest = value
+			stats.MTG.LatestRequest = value
 		case "🚴 Bitcoin height":
-			stats.Mtg.BitcoinHeight = value
+			stats.MTG.BitcoinHeight = value
 		case "🫰 Initial Transactions":
-			stats.Mtg.InitialTxs = value
+			stats.MTG.InitialTxs = value
 		case "🫰 Signed Transactions":
-			stats.Mtg.SignedTxs = value
+			stats.MTG.SignedTxs = value
 		case "🫰 Snapshot Transactions":
-			stats.Mtg.SnapshotTxs = value
+			stats.MTG.SnapshotTxs = value
 		case "💍 XIN Outputs":
-			stats.Mtg.XINOutputs = value
+			stats.MTG.XINOutputs = value
 		case "💍 MSKT Outputs":
-			stats.Mtg.MSKTOutputs = value
+			stats.MTG.MSKTOutputs = value
 		case "💍 MSST Outputs":
-			stats.Mtg.MSSTOutputs = value
+			stats.MTG.MSSTOutputs = value
 		case "🔑 Signer Bitcoin keys":
 			stats.App.SignerBitcoinKeys = value
 		case "🔑 Signer Ethereum keys":

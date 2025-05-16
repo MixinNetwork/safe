@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
+	"github.com/MixinNetwork/multi-party-sig/protocols/frost/keygen"
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost/sign"
+	"github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -39,7 +42,7 @@ func (node *Node) frostKeygen(ctx context.Context, sessionId []byte, group curve
 	}, nil
 }
 
-func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int) (*SignResult, error) {
+func (node *Node) frostSign(ctx context.Context, members []party.ID, public string, share []byte, m []byte, sessionId []byte, group curve.Curve, variant int, path []byte) (*SignResult, error) {
 	logger.Printf("node.frostSign(%x, %s, %x, %v)", sessionId, public, m, members)
 	conf := frost.EmptyConfig(group)
 	err := conf.UnmarshalBinary(share)
@@ -52,6 +55,11 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 		panic(public)
 	}
 
+	if (variant == sign.ProtocolEd25519SHA512 || variant == sign.ProtocolMixinPublic) &&
+		mixin.CheckEd25519ValidChildPath(path) {
+		conf = deriveEd25519Child(conf, pb, path)
+		P = conf.PublicPoint()
+	}
 	if variant == sign.ProtocolMixinPublic {
 		if len(m) < 32 {
 			return nil, fmt.Errorf("invalid message %d", len(m))
@@ -86,4 +94,19 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 		Signature: signature.Serialize(),
 		SSID:      start.SSID(),
 	}, nil
+}
+
+func deriveEd25519Child(conf *keygen.Config, pb, path []byte) *keygen.Config {
+	adjust := conf.Curve().NewScalar()
+	seed := crypto.Sha256Hash(append(pb, path...))
+	priv := crypto.NewKeyFromSeed(append(seed[:], seed[:]...))
+	err := adjust.UnmarshalBinary(priv[:])
+	if err != nil {
+		panic(err)
+	}
+	cc, err := conf.Derive(adjust, nil)
+	if err != nil {
+		panic(err)
+	}
+	return cc
 }

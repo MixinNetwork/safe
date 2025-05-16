@@ -10,7 +10,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
 
 func MarshalPanic(m encoding.BinaryMarshaler) []byte {
@@ -74,14 +77,24 @@ func ExpandTilde(path string) string {
 	return path
 }
 
-func CheckTransactionRetryError(err string) bool {
-	switch {
-	case strings.Contains(err, "spent by other transaction"):
-		return true
-	case strings.Contains(err, "inputs locked by another transaction"):
-		return true
+func CheckRetryableError(err error) bool {
+	return mtg.CheckRetryableError(err) || CheckTransactionLockedError(err)
+}
+
+func CheckTransactionLockedError(err error) bool {
+	if err == nil {
+		return false
 	}
-	return false
+	es := err.Error()
+	switch {
+	case strings.Contains(es, "locked by another transaction"):
+	case strings.Contains(es, "locked by other transaction"):
+	case strings.Contains(es, "spent by other transaction"):
+	case strings.Contains(es, "inputs locked by another transaction"):
+	default:
+		return false
+	}
+	return true
 }
 
 func Rollback(txn *sql.Tx) {
@@ -90,4 +103,12 @@ func Rollback(txn *sql.Tx) {
 	if err != nil && !strings.Contains(err.Error(), already) {
 		panic(err)
 	}
+}
+
+func toMixinnetHash(hashes []crypto.Hash) []mixinnet.Hash {
+	hs := make([]mixinnet.Hash, len(hashes))
+	for i, hash := range hashes {
+		copy(hs[i][:], hash[:])
+	}
+	return hs
 }
