@@ -538,14 +538,13 @@ func ExtractInitialTransfersFromInstruction(
 	case solana.TokenProgramID, solana.Token2022ProgramID:
 		if transfer, ok := DecodeTokenTransferChecked(accounts, cix.Data); ok {
 			from := transfer.GetOwnerAccount().PublicKey.String()
-			to := transfer.GetDestinationAccount().PublicKey.String()
 			mint := transfer.GetMintAccount().PublicKey.String()
 
 			return &Transfer{
 				TokenAddress: mint,
 				AssetId:      ethereum.BuildChainAssetId(SolanaChainBase, mint),
 				Sender:       from,
-				Receiver:     to,
+				Receiver:     from,
 				Value:        new(big.Int).SetUint64(*transfer.Amount),
 			}
 		}

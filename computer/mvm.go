@@ -734,13 +734,6 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	transfers = nil
 	for _, ix := range tx.Message.Instructions {
 		if transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix); transfer != nil {
-			if transfer.AssetId != common.SafeSolanaChainId {
-				owner, err := node.RPCGetAccount(ctx, solana.MPK(transfer.Receiver))
-				if err != nil {
-					panic(err)
-				}
-				transfer.Receiver = owner.Value.Owner.String()
-			}
 			transfers = append(transfers, transfer)
 		}
 	}

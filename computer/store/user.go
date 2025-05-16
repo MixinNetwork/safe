@@ -144,6 +144,9 @@ func (s *SQLite3Store) CountUsers(ctx context.Context) (int, error) {
 }
 
 func (s *SQLite3Store) CheckInternalAccounts(ctx context.Context, accounts []string) (int, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	placeholders := strings.Repeat("?, ", len(accounts))
 	placeholders = strings.TrimSuffix(placeholders, ", ")
 
