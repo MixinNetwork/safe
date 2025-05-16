@@ -687,13 +687,29 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	if user == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	// TODO should compare built tx and deposit tx from signature
+
 	txx, err := node.RPCGetTransaction(ctx, signature.String())
 	if err != nil {
 		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v %v", signature.String(), txx, err))
 	}
 	if txx == nil {
 		return node.failRequest(ctx, req, "")
+	}
+	tx, err := txx.Transaction.GetTransaction()
+	if err != nil {
+		panic(err)
+	}
+	err = node.processTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
+	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, txx.Meta, nil)
+	if err != nil {
+		panic(err)
+	}
+	expectedChanges, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
+	if err != nil {
+		panic(err)
 	}
 
 	call, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[96:])
@@ -706,6 +722,26 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
+	transfers, err = solanaApp.ExtractTransfersFromTransaction(ctx, tx, txx.Meta, nil)
+	if err != nil {
+		panic(err)
+	}
+	actualChanges, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
+	if err != nil {
+		panic(err)
+	}
+	for key, actual := range actualChanges {
+		expected := expectedChanges[key]
+		if expected == nil {
+			logger.Printf("non-existed deposit: %s %s %s %s", signature.String(), tx.MustToBase64(), key, actual.String())
+			return node.failRequest(ctx, req, "")
+		}
+		if expected.Cmp(actual) != 0 {
+			logger.Printf("invalid deposit: %s %s %s %s %s", signature.String(), tx.MustToBase64(), key, expected.String(), actual.String())
+			return node.failRequest(ctx, req, "")
+		}
+	}
+
 	call.Superior = call.RequestId
 	call.Type = store.CallTypeDeposit
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
