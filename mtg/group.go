@@ -377,10 +377,7 @@ func (grp *Group) snapshotTransaction(ctx context.Context, tx *Transaction) (boo
 }
 
 func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListUnconfirmedWithdrawalTransactions(ctx, 100)
-	if err != nil || len(txs) == 0 {
-		return err
-	}
+	txs := grp.ListUnconfirmedWithdrawalTransactions(ctx, 100)
 	for _, tx := range txs {
 		req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID())
 		logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)

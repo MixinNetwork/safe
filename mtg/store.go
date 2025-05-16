@@ -447,21 +447,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 
 func (s *SQLite3Store) ListPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<=? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, asset, sequence, TransactionStateInitial)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ts []*Transaction
-	for rows.Next() {
-		t, err := transactionFromRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		ts = append(ts, t)
-	}
-	return ts, nil
+	return s.transactionsFromQuery(ctx, query, asset, sequence, TransactionStateInitial)
 }
 
 func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {
@@ -469,23 +455,16 @@ func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) (
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, state)
+	txs, err := s.transactionsFromQuery(ctx, query, state)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
 
-	var ts []*Transaction
 	assetTxMap := make(map[string][]*Transaction)
-	for rows.Next() {
-		t, err := transactionFromRow(rows)
-		if err != nil {
-			return nil, nil, err
-		}
-		ts = append(ts, t)
+	for _, t := range txs {
 		assetTxMap[t.AssetId] = append(assetTxMap[t.AssetId], t)
 	}
-	return ts, assetTxMap, nil
+	return txs, assetTxMap, nil
 }
 
 func (s *SQLite3Store) ListUnconfirmedWithdrawalTransactions(ctx context.Context, limit int) ([]*Transaction, error) {
@@ -493,21 +472,7 @@ func (s *SQLite3Store) ListUnconfirmedWithdrawalTransactions(ctx context.Context
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, TransactionStateSnapshot)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ts []*Transaction
-	for rows.Next() {
-		t, err := transactionFromRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		ts = append(ts, t)
-	}
-	return ts, nil
+	return s.transactionsFromQuery(ctx, query, TransactionStateSnapshot)
 }
 
 func (s *SQLite3Store) ListConfirmedWithdrawalTransactionsAfter(ctx context.Context, offset time.Time, limit int) ([]*Transaction, error) {
@@ -515,7 +480,11 @@ func (s *SQLite3Store) ListConfirmedWithdrawalTransactionsAfter(ctx context.Cont
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, TransactionStateSnapshot, offset)
+	return s.transactionsFromQuery(ctx, query, TransactionStateSnapshot, offset)
+}
+
+func (s *SQLite3Store) transactionsFromQuery(ctx context.Context, query string, params ...any) ([]*Transaction, error) {
+	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
