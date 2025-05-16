@@ -4,6 +4,21 @@ import (
 	"context"
 )
 
+func (s *SQLite3Store) GetConsumedIds(ctx context.Context, tx *Transaction) error {
+	if len(tx.consumedIds) > 0 {
+		return nil
+	}
+	outputs, err := s.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
+	if err != nil {
+		return err
+	}
+	for _, o := range outputs {
+		tx.consumed = append(tx.consumed, o)
+		tx.consumedIds = append(tx.consumedIds, o.OutputId)
+	}
+	return nil
+}
+
 func (s *SQLite3Store) Migrate(ctx context.Context) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

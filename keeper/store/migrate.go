@@ -33,9 +33,6 @@ func (s *SQLite3Store) ListActionResult(ctx context.Context) (map[string][]*mtg.
 		if err != nil {
 			return nil, err
 		}
-		for _, tx := range txs {
-			tx.ActionId = uuid.Nil.String()
-		}
 		rm[id] = txs
 	}
 	return rm, nil
@@ -69,6 +66,13 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 		return err
 	}
 	for id, txs := range rm {
+		for _, tx := range txs {
+			tx.ActionId = uuid.Nil.String()
+			err = mdb.GetConsumedIds(ctx, tx)
+			if err != nil {
+				return err
+			}
+		}
 		nodeQuery += fmt.Sprintf("UPDATE action_results set transactions='%s' where output_id='%s';\n", common.Base91Encode(mtg.SerializeTransactions(txs)), id)
 	}
 	_, err = tx.ExecContext(ctx, nodeQuery)

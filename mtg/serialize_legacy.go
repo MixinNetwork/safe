@@ -123,7 +123,7 @@ func readReferencesLegacy(dec *common.Decoder) ([]crypto.Hash, error) {
 func readConsumedLegacy(dec *common.Decoder) ([]string, error) {
 	cl, err := dec.ReadInt()
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 	var outputs []string
 	for ; cl > 0; cl -= 1 {
