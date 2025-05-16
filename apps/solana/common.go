@@ -510,6 +510,50 @@ func extractTransfersFromInstruction(
 	return nil
 }
 
+func ExtractInitialTransfersFromInstruction(
+	msg *solana.Message,
+	cix solana.CompiledInstruction,
+) *Transfer {
+	programKey, err := msg.Program(cix.ProgramIDIndex)
+	if err != nil {
+		panic(err)
+	}
+
+	accounts, err := cix.ResolveInstructionAccounts(msg)
+	if err != nil {
+		panic(err)
+	}
+
+	switch programKey {
+	case system.ProgramID:
+		if transfer, ok := DecodeSystemTransfer(accounts, cix.Data); ok {
+			return &Transfer{
+				TokenAddress: SolanaEmptyAddress,
+				AssetId:      SolanaChainBase,
+				Sender:       transfer.GetFundingAccount().PublicKey.String(),
+				Receiver:     transfer.GetRecipientAccount().PublicKey.String(),
+				Value:        new(big.Int).SetUint64(*transfer.Lamports),
+			}
+		}
+	case solana.TokenProgramID, solana.Token2022ProgramID:
+		if transfer, ok := DecodeTokenTransferChecked(accounts, cix.Data); ok {
+			from := transfer.GetOwnerAccount().PublicKey.String()
+			to := transfer.GetDestinationAccount().PublicKey.String()
+			mint := transfer.GetMintAccount().PublicKey.String()
+
+			return &Transfer{
+				TokenAddress: mint,
+				AssetId:      ethereum.BuildChainAssetId(SolanaChainBase, mint),
+				Sender:       from,
+				Receiver:     to,
+				Value:        new(big.Int).SetUint64(*transfer.Amount),
+			}
+		}
+	}
+
+	return nil
+}
+
 type CustomInstruction struct {
 	Instruction types.Instruction
 }

@@ -722,9 +722,23 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	transfers, err = solanaApp.ExtractTransfersFromTransaction(ctx, tx, txx.Meta, nil)
-	if err != nil {
-		panic(err)
+	call.Superior = call.RequestId
+	call.Type = store.CallTypeDeposit
+	call.Public = hex.EncodeToString(user.FingerprintWithPath())
+	call.State = common.RequestStatePending
+
+	transfers = nil
+	for _, ix := range tx.Message.Instructions {
+		if transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix); transfer != nil {
+			if transfer.AssetId != common.SafeSolanaChainId {
+				owner, err := node.SolanaClient().RPCGetAccount(ctx, solana.MPK(transfer.Receiver))
+				if err != nil {
+					panic(err)
+				}
+				transfer.Receiver = owner.Value.Owner.String()
+			}
+			transfers = append(transfers, transfer)
+		}
 	}
 	actualChanges, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
 	if err != nil {
@@ -741,11 +755,6 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 			return node.failRequest(ctx, req, "")
 		}
 	}
-
-	call.Superior = call.RequestId
-	call.Type = store.CallTypeDeposit
-	call.Public = hex.EncodeToString(user.FingerprintWithPath())
-	call.State = common.RequestStatePending
 
 	session := &store.Session{
 		Id:         call.RequestId,
