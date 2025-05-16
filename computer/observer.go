@@ -481,7 +481,7 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 		}
 		rid := common.UniqueId(tx.TraceId, "withdrawal_fee")
 		amount, _ := decimal.NewFromString(fee.Amount)
-		refs := common.ToMixinnetHash([]crypto.Hash{tx.Hash})
+		refs := []crypto.Hash{tx.Hash}
 		_, err = common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.MTG.App.AppId}, 1, []string{mtg.MixinFeeUserId}, 1, amount, rid, fee.AssetID, "", refs, node.conf.MTG.App.SpendPrivateKey)
 		if err != nil {
 			return err

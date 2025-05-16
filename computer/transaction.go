@@ -126,7 +126,7 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	if len([]byte(m)) <= mc.ExtraSizeGeneralLimit {
-		_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amt, traceId, assetId, m, common.ToMixinnetHash(references), node.conf.MTG.App.SpendPrivateKey)
+		_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amt, traceId, assetId, m, references, node.conf.MTG.App.SpendPrivateKey)
 		logger.Printf("node.SendTransactionUntilSufficient(%s) => %v", traceId, err)
 		return err
 	}

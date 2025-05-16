@@ -113,35 +113,36 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, reci
 					return crypto.Hash{}, err
 				}
 			}
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Second)
 			continue
 		}
 
 		_, err = bot.CreateObjectStorageTransaction(ctx, recipients, nil, extra, sTraceId, nil, "", &su)
 		logger.Verbosef("common.mixin.CreateObjectStorageTransaction(%s) => %v", sTraceId, err)
-		if err != nil {
-			// FIXME the sdk error in signature
-			if mtg.CheckRetryableError(err) || CheckTransactionRetryError(err.Error()) || strings.Contains(err.Error(), "signature verification failed") {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			return crypto.Hash{}, err
+		if err == nil {
+			continue
 		}
+		if CheckRetryableError(err) ||
+			strings.Contains(err.Error(), "signature verification failed") {
+			time.Sleep(time.Second)
+			continue
+		}
+		return crypto.Hash{}, err
 	}
 }
 
 func NewSafeTransactionUntilSufficient(ctx context.Context, client *mixin.Client, b *mixin.TransactionBuilder, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
 	for {
 		tx, err := client.MakeTransaction(ctx, b, outputs)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		return tx, err
 	}
 }
 
-func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []mixinnet.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := SafeReadTransactionRequestUntilSufficient(ctx, client, traceId)
 		if err != nil {
@@ -151,7 +152,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 			if req.State == mixin.SafeUtxoStateSpent {
 				return req, nil
 			}
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Second)
 			continue
 		}
 
@@ -162,7 +163,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		utxos, sufficient := getEnoughUtxosToSpend(utxos, amount)
 		if !sufficient {
 			logger.Printf("insufficient balance: %s %s %s", traceId, assetId, amount.String())
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Second)
 			continue
 		}
 		b := mixin.NewSafeTransactionBuilder(utxos)
@@ -176,34 +177,21 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 			},
 		})
 		if err != nil {
-			if CheckTransactionRetryError(err.Error()) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
 			return nil, err
 		}
-		tx.References = references
+		tx.References = toMixinnetHash(references)
 		raw, err := tx.Dump()
 		if err != nil {
 			return nil, err
 		}
 		req, err = CreateTransactionRequestUntilSufficient(ctx, client, traceId, raw)
 		if err != nil {
-			if CheckTransactionRetryError(err.Error()) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
 			return nil, err
 		}
 		_, err = SignTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
 		if err != nil {
-			if CheckTransactionRetryError(err.Error()) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
 			return nil, err
 		}
-		time.Sleep(3 * time.Second)
 	}
 }
 
@@ -216,8 +204,8 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 			Asset:     assetId,
 		})
 		logger.Verbosef("common.mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		return utxos, err
@@ -231,8 +219,8 @@ func CreateTransactionRequestUntilSufficient(ctx context.Context, client *mixin.
 			RawTransaction: raw,
 		})
 		logger.Verbosef("common.mixin.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		return req, err
@@ -262,8 +250,8 @@ func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, r
 			RawTransaction: signedRaw,
 		})
 		logger.Verbosef("common.mixin.SafeSubmitTransactionRequest(%s, %s) => %v %v\n", requestId, signedRaw, req, err)
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		return req, err
@@ -298,8 +286,8 @@ func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requ
 			RawTransaction: signedRaw,
 		})
 		logger.Verbosef("common.mixin.SafeSignMultisigRequest(%s, %s) => %v %v\n", requestId, signedRaw, req, err)
-		if err != nil && mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		return req, err
@@ -310,15 +298,12 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 	for {
 		req, err := client.SafeReadTransactionRequest(ctx, id)
 		logger.Verbosef("common.mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
-		if err == nil {
+		if err == nil || mixin.IsErrorCodes(err, 404) {
 			return req, nil
 		}
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
-		}
-		if mixin.IsErrorCodes(err, 404) {
-			return nil, nil
 		}
 		return nil, err
 	}
@@ -328,15 +313,12 @@ func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.C
 	for {
 		req, err := client.SafeReadMultisigRequests(ctx, id)
 		logger.Verbosef("common.mixin.SafeReadMultisigRequests(%s) => %v %v", id, req, err)
-		if err == nil {
+		if err == nil || mixin.IsErrorCodes(err, 404) {
 			return req, nil
 		}
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
-		}
-		if mixin.IsErrorCodes(err, 404) {
-			return nil, nil
 		}
 		return nil, err
 	}
@@ -346,15 +328,12 @@ func SafeReadAssetUntilSufficient(ctx context.Context, id string) (*bot.AssetNet
 	for {
 		asset, err := bot.ReadAsset(ctx, id)
 		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)
-		if err == nil {
+		if err == nil || mixin.IsErrorCodes(err, 404) {
 			return asset, nil
 		}
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
-		}
-		if mixin.IsErrorCodes(err, 404) {
-			return nil, nil
 		}
 		return nil, err
 	}
@@ -372,8 +351,8 @@ func SafeReadWithdrawalFeeUntilSufficient(ctx context.Context, su *bot.SafeUser,
 			}
 			return fees[0], nil
 		}
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		if mixin.IsErrorCodes(err, 404) {
@@ -400,8 +379,8 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 			}
 			return r.WithdrawalHash, nil
 		}
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		if mixin.IsErrorCodes(err, 404) {
@@ -427,8 +406,8 @@ func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []strin
 func SafeAssetBalanceUntilSufficient(ctx context.Context, su *bot.SafeUser, id string) (*common.Integer, error) {
 	for {
 		balance, err := bot.AssetBalanceWithSafeUser(ctx, id, su)
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
 		if err != nil {
@@ -452,13 +431,10 @@ func ReadUsers(ctx context.Context, client *mixin.Client, ids []string) ([]*mixi
 	for {
 		us, err := client.ReadUsers(ctx, ids...)
 		logger.Verbosef("common.mixin.ReadUsers(%v) => %v %v\n", ids, us, err)
-		if err == nil {
-			return us, nil
-		}
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
 			continue
 		}
-		return nil, err
+		return us, err
 	}
 }
