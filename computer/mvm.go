@@ -711,6 +711,10 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	if err != nil {
 		panic(err)
 	}
+	err = node.checkCreatedAtaUntilSufficient(ctx, tx)
+	if err != nil {
+		panic(err)
+	}
 
 	call, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[96:])
 	if err != nil {
