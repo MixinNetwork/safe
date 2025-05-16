@@ -12,8 +12,8 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/messenger"
-	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/signer"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -82,6 +82,10 @@ func SignerBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
 
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
+	err = kd.Migrate(ctx, db)
+	if err != nil {
+		return err
+	}
 	node.Boot(ctx)
 
 	if mmc := mc.Signer.MonitorConversaionId; mmc != "" {
