@@ -54,7 +54,6 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 				defer wg.Done()
 				current := checkpoint + int64(i)
 				if current+SolanaBlockDelay > int64(height)+1 {
-					logger.Printf("current %d > limit %d", current+SolanaBlockDelay, int64(height)+1)
 					return
 				}
 				err := node.solanaReadBlock(ctx, current)
