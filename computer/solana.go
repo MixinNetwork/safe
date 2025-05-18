@@ -421,7 +421,8 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 			}
 
 			if !change.Amount.IsPositive() {
-				if address == solanaApp.SolanaEmptyAddress {
+				switch address {
+				case solanaApp.SolanaEmptyAddress, solanaApp.WrappedSolanaAddress:
 					continue
 				}
 				panic(fmt.Errorf("invalid change for system call: %s %s %v", tx.Signatures[0].String(), call.RequestId, change))
