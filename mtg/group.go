@@ -95,6 +95,9 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		kernelRPC:       defaultKernelRPC,
 		index:           -1,
 	}
+	if grp.waitDuration <= 0 {
+		grp.waitDuration = time.Second
+	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
 	}

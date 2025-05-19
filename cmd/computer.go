@@ -28,11 +28,6 @@ func ComputerBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Computer.MTG.GroupSize = 1
-	duration := int64(time.Second)
-	if mc.Computer.MTG.LoopWaitDuration > 0 {
-		duration = int64(time.Second * time.Duration(mc.Computer.MTG.LoopWaitDuration))
-	}
-	mc.Computer.MTG.LoopWaitDuration = duration
 
 	db, err := mtg.OpenSQLite3Store(mc.Computer.StoreDir + "/mtg.sqlite3")
 	if err != nil {
