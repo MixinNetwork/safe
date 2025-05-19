@@ -64,6 +64,9 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 		return err
 	}
 	for id, txs := range rm {
+		if len(txs) == 0 {
+			continue
+		}
 		query += fmt.Sprintf("UPDATE action_results set transactions='%s' where output_id='%s';\n", common.Base91Encode(mtg.SerializeTransactions(txs)), id)
 	}
 	_, err = tx.ExecContext(ctx, query)

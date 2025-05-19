@@ -61,6 +61,9 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 		return err
 	}
 	for id, txs := range rm {
+		if len(txs) == 0 {
+			continue
+		}
 		for _, tx := range txs {
 			tx.ActionId = uuid.Nil.String()
 			err = mdb.GetConsumedIds(ctx, tx)
