@@ -80,11 +80,16 @@ func SignerBootCmd(c *cli.Context) error {
 	}
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
 
-	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
+	err = db.Migrate(ctx)
+	if err != nil {
+		return err
+	}
 	err = kd.Migrate(ctx, db)
 	if err != nil {
 		return err
 	}
+
+	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
 	node.Boot(ctx)
 
 	if mmc := mc.Signer.MonitorConversaionId; mmc != "" {

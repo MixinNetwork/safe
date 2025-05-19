@@ -2,6 +2,11 @@ package mtg
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	"github.com/gofrs/uuid/v5"
 )
 
 func (s *SQLite3Store) GetConsumedIds(ctx context.Context, tx *Transaction) error {
@@ -19,17 +24,25 @@ func (s *SQLite3Store) GetConsumedIds(ctx context.Context, tx *Transaction) erro
 	return nil
 }
 
-func (s *SQLite3Store) Migrate(ctx context.Context) (string, error) {
+func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer tx.Rollback()
 
-	query := "ALTER TABLE transactions ADD COLUMN action_id VARCHAR NOT NULL DEFAULT '';\n"
+	key, val := "SCHEMA:VERSION:COMPUTER", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil || err != sql.ErrNoRows {
+		return err
+	}
+
+	id := uuid.Nil.String()
+	query := fmt.Sprintf("ALTER TABLE transactions ADD COLUMN action_id VARCHAR NOT NULL DEFAULT '%s';\n", id)
 	query = query + "ALTER TABLE transactions ADD COLUMN destination VARCHAR;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN tag VARCHAR;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN withdrawal_hash VARCHAR;\n"
@@ -39,8 +52,14 @@ func (s *SQLite3Store) Migrate(ctx context.Context) (string, error) {
 
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return query, tx.Commit()
+	now := time.Now().UTC()
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)", key, query, now, now)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

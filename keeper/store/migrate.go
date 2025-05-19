@@ -55,12 +55,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 		return err
 	}
 
-	query, err := mdb.Migrate(ctx)
-	if err != nil {
-		return err
-	}
-
-	nodeQuery := ""
+	query := ""
 	rm, err := s.ListActionResult(ctx)
 	if err != nil {
 		return err
@@ -73,15 +68,14 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 				return err
 			}
 		}
-		nodeQuery += fmt.Sprintf("UPDATE action_results set transactions='%s' where output_id='%s';\n", common.Base91Encode(mtg.SerializeTransactions(txs)), id)
+		query += fmt.Sprintf("UPDATE action_results set transactions='%s' where output_id='%s';\n", common.Base91Encode(mtg.SerializeTransactions(txs)), id)
 	}
-	_, err = tx.ExecContext(ctx, nodeQuery)
+	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
 
 	now := time.Now().UTC()
-	query += nodeQuery
 	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", key, query, now)
 	if err != nil {
 		return err

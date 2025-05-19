@@ -68,11 +68,17 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer kd.Close()
-	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
+
+	err = db.Migrate(ctx)
+	if err != nil {
+		return err
+	}
 	err = kd.Migrate(ctx, db)
 	if err != nil {
 		return err
 	}
+
+	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 
 	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
