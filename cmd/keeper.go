@@ -29,7 +29,11 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Keeper.MTG.GroupSize = 1
-	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
+	duration := int64(time.Second)
+	if mc.Keeper.MTG.LoopWaitDuration > 0 {
+		duration = int64(time.Second * time.Duration(mc.Keeper.MTG.LoopWaitDuration))
+	}
+	mc.Keeper.MTG.LoopWaitDuration = duration
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
