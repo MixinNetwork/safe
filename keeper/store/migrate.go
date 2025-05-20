@@ -8,7 +8,7 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (s *SQLite3Store) ListActionResults(ctx context.Context) (map[string][]*mtg.Transaction, error) {
