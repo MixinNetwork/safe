@@ -46,10 +46,10 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	query = query + "ALTER TABLE transactions ADD COLUMN destination VARCHAR;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN tag VARCHAR;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN withdrawal_hash VARCHAR;\n"
-	query = query + "CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);\n"
 	query = query + "CREATE INDEX IF NOT EXISTS transactions_by_state_sequence_hash ON transactions(state, sequence, hash);\n"
 	query = query + "CREATE INDEX IF NOT EXISTS transactions_by_state_withdrawal_hash_updated ON transactions(state, withdrawal_hash,updated_at);\n"
 	query = query + "DROP INDEX transactions_by_state_sequence;\n"
+	query = query + "CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);\n"
 
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
