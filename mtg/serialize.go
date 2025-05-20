@@ -27,7 +27,10 @@ func writeByte(enc *common.Encoder, b int) {
 }
 
 func writeUuid(enc *common.Encoder, id string) {
-	uid := uuid.FromStringOrNil(id)
+	uid, err := uuid.FromString(id)
+	if err != nil {
+		panic(id)
+	}
 	enc.Write(uid.Bytes())
 }
 
@@ -79,7 +82,11 @@ func (tx *Transaction) Serialize() []byte {
 	writeBool(enc, tx.compaction)
 	writeBool(enc, tx.storage)
 	writeReferences(enc, tx.references)
-	writeUuid(enc, tx.storageTraceId)
+	if tx.storageTraceId == "" {
+		writeUuid(enc, uuid.Nil.String())
+	} else {
+		writeUuid(enc, tx.storageTraceId)
+	}
 	writeConsumed(enc, tx.consumed, tx.consumedIds)
 	if tx.IsWithdrawal() {
 		enc.Write(magic)
