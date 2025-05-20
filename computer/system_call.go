@@ -196,7 +196,7 @@ func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.Syste
 		return nil, nil
 	}
 	feeOnXin := total.Sub(plan.OperationPriceAmount)
-	feeOnSol := feeOnXin.Div(ratio).RoundCeil(8).String()
+	feeOnSol := feeOnXin.Mul(ratio).RoundCeil(8).String()
 
 	asset, err := common.SafeReadAssetUntilSufficient(ctx, common.SafeSolanaChainId)
 	if err != nil {
