@@ -11,8 +11,8 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (s *SQLite3Store) ListActionResults(ctx context.Context) (map[string][]*mtg.Transaction, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT output_id,transactions FROM action_results WHERE transactions<>'AAA'")
+func listActionResults(ctx context.Context, txn *sql.Tx) (map[string][]*mtg.Transaction, error) {
+	rows, err := txn.QueryContext(ctx, "SELECT output_id,transactions FROM action_results WHERE transactions<>'AAA'")
 	if err != nil {
 		return nil, err
 	}
@@ -42,10 +42,6 @@ func (s *SQLite3Store) ListActionResults(ctx context.Context) (map[string][]*mtg
 }
 
 func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error {
-	rm, err := s.ListActionResults(ctx)
-	if err != nil {
-		return err
-	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -59,6 +55,11 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
 	err = row.Scan(&val)
 	if err == nil || err != sql.ErrNoRows {
+		return err
+	}
+
+	rm, err := listActionResults(ctx, tx)
+	if err != nil {
 		return err
 	}
 
