@@ -190,7 +190,7 @@ func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.Syste
 		total = total.Add(output.Amount)
 	}
 	if common.CheckTestEnvironment(ctx) {
-		total = decimal.NewFromFloat(0.19461941 + 0.001)
+		total = decimal.NewFromFloat(0.28271639 + 0.001)
 	}
 	if total.Compare(plan.OperationPriceAmount) == 0 {
 		return nil, nil
