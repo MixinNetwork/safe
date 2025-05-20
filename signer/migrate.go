@@ -67,6 +67,13 @@ func (s *SQLite3Store) Migrate(ctx context.Context, mdb *mtg.SQLite3Store) error
 		if len(txs) == 0 {
 			continue
 		}
+		for _, tx := range txs {
+			tx.ActionId = uuid.Nil.String()
+			err = mdb.GetConsumedIds(ctx, tx)
+			if err != nil {
+				return err
+			}
+		}
 		query += fmt.Sprintf("UPDATE action_results set transactions='%s' where output_id='%s';\n", common.Base91Encode(mtg.SerializeTransactions(txs)), id)
 	}
 	_, err = tx.ExecContext(ctx, query)
