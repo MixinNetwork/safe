@@ -412,6 +412,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 				if err != nil {
 					panic(err)
 				}
+				return nil
 			}
 			for {
 				newNonceHash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
