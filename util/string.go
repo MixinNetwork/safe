@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"strings"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func UniqueId(a, b string) string {
