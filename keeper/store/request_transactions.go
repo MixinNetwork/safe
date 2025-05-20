@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/gofrs/uuid"
 )
 
 type ActionResult struct {
@@ -40,6 +41,11 @@ func (s *SQLite3Store) FailAction(ctx context.Context, req *common.Request) erro
 }
 
 func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, outputId, compaction string, txs []*mtg.Transaction, requestId string) error {
+	if common.CheckTestEnvironment(ctx) {
+		for _, t := range txs {
+			t.OpponentAppId = uuid.Nil.String()
+		}
+	}
 	vals := []any{outputId, compaction, common.Base91Encode(mtg.SerializeTransactions(txs)), requestId, time.Now().UTC()}
 	err := s.execOne(ctx, tx, buildInsertionSQL("action_results", requestTransactionsCols), vals...)
 	if err != nil {

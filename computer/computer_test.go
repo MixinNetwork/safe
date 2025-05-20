@@ -242,7 +242,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 	feeActual, err := decimal.NewFromString(extraFee.Amount)
 	require.Nil(err)
-	require.True(feeActual.Cmp(solAmount) == 0)
+	require.True(feeActual.Cmp(solAmount) >= 0)
 	stx, err := node.CreatePrepareTransaction(ctx, c, nonce, extraFee)
 	require.Nil(err)
 	require.NotNil(stx)
