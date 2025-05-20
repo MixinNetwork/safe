@@ -12,8 +12,8 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/messenger"
-	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/signer"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -36,7 +36,6 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Signer.MTG.GroupSize = 1
-	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 
 	db, err := mtg.OpenSQLite3Store(mc.Signer.StoreDir + "/mtg.sqlite3")
 	if err != nil {
@@ -80,6 +79,15 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
+
+	err = db.Migrate(ctx)
+	if err != nil {
+		return err
+	}
+	err = kd.Migrate(ctx, db)
+	if err != nil {
+		return err
+	}
 
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
 	node.Boot(ctx)

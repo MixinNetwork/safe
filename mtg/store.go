@@ -80,7 +80,7 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 		if t.State != TransactionStateInitial {
 			panic(t.TraceId)
 		}
-		if t.storage {
+		if t.IsStorage() {
 			if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 {
 				return fmt.Errorf("invalid storage transaction: %#v", t)
 			}
@@ -270,6 +270,25 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	return os, nil
 }
 
+func (s *SQLite3Store) ListOutputsByTransactionHash(ctx context.Context, hash string, sequence uint64) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE transaction_hash=? AND sequence<=? ORDER BY transaction_hash, sequence ASC", strings.Join(outputCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, hash, sequence)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var os []*UnifiedOutput
+	for rows.Next() {
+		o, err := outputFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		os = append(os, o)
+	}
+	return os, nil
+}
+
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, consumedUntil, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND state=? AND sequence>? AND sequence<=? ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
 	if limit > 0 {
@@ -349,6 +368,25 @@ func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) er
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) ConfirmWithdrawalTransaction(ctx context.Context, traceId, hash string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollBack(tx)
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET withdrawal_hash=?, updated_at=? WHERE trace_id=? AND state=? AND destination IS NOT NULL AND withdrawal_hash IS NULL",
+		hash, time.Now(), traceId, TransactionStateSnapshot)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) readIteration(ctx context.Context, txn *sql.Tx, id string) (*Iteration, error) {
 	query := fmt.Sprintf("SELECT %s FROM iterations WHERE node_id=?", strings.Join(iterationCols, ","))
 	row := txn.QueryRowContext(ctx, query, id)
@@ -409,7 +447,44 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 
 func (s *SQLite3Store) ListPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<=? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, asset, sequence, TransactionStateInitial)
+	return s.transactionsFromQuery(ctx, query, asset, sequence, TransactionStateInitial)
+}
+
+func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY state,sequence,trace_id ASC", strings.Join(transactionCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	txs, err := s.transactionsFromQuery(ctx, query, state)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assetTxMap := make(map[string][]*Transaction)
+	for _, t := range txs {
+		assetTxMap[t.AssetId] = append(assetTxMap[t.AssetId], t)
+	}
+	return txs, assetTxMap, nil
+}
+
+func (s *SQLite3Store) ListUnconfirmedWithdrawalTransactions(ctx context.Context, limit int) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? AND destination IS NOT NULL AND withdrawal_hash IS NULL ORDER BY state,sequence,trace_id ASC", strings.Join(transactionCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	return s.transactionsFromQuery(ctx, query, TransactionStateSnapshot)
+}
+
+func (s *SQLite3Store) ListConfirmedWithdrawalTransactionsAfter(ctx context.Context, offset time.Time, limit int) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? AND withdrawal_hash IS NOT NULL AND updated_at>? ORDER BY updated_at ASC", strings.Join(transactionCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	return s.transactionsFromQuery(ctx, query, TransactionStateSnapshot, offset)
+}
+
+func (s *SQLite3Store) transactionsFromQuery(ctx context.Context, query string, params ...any) ([]*Transaction, error) {
+	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -424,30 +499,6 @@ func (s *SQLite3Store) ListPreviousInitialTransactions(ctx context.Context, asse
 		ts = append(ts, t)
 	}
 	return ts, nil
-}
-
-func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY state,sequence,trace_id ASC", strings.Join(transactionCols, ","))
-	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
-	}
-	rows, err := s.db.QueryContext(ctx, query, state)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-
-	var ts []*Transaction
-	assetTxMap := make(map[string][]*Transaction)
-	for rows.Next() {
-		t, err := transactionFromRow(rows)
-		if err != nil {
-			return nil, nil, err
-		}
-		ts = append(ts, t)
-		assetTxMap[t.AssetId] = append(assetTxMap[t.AssetId], t)
-	}
-	return ts, assetTxMap, nil
 }
 
 func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Hash) (*Transaction, error) {

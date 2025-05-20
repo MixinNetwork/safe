@@ -29,7 +29,6 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Keeper.MTG.GroupSize = 1
-	mc.Signer.MTG.LoopWaitDuration = int64(time.Second)
 
 	db, err := mtg.OpenSQLite3Store(mc.Keeper.StoreDir + "/mtg.sqlite3")
 	if err != nil {
@@ -69,6 +68,16 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer kd.Close()
+
+	err = db.Migrate(ctx)
+	if err != nil {
+		return err
+	}
+	err = kd.Migrate(ctx, db)
+	if err != nil {
+		return err
+	}
+
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 

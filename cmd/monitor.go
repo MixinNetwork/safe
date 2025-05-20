@@ -15,8 +15,8 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
 	kstore "github.com/MixinNetwork/safe/keeper/store"
-	"github.com/MixinNetwork/safe/signer"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/signer"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )

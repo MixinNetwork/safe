@@ -9,7 +9,7 @@ messenger-conversation-id = ""
 # the mixin messenger group for monitor messages
 monitor-conversation-id = ""
 # the observer aggregates the monitor messages
-observer-user-id = "observer-id"
+observer-user-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
 # the mpc threshold is recommended to be 2/3 of the mtg members count
 threshold = 2
 # a shared ed25519 private key to do ecdh with the keeper
@@ -72,7 +72,7 @@ observer-asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
 # and this key is used to verify the signature of all requests
 observer-public-key = "b5f8cfaca5004b88bdb5173bde966b4b7ee19a5471d7d4f8027b3516fcef7e46"
 # the observer is good to be a single user
-observer-user-id = "observer-id"
+observer-user-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
 mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://kernel.mixin.dev"
 bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
@@ -92,7 +92,7 @@ members = [
   "signer-id-1",
   "signer-id-2",
   "signer-id-3",
-  "observer-id",
+  "c91eb626-eb89-4fbd-ae21-76f0bd763da5",
 ]
 # the mtg threshold is recommended to be 2/3 of the members count
 threshold = 3
@@ -138,7 +138,7 @@ polygon-keeper-deposit-entry = "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9"
 evm-key = ""
 
 [observer.app]
-app-id = "observer-id"
+app-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
 session-id = ""
 session-private-key = ""
 server-public-key = ""
