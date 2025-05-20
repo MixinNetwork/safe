@@ -60,6 +60,7 @@ func testObserverConfirmPostprocessCall(ctx context.Context, require *require.As
 	require.Nil(err)
 	require.Equal("6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", nonce.Hash)
 	require.False(nonce.CallId.Valid)
+	require.Equal(sub.RequestId, nonce.UpdatedBy.String)
 
 	id := uuid.Must(uuid.NewV4()).String()
 	signature := solana.MustSignatureFromBase58("5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR")

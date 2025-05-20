@@ -405,7 +405,8 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 				panic(err)
 			}
 		case common.RequestStateDone:
-			if nonce.UpdatedBy.Valid && nonce.UpdatedBy.String == call.RequestId {
+			if (nonce.UpdatedBy.Valid && nonce.UpdatedBy.String == call.RequestId) ||
+				nonce.Address != call.NonceAccount {
 				logger.Printf("observer.releaseNonceAccount(%v)", call)
 				err = node.ReleaseLockedNonceAccount(ctx, nonce)
 				if err != nil {
