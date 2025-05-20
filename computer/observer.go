@@ -125,7 +125,7 @@ func (node *Node) checkNonceAccounts(ctx context.Context) error {
 	if calls > 0 {
 		return nil
 	}
-	calls, err = node.store.CountUserSystemCallByState(ctx, common.RequestStateInitial)
+	calls, err = node.store.CountUserSystemCallByState(ctx, common.RequestStatePending)
 	if err != nil {
 		panic(err)
 	}
