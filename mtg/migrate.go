@@ -32,7 +32,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	key, val := "SCHEMA:VERSION:COMPUTER", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
@@ -41,14 +41,15 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	id := uuid.Nil.String()
-	query := fmt.Sprintf("ALTER TABLE transactions ADD COLUMN action_id VARCHAR NOT NULL DEFAULT '%s';\n", id)
+	nilId := uuid.Nil.String()
+	query := fmt.Sprintf("ALTER TABLE transactions ADD COLUMN action_id VARCHAR NOT NULL DEFAULT '%s';\n", nilId)
 	query = query + "ALTER TABLE transactions ADD COLUMN destination VARCHAR;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN tag VARCHAR;\n"
 	query = query + "ALTER TABLE transactions ADD COLUMN withdrawal_hash VARCHAR;\n"
 	query = query + "CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);\n"
 	query = query + "CREATE INDEX IF NOT EXISTS transactions_by_state_sequence_hash ON transactions(state, sequence, hash);\n"
-	query = query + "CREATE INDEX IF NOT EXISTS withdrawal_transactions_by_state_hash_updated ON transactions(state, withdrawal_hash,updated_at);\n"
+	query = query + "CREATE INDEX IF NOT EXISTS transactions_by_state_withdrawal_hash_updated ON transactions(state, withdrawal_hash,updated_at);\n"
+	query = query + "DROP INDEX transactions_by_state_sequence;\n"
 
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
