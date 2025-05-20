@@ -848,7 +848,6 @@ func testStep(ctx context.Context, require *require.Assertions, node *Node, out 
 	for i, tx1 := range txs1 {
 		tx2 := ar.Transactions[i]
 		tx3 := txs3[i]
-		tx2.OpponentAppId = tx1.OpponentAppId
 		tx1.AppId = out.AppId
 		tx2.AppId = out.AppId
 		tx3.AppId = out.AppId
