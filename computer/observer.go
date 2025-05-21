@@ -376,10 +376,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 	}
 	for _, nonce := range as {
 		if nonce.LockedByUserOnly() && nonce.Expired() {
-			err = node.ReleaseLockedNonceAccount(ctx, nonce)
-			if err != nil {
-				return err
-			}
+			node.releaseLockedNonceAccount(ctx, nonce)
 			continue
 		}
 
@@ -389,36 +386,20 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		}
 		if call == nil {
 			if nonce.Expired() {
-				logger.Printf("observer.releaseNonceAccounts()")
-				err = node.ReleaseLockedNonceAccount(ctx, nonce)
-				if err != nil {
-					panic(err)
-				}
+				node.releaseLockedNonceAccount(ctx, nonce)
 			}
 			continue
 		}
 		if nonce.Address != call.NonceAccount {
-			logger.Printf("observer.releaseNonceAccount(%v)", call)
-			err = node.ReleaseLockedNonceAccount(ctx, nonce)
-			if err != nil {
-				panic(err)
-			}
+			node.releaseLockedNonceAccount(ctx, nonce)
 			continue
 		}
 		switch call.State {
 		case common.RequestStateFailed:
-			logger.Printf("observer.releaseNonceAccount(%v)", call)
-			err = node.ReleaseLockedNonceAccount(ctx, nonce)
-			if err != nil {
-				panic(err)
-			}
+			node.releaseLockedNonceAccount(ctx, nonce)
 		case common.RequestStateDone:
 			if nonce.UpdatedBy.Valid && nonce.UpdatedBy.String == call.RequestId {
-				logger.Printf("observer.releaseNonceAccount(%v)", call)
-				err = node.ReleaseLockedNonceAccount(ctx, nonce)
-				if err != nil {
-					panic(err)
-				}
+				node.releaseLockedNonceAccount(ctx, nonce)
 				return nil
 			}
 			for {
@@ -439,6 +420,14 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (node *Node) releaseLockedNonceAccount(ctx context.Context, nonce *store.NonceAccount) {
+	logger.Printf("observer.releaseLockedNonceAccount(%v)", nonce)
+	err := node.ReleaseLockedNonceAccount(ctx, nonce)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (node *Node) handleFeeInfo(ctx context.Context) error {
