@@ -144,6 +144,10 @@ func (s *SQLite3Store) CountUsers(ctx context.Context) (int, error) {
 }
 
 func (s *SQLite3Store) CheckInternalAccounts(ctx context.Context, accounts []string) (int, error) {
+	if len(accounts) == 0 {
+		return 0, nil
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

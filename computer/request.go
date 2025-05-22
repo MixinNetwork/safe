@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	RequestRoleUser     = 1
-	RequestRoleSigner   = 2
-	RequestRoleObserver = 3
+	RequestRoleUser     = common.RequestRoleHolder
+	RequestRoleSigner   = common.RequestRoleSigner
+	RequestRoleObserver = common.RequestRoleObserver
 
 	FlagConfirmCallSuccess = 1
 	FlagConfirmCallFail    = 2
@@ -44,7 +44,7 @@ const (
 	OperationTypeSignOutput   = 22
 )
 
-func DecodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, error) {
+func decodeRequest(out *mtg.Action, extra []byte, role uint8) (*store.Request, error) {
 	h, err := crypto.HashFromString(out.TransactionHash)
 	if err != nil {
 		return nil, err
@@ -99,15 +99,6 @@ func (node *Node) verifyObserverRequest(out *mtg.Action) bool {
 	return pub.Verify(hash, sig)
 }
 
-func (node *Node) requestRole(assetId string) uint8 {
-	switch assetId {
-	case node.conf.AssetId:
-		return RequestRoleSigner
-	default:
-		return RequestRoleUser
-	}
-}
-
 func (node *Node) parseObserverRequest(out *mtg.Action) (*store.Request, error) {
 	if len(out.Senders) != 1 || !node.IsMember(out.Senders[0]) {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, strings.Join(out.Senders, ","))
@@ -119,7 +110,7 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*store.Request, error) 
 	if len(m) < 2 {
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
-	return DecodeRequest(out, m[64:], uint8(RequestRoleObserver))
+	return decodeRequest(out, m[64:], RequestRoleObserver)
 }
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*store.Request, error) {
@@ -133,8 +124,7 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*store.Request, error) {
 	if len(m) < 12 {
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
-	role := node.requestRole(out.AssetId)
-	return DecodeRequest(out, m, role)
+	return decodeRequest(out, m, RequestRoleSigner)
 }
 
 func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {
@@ -145,8 +135,7 @@ func (node *Node) parseUserRequest(out *mtg.Action) (*store.Request, error) {
 	if len(m) == 0 {
 		return nil, fmt.Errorf("node.parseUserRequest(%v)", out)
 	}
-	role := node.requestRole(out.AssetId)
-	return DecodeRequest(out, m, role)
+	return decodeRequest(out, m, RequestRoleUser)
 }
 
 func (node *Node) buildRefundTxs(ctx context.Context, req *store.Request, am map[string]*ReferencedTxAsset, receivers []string, threshold int) ([]*mtg.Transaction, string) {
