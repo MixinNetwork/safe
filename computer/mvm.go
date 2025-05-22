@@ -182,7 +182,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		skipPostProcess = true
 	case FlagWithPostProcess:
 	default:
-		logger.Printf("invalid skip postprocess flag: %d", data[24])
+		logger.Printf("invalid skip post process flag: %d", data[24])
 		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
 	}
 
@@ -585,27 +585,27 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			return node.failRequest(ctx, req, "")
 		}
 
-		postprocess, err := node.getPostProcessCall(ctx, req, call, extra[16:])
-		logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, postprocess, err)
+		post, err := node.getPostProcessCall(ctx, req, call, extra[16:])
+		logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, post, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
 		var session *store.Session
-		if postprocess != nil {
+		if post != nil {
 			session = &store.Session{
-				Id:         postprocess.RequestId,
-				RequestId:  postprocess.RequestId,
+				Id:         post.RequestId,
+				RequestId:  post.RequestId,
 				MixinHash:  req.MixinHash.String(),
 				MixinIndex: req.Output.OutputIndex,
 				Index:      0,
 				Operation:  OperationTypeSignInput,
-				Public:     postprocess.Public,
-				Extra:      postprocess.Message,
+				Public:     post.Public,
+				Extra:      post.Message,
 				CreatedAt:  req.CreatedAt,
 			}
 		}
 
-		err = node.store.FailSystemCallWithRequest(ctx, req, call, postprocess, session)
+		err = node.store.FailSystemCallWithRequest(ctx, req, call, post, session)
 		if err != nil {
 			panic(err)
 		}

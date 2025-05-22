@@ -286,10 +286,7 @@ func (node *Node) httpGetFeeOnXIN(w http.ResponseWriter, r *http.Request, params
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "fee"})
 		return
 	}
-	ratio, err := decimal.NewFromString(fee.Ratio)
-	if err != nil {
-		panic(err)
-	}
+	ratio := decimal.RequireFromString(fee.Ratio)
 	xinAmount := body.SolAmount.Div(ratio).RoundCeil(8)
 
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{

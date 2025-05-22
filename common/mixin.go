@@ -44,7 +44,7 @@ func VerifyKernelTransaction(ctx context.Context, reader KernelTransactionReader
 	if len(signed.Outputs) < out.OutputIndex+1 {
 		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) output mismatch %d", out, len(signed.Outputs))
 	}
-	if a, _ := decimal.NewFromString(signed.Outputs[out.OutputIndex].Amount.String()); !a.Equal(out.Amount) {
+	if a := decimal.RequireFromString(signed.Outputs[out.OutputIndex].Amount.String()); !a.Equal(out.Amount) {
 		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) amount mismatch %s", out, a)
 	}
 

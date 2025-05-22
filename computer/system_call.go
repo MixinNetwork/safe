@@ -52,17 +52,22 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 		if err != nil {
 			return nil, nil, err
 		}
-		if len(rs) > 0 {
-			refs = append(refs, rs...)
+		if rs != nil {
+			refs = append(refs, rs)
 		}
-		if hash != nil && storage == nil {
+		if hash == nil {
+			continue
+		}
+		if storage == nil {
 			storage = hash
+		} else if storage.String() != hash.String() {
+			panic(storage.String())
 		}
 	}
 	return refs, storage, nil
 }
 
-func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) ([]*store.SpentReference, *crypto.Hash, error) {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) (*store.SpentReference, *crypto.Hash, error) {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
@@ -97,29 +102,22 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 	if err != nil {
 		panic(err)
 	}
-	refs := []*store.SpentReference{
-		{
-			TransactionHash: hash,
-			RequestId:       req.Id,
-			RequestHash:     req.MixinHash.String(),
-			ChainId:         asset.ChainID,
-			AssetId:         asset.AssetID,
-			Amount:          total.String(),
-			Asset:           asset,
-		},
-	}
-	return refs, nil, nil
+	return &store.SpentReference{
+		TransactionHash: hash,
+		RequestId:       req.Id,
+		RequestHash:     req.MixinHash.String(),
+		ChainId:         asset.ChainID,
+		AssetId:         asset.AssetID,
+		Amount:          total.String(),
+		Asset:           asset,
+	}, nil, nil
 }
 
 func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
 	for _, ref := range rs {
 		logger.Printf("node.GetReferencedTxAsset() => %v", ref)
-		amt, err := decimal.NewFromString(ref.Amount)
-		if err != nil {
-			panic(err)
-		}
-
+		amt := decimal.RequireFromString(ref.Amount)
 		isSolAsset := ref.ChainId == solanaApp.SolanaChainBase
 		address := ref.Asset.AssetKey
 		if !isSolAsset {
@@ -151,7 +149,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 	for _, a := range am {
 		logger.Printf("node.GetSystemCallRelatedAsset() => %v", a)
 		if !a.Amount.IsPositive() {
-			panic(a)
+			panic(a.AssetId)
 		}
 	}
 	return am
@@ -168,28 +166,26 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		return nil, nil
 	}
 	feeId := uuid.Must(uuid.FromBytes(extra[25:])).String()
-
 	fee, err := node.store.ReadValidFeeInfo(ctx, feeId)
 	if err != nil {
 		panic(err)
 	}
-	if fee == nil {
+	if fee == nil { // TODO check fee timestamp against the call timestamp not too old
 		return nil, fmt.Errorf("invalid fee id: %s", feeId)
 	}
-	ratio, err := decimal.NewFromString(fee.Ratio)
-	if err != nil {
-		panic(err)
-	}
+
+	ratio := decimal.RequireFromString(fee.Ratio)
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
 	if err != nil {
 		panic(err)
 	}
+
 	outputs := node.group.ListOutputsByTransactionHash(ctx, req.MixinHash.String(), req.Sequence)
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
 		total = total.Add(output.Amount)
 	}
-	if common.CheckTestEnvironment(ctx) {
+	if common.CheckTestEnvironment(ctx) { // TODO create these test outputs
 		total = decimal.NewFromFloat(0.28271639 + 0.001)
 	}
 	if total.Compare(plan.OperationPriceAmount) == 0 {
@@ -220,14 +216,14 @@ func (node *Node) getPostProcessCall(ctx context.Context, req *store.Request, ca
 		return nil, nil
 	}
 
-	postprocess, tx, err := node.getSubSystemCallFromExtra(ctx, req, data)
+	post, tx, err := node.getSubSystemCallFromExtra(ctx, req, data)
 	if err != nil {
 		return nil, err
 	}
-	postprocess.Superior = call.RequestId
-	postprocess.Type = store.CallTypePostProcess
-	postprocess.Public = call.Public
-	postprocess.State = common.RequestStatePending
+	post.Superior = call.RequestId
+	post.Type = store.CallTypePostProcess
+	post.Public = call.Public
+	post.State = common.RequestStatePending
 
 	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 	if err != nil {
@@ -236,12 +232,13 @@ func (node *Node) getPostProcessCall(ctx context.Context, req *store.Request, ca
 	if user == nil {
 		return nil, fmt.Errorf("store.ReadUser(%s) => nil", call.UserIdFromPublicPath().String())
 	}
-	err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
+	mtgDeposit := solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry)
+	err = node.VerifySubSystemCall(ctx, tx, mtgDeposit, solana.MustPublicKeyFromBase58(user.ChainAddress))
 	logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
 	if err != nil {
 		return nil, err
 	}
-	return postprocess, nil
+	return post, nil
 }
 
 func (node *Node) getSubSystemCallFromExtra(ctx context.Context, req *store.Request, data []byte) (*store.SystemCall, *solana.Transaction, error) {
@@ -296,10 +293,12 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 		return nil
 	}
 
+	// ensure the transaction is signed by fee payer
 	if !tx.IsSigner(node.SolanaPayer()) {
 		return fmt.Errorf("tx.IsSigner(payer) => %t", false)
 	}
 
+	// make sure fee payer is only used for the first nonce advance transaction
 	index, err := solanaApp.GetSignatureIndexOfAccount(*tx, node.SolanaPayer())
 	if err != nil {
 		return err

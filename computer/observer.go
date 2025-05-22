@@ -439,14 +439,8 @@ func (node *Node) handleFeeInfo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	xinPrice, err := decimal.NewFromString(xin.PriceUSD)
-	if err != nil {
-		return err
-	}
-	solPrice, err := decimal.NewFromString(sol.PriceUSD)
-	if err != nil {
-		return err
-	}
+	xinPrice := decimal.RequireFromString(xin.PriceUSD)
+	solPrice := decimal.RequireFromString(sol.PriceUSD)
 	ratio := xinPrice.Div(solPrice)
 
 	extra := []byte(ratio.String())
@@ -478,7 +472,7 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 			panic(fee.AssetID)
 		}
 		rid := common.UniqueId(tx.TraceId, "withdrawal_fee")
-		amount, _ := decimal.NewFromString(fee.Amount)
+		amount := decimal.RequireFromString(fee.Amount)
 		refs := []crypto.Hash{tx.Hash}
 		_, err = common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.conf.MTG.App.AppId}, 1, []string{mtg.MixinFeeUserId}, 1, amount, rid, fee.AssetID, "", refs, node.conf.MTG.App.SpendPrivateKey)
 		if err != nil {

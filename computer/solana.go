@@ -684,10 +684,7 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner *solana.PublicKey) map[s
 		if owner == nil {
 			key = fmt.Sprintf("%s:%s", tb.Owner.String(), tb.Mint.String())
 		}
-		amount, err := decimal.NewFromString(tb.UiTokenAmount.UiAmountString)
-		if err != nil {
-			panic(err)
-		}
+		amount := decimal.RequireFromString(tb.UiTokenAmount.UiAmountString)
 		bm[key] = &BalanceChange{
 			Owner:    *tb.Owner,
 			Amount:   amount,

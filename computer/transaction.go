@@ -54,10 +54,7 @@ func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId
 	} else {
 		balance := act.CheckAssetBalanceAt(ctx, assetId)
 		logger.Printf("group.CheckAssetBalanceAt(%s, %d) => %s %s %s", assetId, act.Sequence, traceId, amount, balance)
-		amt, err := decimal.NewFromString(amount)
-		if err != nil {
-			panic(amount)
-		}
+		amt := decimal.RequireFromString(amount)
 		if balance.Cmp(amt) < 0 {
 			return ""
 		}
@@ -115,10 +112,7 @@ func (node *Node) sendSignerTransactionToGroup(ctx context.Context, traceId stri
 func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, memo []byte, amount, assetId, traceId string, references []crypto.Hash) error {
 	receivers := node.GetMembers()
 	threshold := node.conf.MTG.Genesis.Threshold
-	amt, err := decimal.NewFromString(amount)
-	if err != nil {
-		panic(err)
-	}
+	amt := decimal.RequireFromString(amount)
 	traceId = common.UniqueId(traceId, fmt.Sprintf("MTG:%v:%d", receivers, threshold))
 
 	if common.CheckTestEnvironment(ctx) {
@@ -131,7 +125,7 @@ func (node *Node) sendTransactionToGroupUntilSufficient(ctx context.Context, mem
 		return err
 	}
 
-	_, err = common.WriteStorageUntilSufficient(ctx, node.mixin, []*bot.TransactionRecipient{
+	_, err := common.WriteStorageUntilSufficient(ctx, node.mixin, []*bot.TransactionRecipient{
 		{
 			MixAddress: bot.NewUUIDMixAddress(node.conf.MTG.Genesis.Members, byte(node.conf.MTG.Genesis.Threshold)),
 			Amount:     amount,

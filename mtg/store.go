@@ -85,10 +85,7 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 				return fmt.Errorf("invalid storage transaction: %#v", t)
 			}
 		}
-		sequence := act.Sequence
-		if act.restoreSequence > act.Sequence {
-			sequence = act.restoreSequence
-		}
+		sequence := max(act.Sequence, act.restoreSequence)
 		if t.Sequence != sequence {
 			panic(t.Sequence)
 		}

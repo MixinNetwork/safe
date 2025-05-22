@@ -250,9 +250,8 @@ func TestMTGWithdrawal(t *testing.T) {
 	require.NotNil(node)
 	defer teardownTestDatabase(node.Group.store)
 
-	d, err := decimal.NewFromString("0.005")
-	require.Nil(err)
-	err = node.Group.store.WriteAction(ctx, &UnifiedOutput{
+	d := decimal.RequireFromString("0.005")
+	err := node.Group.store.WriteAction(ctx, &UnifiedOutput{
 		OutputId:             "7514b939-db92-3d31-abf4-7841f035e400",
 		TransactionRequestId: "cf0564ba-bf51-4e8c-b504-3beb6c5c65e2",
 		TransactionHash:      "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee",
@@ -468,6 +467,7 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	require.Nil(err)
 	require.Len(ns, 5)
 
+	require.Equal("da99ddc3cac7c96bdd6107275dd6d9d44348a229dcf4df74eba0f77ab8471883", group.GenesisId())
 	return ctx, n
 }
 

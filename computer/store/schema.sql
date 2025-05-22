@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS fees (
 CREATE INDEX IF NOT EXISTS fees_by_created ON fees(created_at);
 
 
+-- TODO use a separate sqlite3 for caches
 CREATE TABLE IF NOT EXISTS caches (
   key           VARCHAR NOT NULL,
   value         TEXT NOT NULL,

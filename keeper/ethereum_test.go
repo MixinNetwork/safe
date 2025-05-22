@@ -627,8 +627,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 
 func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, txHash, assetId, assetAddress, balance string) {
 	id := uuid.Must(uuid.NewV4()).String()
-	amt, err := decimal.NewFromString(balance)
-	require.Nil(err)
+	amt := decimal.RequireFromString(balance)
 	b, err := hex.DecodeString(txHash)
 	require.Nil(err)
 

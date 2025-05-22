@@ -42,10 +42,7 @@ const (
 )
 
 func ParseSatoshi(amount string) int64 {
-	amt, err := decimal.NewFromString(amount)
-	if err != nil {
-		panic(amount)
-	}
+	amt := decimal.RequireFromString(amount)
 	amt = amt.Mul(decimal.New(1, ValuePrecision))
 	if !amt.IsInteger() {
 		panic(amount)
