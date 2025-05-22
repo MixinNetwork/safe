@@ -18,13 +18,13 @@ import (
 func NewClient(rpcEndpoint string) *Client {
 	return &Client{
 		rpcEndpoint: rpcEndpoint,
+		rpcClient:   rpc.New(rpcEndpoint),
 	}
 }
 
 type Client struct {
 	rpcEndpoint string
-
-	rpcClient *rpc.Client
+	rpcClient   *rpc.Client
 }
 
 type AssetMetadata struct {
@@ -42,9 +42,6 @@ type Asset struct {
 }
 
 func (c *Client) GetRPCClient() *rpc.Client {
-	if c.rpcClient == nil {
-		c.rpcClient = rpc.New(c.rpcEndpoint)
-	}
 	return c.rpcClient
 }
 
