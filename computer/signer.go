@@ -52,12 +52,6 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 		}
 
 		for _, s := range sessions {
-			if common.CheckTestEnvironment(ctx) {
-				if s.CreatedAt.Add(10 * time.Second).After(time.Now()) {
-					break
-				}
-			}
-
 			traceId := fmt.Sprintf("SESSION:%s:SIGNER:%s:PREPARE", s.Id, string(node.id))
 			extra := uuid.Must(uuid.FromString(s.Id)).Bytes()
 			extra = append(extra, PrepareExtra...)
@@ -327,12 +321,7 @@ type MultiPartySession struct {
 }
 
 func (mps *MultiPartySession) findMember(id party.ID) bool {
-	for _, m := range mps.members {
-		if m == id {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(mps.members, id)
 }
 
 func (mps *MultiPartySession) missing(self party.ID) []party.ID {
