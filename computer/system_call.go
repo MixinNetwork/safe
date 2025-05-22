@@ -81,7 +81,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 		}
 	}
 	// skip referenced storage transaction
-	if ver.Asset.String() == common.XinKernelAssetId && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
+	if ver.Asset.String() == common.XINKernelAssetId && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
 		h, _ := crypto.HashFromString(hash)
 		return nil, &h, nil
 	}
@@ -158,7 +158,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 }
 
 // should only return error when no valid fees found
-func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.SystemCall) (*store.SpentReference, error) {
+func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall) (*store.SpentReference, error) {
 	req, err := node.store.ReadRequestByHash(ctx, call.RequestHash)
 	if err != nil {
 		panic(err)
@@ -195,8 +195,8 @@ func (node *Node) getSystemCallFeeFromXin(ctx context.Context, call *store.Syste
 	if total.Compare(plan.OperationPriceAmount) == 0 {
 		return nil, nil
 	}
-	feeOnXin := total.Sub(plan.OperationPriceAmount)
-	feeOnSol := feeOnXin.Mul(ratio).RoundCeil(8).String()
+	feeOnXIN := total.Sub(plan.OperationPriceAmount)
+	feeOnSol := feeOnXIN.Mul(ratio).RoundCeil(8).String()
 
 	asset, err := common.SafeReadAssetUntilSufficient(ctx, common.SafeSolanaChainId)
 	if err != nil {

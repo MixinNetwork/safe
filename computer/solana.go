@@ -399,7 +399,7 @@ func (node *Node) CreatePostprocessTransaction(ctx context.Context, call *store.
 		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
 	}
 	// fee_id may be expired when post-process, skip error
-	fee, _ := node.getSystemCallFeeFromXin(ctx, call)
+	fee, _ := node.getSystemCallFeeFromXIN(ctx, call)
 	if fee != nil {
 		rs = append(rs, fee)
 	}

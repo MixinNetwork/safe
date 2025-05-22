@@ -431,7 +431,7 @@ func (node *Node) releaseLockedNonceAccount(ctx context.Context, nonce *store.No
 }
 
 func (node *Node) handleFeeInfo(ctx context.Context) error {
-	xin, err := common.SafeReadAssetUntilSufficient(ctx, common.XinKernelAssetId)
+	xin, err := common.SafeReadAssetUntilSufficient(ctx, common.XINKernelAssetId)
 	if err != nil {
 		return err
 	}
@@ -529,7 +529,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		extra := []byte{ConfirmFlagNonceAvailable}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 
-		fee, err := node.getSystemCallFeeFromXin(ctx, call)
+		fee, err := node.getSystemCallFeeFromXIN(ctx, call)
 		if nonce == nil || !nonce.LockedByUserOnly() || err != nil {
 			logger.Printf("observer.expireSystemCall(%v %v %v)", call, nonce, err)
 			id = common.UniqueId(id, "expire-nonce")

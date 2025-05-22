@@ -36,7 +36,7 @@ func (node *Node) StartHTTP(version string) {
 	router.GET("/system_calls/:id", node.httpGetSystemCall)
 	router.POST("/deployed_assets", node.httpDeployAssets)
 	router.POST("/nonce_accounts", node.httpLockNonce)
-	router.POST("/fee", node.httpGetFeeOnXin)
+	router.POST("/fee", node.httpGetFeeOnXIN)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7081), handler)
 	if err != nil {
@@ -266,7 +266,7 @@ func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params m
 	})
 }
 
-func (node *Node) httpGetFeeOnXin(w http.ResponseWriter, r *http.Request, params map[string]string) {
+func (node *Node) httpGetFeeOnXIN(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	ctx := r.Context()
 	var body struct {
 		SolAmount decimal.Decimal `json:"sol_amount"`

@@ -17,7 +17,7 @@ const (
 	SafePolygonChainId  = "b7938396-3f94-4e0a-9179-d3440718156f"
 	SafeSolanaChainId   = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 
-	XinKernelAssetId = "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc"
+	XINKernelAssetId = "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc"
 )
 
 func SafeCurveChain(crv byte) byte {
