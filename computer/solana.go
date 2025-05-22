@@ -39,13 +39,18 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		height, err := node.SolanaClient().RPCGetBlockHeight(ctx)
+		height, err := node.SolanaClient().RPCGetConfirmedHeight(ctx)
 		if err != nil {
 			logger.Printf("solana.RPCGetBlockHeight => %v", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
 		offset := checkpoint
+
+		rentExemptBalance, err := node.SolanaClient().RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.NormalAccountSize)
+		if err != nil {
+			panic(err)
+		}
 
 		var wg sync.WaitGroup
 		wg.Add(SolanaBlockBatch)
@@ -56,7 +61,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 				if current+SolanaBlockDelay > int64(height)+1 {
 					return
 				}
-				err := node.solanaReadBlock(ctx, current)
+				err := node.solanaReadBlock(ctx, current, rentExemptBalance)
 				logger.Printf("node.solanaReadBlock(%d) => %v", current, err)
 				if err != nil {
 					panic(err)
@@ -75,7 +80,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
+func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64, rentExemptBalance uint64) error {
 	block, err := node.SolanaClient().RPCGetBlockByHeight(ctx, uint64(checkpoint))
 	if err != nil {
 		if strings.Contains(err.Error(), "was skipped, or missing") {
@@ -85,7 +90,7 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	}
 
 	for _, tx := range block.Transactions {
-		err := node.solanaProcessTransaction(ctx, tx.MustGetTransaction(), tx.Meta)
+		err = node.solanaProcessTransaction(ctx, tx.MustGetTransaction(), tx.Meta, rentExemptBalance)
 		if err != nil {
 			return err
 		}
@@ -93,7 +98,7 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64) error {
 	return nil
 }
 
-func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta) error {
+func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, rentExemptBalance uint64) error {
 	internal := node.checkInternalAccountsFromMeta(ctx, tx, meta)
 	if !internal {
 		return nil
@@ -130,15 +135,6 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	}
 	if len(changes) == 0 {
 		return nil
-	}
-
-	rentExemptBalance, err := node.RPCGetMinimumBalanceForRentExemption(
-		ctx,
-		solanaApp.NormalAccountSize,
-		rpc.CommitmentConfirmed,
-	)
-	if err != nil {
-		panic(err)
 	}
 
 	tsMap := make(map[string][]*solanaApp.TokenTransfers)
@@ -1075,31 +1071,6 @@ func (node *Node) RPCGetAsset(ctx context.Context, account string) (*solanaApp.A
 		panic(err)
 	}
 	return asset, nil
-}
-
-func (node *Node) RPCGetMinimumBalanceForRentExemption(ctx context.Context, dataSize uint64, commitment rpc.CommitmentType) (uint64, error) {
-	key := fmt.Sprintf("getMinimumBalanceForRentExemption:%d:%s", dataSize, commitment)
-	value, err := node.store.ReadCache(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-	if value != "" {
-		rent, err := decimal.NewFromString(value)
-		if err != nil {
-			panic(err)
-		}
-		return rent.BigInt().Uint64(), nil
-	}
-
-	r, err := node.SolanaClient().RPCGetMinimumBalanceForRentExemption(ctx, dataSize, commitment)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteCache(ctx, key, fmt.Sprintf("%d", r))
-	if err != nil {
-		panic(err)
-	}
-	return r, nil
 }
 
 func (node *Node) SolanaPayer() solana.PublicKey {

@@ -18,10 +18,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const ()
-
 func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
-	client := c.GetRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
 	if err != nil {
 		panic(err)
@@ -33,15 +30,11 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 
 	computerPriceIns := c.getPriorityFeeInstruction(ctx)
 
-	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
-		ctx,
-		nonceAccountSize,
-		rpc.CommitmentConfirmed,
-	)
+	rentExemptBalance, err := c.RPCGetMinimumBalanceForRentExemption(ctx, nonceAccountSize)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
 	}
-	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
+	block, err := c.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentProcessed)
 	if err != nil {
 		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
@@ -78,7 +71,6 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 }
 
 func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*solana.Transaction, error) {
-	client := c.GetRPCClient()
 	payer, err := solana.PrivateKeyFromBase58(key)
 	if err != nil {
 		panic(err)
@@ -90,15 +82,11 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 
 	computerPriceIns := c.getPriorityFeeInstruction(ctx)
 
-	rentExemptBalance, err := client.GetMinimumBalanceForRentExemption(
-		ctx,
-		NormalAccountSize,
-		rpc.CommitmentConfirmed,
-	)
+	rentExemptBalance, err := c.RPCGetMinimumBalanceForRentExemption(ctx, NormalAccountSize)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", NormalAccountSize, err)
 	}
-	block, err := client.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
+	block, err := c.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentProcessed)
 	if err != nil {
 		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
 	}
@@ -127,10 +115,9 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 }
 
 func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, assets []*DeployedAsset) (*solana.Transaction, error) {
-	client := c.GetRPCClient()
 	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
 
-	rent, err := client.GetMinimumBalanceForRentExemption(ctx, mintSize, rpc.CommitmentConfirmed)
+	rent, err := c.RPCGetMinimumBalanceForRentExemption(ctx, mintSize)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption() => %v", err)
 	}
@@ -376,7 +363,7 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 }
 
 func (c *Client) getPriorityFeeInstruction(ctx context.Context) *computebudget.Instruction {
-	recentFees, err := c.GetRPCClient().GetRecentPrioritizationFees(ctx, []solana.PublicKey{})
+	recentFees, err := c.rpcClient.GetRecentPrioritizationFees(ctx, []solana.PublicKey{})
 	if err != nil {
 		panic(err)
 	}
