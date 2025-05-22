@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/MixinNetwork/safe/common"
 )
 
 type Cache struct {
@@ -42,7 +44,7 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 	if err != nil {
 		return err
 	}
-	defer rollBack(tx)
+	defer common.Rollback(tx)
 
 	threshold := time.Now().Add(-cacheTTL).UTC()
 	_, err = tx.ExecContext(ctx, "DELETE FROM caches WHERE created_at<?", threshold)

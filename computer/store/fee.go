@@ -38,11 +38,8 @@ func (s *SQLite3Store) WriteFeeInfoWithRequest(ctx context.Context, req *Request
 	defer common.Rollback(tx)
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT fee_id FROM fees WHERE fee_id=?", req.Id)
-	if err != nil {
+	if err != nil || existed {
 		return err
-	}
-	if existed {
-		return nil
 	}
 
 	vals := []any{req.Id, ratio, req.CreatedAt}
@@ -60,6 +57,9 @@ func (s *SQLite3Store) WriteFeeInfoWithRequest(ctx context.Context, req *Request
 }
 
 func (s *SQLite3Store) ReadLatestFeeInfo(ctx context.Context) (*FeeInfo, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
 	query := fmt.Sprintf("SELECT %s FROM fees ORDER BY created_at DESC LIMIT 1", strings.Join(feeCols, ","))
 	row := s.db.QueryRowContext(ctx, query)
 
@@ -67,6 +67,9 @@ func (s *SQLite3Store) ReadLatestFeeInfo(ctx context.Context) (*FeeInfo, error) 
 }
 
 func (s *SQLite3Store) ReadValidFeeInfo(ctx context.Context, id string) (*FeeInfo, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
 	query := fmt.Sprintf("SELECT %s FROM fees WHERE fee_id=? ORDER BY created_at DESC LIMIT 2", strings.Join(feeCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
 

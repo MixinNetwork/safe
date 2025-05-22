@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
+	solana "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 )
 
 var deployedAssetCols = []string{"asset_id", "chain_id", "address", "decimals", "state", "created_at"}
 
-func deployedAssetFromRow(row Row) (*solanaApp.DeployedAsset, error) {
-	var a solanaApp.DeployedAsset
+func deployedAssetFromRow(row Row) (*solana.DeployedAsset, error) {
+	var a solana.DeployedAsset
 	err := row.Scan(&a.AssetId, &a.ChainId, &a.Address, &a.Decimals, &a.State, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -21,7 +21,7 @@ func deployedAssetFromRow(row Row) (*solanaApp.DeployedAsset, error) {
 	return &a, err
 }
 
-func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string, state int64) (*solanaApp.DeployedAsset, error) {
+func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string, state int64) (*solana.DeployedAsset, error) {
 	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE asset_id=?", strings.Join(deployedAssetCols, ","))
 	values := []any{id}
 	if state > 0 {
@@ -33,14 +33,14 @@ func (s *SQLite3Store) ReadDeployedAsset(ctx context.Context, id string, state i
 	return deployedAssetFromRow(row)
 }
 
-func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address string) (*solanaApp.DeployedAsset, error) {
+func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address string) (*solana.DeployedAsset, error) {
 	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE address=? AND state=?", strings.Join(deployedAssetCols, ","))
 	row := s.db.QueryRowContext(ctx, query, address, common.RequestStateDone)
 
 	return deployedAssetFromRow(row)
 }
 
-func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*solanaApp.DeployedAsset, error) {
+func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*solana.DeployedAsset, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -51,7 +51,7 @@ func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*solanaApp.Dep
 	}
 	defer rows.Close()
 
-	var as []*solanaApp.DeployedAsset
+	var as []*solana.DeployedAsset
 	for rows.Next() {
 		asset, err := deployedAssetFromRow(rows)
 		if err != nil {

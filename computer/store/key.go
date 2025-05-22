@@ -99,8 +99,8 @@ func (s *SQLite3Store) MarkKeyConfirmedWithRequest(ctx context.Context, req *Req
 }
 
 func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (string, []byte, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var public, share string
 	row := s.db.QueryRowContext(ctx, "SELECT public, share FROM keys WHERE fingerprint=?", sum)
@@ -117,8 +117,8 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 // the mpc key with default path
 // used as address on solana chain
 func (s *SQLite3Store) ReadFirstPublicKey(ctx context.Context) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var public string
 	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE confirmed_at IS NOT NULL ORDER BY confirmed_at ASC LIMIT 1")
@@ -130,8 +130,8 @@ func (s *SQLite3Store) ReadFirstPublicKey(ctx context.Context) (string, error) {
 }
 
 func (s *SQLite3Store) ReadLatestPublicKey(ctx context.Context) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var public string
 	row := s.db.QueryRowContext(ctx, "SELECT public FROM keys WHERE confirmed_at IS NOT NULL ORDER BY confirmed_at DESC LIMIT 1")

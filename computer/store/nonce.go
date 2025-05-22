@@ -146,8 +146,8 @@ func (s *SQLite3Store) ReleaseLockedNonceAccount(ctx context.Context, address st
 }
 
 func (s *SQLite3Store) ListLockedNonceAccounts(ctx context.Context) ([]*NonceAccount, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	sql := fmt.Sprintf("SELECT %s FROM nonce_accounts WHERE mix IS NOT NULL OR call_id IS NOT NULL ORDER BY updated_at ASC LIMIT 100", strings.Join(nonceAccountCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql)
@@ -168,8 +168,8 @@ func (s *SQLite3Store) ListLockedNonceAccounts(ctx context.Context) ([]*NonceAcc
 }
 
 func (s *SQLite3Store) ListNonceAccounts(ctx context.Context) ([]*NonceAccount, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	sql := fmt.Sprintf("SELECT %s FROM nonce_accounts LIMIT 500", strings.Join(nonceAccountCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql)

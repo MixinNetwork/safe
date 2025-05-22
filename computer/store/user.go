@@ -148,8 +148,8 @@ func (s *SQLite3Store) CheckInternalAccounts(ctx context.Context, accounts []str
 		return 0, nil
 	}
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	placeholders := strings.Repeat("?, ", len(accounts))
 	placeholders = strings.TrimSuffix(placeholders, ", ")
@@ -171,8 +171,8 @@ func (s *SQLite3Store) CheckInternalAccounts(ctx context.Context, accounts []str
 }
 
 func (s *SQLite3Store) ListNewUsersAfter(ctx context.Context, offset time.Time) ([]*User, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	sql := fmt.Sprintf("SELECT %s FROM users WHERE created_at>? ORDER BY created_at ASC LIMIT 100", strings.Join(userCols, ","))
 	rows, err := s.db.QueryContext(ctx, sql, offset)

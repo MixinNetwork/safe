@@ -39,8 +39,8 @@ func (r *Session) AsOperation() *common.Operation {
 }
 
 func (s *SQLite3Store) ReadSession(ctx context.Context, sessionId string) (*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var r Session
 	query := "SELECT session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at, prepared_at FROM sessions WHERE session_id=?"
@@ -212,8 +212,8 @@ func (s *SQLite3Store) MarkSessionDone(ctx context.Context, sessionId string) er
 }
 
 func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NULL AND prepared_at IS NULL ORDER BY operation DESC, created_at ASC, sub_index ASC, session_id ASC LIMIT %d", cols, limit)
@@ -221,8 +221,8 @@ func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*S
 }
 
 func (s *SQLite3Store) ListPreparedSessions(ctx context.Context, limit int) ([]*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NOT NULL AND prepared_at IS NOT NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
@@ -230,8 +230,8 @@ func (s *SQLite3Store) ListPreparedSessions(ctx context.Context, limit int) ([]*
 }
 
 func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := "session_id, request_id, mixin_hash, mixin_index, operation, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY created_at ASC, session_id ASC LIMIT %d", cols, limit)
@@ -265,8 +265,8 @@ type State struct {
 }
 
 func (s *SQLite3Store) SessionsState(ctx context.Context) (*State, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

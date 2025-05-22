@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	solanaApp "github.com/MixinNetwork/safe/apps/solana"
+	solana "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/util"
@@ -144,7 +144,7 @@ func (s *SQLite3Store) WriteDepositCallWithRequest(ctx context.Context, req *Req
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*solanaApp.DeployedAsset) error {
+func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*solana.DeployedAsset) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

@@ -114,11 +114,3 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 type Row interface {
 	Scan(dest ...any) error
 }
-
-func rollBack(txn *sql.Tx) {
-	err := txn.Rollback()
-	const already = "transaction has already been committed or rolled back"
-	if err != nil && !strings.Contains(err.Error(), already) {
-		panic(err)
-	}
-}
