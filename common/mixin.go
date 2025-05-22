@@ -108,7 +108,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, reci
 		}
 		if req != nil {
 			if !slices.Contains(req.Signers, client.ClientID) {
-				_, err = SignMultisigUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, []string{client.ClientID}, su.SpendPrivateKey)
+				_, err = signMultisigUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, []string{client.ClientID}, su.SpendPrivateKey)
 				if err != nil {
 					return crypto.Hash{}, err
 				}
@@ -131,7 +131,7 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, reci
 	}
 }
 
-func NewSafeTransactionUntilSufficient(ctx context.Context, client *mixin.Client, b *mixin.TransactionBuilder, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
+func newSafeTransactionUntilSufficient(ctx context.Context, client *mixin.Client, b *mixin.TransactionBuilder, outputs []*mixin.TransactionOutput) (*mixinnet.Transaction, error) {
 	for {
 		tx, err := client.MakeTransaction(ctx, b, outputs)
 		if CheckRetryableError(err) {
@@ -170,7 +170,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		b.Memo = memo
 		b.Hint = traceId
 
-		tx, err := NewSafeTransactionUntilSufficient(ctx, client, b, []*mixin.TransactionOutput{
+		tx, err := newSafeTransactionUntilSufficient(ctx, client, b, []*mixin.TransactionOutput{
 			{
 				Address: mixin.RequireNewMixAddress(receivers, byte(receiversThreshold)),
 				Amount:  amount,
@@ -184,15 +184,11 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 		if err != nil {
 			return nil, err
 		}
-		req, err = CreateTransactionRequestUntilSufficient(ctx, client, traceId, raw)
-		if CheckRetryableError(err) {
-			time.Sleep(time.Second)
-			continue
-		}
+		req, err = createTransactionRequestUntilSufficient(ctx, client, traceId, raw)
 		if err != nil {
 			return nil, err
 		}
-		_, err = SignTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
+		_, err = signTransactionUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
 		if err != nil {
 			return nil, err
 		}
@@ -216,14 +212,14 @@ func listSafeUtxosUntilSufficient(ctx context.Context, client *mixin.Client, mem
 	}
 }
 
-func CreateTransactionRequestUntilSufficient(ctx context.Context, client *mixin.Client, id, raw string) (*mixin.SafeTransactionRequest, error) {
+func createTransactionRequestUntilSufficient(ctx context.Context, client *mixin.Client, id, raw string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := client.SafeCreateTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      id,
 			RawTransaction: raw,
 		})
 		logger.Verbosef("common.mixin.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
-		if mtg.CheckRetryableError(err) {
+		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
 		}
@@ -231,7 +227,7 @@ func CreateTransactionRequestUntilSufficient(ctx context.Context, client *mixin.
 	}
 }
 
-func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func signTransactionUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	key, err := mixinnet.KeyFromString(spendPrivateKey)
 	if err != nil {
 		return nil, err
@@ -262,7 +258,7 @@ func SignTransactionUntilSufficient(ctx context.Context, client *mixin.Client, r
 	}
 }
 
-func SignMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, members []string, spendPrivateKey string) (*mixin.SafeMultisigRequest, error) {
+func signMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, members []string, spendPrivateKey string) (*mixin.SafeMultisigRequest, error) {
 	key, err := mixinnet.KeyFromString(spendPrivateKey)
 	if err != nil {
 		return nil, err
