@@ -42,7 +42,7 @@ func TestComputer(t *testing.T) {
 	call, sub := testUserRequestSystemCall(ctx, require, nodes, mds, user)
 	testConfirmWithdrawal(ctx, require, nodes, call, sub)
 	postprocess := testObserverConfirmMainCall(ctx, require, nodes, call)
-	testObserverConfirmPostprocessCall(ctx, require, nodes, postprocess)
+	testObserverConfirmPostProcessCall(ctx, require, nodes, postprocess)
 
 	node := nodes[0]
 	err := node.store.WriteFailedCallIfNotExist(ctx, call, "test-error")
@@ -52,7 +52,7 @@ func TestComputer(t *testing.T) {
 	require.Equal("test-error", reason)
 }
 
-func testObserverConfirmPostprocessCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
+func testObserverConfirmPostProcessCall(ctx context.Context, require *require.Assertions, nodes []*Node, sub *store.SystemCall) {
 	node := nodes[0]
 	err := node.store.UpdateNonceAccount(ctx, sub.NonceAccount, "6c8hGTPpTd4RMbYyM3wQgnwxZbajKhovhfDgns6bvmrX", sub.RequestId)
 	require.Nil(err)
@@ -98,7 +98,7 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	cid := common.UniqueId(call.RequestId, "post-process")
 	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 	require.Nil(err)
-	stx := node.CreatePostprocessTransaction(ctx, call, nonce, nil, nil)
+	stx := node.CreatePostProcessTransaction(ctx, call, nonce, nil, nil)
 	require.NotNil(stx)
 	raw, err := stx.MarshalBinary()
 	require.Nil(err)

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	solana "github.com/MixinNetwork/safe/apps/solana"
+	"github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 )
 
@@ -41,8 +41,8 @@ func (s *SQLite3Store) ReadDeployedAssetByAddress(ctx context.Context, address s
 }
 
 func (s *SQLite3Store) ListDeployedAssets(ctx context.Context) ([]*solana.DeployedAsset, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	query := fmt.Sprintf("SELECT %s FROM deployed_assets WHERE state=? LIMIT 500", strings.Join(deployedAssetCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, common.RequestStateDone)

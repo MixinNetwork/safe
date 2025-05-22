@@ -15,7 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/mtg"
-	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -667,7 +667,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	return nil
 }
 
-func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGroup, key string, calls []*store.SystemCall) error {
+func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGroup, key string, calls []*store.SystemCall) {
 	defer wg.Done()
 	var ids []string
 	for _, c := range calls {
@@ -687,7 +687,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 				panic(err)
 			}
 			if pending {
-				return nil
+				return
 			}
 		}
 
@@ -697,13 +697,13 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 			if err != nil {
 				panic(err)
 			}
-			return nil
+			return
 		}
 		err = node.processSuccessedCall(ctx, call, tx, meta, []solana.Signature{tx.Signatures[0]})
 		if err != nil {
 			panic(err)
 		}
-		return nil
+		return
 	}
 
 	var sigs []solana.Signature
@@ -713,7 +713,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 		if err != nil {
 			panic(err)
 		}
-		return nil
+		return
 	}
 	sigs = append(sigs, preTx.Signatures[0])
 
@@ -728,7 +728,7 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 		if err != nil {
 			panic(err)
 		}
-		return nil
+		return
 	}
 	sigs = append(sigs, tx.Signatures[0])
 
@@ -736,7 +736,6 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 	if err != nil {
 		panic(err)
 	}
-	return nil
 }
 
 func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
@@ -809,13 +808,13 @@ func (node *Node) processSuccessedCall(ctx context.Context, call *store.SystemCa
 		extra = append(extra, hash[:]...)
 	}
 
-	if call.Type == store.CallTypeMain && !call.SkipPostprocess {
+	if call.Type == store.CallTypeMain && !call.SkipPostProcess {
 		cid := common.UniqueId(id, "post-process")
 		nonce, err := node.store.ReadSpareNonceAccount(ctx)
 		if err != nil {
 			return err
 		}
-		tx := node.CreatePostprocessTransaction(ctx, call, nonce, txx, meta)
+		tx := node.CreatePostProcessTransaction(ctx, call, nonce, txx, meta)
 		if tx != nil {
 			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 			if err != nil {
@@ -848,7 +847,7 @@ func (node *Node) processFailedCall(ctx context.Context, call *store.SystemCall,
 		if err != nil {
 			panic(err)
 		}
-		tx := node.CreatePostprocessTransaction(ctx, call, nonce, nil, nil)
+		tx := node.CreatePostProcessTransaction(ctx, call, nonce, nil, nil)
 		if tx != nil {
 			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
 			if err != nil {

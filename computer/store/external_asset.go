@@ -135,8 +135,8 @@ func (s *SQLite3Store) ReadExternalAsset(ctx context.Context, id string) (*Exter
 }
 
 func (s *SQLite3Store) ListUndeployedAssets(ctx context.Context) ([]*ExternalAsset, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	query := fmt.Sprintf("SELECT %s FROM external_assets WHERE deployed_at IS NULL LIMIT 500", strings.Join(externalAssetCols, ","))
 	rows, err := s.db.QueryContext(ctx, query)

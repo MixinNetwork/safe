@@ -14,7 +14,7 @@ import (
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
-	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -215,7 +215,7 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 	}, nil
 }
 
-func (node *Node) getPostprocessCall(ctx context.Context, req *store.Request, call *store.SystemCall, data []byte) (*store.SystemCall, error) {
+func (node *Node) getPostProcessCall(ctx context.Context, req *store.Request, call *store.SystemCall, data []byte) (*store.SystemCall, error) {
 	if call.Type != store.CallTypeMain || len(data) == 0 {
 		return nil, nil
 	}

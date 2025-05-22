@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/mtg"
-	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -176,10 +176,10 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 
 	cid := uuid.Must(uuid.FromBytes(data[8:24])).String()
-	skipPostprocess := false
+	skipPostProcess := false
 	switch data[24] {
 	case FlagSkipPostProcess:
-		skipPostprocess = true
+		skipPostProcess = true
 	case FlagWithPostProcess:
 	default:
 		logger.Printf("invalid skip postprocess flag: %d", data[24])
@@ -205,7 +205,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	call.Superior = call.RequestId
 	call.Type = store.CallTypeMain
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
-	call.SkipPostprocess = skipPostprocess
+	call.SkipPostProcess = skipPostProcess
 
 	err = node.checkUserSystemCall(ctx, tx)
 	if err != nil {
@@ -530,7 +530,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			case store.CallTypeMint:
 				return node.confirmMintSystemCall(ctx, req, call, tx)
 			case store.CallTypePostProcess:
-				return node.confirmPostprocessSystemCall(ctx, req, call, tx)
+				return node.confirmPostProcessSystemCall(ctx, req, call, tx)
 			}
 		}
 
@@ -548,8 +548,8 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				continue
 			}
 
-			postprocess, err := node.getPostprocessCall(ctx, req, call, extra[(i+1)*64:])
-			logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
+			postprocess, err := node.getPostProcessCall(ctx, req, call, extra[(i+1)*64:])
+			logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, postprocess, err)
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
@@ -585,8 +585,8 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			return node.failRequest(ctx, req, "")
 		}
 
-		postprocess, err := node.getPostprocessCall(ctx, req, call, extra[16:])
-		logger.Printf("node.getPostprocessCall(%v %v) => %v %v", req, call, postprocess, err)
+		postprocess, err := node.getPostProcessCall(ctx, req, call, extra[16:])
+		logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, postprocess, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
@@ -948,7 +948,7 @@ func (node *Node) confirmMintSystemCall(ctx context.Context, req *store.Request,
 	return nil, ""
 }
 
-func (node *Node) confirmPostprocessSystemCall(ctx context.Context, req *store.Request, call *store.SystemCall, tx *solana.Transaction) ([]*mtg.Transaction, string) {
+func (node *Node) confirmPostProcessSystemCall(ctx context.Context, req *store.Request, call *store.SystemCall, tx *solana.Transaction) ([]*mtg.Transaction, string) {
 	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
 	if err != nil {
 		panic(err)
@@ -982,7 +982,7 @@ func (node *Node) confirmPostprocessSystemCall(ctx context.Context, req *store.R
 		txs = append(txs, tx)
 	}
 
-	err = node.store.ConfirmPostprocessSystemCallWithRequest(ctx, req, call, txs)
+	err = node.store.ConfirmPostProcessSystemCallWithRequest(ctx, req, call, txs)
 	if err != nil {
 		panic(err)
 	}
