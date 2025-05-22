@@ -185,6 +185,10 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 			return nil, err
 		}
 		req, err = createTransactionRequestUntilSufficient(ctx, client, traceId, raw)
+		if CheckTransactionLockedError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +223,7 @@ func createTransactionRequestUntilSufficient(ctx context.Context, client *mixin.
 			RawTransaction: raw,
 		})
 		logger.Verbosef("common.mixin.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
-		if CheckRetryableError(err) {
+		if mtg.CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
 		}
