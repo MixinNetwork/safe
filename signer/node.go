@@ -17,8 +17,8 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/common/round"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/signer/protocol"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -426,12 +426,7 @@ func (node *Node) GetPartySlice() party.IDSlice {
 }
 
 func (mps *MultiPartySession) findMember(id party.ID) bool {
-	for _, m := range mps.members {
-		if m == id {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(mps.members, id)
 }
 
 func (mps *MultiPartySession) missing(self party.ID) []party.ID {

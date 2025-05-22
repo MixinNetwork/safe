@@ -30,17 +30,6 @@ func (node *Node) parseRequest(out *mtg.Action) (*common.Request, error) {
 	}
 }
 
-func (node *Node) requestRole(assetId string) uint8 {
-	switch assetId {
-	case node.conf.AssetId:
-		return common.RequestRoleSigner
-	case node.conf.ObserverAssetId:
-		return common.RequestRoleObserver
-	default:
-		return common.RequestRoleHolder
-	}
-}
-
 func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error) {
 	if len(out.Senders) != 1 && out.Senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
@@ -53,8 +42,7 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 		return nil, fmt.Errorf("node.parseObserverRequest(%v)", out)
 	}
 	b := common.AESDecrypt(node.observerAESKey[:], m)
-	role := node.requestRole(out.AssetId)
-	return common.DecodeRequest(out, b, role)
+	return common.DecodeRequest(out, b, common.RequestRoleObserver)
 }
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) {
@@ -66,8 +54,7 @@ func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) 
 		return nil, fmt.Errorf("node.parseSignerResponse(%v)", out)
 	}
 	b := common.AESDecrypt(node.signerAESKey[:], m)
-	role := node.requestRole(out.AssetId)
-	return common.DecodeRequest(out, b, role)
+	return common.DecodeRequest(out, b, common.RequestRoleSigner)
 }
 
 func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
@@ -78,8 +65,7 @@ func (node *Node) parseHolderRequest(out *mtg.Action) (*common.Request, error) {
 	if m == nil {
 		return nil, fmt.Errorf("node.parseHolderRequest(%v)", out)
 	}
-	role := node.requestRole(out.AssetId)
-	return common.DecodeRequest(out, m, role)
+	return common.DecodeRequest(out, m, common.RequestRoleHolder)
 }
 
 func (node *Node) readStorageExtraFromObserver(ctx context.Context, ref crypto.Hash) []byte {

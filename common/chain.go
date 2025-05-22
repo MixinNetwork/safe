@@ -15,6 +15,9 @@ const (
 	SafeEthereumChainId = "43d61dcd-e413-450d-80b8-101d5e903357"
 	SafeLitecoinChainId = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
 	SafePolygonChainId  = "b7938396-3f94-4e0a-9179-d3440718156f"
+	SafeSolanaChainId   = "64692c23-8971-4cf4-84a7-4dd1271dd887"
+
+	XINKernelAssetId = "a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc"
 )
 
 func SafeCurveChain(crv byte) byte {

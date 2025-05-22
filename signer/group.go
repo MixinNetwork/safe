@@ -331,7 +331,7 @@ func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) 
 		if err != nil {
 			panic(err)
 		}
-		for i := 0; i < int(path[0]); i++ {
+		for i := range int(path[0]) {
 			conf, err = conf.DeriveBIP32(uint32(path[i+1]))
 			if err != nil {
 				panic(err)
