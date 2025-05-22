@@ -796,10 +796,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			if mint, ok := solanaApp.DecodeTokenMintTo(accounts, ix.Data); ok {
 				to := mint.GetDestinationAccount().PublicKey
 				token := mint.GetMintAccount().PublicKey
-				ata, _, err := solanaApp.FindAssociatedTokenAddress(user, token, programKey)
-				if err != nil {
-					return err
-				}
+				ata := solanaApp.FindAssociatedTokenAddress(user, token, programKey)
 				if !to.Equals(ata) {
 					return fmt.Errorf("invalid mint to destination: %s", to.String())
 				}
@@ -808,14 +805,8 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			if transfer, ok := solanaApp.DecodeTokenTransferChecked(accounts, ix.Data); ok {
 				recipient := transfer.GetDestinationAccount().PublicKey
 				token := transfer.GetMintAccount().PublicKey
-				entryAta, _, err := solanaApp.FindAssociatedTokenAddress(groupDepositEntry, token, programKey)
-				if err != nil {
-					return err
-				}
-				userAta, _, err := solanaApp.FindAssociatedTokenAddress(user, token, programKey)
-				if err != nil {
-					return err
-				}
+				entryAta := solanaApp.FindAssociatedTokenAddress(groupDepositEntry, token, programKey)
+				userAta := solanaApp.FindAssociatedTokenAddress(user, token, programKey)
 				if !recipient.Equals(entryAta) && !recipient.Equals(userAta) {
 					return fmt.Errorf("invalid token transfer recipient: %s", recipient.String())
 				}

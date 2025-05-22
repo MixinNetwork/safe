@@ -207,10 +207,7 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 		}
 
 		mint := transfer.Mint
-		ataAddress, _, err := solana.FindAssociatedTokenAddress(transfer.Destination, mint)
-		if err != nil {
-			return nil, err
-		}
+		ataAddress := FindAssociatedTokenAddress(transfer.Destination, mint, solana.TokenProgramID)
 		ata, err := c.RPCGetAccount(ctx, ataAddress)
 		if err != nil {
 			return nil, err
@@ -256,10 +253,7 @@ func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.Pu
 			continue
 		}
 
-		ataAddress, _, err := solana.FindAssociatedTokenAddress(user, transfer.Mint)
-		if err != nil {
-			return nil, err
-		}
+		ataAddress := FindAssociatedTokenAddress(user, transfer.Mint, solana.TokenProgramID)
 		builder.AddInstruction(
 			token.NewBurnCheckedInstruction(
 				transfer.Amount,
@@ -300,14 +294,8 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 	}
 	tokenProgram := mintAccount.Value.Owner
 
-	src, _, err := FindAssociatedTokenAddress(source, transfer.Mint, tokenProgram)
-	if err != nil {
-		return nil, err
-	}
-	dst, _, err := FindAssociatedTokenAddress(transfer.Destination, transfer.Mint, tokenProgram)
-	if err != nil {
-		return nil, err
-	}
+	src := FindAssociatedTokenAddress(source, transfer.Mint, tokenProgram)
+	dst := FindAssociatedTokenAddress(transfer.Destination, transfer.Mint, tokenProgram)
 	ata, err := c.RPCGetAccount(ctx, dst)
 	if err != nil {
 		return nil, err
@@ -464,11 +452,11 @@ func ExtractMintsFromTransaction(tx *solana.Transaction) []string {
 
 func GetSignatureIndexOfAccount(tx solana.Transaction, publicKey solana.PublicKey) (int, error) {
 	index, err := tx.GetAccountIndex(publicKey)
-	if err != nil {
-		if strings.Contains(err.Error(), "account not found") {
-			return -1, nil
-		}
-		return -1, err
+	if err == nil {
+		return int(index), nil
 	}
-	return int(index), nil
+	if strings.Contains(err.Error(), "account not found") {
+		return -1, nil
+	}
+	return -1, err
 }

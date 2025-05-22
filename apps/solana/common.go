@@ -95,14 +95,18 @@ func FindAssociatedTokenAddress(
 	wallet solana.PublicKey,
 	mint solana.PublicKey,
 	tokenProgramID solana.PublicKey,
-) (solana.PublicKey, uint8, error) {
-	return solana.FindProgramAddress([][]byte{
+) solana.PublicKey {
+	addr, _, err := solana.FindProgramAddress([][]byte{
 		wallet[:],
 		tokenProgramID[:],
 		mint[:],
 	},
 		solana.SPLAssociatedTokenAccountProgramID,
 	)
+	if err != nil {
+		panic(err)
+	}
+	return addr
 }
 
 func BuildSignersGetter(keys ...solana.PrivateKey) func(key solana.PublicKey) *solana.PrivateKey {
@@ -453,10 +457,7 @@ func extractTransfersFromInstruction(
 			if !ok {
 				if from.Mint.String() == WrappedSolanaAddress {
 					for _, owner := range owners {
-						ata, _, err := FindAssociatedTokenAddress(*owner, from.Mint, programKey)
-						if err != nil {
-							panic(err)
-						}
+						ata := FindAssociatedTokenAddress(*owner, from.Mint, programKey)
 						if ata.Equals(transfer.GetDestinationAccount().PublicKey) {
 							return &Transfer{
 								TokenAddress:     from.Mint.String(),

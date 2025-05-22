@@ -2,7 +2,6 @@ package solana
 
 import (
 	"errors"
-	"fmt"
 
 	bin "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
@@ -61,9 +60,8 @@ func (inst *Create) SetMint(mint solana.PublicKey) *Create {
 }
 
 func (inst Create) Build() *tokenAta.Instruction {
-
 	// Find the associatedTokenAddress;
-	associatedTokenAddress, _, _ := FindAssociatedTokenAddress(
+	associatedTokenAddress := FindAssociatedTokenAddress(
 		inst.Wallet,
 		inst.Mint,
 		solana.Token2022ProgramID,
@@ -135,14 +133,11 @@ func (inst *Create) Validate() error {
 	if inst.Mint.IsZero() {
 		return errors.New("mint not set")
 	}
-	_, _, err := FindAssociatedTokenAddress(
+	_ = FindAssociatedTokenAddress(
 		inst.Wallet,
 		inst.Mint,
 		solana.Token2022ProgramID,
 	)
-	if err != nil {
-		return fmt.Errorf("error while FindAssociatedTokenAddress: %w", err)
-	}
 	return nil
 }
 
