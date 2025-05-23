@@ -43,7 +43,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 
 	nodes := make([]*Node, 4)
 	mds := make([]*mtg.SQLite3Store, 4)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
@@ -51,7 +51,7 @@ func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.
 	}
 
 	network := newTestNetwork(nodes[0].GetPartySlice())
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		nodes[i].network = network
 		ctx = context.WithValue(ctx, partyContextKey, string(nodes[i].id))
 		go network.mtgLoop(ctx, nodes[i])
@@ -128,7 +128,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		require.Nil(err)
 		require.Equal(key, ecPub.SerializeCompressed())
 
-		for i := uint32(0); i < 16; i++ {
+		for i := range uint32(16) {
 			conf, err = conf.DeriveBIP32(i)
 			require.Nil(err)
 			spb := common.MarshalPanic(conf.PublicPoint())
@@ -204,7 +204,7 @@ func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, id, appId, asset
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	out.TestAttachActionToGroup(nodes[0].group)
 	network := nodes[0].network.(*testNetwork)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		data := common.MarshalJSONOrPanic(out)
 		network.mtgChannel(nodes[i].id) <- data
 	}

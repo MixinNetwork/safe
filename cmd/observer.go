@@ -282,7 +282,7 @@ func GenerateObserverKeys(c *cli.Context) error {
 	if count <= 0 || count >= 1024*16 {
 		panic(count)
 	}
-	for i := uint(0); i < count; i++ {
+	for i := range count {
 		index := uint32(offset + i)
 		if index > uint32(harden/2) {
 			panic(index)

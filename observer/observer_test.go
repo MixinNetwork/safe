@@ -224,7 +224,7 @@ func TestNode(t *testing.T) {
 	require.Equal(s1.App.GeneratedKeys, stats.App.GeneratedKeys)
 	require.Equal(s1.App.Version, stats.App.Version)
 
-	for i := 1; i <= 10; i++ {
+	for range 10 {
 		err = testUpsertStats(ctx, node, k1)
 		require.Nil(err)
 		err = testUpsertStats(ctx, node, s1)

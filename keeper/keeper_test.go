@@ -294,7 +294,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLi
 	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	signerMembers := node.GetSigners()
-	for i := byte(0); i < batch; i++ {
+	for i := range byte(batch) {
 		pid := common.UniqueId(id, fmt.Sprintf("%8d", i))
 		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", signerMembers, node.signer.Genesis.Threshold))
 		v, err := node.store.ReadProperty(ctx, pid)
@@ -310,14 +310,14 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLi
 	}
 	testSpareKeys(ctx, require, node, 0, 1, 1, common.CurveSecp256k1ECDSABitcoin)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testUpdateAccountPrice(ctx, require, node)
 	}
 	rid, publicKey := testSafeProposeAccount(ctx, require, node, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSABitcoin)
 	testSafeApproveAccount(ctx, require, node, mpc, observer, rid, publicKey)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSABitcoin)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testUpdateNetworkStatus(ctx, require, node, 793574, "00000000000000000002a4f5cd899ea457314c808897c5c5f1f1cd6ffe2b266a")
 	}
 
@@ -616,7 +616,7 @@ func (node *Node) testSignerHolderApproveTransaction(ctx context.Context, requir
 }
 
 func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node *Node, holder, transactionHash, holderSignedRaw string, signers []*signer.Node, action *mtg.Action) string {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testUpdateNetworkStatus(ctx, require, node, 797082, "00000000000000000004f8a108a06a9f61389c7340d8a3fa431a534ff339402a")
 	}
 
@@ -1127,7 +1127,7 @@ func testPublicKey(priv string) string {
 func testGetDerivedObserverPrivate(require *require.Assertions) *btcec.PrivateKey {
 	path8 := []byte{2, 0, 0, 0}
 	children := make([]uint32, path8[0])
-	for i := 0; i < int(path8[0]); i++ {
+	for i := range path8[0] {
 		children[i] = uint32(path8[1+i])
 	}
 

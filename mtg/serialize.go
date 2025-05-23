@@ -288,7 +288,7 @@ func DeserializeTransactions(tb []byte) ([]*Transaction, error) {
 		return nil, err
 	}
 	txs := make([]*Transaction, count)
-	for i := 0; i < int(count); i++ {
+	for i := range count {
 		b, err := dec.ReadBytes()
 		if err != nil {
 			return nil, err

@@ -402,9 +402,7 @@ func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
 }
 
 func generateGenesisId(conf *Configuration) string {
-	sort.Slice(conf.Genesis.Members, func(i, j int) bool {
-		return conf.Genesis.Members[i] < conf.Genesis.Members[j]
-	})
+	slices.Sort(conf.Genesis.Members)
 	id := strings.Join(conf.Genesis.Members, "")
 	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Epoch)
 	return crypto.Sha256Hash([]byte(id)).String()

@@ -164,7 +164,7 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		return nil, err
 	}
 	var receivers []string
-	for i := byte(0); i < total; i++ {
+	for range total {
 		uid, err := readUUID(dec)
 		if err != nil {
 			return nil, err

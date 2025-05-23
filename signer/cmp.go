@@ -50,7 +50,7 @@ func (node *Node) cmpSign(ctx context.Context, members []party.ID, public string
 	if hex.EncodeToString(pb) != public {
 		panic(public)
 	}
-	for i := 0; i < int(path[0]); i++ {
+	for i := range path[0] {
 		conf, err = conf.DeriveBIP32(uint32(path[i+1]))
 		if err != nil {
 			return nil, fmt.Errorf("cmp.DeriveBIP32(%x, %d, %d) => %v", sessionId, i, path[i+1], err)

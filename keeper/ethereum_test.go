@@ -92,7 +92,7 @@ func TestEthereumKeeperERC20(t *testing.T) {
 func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, db, _, signers := testEthereumPrepare(require)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 52430860, "55877f07c696cbf6e75174d7e8c2313d62aa665101be2c53dd1bd5f3a85507b1")
 	}
 
@@ -185,7 +185,7 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, db, _, _ := testEthereumPrepare(require)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 52430860, "55877f07c696cbf6e75174d7e8c2313d62aa665101be2c53dd1bd5f3a85507b1")
 	}
 
@@ -308,7 +308,7 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *
 	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSAEthereum)
 	testStep(ctx, require, node, out)
 	signerMembers := node.GetSigners()
-	for i := byte(0); i < batch; i++ {
+	for i := range batch {
 		pid := common.UniqueId(id, fmt.Sprintf("%8d", i))
 		pid = common.UniqueId(pid, fmt.Sprintf("MTG:%v:%d", signerMembers, node.signer.Genesis.Threshold))
 		v, _ := node.store.ReadProperty(ctx, pid)
@@ -323,14 +323,14 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *
 	}
 	testSpareKeys(ctx, require, node, 0, 1, 1, common.CurveSecp256k1ECDSAEthereum)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testEthereumUpdateAccountPrice(ctx, require, node)
 	}
 	rid, gs := testEthereumProposeAccount(ctx, require, node, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
 	testEthereumApproveAccount(ctx, require, node, rid, gs, signers, mpc, observer)
 	testSpareKeys(ctx, require, node, 0, 0, 0, common.CurveSecp256k1ECDSAEthereum)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 52430860, "55877f07c696cbf6e75174d7e8c2313d62aa665101be2c53dd1bd5f3a85507b1")
 	}
 
@@ -724,7 +724,7 @@ func testEthereumSignMessage(require *require.Assertions, priv string, message [
 	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 	pub := crypto.CompressPubkey(publicKeyECDSA)
 
-	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message)))
+	hash := crypto.Keccak256Hash(fmt.Appendf(nil, "\x19Ethereum Signed Message:\n%d%s", len(message), message))
 	signature, err := crypto.Sign(hash.Bytes(), private)
 	require.Nil(err)
 	signed := crypto.VerifySignature(pub, hash.Bytes(), signature[:64])
