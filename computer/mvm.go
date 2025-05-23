@@ -209,7 +209,8 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 	if !slices.ContainsFunc(mix.Members(), func(m string) bool {
 		return slices.Contains(req.Output.Senders, m)
-	}) { // TODO use better and general authentication without MM api
+	}) && !common.CheckTestEnvironment(ctx) {
+		// TODO use better and general authentication without MM api
 		return node.failRequest(ctx, req, "")
 	}
 
