@@ -207,6 +207,11 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	if err != nil {
 		panic(err)
 	}
+	if !slices.ContainsFunc(mix.Members(), func(m string) bool {
+		return slices.Contains(req.Output.Senders, m)
+	}) { // TODO use better and general authentication without MM api
+		return node.failRequest(ctx, req, "")
+	}
 
 	os, storage, err := node.GetSystemCallReferenceOutputs(ctx, user.UserId, req.MixinHash.String(), common.RequestStateInitial)
 	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v %v", req.MixinHash.String(), os, storage, err)

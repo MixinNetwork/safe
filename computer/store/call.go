@@ -47,8 +47,6 @@ type SystemCall struct {
 
 var systemCallCols = []string{"id", "superior_id", "request_hash", "call_type", "nonce_account", "public", "skip_postprocess", "message", "raw", "state", "withdrawal_traces", "withdrawn_at", "signature", "request_signer_at", "hash", "created_at", "updated_at"}
 
-var spentReferenceCols = []string{"transaction_hash", "request_id", "request_hash", "chain_id", "asset_id", "amount", "created_at"}
-
 func systemCallFromRow(row Row) (*SystemCall, error) {
 	var c SystemCall
 	err := row.Scan(&c.RequestId, &c.Superior, &c.RequestHash, &c.Type, &c.NonceAccount, &c.Public, &c.SkipPostProcess, &c.Message, &c.Raw, &c.State, &c.WithdrawalTraces, &c.WithdrawnAt, &c.Signature, &c.RequestSignerAt, &c.Hash, &c.CreatedAt, &c.UpdatedAt)
@@ -106,8 +104,8 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 	}
 
 	for _, o := range os {
-		query := "UPDATE user_outputs SET state=?, signed_by=?, updated_at=? WHERE output_id=? AND state=?"
-		err = s.execOne(ctx, tx, query, common.RequestStatePending, call.RequestId, req.CreatedAt, o.OutputId, common.RequestStateInitial)
+		query := "UPDATE user_outputs SET state=?, signed_by=?, updated_at=? WHERE output_id=? AND state=? AND user_id=?"
+		err = s.execOne(ctx, tx, query, common.RequestStatePending, call.RequestId, req.CreatedAt, o.OutputId, common.RequestStateInitial, call.UserIdFromPublicPath().String())
 		if err != nil {
 			return fmt.Errorf("SQLite3Store UPDATE user_outputs %v", err)
 		}
