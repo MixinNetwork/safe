@@ -19,7 +19,7 @@ func (node *Node) deriveBIP32WithKeeperPath(ctx context.Context, public, path st
 		panic(path8[0])
 	}
 	path32 := make([]uint32, path8[0])
-	for i := 0; i < int(path8[0]); i++ {
+	for i := range path8[0] {
 		path32[i] = uint32(path8[1+i])
 	}
 	sk, err := node.keeperStore.ReadKey(ctx, public)

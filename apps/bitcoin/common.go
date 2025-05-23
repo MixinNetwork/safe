@@ -86,9 +86,7 @@ func ParseSequence(lock time.Duration, chain byte) int64 {
 	}
 	// FIXME check litecoin timelock consensus as this may exceed 0xffff
 	lock = lock / blockDuration
-	if lock >= 0xffff {
-		lock = 0xffff
-	}
+	lock = min(lock, 0xffff)
 	return int64(lock)
 }
 
@@ -111,7 +109,7 @@ func CheckFinalization(num uint64, coinbase bool) bool {
 }
 
 func CheckDerivation(public string, chainCode []byte, maxRange uint32) error {
-	for i := uint32(0); i <= maxRange; i++ {
+	for i := range maxRange {
 		children := []uint32{i, i, i}
 		_, _, err := DeriveBIP32(public, chainCode, children...)
 		if err != nil {

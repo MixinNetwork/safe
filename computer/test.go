@@ -35,7 +35,7 @@ func readOutputReferences(outputId string) []crypto.Hash {
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	out.TestAttachActionToGroup(nodes[0].group)
 	network := nodes[0].network.(*testNetwork)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		data := common.MarshalJSONOrPanic(out)
 		network.mtgChannel(nodes[i].id) <- data
 	}

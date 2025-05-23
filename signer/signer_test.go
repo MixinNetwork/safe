@@ -17,8 +17,8 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/protocols/frost"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
-	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/saver"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -88,7 +88,7 @@ func TestSSID(t *testing.T) {
 func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, []byte) {
 	sid := common.UniqueId("keygen", fmt.Sprint(400))
 	sequence := 4600000
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		node := nodes[i]
 		op := &common.Operation{
 			Type:  common.OperationTypeKeygenInput,

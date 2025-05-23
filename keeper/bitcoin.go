@@ -849,7 +849,7 @@ func (node *Node) deriveBIP32WithPath(ctx context.Context, public string, path8 
 		panic(path8[0])
 	}
 	path32 := make([]uint32, path8[0])
-	for i := 0; i < int(path8[0]); i++ {
+	for i := range path8[0] {
 		path32[i] = uint32(path8[1+i])
 	}
 	sk, err := node.store.ReadKey(ctx, public)

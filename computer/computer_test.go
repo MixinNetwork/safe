@@ -666,7 +666,7 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 
 	nodes := make([]*Node, 4)
 	mds := make([]*mtg.SQLite3Store, 4)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		dir := fmt.Sprintf("safe-signer-test-%d", i)
 		root, err := os.MkdirTemp("", dir)
 		require.Nil(err)
@@ -675,7 +675,7 @@ func testPrepare(require *require.Assertions) (context.Context, []*Node, []*mtg.
 	testInitOutputs(ctx, require, nodes, mds)
 
 	network := newTestNetwork(nodes[0].GetPartySlice())
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		nodes[i].network = network
 		ctx = context.WithValue(ctx, partyContextKey, string(nodes[i].id))
 		go network.mtgLoop(ctx, nodes[i])

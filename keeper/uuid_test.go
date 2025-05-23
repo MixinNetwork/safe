@@ -83,7 +83,7 @@ func TestKeygenOperationId(t *testing.T) {
 		15: "74b1aeff-e9e0-3abe-80cc-e9beb9199623",
 	}
 	aesKey := make([]byte, 32)
-	for i := 0; i < int(batch.Int64()); i++ {
+	for i := range int(batch.Int64()) {
 		op := &common.Operation{
 			Type:  common.OperationTypeKeygenInput,
 			Curve: common.CurveSecp256k1ECDSABitcoin,

@@ -36,7 +36,7 @@ func (node *Node) processSignerKeygenRequests(ctx context.Context, req *common.R
 	}
 	signers := node.GetSigners()
 	var txs []*mtg.Transaction
-	for i := 0; i < int(batch.Int64()); i++ {
+	for i := range batch.Int64() {
 		op := &common.Operation{
 			Type:  common.OperationTypeKeygenInput,
 			Curve: crv,
