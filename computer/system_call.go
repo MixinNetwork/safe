@@ -103,7 +103,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string
 	if err != nil {
 		panic(err)
 	}
-	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, hash, uid, state)
+	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, uid, hash, state)
 	if err != nil {
 		panic(err)
 	}
