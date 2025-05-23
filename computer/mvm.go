@@ -548,26 +548,25 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				continue
 			}
 
-			postprocess, err := node.getPostProcessCall(ctx, req, call, extra[(i+1)*64:])
-			logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, postprocess, err)
+			post, err := node.getPostProcessCall(ctx, req, call, extra[(i+1)*64:])
+			logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, post, err)
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
-			if postprocess != nil {
-				sub = postprocess
+			if post != nil {
+				sub = post
 				session = &store.Session{
-					Id:         postprocess.RequestId,
-					RequestId:  postprocess.RequestId,
+					Id:         post.RequestId,
+					RequestId:  post.RequestId,
 					MixinHash:  req.MixinHash.String(),
 					MixinIndex: req.Output.OutputIndex,
 					Index:      0,
 					Operation:  OperationTypeSignInput,
-					Public:     postprocess.Public,
-					Extra:      postprocess.Message,
+					Public:     post.Public,
+					Extra:      post.Message,
 					CreatedAt:  req.CreatedAt,
 				}
 			}
-
 		}
 		err := node.store.ConfirmSystemCallsWithRequest(ctx, req, calls, sub, session)
 		if err != nil {

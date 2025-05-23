@@ -2,6 +2,7 @@ package mixin
 
 import (
 	"crypto/ed25519"
+	"encoding/hex"
 	"slices"
 
 	"filippo.io/edwards25519"
@@ -22,7 +23,7 @@ func DeriveEd25519Child(public string, path []byte) ed25519.PublicKey {
 		panic(err)
 	}
 	if !CheckEd25519ValidChildPath(path) {
-		return ed25519.PublicKey(master[:])
+		panic(hex.EncodeToString(path))
 	}
 
 	seed := crypto.Sha256Hash(append(master[:], path...))

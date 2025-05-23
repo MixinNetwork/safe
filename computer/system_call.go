@@ -303,12 +303,9 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 	if err != nil {
 		return err
 	}
-	for i, ins := range tx.Message.Instructions {
-		if i == 0 {
-			continue
-		}
+	for i, ins := range tx.Message.Instructions[1:] {
 		if slices.Contains(ins.Accounts, uint16(index)) {
-			return fmt.Errorf("invalid instruction: %d %v", i, ins)
+			return fmt.Errorf("invalid instruction: %d %v", i+1, ins)
 		}
 	}
 	return nil
