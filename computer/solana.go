@@ -393,9 +393,15 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 	if fee != nil {
 		os = append(os, fee)
 	}
+
 	assets := node.GetSystemCallRelatedAsset(ctx, os)
 	am := make(map[string]*ReferencedTxAsset)
 	for _, a := range assets {
+		old := am[a.Address]
+		if old != nil {
+			am[a.Address].Amount = old.Amount.Add(a.Amount)
+			continue
+		}
 		am[a.Address] = a
 	}
 	assets = am
@@ -482,10 +488,20 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		panic(err)
 	}
 
+	fmt.Println("=====_")
+	for _, t := range transfers {
+		fmt.Println(t)
+	}
 	tx, err = node.SolanaClient().TransferOrBurnTokens(ctx, node.SolanaPayer(), user, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
+	// fmt.Println(tx)
+	// data, err := tx.Message.MarshalBinary()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// panic(hex.EncodeToString(data))
 	return tx
 }
 
