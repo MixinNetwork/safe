@@ -169,18 +169,22 @@ CREATE INDEX IF NOT EXISTS calls_by_state_signature_created ON system_calls(stat
 CREATE INDEX IF NOT EXISTS calls_by_superior_state_created ON system_calls(superior_id, state, created_at);
 
 
-CREATE TABLE IF NOT EXISTS spent_references (
-  transaction_hash   VARCHAR NOT NULL,
+CREATE TABLE IF NOT EXISTS user_outputs (
+  output_id          VARCHAR NOT NULL,
+  user_id            VARCHAR NOT NULL,
   request_id         VARCHAR NOT NULL,
-  request_hash       VARCHAR NOT NULL,
-  chain_id           VARCHAR NOT NULL,
+  transaction_hash   VARCHAR NOT NULL,
+  output_index       INTEGER NOT NULL,
   asset_id           VARCHAR NOT NULL,
+  chain_id           VARCHAR NOT NULL,
   amount             VARCHAR NOT NULL,
+  state              INTEGER NOT NULL,
+  sequence           INTEGER NOT NULL,
+  signed_by          VARCHAR,
   created_at         TIMESTAMP NOT NULL,
-  PRIMARY KEY ('transaction_hash')
+  updated_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('output_id')
 );
-
-CREATE INDEX IF NOT EXISTS refs_by_request ON spent_references(request_id);
 
 
 CREATE TABLE IF NOT EXISTS nonce_accounts (

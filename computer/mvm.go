@@ -86,6 +86,55 @@ func (node *Node) processAddUser(ctx context.Context, req *store.Request) ([]*mt
 	return nil, ""
 }
 
+func (node *Node) processUserDeposit(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
+	if req.Role != RequestRoleUser {
+		panic(req.Role)
+	}
+	if req.Action != OperationTypeUserDeposit {
+		panic(req.Action)
+	}
+
+	data := req.ExtraBytes()
+	if len(data) != 8 {
+		logger.Printf("invalid extra length of request for user deposit: %d", len(data))
+		return node.failRequest(ctx, req, "")
+	}
+	id := new(big.Int).SetBytes(data[:8])
+	user, err := node.store.ReadUser(ctx, id)
+	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadUser() => %v", err))
+	} else if user == nil {
+		return node.failRequest(ctx, req, "")
+	}
+
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, req.AssetId)
+	if err != nil || asset == nil {
+		panic(err)
+	}
+
+	output := &store.UserOutput{
+		OutputId:        req.Output.OutputId,
+		UserId:          user.UserId,
+		RequestId:       req.Id,
+		TransactionHash: req.Output.TransactionHash,
+		OutputIndex:     req.Output.OutputIndex,
+		AssetId:         req.AssetId,
+		ChainId:         asset.ChainID,
+		Amount:          req.Amount.String(),
+		State:           common.RequestStateInitial,
+		Sequence:        req.Output.Sequence,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+	err = node.store.WriteUserDepositWithRequest(ctx, req, output)
+	if err != nil {
+		panic(err)
+	}
+
+	return nil, ""
+}
+
 // System call operation full lifecycle:
 //
 //  1. user creates system call with locked nonce

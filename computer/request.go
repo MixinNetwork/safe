@@ -24,8 +24,9 @@ const (
 	FlagConfirmCallFail    = 2
 
 	// user operation
-	OperationTypeAddUser    = 1
-	OperationTypeSystemCall = 2
+	OperationTypeAddUser     = 1
+	OperationTypeSystemCall  = 2
+	OperationTypeUserDeposit = 3
 
 	// observer operation
 	OperationTypeSetOperationParams   = 10

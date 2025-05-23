@@ -91,6 +91,8 @@ func (node *Node) getActionRole(act byte) byte {
 		return RequestRoleUser
 	case OperationTypeSystemCall:
 		return RequestRoleUser
+	case OperationTypeUserDeposit:
+		return RequestRoleUser
 	case OperationTypeSetOperationParams:
 		return RequestRoleObserver
 	case OperationTypeKeygenInput:
@@ -139,6 +141,8 @@ func (node *Node) processRequest(ctx context.Context, req *store.Request) ([]*mt
 		return node.processAddUser(ctx, req)
 	case OperationTypeSystemCall:
 		return node.processSystemCall(ctx, req)
+	case OperationTypeUserDeposit:
+		return node.processUserDeposit(ctx, req)
 	case OperationTypeSetOperationParams:
 		return node.processSetOperationParams(ctx, req)
 	case OperationTypeKeygenInput:
