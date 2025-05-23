@@ -12,6 +12,7 @@ import (
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	mc "github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/mixin/util/base58"
 	"github.com/MixinNetwork/safe/apps/mixin"
@@ -323,7 +324,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 				Index:      0,
 				Operation:  OperationTypeSignInput,
 				Public:     prepare.Public,
-				Extra:      prepare.Message,
+				Extra:      prepare.MessageHex(),
 				CreatedAt:  req.CreatedAt,
 			})
 
@@ -369,7 +370,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			Index:      1,
 			Operation:  OperationTypeSignInput,
 			Public:     call.Public,
-			Extra:      call.Message,
+			Extra:      call.MessageHex(),
 			CreatedAt:  req.CreatedAt,
 		})
 
@@ -462,7 +463,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		Index:      0,
 		Operation:  OperationTypeSignInput,
 		Public:     call.Public,
-		Extra:      call.Message,
+		Extra:      call.MessageHex(),
 		CreatedAt:  req.CreatedAt,
 	}
 
@@ -600,7 +601,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 					Index:      0,
 					Operation:  OperationTypeSignInput,
 					Public:     post.Public,
-					Extra:      post.Message,
+					Extra:      post.MessageHex(),
 					CreatedAt:  req.CreatedAt,
 				}
 			}
@@ -641,7 +642,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				Index:      0,
 				Operation:  OperationTypeSignInput,
 				Public:     post.Public,
-				Extra:      post.Message,
+				Extra:      post.MessageHex(),
 				CreatedAt:  req.CreatedAt,
 			}
 		}
@@ -696,7 +697,7 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 		Index:      0,
 		Operation:  OperationTypeSignInput,
 		Public:     call.Public,
-		Extra:      call.Message,
+		Extra:      call.MessageHex(),
 		CreatedAt:  req.CreatedAt,
 	}
 	err = node.store.WriteSignSessionWithRequest(ctx, req, call, []*store.Session{session})
@@ -802,7 +803,7 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		Index:      0,
 		Operation:  OperationTypeSignInput,
 		Public:     call.Public,
-		Extra:      call.Message,
+		Extra:      call.MessageHex(),
 		CreatedAt:  req.CreatedAt,
 	}
 	err = node.store.WriteDepositCallWithRequest(ctx, req, call, session)
@@ -941,6 +942,8 @@ func (node *Node) checkConfirmCallSignature(ctx context.Context, signature strin
 	if err != nil {
 		panic(err)
 	}
+	hash := crypto.Sha256Hash(msg).String()
+
 	if common.CheckTestEnvironment(ctx) {
 		cs, err := node.store.ListSignedCalls(ctx)
 		if err != nil {
@@ -952,12 +955,12 @@ func (node *Node) checkConfirmCallSignature(ctx context.Context, signature strin
 			fmt.Println(c.Type, c.Message)
 		}
 		test := getTestSystemConfirmCallMessage(signature)
-		if test != nil {
-			msg = test
+		if test != "" {
+			hash = test
 		}
 	}
 
-	call, err := node.store.ReadSystemCallByMessage(ctx, hex.EncodeToString(msg))
+	call, err := node.store.ReadSystemCallByMessage(ctx, hash)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadSystemCallByMessage(%x) => %v", msg, err))
 	}

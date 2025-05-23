@@ -131,7 +131,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 			Index:      0,
 			Operation:  OperationTypeSignInput,
 			Public:     hex.EncodeToString(pub),
-			Extra:      call.Message,
+			Extra:      call.MessageHex(),
 			CreatedAt:  now,
 		}
 		err = node.store.TestWriteSignSession(ctx, call, []*store.Session{session})

@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/safe/apps/solana"
+	soalnaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/gagliardetto/solana-go"
 )
 
 const (
@@ -70,6 +72,22 @@ func (c *SystemCall) UserIdFromPublicPath() *big.Int {
 	}
 	id := new(big.Int).SetBytes(data[8:])
 	return id
+}
+
+func (c *SystemCall) MessageBytes() []byte {
+	tx, err := solana.TransactionFromBase64(c.Raw)
+	if err != nil {
+		panic(err)
+	}
+	msg, err := tx.Message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	return msg
+}
+
+func (c *SystemCall) MessageHex() string {
+	return hex.EncodeToString(c.MessageBytes())
 }
 
 func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, os []*UserOutput) error {
@@ -133,7 +151,7 @@ func (s *SQLite3Store) WriteDepositCallWithRequest(ctx context.Context, req *Req
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*solana.DeployedAsset) error {
+func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*soalnaApp.DeployedAsset) error {
 	if call.Type != CallTypeMint {
 		panic(call.Type)
 	}

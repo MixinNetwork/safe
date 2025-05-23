@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"slices"
 
@@ -288,11 +287,12 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	if err != nil {
 		panic(err)
 	}
+	hash := crypto.Sha256Hash(msg)
 	call := &store.SystemCall{
 		RequestId:       id,
 		RequestHash:     req.MixinHash.String(),
 		NonceAccount:    advance.GetNonceAccount().PublicKey.String(),
-		Message:         hex.EncodeToString(msg),
+		Message:         hash.String(),
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStateInitial,
 		CreatedAt:       req.CreatedAt,

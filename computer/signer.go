@@ -159,7 +159,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				if err != nil {
 					panic(err)
 				}
-				signed, sig := node.verifySessionSignature(common.DecodeHexOrPanic(call.Message), op.Extra, share, path)
+				signed, sig := node.verifySessionSignature(call.MessageBytes(), op.Extra, share, path)
 				if signed {
 					op.Extra = sig
 				} else {
@@ -766,7 +766,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	if err != nil {
 		panic(err)
 	}
-	valid, vsig := node.verifySessionSignature(common.DecodeHexOrPanic(call.Message), sig, share, path)
+	valid, vsig := node.verifySessionSignature(call.MessageBytes(), sig, share, path)
 	logger.Printf("node.verifySessionSignature(%v, %x) => %t", s, sig, valid)
 	if !valid || !bytes.Equal(sig, vsig) {
 		panic(hex.EncodeToString(vsig))
