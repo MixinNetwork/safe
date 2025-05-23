@@ -135,6 +135,13 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 		require.True(sub.Signature.Valid)
 		require.True(sub.RequestSignerAt.Valid)
 		postprocess = sub
+
+		os, err := node.store.ListUserOutputsByHashAndState(ctx, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", common.RequestStateDone)
+		require.Nil(err)
+		require.Len(os, 1)
+		os, err = node.store.ListUserOutputsByHashAndState(ctx, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", common.RequestStateDone)
+		require.Nil(err)
+		require.Len(os, 1)
 	}
 	return postprocess
 }
@@ -173,13 +180,36 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 
 	sequence += 10
-	amt := decimal.RequireFromString("0.01")
-	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "", sequence, amt)
+	h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
+	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeLitecoinChainId, h1.String(), "", sequence, decimal.RequireFromString("0.01"))
 	require.Nil(err)
+	oid1, err := uuid.NewV4()
+	require.Nil(err)
+	extra := user.IdBytes()
+	out1 := testBuildUserRequest(node, oid1.String(), h1.String(), "0.01", common.SafeLitecoinChainId, OperationTypeUserDeposit, extra, nil, nil)
 	sequence += 10
-	amt = decimal.RequireFromString("0.005")
-	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", "", sequence, amt)
+	h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
+	_, err = testWriteOutputForNodes(ctx, mds, conf.AppId, common.SafeSolanaChainId, h2.String(), "", sequence, decimal.RequireFromString("0.005"))
 	require.Nil(err)
+	oid2, err := uuid.NewV4()
+	require.Nil(err)
+	out2 := testBuildUserRequest(node, oid2.String(), h2.String(), "0.005", common.SafeSolanaChainId, OperationTypeUserDeposit, extra, nil, nil)
+	for _, node := range nodes {
+		err = node.store.WriteProperty(ctx, h1.String(), "")
+		require.Nil(err)
+		err = node.store.WriteProperty(ctx, h2.String(), "")
+		require.Nil(err)
+
+		testStep(ctx, require, node, out1)
+		testStep(ctx, require, node, out2)
+
+		os, err := node.store.ListUserOutputsByHashAndState(ctx, h1.String(), common.RequestStateInitial)
+		require.Nil(err)
+		require.Len(os, 1)
+		os, err = node.store.ListUserOutputsByHashAndState(ctx, h2.String(), common.RequestStateInitial)
+		require.Nil(err)
+		require.Len(os, 1)
+	}
 
 	solAmount := decimal.RequireFromString("0.23456789")
 	fee, err := node.store.ReadLatestFeeInfo(ctx)
@@ -191,16 +221,14 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 
 	id := uuid.Must(uuid.NewV4()).String()
 	refs := testStorageSystemCall(ctx, nodes, common.DecodeHexOrPanic("02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000810cdc56c8d087a301b21144b2ab5e1286b50a5d941ee02f62488db0308b943d2d64375bcd5726aadfdd159135441bbe659c705b37025c5c12854e9906ca85002953f9517566994f5066c9478a5e6d0466906e7d844b2d971b2e4f86ff72561c6d6405387e0deff4ac3250e4e4d1986f1bc5e805edd8ca4c48b73b92441afdc070b84fed2e0ca7ecb2a18e32bf10885151641616b3fe4447557683ee699247e1f9cbad4af79952644bd80881b3934b3e278ad2f4eeea3614e1c428350d905eac4ecf6994777d4d13d8bd64679ac9e173a29ea40653734b52eee914ddc43c820f424071d460ef6501203e6656563c4add1638164d5eba1dee13e9085fb60036f98f10000000000000000000000000000000000000000000000000000000000000000816e66630c3bb724dc59e49f6cc4306e603a6aacca06fa3e34e2b40ad5979d8da5d5ca9e04cf5db590b714ba2fe32cb159133fc1c192b72257fd07d39cb0401ec4db1d1f598d6a8197daf51b68d7fc0ef139c4dec5a496bac9679563bd3127db069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f0000000000106a7d517192c568ee08a845f73d29788cf035c3145b21ab344d8062ea940000006a7d517192c5c51218cc94c3d4af17f58daee089ba1fd44e3dbd98a0000000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a90ff0530009fc7a19cf8d8d0257f1dc2d478f1368aa89f5e546c6e12d8a4015ec020803050d0004040000000a0d0109030c0b020406070f0f080e20e992d18ecf6840bcd564b7ff16977c720000000000000000b992766700000000"))
-	h1, _ := crypto.HashFromString("a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459")
-	h2, _ := crypto.HashFromString("01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee")
 	refs = append(refs, []crypto.Hash{h1, h2}...)
 
 	hash := "d3b2db9339aee4acb39d0809fc164eb7091621400a9a3d64e338e6ffd035d32f"
-	extra := user.IdBytes()
+	extra = user.IdBytes()
 	extra = append(extra, uuid.Must(uuid.FromString(id)).Bytes()...)
 	extra = append(extra, FlagWithPostProcess)
 	extra = append(extra, uuid.Must(uuid.FromString(fee.Id)).Bytes()...)
-	out := testBuildUserRequest(node, id, hash, OperationTypeSystemCall, extra, refs, &xinFee)
+	out := testBuildUserRequest(node, id, hash, "0.001", mtg.StorageAssetId, OperationTypeSystemCall, extra, refs, &xinFee)
 	for _, node := range nodes {
 		testStep(ctx, require, node, out)
 		call, err := node.store.ReadSystemCallByRequestId(ctx, id, common.RequestStateInitial)
@@ -212,9 +240,9 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
 		require.True(call.RequestSignerAt.Valid)
-		count, err := node.store.TestCountSpentReferences(ctx, call.RequestId)
+		os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
 		require.Nil(err)
-		require.Equal(2, count)
+		require.Len(os, 2)
 	}
 
 	cs, err := node.store.ListUnconfirmedSystemCalls(ctx)
@@ -234,7 +262,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
 	require.Equal("8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG", nonce.Hash)
-	extraFee, err := node.getSystemCallFeeFromXIN(ctx, c)
+	extraFee, err := node.getSystemCallFeeFromXIN(ctx, c, false)
 	require.Nil(err)
 	feeActual := decimal.RequireFromString(extraFee.Amount)
 	require.True(feeActual.Cmp(solAmount) >= 0)
@@ -281,7 +309,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 	for _, node := range nodes {
 		uid := common.UniqueId(id, "user1")
 		mix := bot.NewUUIDMixAddress([]string{uid}, 1)
-		out := testBuildUserRequest(node, id, "", OperationTypeAddUser, []byte(mix.String()), nil, nil)
+		out := testBuildUserRequest(node, id, "", "0.001", mtg.StorageAssetId, OperationTypeAddUser, []byte(mix.String()), nil, nil)
 		testStep(ctx, require, node, out)
 		user1, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -299,7 +327,7 @@ func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, n
 		id2 := common.UniqueId(id, "second")
 		uid = common.UniqueId(id, "user2")
 		mix = bot.NewUUIDMixAddress([]string{uid}, 1)
-		out = testBuildUserRequest(node, id2, "", OperationTypeAddUser, []byte(mix.String()), nil, nil)
+		out = testBuildUserRequest(node, id2, "", "0.001", mtg.StorageAssetId, OperationTypeAddUser, []byte(mix.String()), nil, nil)
 		testStep(ctx, require, node, out)
 		user2, err := node.store.ReadUserByMixAddress(ctx, mix.String())
 		require.Nil(err)
@@ -537,7 +565,7 @@ func testObserverRequestSignSystemCall(ctx context.Context, require *require.Ass
 	}
 }
 
-func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte, references []crypto.Hash, fee *decimal.Decimal) *mtg.Action {
+func testBuildUserRequest(node *Node, id, hash, amt, asset string, action byte, extra []byte, references []crypto.Hash, fee *decimal.Decimal) *mtg.Action {
 	sequence += 10
 	if hash == "" {
 		hash = crypto.Sha256Hash([]byte(id)).String()
@@ -549,7 +577,7 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 	memoStr = hex.EncodeToString([]byte(memoStr))
 	timestamp := time.Now().UTC()
 
-	amount, _ := decimal.NewFromString("0.001")
+	amount := decimal.RequireFromString(amt)
 	if fee != nil {
 		amount = amount.Add(*fee)
 	}
@@ -561,7 +589,7 @@ func testBuildUserRequest(node *Node, id, hash string, action byte, extra []byte
 			TransactionHash:    hash,
 			AppId:              node.conf.AppId,
 			Senders:            []string{string(node.id)},
-			AssetId:            mtg.StorageAssetId,
+			AssetId:            asset,
 			Extra:              memoStr,
 			Amount:             amount,
 			SequencerCreatedAt: timestamp,

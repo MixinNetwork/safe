@@ -116,14 +116,12 @@ func (node *Node) processUserDeposit(ctx context.Context, req *store.Request) ([
 	output := &store.UserOutput{
 		OutputId:        req.Output.OutputId,
 		UserId:          user.UserId,
-		RequestId:       req.Id,
 		TransactionHash: req.Output.TransactionHash,
 		OutputIndex:     req.Output.OutputIndex,
 		AssetId:         req.AssetId,
 		ChainId:         asset.ChainID,
 		Amount:          req.Amount.String(),
 		State:           common.RequestStateInitial,
-		Sequence:        req.Output.Sequence,
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
@@ -191,20 +189,11 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		panic(req.Action)
 	}
 
-	rs, storage, err := node.GetSystemCallReferenceTxs(ctx, req.MixinHash.String())
-	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v %v", req.MixinHash.String(), rs, storage, err)
+	os, storage, err := node.GetSystemCallReferenceOutputs(ctx, req.MixinHash.String(), common.RequestStateInitial)
+	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v %v", req.MixinHash.String(), os, storage, err)
 	if err != nil || storage == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	hash, err := node.store.CheckReferencesSpent(ctx, rs)
-	if err != nil {
-		panic(fmt.Errorf("store.CheckReferencesSpent() => %v", err))
-	}
-	if hash != "" {
-		logger.Printf("reference %s is already spent", hash)
-		return node.failRequest(ctx, req, "")
-	}
-	as := node.GetSystemCallRelatedAsset(ctx, rs)
 
 	data := req.ExtraBytes()
 	if len(data) != 25 && len(data) != 41 {
@@ -232,7 +221,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	case FlagWithPostProcess:
 	default:
 		logger.Printf("invalid skip post process flag: %d", data[24])
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
 	}
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
@@ -243,13 +232,13 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		!plan.OperationPriceAmount.IsPositive() ||
 		req.AssetId != plan.OperationPriceAsset ||
 		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
 	}
 
 	rb := node.readStorageExtraFromObserver(ctx, *storage)
 	call, tx, err := node.buildSystemCallFromBytes(ctx, req, cid, rb, false)
 	if err != nil {
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
 	}
 	call.Superior = call.RequestId
 	call.Type = store.CallTypeMain
@@ -259,11 +248,11 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	err = node.checkUserSystemCall(ctx, tx)
 	if err != nil {
 		logger.Printf("node.checkUserSystemCall(%v) => %v", tx, err)
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), as)
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
 	}
 
-	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, rs)
-	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v %d) => %v", call, len(rs), err)
+	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, os)
+	logger.Printf("solana.WriteInitialSystemCallWithRequest(%v %d) => %v", call, len(os), err)
 	if err != nil {
 		panic(err)
 	}
@@ -291,7 +280,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	rs, _, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
+	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v", req.MixinHash.String(), os, err)
 	if err != nil {
 		err = node.store.ExpireSystemCallWithRequest(ctx, req, call, nil, "")
 		if err != nil {
@@ -299,7 +289,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		}
 		return nil, ""
 	}
-	as := node.GetSystemCallRelatedAsset(ctx, rs)
+	as := node.GetSystemCallRelatedAsset(ctx, os)
 
 	switch flag {
 	case ConfirmFlagNonceAvailable:
@@ -397,15 +387,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		if err != nil {
 			panic(err)
 		}
-		txs, compaction := node.buildRefundTxs(ctx, req, as, mix.Members(), int(mix.Threshold))
-		if compaction != "" {
-			return node.failRequest(ctx, req, compaction)
-		}
-		err = node.store.ExpireSystemCallWithRequest(ctx, req, call, txs, "")
-		if err != nil {
-			panic(err)
-		}
-		return txs, ""
+		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), call, os)
 	default:
 		logger.Printf("invalid nonce confirm flag: %d", flag)
 		return node.failRequest(ctx, req, "")
@@ -571,7 +553,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 
 			switch call.Type {
 			case store.CallTypeDeposit:
-				err := node.store.ConfirmSystemCallsWithRequest(ctx, req, []*store.SystemCall{call}, nil, nil)
+				err := node.store.ConfirmSystemCallsWithRequest(ctx, req, []*store.SystemCall{call}, nil, nil, nil)
 				if err != nil {
 					panic(err)
 				}
@@ -584,6 +566,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		}
 
 		var calls []*store.SystemCall
+		var os []*store.UserOutput
 		var session *store.Session
 		var sub *store.SystemCall
 		for i := range n {
@@ -595,6 +578,11 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			calls = append(calls, call)
 			if call.Type == store.CallTypePrepare {
 				continue
+			}
+
+			os, _, err = node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
+			if err != nil {
+				panic(err)
 			}
 
 			post, err := node.getPostProcessCall(ctx, req, call, extra[(i+1)*64:])
@@ -617,7 +605,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				}
 			}
 		}
-		err := node.store.ConfirmSystemCallsWithRequest(ctx, req, calls, sub, session)
+		err := node.store.ConfirmSystemCallsWithRequest(ctx, req, calls, sub, session, os)
 		if err != nil {
 			panic(err)
 		}
@@ -631,6 +619,11 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		}
 		if call == nil {
 			return node.failRequest(ctx, req, "")
+		}
+
+		os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
+		if err != nil {
+			panic(err)
 		}
 
 		post, err := node.getPostProcessCall(ctx, req, call, extra[16:])
@@ -653,7 +646,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 		}
 
-		err = node.store.FailSystemCallWithRequest(ctx, req, call, post, session)
+		err = node.store.FailSystemCallWithRequest(ctx, req, call, post, session, os)
 		if err != nil {
 			panic(err)
 		}
@@ -922,9 +915,10 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	return txs, compaction
 }
 
-func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, members []string, threshod int, as map[string]*ReferencedTxAsset) ([]*mtg.Transaction, string) {
+func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, members []string, threshod int, call *store.SystemCall, os []*store.UserOutput) ([]*mtg.Transaction, string) {
+	as := node.GetSystemCallRelatedAsset(ctx, os)
 	txs, compaction := node.buildRefundTxs(ctx, req, as, members, threshod)
-	err := node.store.FailRequest(ctx, req, compaction, txs)
+	err := node.store.RefundOutputsWithRequest(ctx, req, call, os, txs, compaction)
 	if err != nil {
 		panic(err)
 	}

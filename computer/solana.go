@@ -324,16 +324,16 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	}
 }
 
-func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.SpentReference) (*solana.Transaction, error) {
+func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.UserOutput) (*solana.Transaction, error) {
 	var transfers []solanaApp.TokenTransfers
-	rs, _, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
 	if err != nil {
 		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
 	}
 	if fee != nil {
-		rs = append(rs, fee)
+		os = append(os, fee)
 	}
-	if len(rs) == 0 {
+	if len(os) == 0 {
 		return nil, nil
 	}
 
@@ -343,7 +343,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 		return nil, fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err)
 	}
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
-	assets := node.GetSystemCallRelatedAsset(ctx, rs)
+	assets := node.GetSystemCallRelatedAsset(ctx, os)
 	for _, asset := range assets {
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
@@ -390,16 +390,18 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 }
 
 func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, tx *solana.Transaction, meta *rpc.TransactionMeta) *solana.Transaction {
-	rs, _, err := node.GetSystemCallReferenceTxs(ctx, call.RequestHash)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
 	if err != nil {
 		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
 	}
-	// fee_id may be expired when post-process, skip error
-	fee, _ := node.getSystemCallFeeFromXIN(ctx, call)
-	if fee != nil {
-		rs = append(rs, fee)
+	fee, err := node.getSystemCallFeeFromXIN(ctx, call, true)
+	if err != nil {
+		panic(err)
 	}
-	assets := node.GetSystemCallRelatedAsset(ctx, rs)
+	if fee != nil {
+		os = append(os, fee)
+	}
+	assets := node.GetSystemCallRelatedAsset(ctx, os)
 	am := make(map[string]*ReferencedTxAsset)
 	for _, a := range assets {
 		am[a.Address] = a

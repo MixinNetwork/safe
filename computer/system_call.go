@@ -32,8 +32,8 @@ type ReferencedTxAsset struct {
 // should only return error when mtg could not find outputs from referenced transaction
 // all assets needed in system call should be referenced
 // extra amount of XIN is used for fees in system call like rent
-func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash string) ([]*store.SpentReference, *crypto.Hash, error) {
-	var refs []*store.SpentReference
+func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, requestHash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
+	var outputs []*store.UserOutput
 	req, err := node.store.ReadRequestByHash(ctx, requestHash)
 	if err != nil || req == nil {
 		panic(fmt.Errorf("store.ReadRequestByHash(%s) => %v %v", requestHash, req, err))
@@ -48,12 +48,12 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 
 	var storage *crypto.Hash
 	for _, ref := range ver.References {
-		rs, hash, err := node.getSystemCallReferenceTx(ctx, req, ref.String())
+		os, hash, err := node.getSystemCallReferenceTx(ctx, ref.String(), state)
 		if err != nil {
 			return nil, nil, err
 		}
-		if rs != nil {
-			refs = append(refs, rs)
+		if len(os) > 0 {
+			outputs = append(outputs, os...)
 		}
 		if hash == nil {
 			continue
@@ -64,10 +64,10 @@ func (node *Node) GetSystemCallReferenceTxs(ctx context.Context, requestHash str
 			panic(storage.String())
 		}
 	}
-	return refs, storage, nil
+	return outputs, storage, nil
 }
 
-func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Request, hash string) (*store.SpentReference, *crypto.Hash, error) {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, hash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
@@ -78,11 +78,20 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 			panic(err)
 		}
 		if len(value) > 0 {
-			extra, err := base64.RawURLEncoding.DecodeString(value)
-			if err != nil {
-				panic(err)
+			switch hash {
+			case "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee":
+				raw := common.DecodeHexOrPanic(value)
+				ver, err = mc.UnmarshalVersionedTransaction(raw)
+				if err != nil {
+					panic(err)
+				}
+			default:
+				extra, err := base64.RawURLEncoding.DecodeString(value)
+				if err != nil {
+					panic(err)
+				}
+				ver.Extra = extra
 			}
-			ver.Extra = extra
 		}
 	}
 	// skip referenced storage transaction
@@ -90,61 +99,56 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, req *store.Reque
 		h, _ := crypto.HashFromString(hash)
 		return nil, &h, nil
 	}
-	outputs := node.group.ListOutputsByTransactionHash(ctx, hash, req.Sequence)
-	if len(outputs) == 0 {
-		return nil, nil, fmt.Errorf("unreceived reference %s", hash)
-	}
-	total := decimal.NewFromInt(0)
-	for _, output := range outputs {
-		total = total.Add(output.Amount)
-	}
-	asset, err := common.SafeReadAssetUntilSufficient(ctx, outputs[0].AssetId)
+
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, ver.Asset.String())
 	if err != nil {
 		panic(err)
 	}
-	return &store.SpentReference{
-		TransactionHash: hash,
-		RequestId:       req.Id,
-		RequestHash:     req.MixinHash.String(),
-		ChainId:         asset.ChainID,
-		AssetId:         asset.AssetID,
-		Amount:          total.String(),
-		Asset:           asset,
-	}, nil, nil
+	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, hash, state)
+	if err != nil {
+		panic(err)
+	}
+	if len(outputs) == 0 {
+		return nil, nil, fmt.Errorf("unreceived reference %s", hash)
+	}
+	for _, o := range outputs {
+		o.Asset = *asset
+	}
+	return outputs, nil, nil
 }
 
-func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.SpentReference) map[string]*ReferencedTxAsset {
+func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput) map[string]*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
-	for _, ref := range rs {
-		logger.Printf("node.GetReferencedTxAsset() => %v", ref)
-		amt := decimal.RequireFromString(ref.Amount)
-		isSolAsset := ref.ChainId == solanaApp.SolanaChainBase
-		address := ref.Asset.AssetKey
+	for _, output := range os {
+		logger.Printf("node.GetReferencedTxAsset() => %v", output)
+		amt := decimal.RequireFromString(output.Amount)
+		isSolAsset := output.ChainId == solanaApp.SolanaChainBase
+		address := output.Asset.AssetKey
 		if !isSolAsset {
-			da, err := node.store.ReadDeployedAsset(ctx, ref.AssetId, common.RequestStateDone)
+			da, err := node.store.ReadDeployedAsset(ctx, output.AssetId, common.RequestStateDone)
 			if err != nil || da == nil {
-				panic(fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", ref.AssetId, da, err))
+				panic(fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", output.AssetId, da, err))
 			}
 			address = da.Address
 		}
 		ra := &ReferencedTxAsset{
 			Solana:  isSolAsset,
 			Address: address,
-			Decimal: ref.Asset.Precision,
+			Decimal: output.Asset.Precision,
 			Amount:  amt,
-			AssetId: ref.AssetId,
-			ChainId: ref.Asset.ChainID,
-			Fee:     ref.Fee,
+			AssetId: output.AssetId,
+			ChainId: output.Asset.ChainID,
+			Fee:     output.FeeOnXIN,
 		}
 		if ra.Fee {
 			am["fee"] = ra
 			continue
 		}
-		old := am[ref.AssetId]
+		old := am[output.AssetId]
 		if old != nil {
 			ra.Amount = ra.Amount.Add(old.Amount)
 		}
-		am[ref.AssetId] = ra
+		am[output.AssetId] = ra
 	}
 	for _, a := range am {
 		logger.Printf("node.GetSystemCallRelatedAsset() => %v", a)
@@ -156,7 +160,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, rs []*store.Spe
 }
 
 // should only return error when no valid fees found
-func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall) (*store.SpentReference, error) {
+func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall, postprocess bool) (*store.UserOutput, error) {
 	req, err := node.store.ReadRequestByHash(ctx, call.RequestHash)
 	if err != nil {
 		panic(err)
@@ -166,9 +170,18 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		return nil, nil
 	}
 	feeId := uuid.Must(uuid.FromBytes(extra[25:])).String()
-	fee, err := node.store.ReadValidFeeInfo(ctx, feeId)
-	if err != nil {
-		panic(err)
+
+	var fee *store.FeeInfo
+	if postprocess {
+		fee, err = node.store.ReadFeeInfoById(ctx, feeId)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		fee, err = node.store.ReadValidFeeInfo(ctx, feeId)
+		if err != nil {
+			panic(err)
+		}
 	}
 	if fee == nil { // TODO check fee timestamp against the call timestamp not too old
 		return nil, fmt.Errorf("invalid fee id: %s", feeId)
@@ -199,15 +212,20 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		panic(err)
 	}
 
-	return &store.SpentReference{
+	return &store.UserOutput{
+		OutputId:        req.Id,
+		UserId:          call.UserIdFromPublicPath().String(),
 		TransactionHash: req.MixinHash.String(),
-		RequestId:       req.Id,
-		RequestHash:     req.MixinHash.String(),
-		ChainId:         common.SafeSolanaChainId,
+		OutputIndex:     req.MixinIndex,
 		AssetId:         common.SafeSolanaChainId,
+		ChainId:         common.SafeSolanaChainId,
 		Amount:          feeOnSol,
-		Asset:           asset,
-		Fee:             true,
+		State:           common.RequestStateInitial,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+
+		Asset:    *asset,
+		FeeOnXIN: true,
 	}, nil
 }
 

@@ -56,6 +56,16 @@ func (s *SQLite3Store) WriteFeeInfoWithRequest(ctx context.Context, req *Request
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) ReadFeeInfoById(ctx context.Context, id string) (*FeeInfo, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	query := fmt.Sprintf("SELECT %s FROM fees where fee_id=?", strings.Join(feeCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
+
+	return feeFromRow(row)
+}
+
 func (s *SQLite3Store) ReadLatestFeeInfo(ctx context.Context) (*FeeInfo, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
