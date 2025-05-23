@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/mtg"
@@ -69,17 +68,6 @@ func KeeperBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer kd.Close()
-
-	err = db.Migrate(ctx)
-	logger.Printf("mtg.Migrate() => %v", err)
-	if err != nil {
-		return err
-	}
-	err = kd.Migrate(ctx, db)
-	logger.Printf("keeper.Migrate() => %v", err)
-	if err != nil {
-		return err
-	}
 
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)

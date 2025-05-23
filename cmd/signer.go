@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/messenger"
@@ -80,17 +79,6 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
-
-	err = db.Migrate(ctx)
-	logger.Printf("mtg.Migrate() => %v", err)
-	if err != nil {
-		return err
-	}
-	err = kd.Migrate(ctx, db)
-	logger.Printf("signert.Migrate() => %v", err)
-	if err != nil {
-		return err
-	}
 
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
 	node.Boot(ctx)
