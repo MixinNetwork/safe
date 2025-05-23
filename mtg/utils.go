@@ -200,7 +200,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 	if err != nil || r == nil || r.State != SafeUtxoStateSpent {
 		return r, err
 	}
-	if r.Receivers[0].Destination != "" && r.Receivers[0].WithdrawalHash == "" {
+	if rr := r.Receivers[0]; rr != nil && rr.Destination != "" && rr.WithdrawalHash == "" {
 		return r, nil
 	}
 	b, err := json.Marshal(r)
