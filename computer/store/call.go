@@ -562,9 +562,9 @@ func (s *SQLite3Store) ReadInitialSystemCallBySuperior(ctx context.Context, rid 
 	return systemCallFromRow(row)
 }
 
-func (s *SQLite3Store) ReadSystemCallByMessage(ctx context.Context, message string) (*SystemCall, error) {
-	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE message=?", strings.Join(systemCallCols, ","))
-	row := s.db.QueryRowContext(ctx, query, message)
+func (s *SQLite3Store) ReadSystemCallByMessage(ctx context.Context, messageHash string) (*SystemCall, error) {
+	query := fmt.Sprintf("SELECT %s FROM system_calls WHERE message_hash=?", strings.Join(systemCallCols, ","))
+	row := s.db.QueryRowContext(ctx, query, messageHash)
 
 	return systemCallFromRow(row)
 }
