@@ -112,10 +112,7 @@ func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId
 	} else {
 		balance := act.CheckAssetBalanceAt(ctx, assetId)
 		logger.Printf("group.CheckAssetBalanceAt(%s, %d) => %s %s %s", assetId, act.Sequence, traceId, amount, balance)
-		amt, err := decimal.NewFromString(amount)
-		if err != nil {
-			panic(amount)
-		}
+		amt := decimal.RequireFromString(amount)
 		if balance.Cmp(amt) < 0 {
 			return ""
 		}

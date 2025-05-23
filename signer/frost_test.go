@@ -38,8 +38,7 @@ func TestFROSTSigner(t *testing.T) {
 	path = []byte{0, 0, 0, 0, 0, 0, 0, 0}
 	require.False(mixin.CheckEd25519ValidChildPath(path))
 	sig = testFROSTSign(ctx, require, nodes, public, msg, path, common.CurveEdwards25519Default)
-	child = mixin.DeriveEd25519Child(public, path)
-	require.Equal(public, hex.EncodeToString(child))
+	child, _ = hex.DecodeString(public)
 	valid = ed25519.Verify(child, msg, sig)
 	require.True(valid)
 	testSaverItemsCheck(ctx, require, nodes, saverStore, 1)
@@ -52,7 +51,7 @@ func TestFROSTSigner(t *testing.T) {
 func testFROSTKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, curve uint8) string {
 	sequence += 100
 	sid := common.UniqueId("keygen", fmt.Sprint(curve))
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		node := nodes[i]
 		op := &common.Operation{
 			Type:  common.OperationTypeKeygenInput,

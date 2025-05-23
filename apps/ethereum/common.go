@@ -228,10 +228,7 @@ func CheckFinalization(num uint64, chain byte) bool {
 }
 
 func ParseAmount(amount string, decimals int32) *big.Int {
-	amt, err := decimal.NewFromString(amount)
-	if err != nil {
-		panic(amount)
-	}
+	amt := decimal.RequireFromString(amount)
 	amt = amt.Mul(decimal.New(1, decimals))
 	if !amt.IsInteger() {
 		panic(amount)
