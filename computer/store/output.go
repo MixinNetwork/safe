@@ -63,16 +63,9 @@ func (s *SQLite3Store) WriteUserDepositWithRequest(ctx context.Context, req *Req
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListUserOutputsByHashAndState(ctx context.Context, hash string, state byte) ([]*UserOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM user_outputs WHERE transaction_hash=? AND state=? ORDER BY created_at ASC LIMIT 100", strings.Join(userOutputCols, ","))
-	return s.listUserOutputsByQuery(ctx, query, hash, state)
-}
-
-func (s *SQLite3Store) ReadUserOutputByHash(ctx context.Context, hash string) (*UserOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM user_outputs WHERE transaction_hash=? AND state=?", strings.Join(userOutputCols, ","))
-	row := s.db.QueryRowContext(ctx, query, hash, common.RequestStateInitial)
-
-	return userOutputFromRow(row)
+func (s *SQLite3Store) ListUserOutputsByHashAndState(ctx context.Context, user_id, hash string, state byte) ([]*UserOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM user_outputs WHERE user_id=? AND transaction_hash=? AND state=? ORDER BY created_at ASC LIMIT 100", strings.Join(userOutputCols, ","))
+	return s.listUserOutputsByQuery(ctx, query, user_id, hash, state)
 }
 
 func (s *SQLite3Store) listUserOutputsByQuery(ctx context.Context, query string, params ...any) ([]*UserOutput, error) {

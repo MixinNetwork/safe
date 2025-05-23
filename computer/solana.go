@@ -326,7 +326,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 
 func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.UserOutput) (*solana.Transaction, error) {
 	var transfers []solanaApp.TokenTransfers
-	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
 	if err != nil {
 		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
 	}
@@ -390,7 +390,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 }
 
 func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, tx *solana.Transaction, meta *rpc.TransactionMeta) *solana.Transaction {
-	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
 	if err != nil {
 		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
 	}

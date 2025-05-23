@@ -184,6 +184,8 @@ CREATE TABLE IF NOT EXISTS user_outputs (
   PRIMARY KEY ('output_id')
 );
 
+CREATE INDEX IF NOT EXISTS outputs_by_user_hash_state_created ON user_outputs(user_id, transaction_hash, state, created_at);
+
 
 CREATE TABLE IF NOT EXISTS nonce_accounts (
   address        VARCHAR NOT NULL,

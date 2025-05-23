@@ -136,10 +136,11 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 		require.True(sub.RequestSignerAt.Valid)
 		postprocess = sub
 
-		os, err := node.store.ListUserOutputsByHashAndState(ctx, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", common.RequestStateDone)
+		uid := main.UserIdFromPublicPath().String()
+		os, err := node.store.ListUserOutputsByHashAndState(ctx, uid, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", common.RequestStateDone)
 		require.Nil(err)
 		require.Len(os, 1)
-		os, err = node.store.ListUserOutputsByHashAndState(ctx, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", common.RequestStateDone)
+		os, err = node.store.ListUserOutputsByHashAndState(ctx, uid, "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee", common.RequestStateDone)
 		require.Nil(err)
 		require.Len(os, 1)
 	}
@@ -203,10 +204,10 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		testStep(ctx, require, node, out1)
 		testStep(ctx, require, node, out2)
 
-		os, err := node.store.ListUserOutputsByHashAndState(ctx, h1.String(), common.RequestStateInitial)
+		os, err := node.store.ListUserOutputsByHashAndState(ctx, user.UserId, h1.String(), common.RequestStateInitial)
 		require.Nil(err)
 		require.Len(os, 1)
-		os, err = node.store.ListUserOutputsByHashAndState(ctx, h2.String(), common.RequestStateInitial)
+		os, err = node.store.ListUserOutputsByHashAndState(ctx, user.UserId, h2.String(), common.RequestStateInitial)
 		require.Nil(err)
 		require.Len(os, 1)
 	}
@@ -240,7 +241,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
 		require.True(call.RequestSignerAt.Valid)
-		os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.RequestHash, common.RequestStatePending)
+		os, _, err := node.GetSystemCallReferenceOutputs(ctx, user.UserId, call.RequestHash, common.RequestStatePending)
 		require.Nil(err)
 		require.Len(os, 2)
 	}

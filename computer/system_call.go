@@ -31,7 +31,7 @@ type ReferencedTxAsset struct {
 // should only return error when mtg could not find outputs from referenced transaction
 // all assets needed in system call should be referenced
 // extra amount of XIN is used for fees in system call like rent
-func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, requestHash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
+func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, uid, requestHash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
 	var outputs []*store.UserOutput
 	req, err := node.store.ReadRequestByHash(ctx, requestHash)
 	if err != nil || req == nil {
@@ -47,7 +47,7 @@ func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, requestHash
 
 	var storage *crypto.Hash
 	for _, ref := range ver.References {
-		os, hash, err := node.getSystemCallReferenceTx(ctx, ref.String(), state)
+		os, hash, err := node.getSystemCallReferenceTx(ctx, uid, ref.String(), state)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -66,7 +66,7 @@ func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, requestHash
 	return outputs, storage, nil
 }
 
-func (node *Node) getSystemCallReferenceTx(ctx context.Context, hash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
@@ -103,7 +103,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, hash string, sta
 	if err != nil {
 		panic(err)
 	}
-	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, hash, state)
+	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, hash, uid, state)
 	if err != nil {
 		panic(err)
 	}
