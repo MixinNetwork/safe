@@ -269,15 +269,15 @@ func (s *SQLite3Store) RefundOutputsWithRequest(ctx context.Context, req *Reques
 
 	if call != nil {
 		query := "UPDATE system_calls SET state=?, updated_at=? WHERE id=? AND state=? AND withdrawal_traces IS NULL AND withdrawn_at IS NULL"
-		_, err = tx.ExecContext(ctx, query, common.RequestStateDone, req.CreatedAt, call.RequestId, common.RequestStateInitial)
+		_, err = tx.ExecContext(ctx, query, common.RequestStateFailed, req.CreatedAt, call.RequestId, common.RequestStateInitial)
 		if err != nil {
 			return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 		}
 	}
 
 	for _, o := range os {
-		query := "UPDATE user_outputs SET state=?, updated_at=? WHERE output_id=? AND state=? AND signed_by IS NULL"
-		err = s.execOne(ctx, tx, query, common.RequestStateDone, req.CreatedAt, o.OutputId, common.RequestStateInitial)
+		query := "UPDATE user_outputs SET state=?, updated_at=? WHERE output_id=? AND state!=? AND signed_by IS NULL"
+		err = s.execOne(ctx, tx, query, common.RequestStateDone, req.CreatedAt, o.OutputId, common.RequestStateDone)
 		if err != nil {
 			return fmt.Errorf("SQLite3Store UPDATE user_outputs %v", err)
 		}
