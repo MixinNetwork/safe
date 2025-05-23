@@ -351,6 +351,9 @@ func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder 
 }
 
 func (c *Client) getPriorityFeeInstruction(ctx context.Context) *computebudget.Instruction {
+	if common.CheckTestEnvironment(ctx) {
+		return computebudget.NewSetComputeUnitPriceInstruction(0).Build()
+	}
 	recentFees, err := c.rpcClient.GetRecentPrioritizationFees(ctx, []solana.PublicKey{})
 	if err != nil {
 		panic(err)

@@ -233,10 +233,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		if err != nil {
 			panic(err)
 		}
-		key, err := solana.NewRandomPrivateKey()
-		if err != nil {
-			panic(err)
-		}
+		key := solanaApp.GenerateKeyForExternalAsset(node.GetMembers(), node.conf.MTG.Genesis.Threshold, common.SafeLitecoinChainId)
 		assets = []*solanaApp.DeployedAsset{
 			{
 				AssetId:    ltc.AssetID,
@@ -376,13 +373,10 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 
 	if common.CheckTestEnvironment(ctx) {
 		sort.Slice(transfers, func(i, j int) bool {
-			if transfers[i].AssetId > transfers[j].AssetId {
-				return true
+			if transfers[i].AssetId != transfers[j].AssetId {
+				return transfers[i].AssetId > transfers[j].AssetId
 			}
-			if transfers[i].Amount == transfers[j].Amount {
-				return transfers[i].Amount > transfers[j].Amount
-			}
-			return false
+			return transfers[i].Amount > transfers[j].Amount
 		})
 	}
 
@@ -485,7 +479,12 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 	}
 
 	if common.CheckTestEnvironment(ctx) {
-		sort.Slice(transfers, func(i, j int) bool { return transfers[i].AssetId > transfers[j].AssetId })
+		sort.Slice(transfers, func(i, j int) bool {
+			if transfers[i].AssetId != transfers[j].AssetId {
+				return transfers[i].AssetId > transfers[j].AssetId
+			}
+			return transfers[i].Amount > transfers[j].Amount
+		})
 	}
 
 	err = node.checkMintsUntilSufficient(ctx, transfers)

@@ -178,7 +178,7 @@ func (node *Node) processUserDeposit(ctx context.Context, req *store.Request) ([
 //
 //     1). mtg generate signatures for post-process system call
 //     processSignerSignatureResponse
-//     (prepare system call, signature: NOT NULL)
+//     (post-process system call, signature: NOT NULL)
 //
 //  6. observer runs, confirms post-process call successfully
 //     (post-process system call state: done)
@@ -957,6 +957,7 @@ func (node *Node) checkConfirmCallSignature(ctx context.Context, signature strin
 		}
 		fmt.Println("===")
 		fmt.Println(signature)
+		fmt.Println(hex.EncodeToString(msg))
 		for _, c := range cs {
 			fmt.Println(c.Type, c.MessageHash)
 		}

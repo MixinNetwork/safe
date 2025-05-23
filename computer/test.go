@@ -191,10 +191,10 @@ func getTestSystemConfirmCallMessage(signature string) string {
 		return "a8c28f6c60d06a00a6ffa8d7d4e6ba0a3a9f8fdcaa572f5785781be0a1d2ae36"
 	}
 	if signature == "2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb" {
-		return "4609b17fc14a6b42e984b3498de42530811ff37ea9eae6e66a6ee5c76358b3d2"
+		return "4d57022c484aebdb7d4472c16740f7e8c4f9047b41cbcf05a9d517558bc276c7"
 	}
 	if signature == "5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR" {
-		return "03bd9b9ebe4a619f52eb0fcb81c647eb81ee18b8728ffa6a6cc7b6a04f03540d"
+		return "bf1648ad15341bc4225e08e1c6842df68bf80f309764ec32327deab8e2743167"
 	}
 	return ""
 }
