@@ -108,7 +108,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 		Type:             store.CallTypeMain,
 		NonceAccount:     nonce,
 		Public:           public,
-		Message:          hex.EncodeToString(msg),
+		MessageHash:      crypto.Sha256Hash(msg).String(),
 		Raw:              tx.MustToBase64(),
 		State:            common.RequestStatePending,
 		WithdrawalTraces: sql.NullString{Valid: true, String: ""},

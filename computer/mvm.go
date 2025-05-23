@@ -958,7 +958,7 @@ func (node *Node) checkConfirmCallSignature(ctx context.Context, signature strin
 		fmt.Println("===")
 		fmt.Println(signature)
 		for _, c := range cs {
-			fmt.Println(c.Type, c.Message)
+			fmt.Println(c.Type, c.MessageHash)
 		}
 		test := getTestSystemConfirmCallMessage(signature)
 		if test != "" {

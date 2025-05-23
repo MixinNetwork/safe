@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS system_calls (
   nonce_account         VARCHAR NOT NULL,
   public                VARCHAR NOT NULL,
   skip_postprocess      BOOLEAN NOT NULL,
-  message               VARCHAR NOT NULL,
+  message_hash          VARCHAR NOT NULL,
   raw                   TEXT NOT NULL,
   state                 INTEGER NOT NULL,
   withdrawal_traces     VARCHAR,
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS system_calls (
   PRIMARY KEY ('id')
 );
 
-CREATE INDEX IF NOT EXISTS calls_by_message ON system_calls(message);
+CREATE UNIQUE INDEX IF NOT EXISTS calls_by_message ON system_calls(message_hash);
 CREATE INDEX IF NOT EXISTS calls_by_hash ON system_calls(hash);
 CREATE INDEX IF NOT EXISTS calls_by_state_withdrawal_created ON system_calls(state, withdrawal_traces, withdrawn_at, created_at);
 CREATE INDEX IF NOT EXISTS calls_by_state_signature_created ON system_calls(state, withdrawal_traces, signature, created_at);

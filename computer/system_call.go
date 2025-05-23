@@ -287,12 +287,11 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	if err != nil {
 		panic(err)
 	}
-	hash := crypto.Sha256Hash(msg)
 	call := &store.SystemCall{
 		RequestId:       id,
 		RequestHash:     req.MixinHash.String(),
 		NonceAccount:    advance.GetNonceAccount().PublicKey.String(),
-		Message:         hash.String(),
+		MessageHash:     crypto.Sha256Hash(msg).String(),
 		Raw:             tx.MustToBase64(),
 		State:           common.RequestStateInitial,
 		CreatedAt:       req.CreatedAt,
