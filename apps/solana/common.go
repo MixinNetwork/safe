@@ -17,7 +17,6 @@ import (
 	tokenAta "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gofrs/uuid"
 )
 
 const (
@@ -58,7 +57,7 @@ type NonceAccount struct {
 	Hash    solana.Hash
 }
 
-type TokenTransfers struct {
+type TokenTransfer struct {
 	SolanaAsset bool
 	AssetId     string
 	ChainId     string
@@ -165,14 +164,6 @@ func VerifyAssetKey(assetKey string) error {
 		return fmt.Errorf("invalid solana assetKey %s", assetKey)
 	}
 	return nil
-}
-
-func GenerateKeyForExternalAsset(members []string, threshold int, assetId string) solana.PrivateKey {
-	id := fmt.Sprintf("MEMBERS:%v:%d", members, threshold)
-	id = common.UniqueId(id, assetId)
-	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
-	key := PrivateKeyFromSeed(seed[:])
-	return key
 }
 
 func GenerateAssetId(assetKey string) string {

@@ -743,7 +743,7 @@ func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana
 	return nil
 }
 
-func (node *Node) checkMintsUntilSufficient(ctx context.Context, ts []*solanaApp.TokenTransfers) error {
+func (node *Node) checkMintsUntilSufficient(ctx context.Context, ts []*solanaApp.TokenTransfer) error {
 	for _, t := range ts {
 		_, err := node.RPCGetAccount(ctx, t.Mint)
 		if err != nil {

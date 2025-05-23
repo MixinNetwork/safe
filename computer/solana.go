@@ -137,7 +137,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 		return nil
 	}
 
-	tsMap := make(map[string][]*solanaApp.TokenTransfers)
+	tsMap := make(map[string][]*solanaApp.TokenTransfer)
 	for _, transfer := range transfers {
 		key := fmt.Sprintf("%s:%s", transfer.Receiver, transfer.TokenAddress)
 		if _, ok := changes[key]; !ok {
@@ -164,7 +164,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 				continue
 			}
 		}
-		tsMap[transfer.Receiver] = append(tsMap[transfer.Receiver], &solanaApp.TokenTransfers{
+		tsMap[transfer.Receiver] = append(tsMap[transfer.Receiver], &solanaApp.TokenTransfer{
 			SolanaAsset: true,
 			AssetId:     transfer.AssetId,
 			ChainId:     solanaApp.SolanaChainBase,
@@ -184,7 +184,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	return nil
 }
 
-func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfers) error {
+func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHash solana.Signature, user string, ts []*solanaApp.TokenTransfer) error {
 	id := common.UniqueId(depositHash.String(), user)
 	cid := common.UniqueId(id, "deposit")
 	extra := solana.MustPublicKeyFromBase58(user).Bytes()
@@ -233,7 +233,10 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		if err != nil {
 			panic(err)
 		}
-		key := solanaApp.GenerateKeyForExternalAsset(node.GetMembers(), node.conf.MTG.Genesis.Threshold, common.SafeLitecoinChainId)
+		id := fmt.Sprintf("MEMBERS:%v:%d", node.GetMembers(), node.conf.MTG.Genesis.Threshold)
+		id = common.UniqueId(id, common.SafeLitecoinChainId)
+		seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
+		key := solanaApp.PrivateKeyFromSeed(seed[:])
 		assets = []*solanaApp.DeployedAsset{
 			{
 				AssetId:    ltc.AssetID,
@@ -254,7 +257,10 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 				return "", nil, nil, err
 			}
 			tid = common.UniqueId(tid, fmt.Sprintf("metadata-%s", asset))
-			key := solanaApp.GenerateKeyForExternalAsset(node.GetMembers(), node.conf.MTG.Genesis.Threshold, asset)
+			id := common.UniqueId(node.group.GenesisId(), tid)
+			id = common.UniqueId(id, node.SafeUser().SpendPrivateKey)
+			seed := crypto.Sha256Hash([]byte(id))
+			key := solanaApp.PrivateKeyFromSeed(seed[:])
 			assets = append(assets, &solanaApp.DeployedAsset{
 				AssetId:    asset,
 				Address:    key.PublicKey().String(),
@@ -322,7 +328,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 }
 
 func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.UserOutput) (*solana.Transaction, error) {
-	var transfers []solanaApp.TokenTransfers
+	var transfers []*solanaApp.TokenTransfer
 	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
 	if err != nil {
 		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
@@ -345,7 +351,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
 		if asset.Solana {
-			transfers = append(transfers, solanaApp.TokenTransfers{
+			transfers = append(transfers, &solanaApp.TokenTransfer{
 				SolanaAsset: true,
 				AssetId:     asset.AssetId,
 				ChainId:     asset.ChainId,
@@ -357,7 +363,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 			})
 			continue
 		}
-		transfers = append(transfers, solanaApp.TokenTransfers{
+		transfers = append(transfers, &solanaApp.TokenTransfer{
 			SolanaAsset: false,
 			AssetId:     asset.AssetId,
 			ChainId:     asset.ChainId,
@@ -371,15 +377,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 		return nil, nil
 	}
 
-	if common.CheckTestEnvironment(ctx) {
-		sort.Slice(transfers, func(i, j int) bool {
-			if transfers[i].AssetId != transfers[j].AssetId {
-				return transfers[i].AssetId > transfers[j].AssetId
-			}
-			return transfers[i].Amount > transfers[j].Amount
-		})
-	}
-
+	node.sortSolanaTransfers(transfers)
 	return node.SolanaClient().TransferOrMintTokens(ctx, node.SolanaPayer(), mtg, nonce.Account(), transfers)
 }
 
@@ -445,7 +443,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		}
 	}
 
-	var transfers []*solanaApp.TokenTransfers
+	var transfers []*solanaApp.TokenTransfer
 	for _, asset := range assets {
 		if !asset.Amount.IsPositive() {
 			continue
@@ -453,7 +451,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
 		if asset.Solana {
-			transfers = append(transfers, &solanaApp.TokenTransfers{
+			transfers = append(transfers, &solanaApp.TokenTransfer{
 				SolanaAsset: true,
 				AssetId:     asset.AssetId,
 				ChainId:     asset.ChainId,
@@ -464,7 +462,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 			})
 			continue
 		}
-		transfers = append(transfers, &solanaApp.TokenTransfers{
+		transfers = append(transfers, &solanaApp.TokenTransfer{
 			SolanaAsset: false,
 			AssetId:     asset.AssetId,
 			ChainId:     asset.ChainId,
@@ -478,15 +476,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		return nil
 	}
 
-	if common.CheckTestEnvironment(ctx) {
-		sort.Slice(transfers, func(i, j int) bool {
-			if transfers[i].AssetId != transfers[j].AssetId {
-				return transfers[i].AssetId > transfers[j].AssetId
-			}
-			return transfers[i].Amount > transfers[j].Amount
-		})
-	}
-
+	node.sortSolanaTransfers(transfers)
 	err = node.checkMintsUntilSufficient(ctx, transfers)
 	if err != nil {
 		panic(err)
@@ -1086,4 +1076,13 @@ func (node *Node) getMTGPublicWithPath(ctx context.Context) string {
 
 func (node *Node) solanaDepositEntry() solana.PublicKey {
 	return solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry)
+}
+
+func (node *Node) sortSolanaTransfers(transfers []*solanaApp.TokenTransfer) {
+	sort.Slice(transfers, func(i, j int) bool {
+		if transfers[i].AssetId != transfers[j].AssetId {
+			return transfers[i].AssetId > transfers[j].AssetId
+		}
+		return transfers[i].Amount > transfers[j].Amount
+	})
 }

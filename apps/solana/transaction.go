@@ -193,12 +193,12 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 	return tx, nil
 }
 
-func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []TokenTransfers) (*solana.Transaction, error) {
+func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, transfers []*TokenTransfer) (*solana.Transaction, error) {
 	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
 
 	for _, transfer := range transfers {
 		if transfer.SolanaAsset {
-			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, &transfer, payer, mtg)
+			b, err := c.addTransferSolanaAssetInstruction(ctx, builder, transfer, payer, mtg)
 			if err != nil {
 				return nil, err
 			}
@@ -240,7 +240,7 @@ func (c *Client) TransferOrMintTokens(ctx context.Context, payer, mtg solana.Pub
 	return tx, nil
 }
 
-func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []*TokenTransfers) (*solana.Transaction, error) {
+func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.PublicKey, nonce NonceAccount, transfers []*TokenTransfer) (*solana.Transaction, error) {
 	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
 
 	for _, transfer := range transfers {
@@ -269,7 +269,7 @@ func (c *Client) TransferOrBurnTokens(ctx context.Context, payer, user solana.Pu
 	return builder.Build()
 }
 
-func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder *solana.TransactionBuilder, transfer *TokenTransfers, payer, source solana.PublicKey) (*solana.TransactionBuilder, error) {
+func (c *Client) addTransferSolanaAssetInstruction(ctx context.Context, builder *solana.TransactionBuilder, transfer *TokenTransfer, payer, source solana.PublicKey) (*solana.TransactionBuilder, error) {
 	if !transfer.SolanaAsset {
 		panic(transfer.AssetId)
 	}
