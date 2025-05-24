@@ -382,17 +382,17 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		os = append(os, fee)
 	}
 
-	assets := node.GetSystemCallRelatedAsset(ctx, os)
-	am := make(map[string]*ReferencedTxAsset)
-	for _, a := range assets {
-		old := am[a.Address]
-		if old != nil {
-			am[a.Address].Amount = old.Amount.Add(a.Amount)
+	ras := node.GetSystemCallRelatedAsset(ctx, os)
+	assets := make(map[string]*ReferencedTxAsset)
+	for _, a := range ras {
+		if assets[a.Address] != nil {
+			// TODO because the asset id "fee", there could be two solana
+			// panic(a.Address)
+			assets[a.Address].Amount = assets[a.Address].Amount.Add(a.Amount)
 			continue
 		}
-		am[a.Address] = a
+		assets[a.Address] = a
 	}
-	assets = am
 
 	user := node.getUserSolanaPublicKeyFromCall(ctx, call)
 	if tx != nil && meta != nil {

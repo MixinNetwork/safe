@@ -116,7 +116,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string
 	return outputs, nil, nil
 }
 
-func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput) map[string]*ReferencedTxAsset {
+func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput) []*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
 	for _, output := range os {
 		logger.Printf("node.GetReferencedTxAsset() => %v", output)
@@ -139,23 +139,25 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.Use
 			ChainId: output.Asset.ChainID,
 			Fee:     output.FeeOnXIN,
 		}
+		fk := output.AssetId
 		if ra.Fee {
-			am["fee"] = ra
-			continue
+			fk = "fee" // TODO this is not used anywhere else?
 		}
-		old := am[output.AssetId]
+		old := am[fk]
 		if old != nil {
 			ra.Amount = ra.Amount.Add(old.Amount)
 		}
-		am[output.AssetId] = ra
+		am[fk] = ra
 	}
+	var assets []*ReferencedTxAsset
 	for _, a := range am {
 		logger.Printf("node.GetSystemCallRelatedAsset() => %v", a)
 		if !a.Amount.IsPositive() {
 			panic(a.AssetId)
 		}
+		assets = append(assets, a)
 	}
-	return am
+	return assets
 }
 
 // should only return error when no valid fees found
