@@ -523,8 +523,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 		extra := []byte{ConfirmFlagNonceAvailable}
 		extra = append(extra, uuid.Must(uuid.FromString(call.RequestId)).Bytes()...)
 
-		fee, err := node.getSystemCallFeeFromXIN(ctx, call, false)
-		if nonce == nil || !nonce.LockedByUserOnly() || err != nil {
+		if nonce == nil || !nonce.Valid(call.RequestId) {
 			logger.Printf("observer.expireSystemCall(%v %v %v)", call, nonce, err)
 			id = common.UniqueId(id, "expire-nonce")
 			extra[0] = ConfirmFlagNonceExpired
@@ -539,6 +538,10 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 				return err
 			}
 			err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, cid)
+			if err != nil {
+				return err
+			}
+			fee, err := node.getSystemCallFeeFromXIN(ctx, call, false)
 			if err != nil {
 				return err
 			}

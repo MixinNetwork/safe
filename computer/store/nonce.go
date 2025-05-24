@@ -44,6 +44,10 @@ func (a *NonceAccount) LockedByUserOnly() bool {
 	return a.Mix.Valid && !a.CallId.Valid
 }
 
+func (a *NonceAccount) Valid(cid string) bool {
+	return a.Mix.Valid && (!a.CallId.Valid || a.CallId.String == cid)
+}
+
 func (a *NonceAccount) Expired() bool {
 	return a.UpdatedAt.Add(20 * time.Minute).Before(time.Now())
 }

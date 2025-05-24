@@ -386,7 +386,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 	if err != nil {
 		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
 	}
-	fee, err := node.getSystemCallFeeFromXIN(ctx, call, true)
+	fee, err := node.getSystemCallFeeFromXIN(ctx, call, false)
 	if err != nil {
 		panic(err)
 	}

@@ -159,7 +159,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.Use
 }
 
 // should only return error when no valid fees found
-func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall, postprocess bool) (*store.UserOutput, error) {
+func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall, checkValidFee bool) (*store.UserOutput, error) {
 	req, err := node.store.ReadRequestByHash(ctx, call.RequestHash)
 	if err != nil {
 		panic(err)
@@ -171,13 +171,13 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 	feeId := uuid.Must(uuid.FromBytes(extra[25:])).String()
 
 	var fee *store.FeeInfo
-	if postprocess {
-		fee, err = node.store.ReadFeeInfoById(ctx, feeId)
+	if checkValidFee {
+		fee, err = node.store.ReadValidFeeInfo(ctx, feeId)
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		fee, err = node.store.ReadValidFeeInfo(ctx, feeId)
+		fee, err = node.store.ReadFeeInfoById(ctx, feeId)
 		if err != nil {
 			panic(err)
 		}
