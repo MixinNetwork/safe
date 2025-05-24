@@ -302,7 +302,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		}
 		return nil, ""
 	}
-	as := node.GetSystemCallRelatedAsset(ctx, os)
+	as := node.GetSystemCallRelatedAsset(ctx, os, false)
 
 	switch flag {
 	case ConfirmFlagNonceAvailable:
@@ -929,7 +929,7 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 }
 
 func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, members []string, threshod int, call *store.SystemCall, os []*store.UserOutput) ([]*mtg.Transaction, string) {
-	as := node.GetSystemCallRelatedAsset(ctx, os)
+	as := node.GetSystemCallRelatedAsset(ctx, os, false)
 	txs, compaction := node.buildRefundTxs(ctx, req, as, members, threshod)
 	err := node.store.RefundOutputsWithRequest(ctx, req, call, os, txs, compaction)
 	if err != nil {

@@ -116,7 +116,10 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string
 	return outputs, nil, nil
 }
 
-func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput) []*ReferencedTxAsset {
+// be used to refund by mtg without fee
+// be used to create prepare call by observer with fee from payer (isolatedFee = true)
+// be used to create post call by observer with fee to calculate rest SOL
+func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput, isolatedFee bool) []*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
 	for _, output := range os {
 		logger.Printf("node.GetReferencedTxAsset() => %v", output)
@@ -140,8 +143,10 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.Use
 			Fee:     output.FeeOnXIN,
 		}
 		fk := output.AssetId
-		if ra.Fee {
-			fk = "fee" // TODO this is not used anywhere else?
+		if ra.Fee && isolatedFee {
+			// an independent ReferencedTxAsset (Fee: true) to transfer SOL from payer account
+			// the others are sent from mtg solana account
+			fk = "fee"
 		}
 		old := am[fk]
 		if old != nil {

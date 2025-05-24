@@ -346,7 +346,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 		return nil, fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err)
 	}
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
-	assets := node.GetSystemCallRelatedAsset(ctx, os)
+	assets := node.GetSystemCallRelatedAsset(ctx, os, true)
 	for _, asset := range assets {
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
@@ -382,12 +382,10 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		os = append(os, fee)
 	}
 
-	ras := node.GetSystemCallRelatedAsset(ctx, os)
+	ras := node.GetSystemCallRelatedAsset(ctx, os, false)
 	assets := make(map[string]*ReferencedTxAsset)
 	for _, a := range ras {
 		if assets[a.Address] != nil {
-			// TODO because the asset id "fee", there could be two solana
-			// panic(a.Address)
 			assets[a.Address].Amount = assets[a.Address].Amount.Add(a.Amount)
 			continue
 		}

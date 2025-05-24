@@ -148,7 +148,6 @@ func (node *Node) buildRefundTxs(ctx context.Context, req *store.Request, am []*
 		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, id, receivers, threshold, as.Amount.String(), []byte(memo), trace)
 		if t == nil {
 			// TODO then all other assets ignored?
-			// And the asset id could be "fee"
 			return nil, as.AssetId
 		}
 		txs = append(txs, t)
