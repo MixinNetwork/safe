@@ -194,7 +194,7 @@ func getTestSystemConfirmCallMessage(signature string) string {
 		return "4d57022c484aebdb7d4472c16740f7e8c4f9047b41cbcf05a9d517558bc276c7"
 	}
 	if signature == "5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR" {
-		return "d69d0926955b91f9f439e69962b2b200f0245b838c2d9e1bd90055d70345ed64"
+		return "0314cf38ff55a04303780f98a5c82498797d9cd7f40d1ed992a7864ca7357436"
 	}
 	return ""
 }

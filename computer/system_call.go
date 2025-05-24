@@ -173,11 +173,13 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 	var fee *store.FeeInfo
 	if checkValidFee {
 		fee, err = node.store.ReadValidFeeInfo(ctx, feeId)
+		logger.Printf("store.ReadValidFeeInfo(%s) => %v %v", feeId, fee, err)
 		if err != nil {
 			panic(err)
 		}
 	} else {
 		fee, err = node.store.ReadFeeInfoById(ctx, feeId)
+		logger.Printf("store.ReadFeeInfoById(%s) => %v %v", feeId, fee, err)
 		if err != nil {
 			panic(err)
 		}

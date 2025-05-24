@@ -350,27 +350,15 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 	for _, asset := range assets {
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
-		if asset.Solana {
-			transfers = append(transfers, &solanaApp.TokenTransfer{
-				SolanaAsset: true,
-				AssetId:     asset.AssetId,
-				ChainId:     asset.ChainId,
-				Mint:        mint,
-				Destination: destination,
-				Amount:      amount.BigInt().Uint64(),
-				Decimals:    uint8(asset.Decimal),
-				Fee:         asset.Fee,
-			})
-			continue
-		}
 		transfers = append(transfers, &solanaApp.TokenTransfer{
-			SolanaAsset: false,
+			SolanaAsset: asset.Solana,
 			AssetId:     asset.AssetId,
 			ChainId:     asset.ChainId,
 			Mint:        mint,
 			Destination: destination,
 			Amount:      amount.BigInt().Uint64(),
 			Decimals:    uint8(asset.Decimal),
+			Fee:         asset.Fee,
 		})
 	}
 	if len(transfers) == 0 {
@@ -456,20 +444,8 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		}
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
-		if asset.Solana {
-			transfers = append(transfers, &solanaApp.TokenTransfer{
-				SolanaAsset: true,
-				AssetId:     asset.AssetId,
-				ChainId:     asset.ChainId,
-				Mint:        mint,
-				Destination: solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry),
-				Amount:      amount.BigInt().Uint64(),
-				Decimals:    uint8(asset.Decimal),
-			})
-			continue
-		}
 		transfers = append(transfers, &solanaApp.TokenTransfer{
-			SolanaAsset: false,
+			SolanaAsset: asset.Solana,
 			AssetId:     asset.AssetId,
 			ChainId:     asset.ChainId,
 			Mint:        mint,
