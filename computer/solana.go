@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	SolanaBlockDelay = 32
+	SolanaBlockDelay = 1
 	SolanaBlockBatch = 30
 	SolanaTxRetry    = 10
 )
@@ -53,23 +53,21 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		}
 
 		var wg sync.WaitGroup
-		wg.Add(SolanaBlockBatch)
 		for i := range SolanaBlockBatch {
-			go func(i int) {
+			current := checkpoint + int64(i)
+			if current+SolanaBlockDelay > int64(height)+1 {
+				break
+			}
+			offset = current
+			wg.Add(SolanaBlockBatch)
+			go func(current int64) {
 				defer wg.Done()
-				current := checkpoint + int64(i)
-				if current+SolanaBlockDelay > int64(height)+1 {
-					return
-				}
 				err := node.solanaReadBlock(ctx, current, rentExemptBalance)
 				logger.Printf("node.solanaReadBlock(%d) => %v", current, err)
 				if err != nil {
 					panic(err)
 				}
-				if current > offset {
-					offset = current
-				}
-			}(i)
+			}(current)
 		}
 		wg.Wait()
 
