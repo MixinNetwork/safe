@@ -445,7 +445,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		if !common.CheckTestEnvironment(ctx) {
 			mint, err := node.RPCGetAsset(ctx, address)
 			if err != nil {
-				panic(err)
+				panic(fmt.Errorf("solana.RPCGetAsset(%s) => %v", address, mint))
 			}
 			if mint == nil || mint.MintAuthority != node.getMTGAddress(ctx).String() {
 				logger.Printf("solana.RPCGetAsset(%s) => %v", address, mint)
