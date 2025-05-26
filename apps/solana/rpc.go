@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -36,8 +37,6 @@ type AssetMetadata struct {
 type Asset struct {
 	Address       string `json:"address"`
 	Id            string `json:"id"`
-	Symbol        string `json:"symbol"`
-	Name          string `json:"name"`
 	Decimals      uint32 `json:"decimals"`
 	MintAuthority string `json:"mint_authority"`
 }
@@ -94,10 +93,24 @@ func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMe
 	}
 }
 
+type MintData struct {
+	Parsed struct {
+		Info struct {
+			MintAuthority   *solana.PublicKey `bin:"optional"`
+			Supply          string
+			Decimals        uint8
+			IsInitialized   bool
+			FreezeAuthority *solana.PublicKey `bin:"optional"`
+		} `json:"info"`
+	} `json:"parsed"`
+}
+
 func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error) {
-	var mint token.Mint
 	for {
-		err := c.rpcClient.GetAccountDataInto(ctx, solana.MPK(address), &mint)
+		account, err := c.rpcClient.GetAccountInfoWithOpts(ctx, solana.MPK(address), &rpc.GetAccountInfoOpts{
+			Encoding:   "jsonParsed",
+			Commitment: rpc.CommitmentProcessed,
+		})
 		if mtg.CheckRetryableError(err) {
 			time.Sleep(1 * time.Second)
 			continue
@@ -105,19 +118,21 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 		if err != nil {
 			return nil, err
 		}
-
-		metadata, err := c.getAssetMetadata(ctx, address)
+		data, err := account.Value.Data.MarshalJSON()
 		if err != nil {
-			return nil, err
+			panic(err)
+		}
+		var mint MintData
+		err = json.Unmarshal(data, &mint)
+		if err != nil {
+			panic(err)
 		}
 
 		asset := &Asset{
 			Address:       address,
 			Id:            GenerateAssetId(address),
-			Decimals:      uint32(mint.Decimals),
-			Symbol:        metadata.Symbol,
-			Name:          metadata.Name,
-			MintAuthority: mint.MintAuthority.String(),
+			Decimals:      uint32(mint.Parsed.Info.Decimals),
+			MintAuthority: mint.Parsed.Info.MintAuthority.String(),
 		}
 		return asset, nil
 	}

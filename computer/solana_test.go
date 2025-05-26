@@ -4,11 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"fmt"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
@@ -80,31 +79,15 @@ func TestGetNonceAccountHash(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
 	rpc := testRpcEndpoint
+	if er := os.Getenv("SOLANARPC"); er != "" {
+		rpc = er
+	}
 	rpcClient := solanaApp.NewClient(rpc)
 
-	priv, err := solana.NewRandomPrivateKey()
+	key := solana.MustPublicKeyFromBase58(testNonceAccountAddress)
+	hash, err := rpcClient.GetNonceAccountHash(ctx, key)
 	require.Nil(err)
-	asset, err := bot.ReadAsset(ctx, "965e5c6e-434c-3fa9-b780-c50f43cd955c")
-	require.Nil(err)
-	as := []*solanaApp.DeployedAsset{
-		{
-			AssetId:  "965e5c6e-434c-3fa9-b780-c50f43cd955c",
-			ChainId:  "43d61dcd-e413-450d-80b8-101d5e903357",
-			Address:  priv.PublicKey().String(),
-			Decimals: 9,
-
-			Uri:        "https://kernel.mixin.dev/objects/0a67b46d4b7ee61944559444f333394a40af3b969a3ac342442635eb0840859c/content",
-			Asset:      asset,
-			PrivateKey: &priv,
-		},
-	}
-	tx, err := rpcClient.CreateMints(ctx, solana.MPK("25BLr41rQN23SkiY6gWS8NtuaiKHHTki8CwjzuXPPpks"), solana.MPK("5v1eqBfJQkX4JYCi43v7eApXERTNakRBJX1d6Ax6KRzK"), as)
-	require.Nil(err)
-	_, err = tx.PartialSign(solanaApp.BuildSignersGetter(solana.MustPrivateKeyFromBase58("4KJCmV75fw8pZ4DQe4nnKYn4fjAYJVbCugBvXRfmateJrp4CLzfacQCetM3d5LjCceXNKx6shkvFZvihStGjjGy1")))
-	require.Nil(err)
-	fmt.Println(tx)
-	hash, err := rpcClient.SendTransaction(ctx, tx)
-	fmt.Println(hash, err)
+	require.Equal(testNonceAccountHash, hash.String())
 }
 
 func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*Node, nonce, public string, tx *solana.Transaction) {
