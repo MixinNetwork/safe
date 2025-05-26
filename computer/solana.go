@@ -271,29 +271,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		}
 	}
 
-	for {
-		call, err := node.store.ReadSystemCallByRequestId(ctx, tid, 0)
-		if err != nil {
-			return "", nil, nil, fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", tid, call, err)
-		}
-		if call == nil {
-			break
-		}
-		if call.State == common.RequestStateFailed {
-			tid = common.UniqueId(tid, "retry")
-			continue
-		}
-		return "", nil, nil, nil
-	}
-	nonce, err := node.store.ReadSpareNonceAccount(ctx)
-	if err != nil || nonce == nil {
-		return "", nil, nil, fmt.Errorf("store.ReadSpareNonceAccount(%s) => %v %v", tid, nonce, err)
-	}
-	err = node.store.OccupyNonceAccountByCall(ctx, nonce.Address, tid)
-	if err != nil {
-		return "", nil, nil, err
-	}
-	tx, err := node.SolanaClient().CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), nonce.Account(), assets)
+	tx, err := node.SolanaClient().CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), assets)
 	if err != nil {
 		return "", nil, nil, err
 	}

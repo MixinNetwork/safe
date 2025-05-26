@@ -297,56 +297,50 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	if err != nil || len(es) == 0 {
 		return err
 	}
+
 	var as []string
 	for _, a := range es {
-		old, err := node.store.ReadDeployedAsset(ctx, a.AssetId, 0)
+		old, err := node.store.ReadDeployedAsset(ctx, a.AssetId)
 		if err != nil {
 			return err
 		}
-		if old == nil {
-			as = append(as, a.AssetId)
-			continue
-		}
-		if old.State == common.RequestStateDone {
-			err = node.store.MarkExternalAssetDeployed(ctx, a.AssetId)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		if a.RequestedAt.Valid && time.Now().Before(a.RequestedAt.Time.Add(time.Minute*20)) {
+		if old != nil {
 			continue
 		}
 		as = append(as, a.AssetId)
-		err = node.store.MarkExternalAssetRequested(ctx, a.AssetId)
-		if err != nil {
-			return err
-		}
 	}
 	if len(as) == 0 {
 		return nil
 	}
 
-	tid, tx, assets, err := node.CreateMintsTransaction(ctx, as)
+	id, tx, assets, err := node.CreateMintsTransaction(ctx, as)
 	if err != nil || tx == nil {
 		return err
 	}
-	data, err := tx.MarshalBinary()
+	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, nil)
 	if err != nil {
 		return err
 	}
+	tx, err = rpcTx.Transaction.GetTransaction()
+	if err != nil {
+		return err
+	}
+
 	extra := []byte{byte(len(assets))}
 	for _, asset := range assets {
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
-	extra = attachSystemCall(extra, tid, data)
-
-	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    tid,
+	err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
+		Id:    id,
 		Type:  OperationTypeDeployExternalAssets,
 		Extra: extra,
 	}, nil)
+	if err != nil {
+		return err
+	}
+
+	return node.store.MarkExternalAssetDeployed(ctx, assets, tx.Signatures[0].String())
 }
 
 func (node *Node) createNonceAccounts(ctx context.Context) error {
@@ -623,7 +617,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 	callSequence := make(map[string][]*store.SystemCall)
 	for _, call := range callMap {
 		switch call.Type {
-		case store.CallTypeDeposit, store.CallTypeMint, store.CallTypePostProcess:
+		case store.CallTypeDeposit, store.CallTypePostProcess:
 			key := fmt.Sprintf("%s:%s", call.Type, call.RequestId)
 			callSequence[key] = append(callSequence[key], call)
 		case store.CallTypeMain:

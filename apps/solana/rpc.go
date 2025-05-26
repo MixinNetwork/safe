@@ -34,11 +34,12 @@ type AssetMetadata struct {
 }
 
 type Asset struct {
-	Address  string `json:"address"`
-	Id       string `json:"id"`
-	Symbol   string `json:"symbol"`
-	Name     string `json:"name"`
-	Decimals uint32 `json:"decimals"`
+	Address       string `json:"address"`
+	Id            string `json:"id"`
+	Symbol        string `json:"symbol"`
+	Name          string `json:"name"`
+	Decimals      uint32 `json:"decimals"`
+	MintAuthority string `json:"mint_authority"`
 }
 
 func (c *Client) RPCGetConfirmedHeight(ctx context.Context) (uint64, error) {
@@ -111,11 +112,12 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 		}
 
 		asset := &Asset{
-			Address:  address,
-			Id:       GenerateAssetId(address),
-			Decimals: uint32(mint.Decimals),
-			Symbol:   metadata.Symbol,
-			Name:     metadata.Name,
+			Address:       address,
+			Id:            GenerateAssetId(address),
+			Decimals:      uint32(mint.Decimals),
+			Symbol:        metadata.Symbol,
+			Name:          metadata.Name,
+			MintAuthority: mint.MintAuthority.String(),
 		}
 		return asset, nil
 	}

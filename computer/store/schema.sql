@@ -119,13 +119,12 @@ CREATE TABLE IF NOT EXISTS external_assets (
   asset_id        VARCHAR NOT NULL,
   uri             TEXT,
   icon_url        TEXT,
+  deployed_hash   VARCHAR,
   created_at      TIMESTAMP NOT NULL,
-  requested_at    TIMESTAMP,
-  deployed_at     TIMESTAMP,
   PRIMARY KEY ('asset_id')
 );
 
-CREATE INDEX IF NOT EXISTS assets_by_deployed ON external_assets(icon_url, deployed_at);
+CREATE INDEX IF NOT EXISTS assets_by_deployed ON external_assets(icon_url, deployed_hash);
 
 
 CREATE TABLE IF NOT EXISTS deployed_assets (
@@ -133,12 +132,9 @@ CREATE TABLE IF NOT EXISTS deployed_assets (
   chain_id        VARCHAR NOT NULL,
   address         VARCHAR NOT NULL,
   decimals        INTEGER NOT NULL,
-  state           INTEGER NOT NULL,
   created_at      TIMESTAMP NOT NULL,
   PRIMARY KEY ('asset_id')
 );
-
-CREATE INDEX IF NOT EXISTS assets_by_address_state ON deployed_assets(address, state);
 
 
 CREATE TABLE IF NOT EXISTS system_calls (

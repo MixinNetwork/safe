@@ -36,7 +36,7 @@ func TestComputer(t *testing.T) {
 	testObserverRequestCreateNonceAccount(ctx, require, nodes)
 	testObserverSetPriceParams(ctx, require, nodes)
 	testObserverUpdateNetworInfo(ctx, require, nodes)
-	testObserverRequestDeployAsset(ctx, require, nodes)
+	testObserverDeployAsset(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
 	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
@@ -418,24 +418,21 @@ func testObserverSetPriceParams(ctx context.Context, require *require.Assertions
 	}
 }
 
-func testObserverRequestDeployAsset(ctx context.Context, require *require.Assertions, nodes []*Node) {
+func testObserverDeployAsset(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	node := nodes[0]
 
-	nonce, err := node.store.ReadNonceAccount(ctx, "ByaBrgG365HHJfMiybAg3sJfFuyj6oEou2cA6Cs4DfT6")
-	require.Nil(err)
-	require.False(nonce.CallId.Valid)
-	require.False(nonce.Mix.Valid)
-	err = node.store.WriteExternalAssets(ctx, []*store.ExternalAsset{
+	err := node.store.WriteExternalAssets(ctx, []*store.ExternalAsset{
 		{
 			AssetId:   common.SafeLitecoinChainId,
 			CreatedAt: time.Now().UTC(),
 		},
 	})
 	require.Nil(err)
-	cid, stx, assets, err := node.CreateMintsTransaction(ctx, []string{common.SafeLitecoinChainId})
+	id, _, assets, err := node.CreateMintsTransaction(ctx, []string{common.SafeLitecoinChainId})
 	require.Nil(err)
-	raw, err := stx.MarshalBinary()
+	as, err := node.store.ListUndeployedAssets(ctx)
 	require.Nil(err)
+	require.Len(as, 1)
 
 	var extra []byte
 	extra = append(extra, byte(len(assets)))
@@ -443,39 +440,23 @@ func testObserverRequestDeployAsset(ctx context.Context, require *require.Assert
 		extra = append(extra, uuid.Must(uuid.FromString(asset.AssetId)).Bytes()...)
 		extra = append(extra, solana.MustPublicKeyFromBase58(asset.Address).Bytes()...)
 	}
-	extra = attachSystemCall(extra, cid, raw)
 
-	id := uuid.Must(uuid.NewV4()).String()
 	out := testBuildObserverRequest(node, id, OperationTypeDeployExternalAssets, extra)
 	for _, node := range nodes {
 		go testStep(ctx, require, node, out)
 	}
-	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
+	time.Sleep(10 * time.Second)
 
-	id = common.UniqueId(id, "confirm")
-	sig := solana.MustSignatureFromBase58("MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi")
-	extra = []byte{FlagConfirmCallSuccess, 1}
-	extra = append(extra, sig[:]...)
+	err = node.store.MarkExternalAssetDeployed(ctx, assets, "MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi")
+	require.Nil(err)
+	as, err = node.store.ListUndeployedAssets(ctx)
+	require.Nil(err)
+	require.Len(as, 0)
 	for _, node := range nodes {
-		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
+		a, err := node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId)
 		require.Nil(err)
-		require.NotNil(call)
-		asset, err := node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId, common.RequestStateInitial)
-		require.Nil(err)
-		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", asset.Address)
-		require.Equal(int64(8), asset.Decimals)
-		require.Equal(int64(common.RequestStateInitial), asset.State)
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmCall, extra)
-		testStep(ctx, require, node, out)
-		asset, err = node.store.ReadDeployedAsset(ctx, common.SafeLitecoinChainId, common.RequestStateDone)
-		require.Nil(err)
-		require.Equal(int64(common.RequestStateDone), asset.State)
+		require.Equal("EFShFtXaMF1n1f6k3oYRd81tufEXzUuxYM6vkKrChVs8", a.Address)
 	}
-
-	call, err := node.store.ReadSystemCallByRequestId(ctx, cid, 0)
-	require.Nil(err)
-	err = node.store.ReleaseLockedNonceAccount(ctx, call.NonceAccount)
-	require.Nil(err)
 }
 
 func testObserverRequestGenerateKey(ctx context.Context, require *require.Assertions, nodes []*Node) {

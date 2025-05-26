@@ -114,18 +114,20 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 	return tx, nil
 }
 
-func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, nonce NonceAccount, assets []*DeployedAsset) (*solana.Transaction, error) {
-	builder := c.buildInitialTxWithNonceAccount(ctx, payer, nonce)
+func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, assets []*DeployedAsset) (*solana.Transaction, error) {
+	builder := solana.NewTransactionBuilder()
+	builder.SetFeePayer(payer)
 
 	rent, err := c.RPCGetMinimumBalanceForRentExemption(ctx, mintSize)
 	if err != nil {
 		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption() => %v", err)
 	}
 	for _, asset := range assets {
-		if asset.Asset.ChainID == SolanaChainBase {
+		if asset.ChainId == SolanaChainBase {
 			return nil, fmt.Errorf("CreateMints(%s) => invalid asset chain", asset.AssetId)
 		}
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
+
 		builder.AddInstruction(
 			system.NewCreateAccountInstruction(
 				rent,
@@ -135,11 +137,13 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 				mint,
 			).Build(),
 		)
-		initMint := token.NewInitializeMint2InstructionBuilder().
-			SetDecimals(uint8(asset.Asset.Precision)).
-			SetMintAuthority(mtg).
-			SetMintAccount(solana.MustPublicKeyFromBase58(asset.Address)).Build()
-		builder.AddInstruction(initMint)
+		builder.AddInstruction(
+			token.NewInitializeMint2InstructionBuilder().
+				SetDecimals(uint8(asset.Asset.Precision)).
+				SetMintAuthority(payer).
+				SetMintAccount(solana.MustPublicKeyFromBase58(asset.Address)).Build(),
+		)
+
 		pda, _, err := solana.FindTokenMetadataAddress(mint)
 		if err != nil {
 			return nil, err
@@ -157,10 +161,10 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 				Instruction: meta.CreateMetadataAccountV3(meta.CreateMetadataAccountV3Param{
 					Metadata:                sc.PublicKeyFromString(pda.String()),
 					Mint:                    sc.PublicKeyFromString(mint.String()),
-					MintAuthority:           sc.PublicKeyFromString(mtg.String()),
+					MintAuthority:           sc.PublicKeyFromString(payer.String()),
 					Payer:                   sc.PublicKeyFromString(payer.String()),
 					UpdateAuthority:         sc.PublicKeyFromString(mtg.String()),
-					UpdateAuthorityIsSigner: true,
+					UpdateAuthorityIsSigner: false,
 					IsMutable:               false,
 					Data: meta.DataV2{
 						Name:                 name,
@@ -171,7 +175,20 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, n
 				}),
 			},
 		)
+
+		builder.AddInstruction(
+			token.NewSetAuthorityInstruction(token.AuthorityMintTokens, mtg, mint, payer, nil).Build(),
+		)
 	}
+
+	computerPriceIns := c.getPriorityFeeInstruction(ctx)
+	builder.AddInstruction(computerPriceIns)
+
+	block, err := c.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentProcessed)
+	if err != nil {
+		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
+	}
+	builder.SetRecentBlockHash(block.Value.Blockhash)
 
 	tx, err := builder.Build()
 	if err != nil {

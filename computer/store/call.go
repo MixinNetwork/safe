@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	soalnaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/util"
@@ -19,7 +18,6 @@ import (
 
 const (
 	CallTypeDeposit     = "deposit"
-	CallTypeMint        = "mint"
 	CallTypeMain        = "main"
 	CallTypePrepare     = "prepare"
 	CallTypePostProcess = "post_process"
@@ -138,52 +136,6 @@ func (s *SQLite3Store) WriteDepositCallWithRequest(ctx context.Context, req *Req
 	err = s.writeSession(ctx, tx, session)
 	if err != nil {
 		return err
-	}
-
-	err = s.finishRequest(ctx, tx, req, nil, "")
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) WriteMintCallWithRequest(ctx context.Context, req *Request, call *SystemCall, session *Session, assets map[string]*soalnaApp.DeployedAsset) error {
-	if call.Type != CallTypeMint {
-		panic(call.Type)
-	}
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	err = s.writeSystemCall(ctx, tx, call)
-	if err != nil {
-		return err
-	}
-	err = s.writeSession(ctx, tx, session)
-	if err != nil {
-		return err
-	}
-
-	for _, asset := range assets {
-		existed, err := s.checkExistence(ctx, tx, "SELECT address FROM deployed_assets WHERE asset_id=?", asset.AssetId)
-		if err != nil {
-			return err
-		}
-		if existed {
-			continue
-		}
-
-		vals := []any{asset.AssetId, asset.ChainId, asset.Address, asset.Decimals, common.RequestStateInitial, req.CreatedAt}
-		err = s.execOne(ctx, tx, buildInsertionSQL("deployed_assets", deployedAssetCols), vals...)
-		if err != nil {
-			return fmt.Errorf("INSERT deployed_assets %v", err)
-		}
 	}
 
 	err = s.finishRequest(ctx, tx, req, nil, "")
@@ -322,41 +274,6 @@ func (s *SQLite3Store) ConfirmSystemCallsWithRequest(ctx context.Context, req *R
 		err = s.execOne(ctx, tx, query, common.RequestStateDone, req.CreatedAt, o.OutputId, common.RequestStatePending)
 		if err != nil {
 			return fmt.Errorf("SQLite3Store UPDATE user_outputs %v", err)
-		}
-	}
-
-	err = s.finishRequest(ctx, tx, req, nil, "")
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) ConfirmMintSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, assets []string) error {
-	if call.Type != CallTypeMint {
-		panic(call.Type)
-	}
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	query := "UPDATE system_calls SET state=?, hash=?, updated_at=? WHERE id=? AND state=?"
-	err = s.execOne(ctx, tx, query, call.State, call.Hash, req.CreatedAt, call.RequestId, common.RequestStatePending)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
-	}
-
-	for _, asset := range assets {
-		query := "UPDATE deployed_assets SET state=? WHERE address=? AND state=?"
-		err = s.execOne(ctx, tx, query, common.RequestStateDone, asset, common.RequestStateInitial)
-		if err != nil {
-			return fmt.Errorf("SQLite3Store UPDATE deployed_assets %v", err)
 		}
 	}
 

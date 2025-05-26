@@ -127,7 +127,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.Use
 		isSolAsset := output.ChainId == solanaApp.SolanaChainBase
 		address := output.Asset.AssetKey
 		if !isSolAsset {
-			da, err := node.store.ReadDeployedAsset(ctx, output.AssetId, common.RequestStateDone)
+			da, err := node.store.ReadDeployedAsset(ctx, output.AssetId)
 			if err != nil || da == nil {
 				panic(fmt.Errorf("store.ReadDeployedAsset(%s) => %v %v", output.AssetId, da, err))
 			}

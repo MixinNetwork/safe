@@ -413,7 +413,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		panic(req.Action)
 	}
 
-	as := make(map[string]*solanaApp.DeployedAsset)
+	var as []*solanaApp.DeployedAsset
 	extra := req.ExtraBytes()
 	n, extra := extra[0], extra[1:]
 	offset := 0
@@ -434,51 +434,36 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 			logger.Printf("processDeployExternalAssets(%s) => invalid asset", assetId)
 			return node.failRequest(ctx, req, "")
 		}
-		old, err := node.store.ReadDeployedAsset(ctx, assetId, 0)
+		old, err := node.store.ReadDeployedAsset(ctx, assetId)
 		if err != nil {
 			panic(err)
 		}
-		if old != nil && old.State == common.RequestStateDone {
+		if old != nil {
 			logger.Printf("processDeployExternalAssets(%s) => asset already existed", assetId)
 			return node.failRequest(ctx, req, "")
 		}
-		as[address] = &solanaApp.DeployedAsset{
+		if !common.CheckTestEnvironment(ctx) {
+			mint, err := node.RPCGetAsset(ctx, address)
+			if err != nil {
+				panic(err)
+			}
+			if mint == nil || mint.MintAuthority != node.getMTGAddress(ctx).String() {
+				logger.Printf("solana.RPCGetAsset(%s) => %v", address, mint)
+				return node.failRequest(ctx, req, "")
+			}
+		}
+		as = append(as, &solanaApp.DeployedAsset{
 			AssetId:  assetId,
 			ChainId:  asset.ChainID,
 			Address:  address,
 			Decimals: int64(asset.Precision),
 			Asset:    asset,
-		}
+		})
 		logger.Verbosef("processDeployExternalAssets() => %s %s", assetId, address)
 	}
 
-	call, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[offset:])
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-	err = node.VerifyMintSystemCall(ctx, tx, node.getMTGAddress(ctx), as)
-	logger.Printf("node.VerifyMintSystemCall() => %v", err)
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-	call.Superior = call.RequestId
-	call.Type = store.CallTypeMint
-	call.Public = node.getMTGPublicWithPath(ctx)
-	call.State = common.RequestStatePending
-	session := &store.Session{
-		Id:         call.RequestId,
-		RequestId:  call.RequestId,
-		MixinHash:  req.MixinHash.String(),
-		MixinIndex: req.Output.OutputIndex,
-		Index:      0,
-		Operation:  OperationTypeSignInput,
-		Public:     call.Public,
-		Extra:      call.MessageHex(),
-		CreatedAt:  req.CreatedAt,
-	}
-
-	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
-	logger.Printf("store.WriteMintCallWithRequest(%v) => %v", call, err)
+	err := node.store.WriteDeployedAssetsWithRequest(ctx, req, as)
+	logger.Printf("store.WriteDeployedAssetsWithRequest() => %v", err)
 	if err != nil {
 		panic(err)
 	}
@@ -518,8 +503,6 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 					panic(err)
 				}
 				return nil, ""
-			case store.CallTypeMint:
-				return node.confirmMintSystemCall(ctx, req, call, tx)
 			case store.CallTypePostProcess:
 				return node.confirmPostProcessSystemCall(ctx, req, call, tx)
 			}
@@ -930,27 +913,6 @@ func (node *Node) checkConfirmCallSignature(ctx context.Context, signature strin
 	call.State = common.RequestStateDone
 	call.Hash = sql.NullString{Valid: true, String: signature}
 	return call, tx, nil
-}
-
-func (node *Node) confirmMintSystemCall(ctx context.Context, req *store.Request, call *store.SystemCall, tx *solana.Transaction) ([]*mtg.Transaction, string) {
-	if common.CheckTestEnvironment(ctx) {
-		txx, err := solana.TransactionFromBase64(call.Raw)
-		if err != nil {
-			panic(err)
-		}
-		tx = txx
-	}
-	assets := solanaApp.ExtractMintsFromTransaction(tx)
-	logger.Printf("ExtractMintsFromTransaction(%v) => %v", tx, assets)
-	if len(assets) == 0 {
-		logger.Printf("node.processConfirmedCall(%s) => invalid mint call", call.RequestId)
-		return node.failRequest(ctx, req, "")
-	}
-	err := node.store.ConfirmMintSystemCallWithRequest(ctx, req, call, assets)
-	if err != nil {
-		panic(err)
-	}
-	return nil, ""
 }
 
 func (node *Node) confirmPostProcessSystemCall(ctx context.Context, req *store.Request, call *store.SystemCall, tx *solana.Transaction) ([]*mtg.Transaction, string) {
