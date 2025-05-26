@@ -77,7 +77,7 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 }
 
 func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64, rentExemptBalance uint64) error {
-	block, err := node.SolanaClient().RPCGetBlockByHeight(ctx, uint64(checkpoint))
+	block, err := node.RPCGetBlockByHeight(ctx, uint64(checkpoint))
 	if err != nil {
 		if strings.Contains(err.Error(), "was skipped, or missing") {
 			return nil
@@ -1008,6 +1008,37 @@ func (node *Node) RPCGetAsset(ctx context.Context, account string) (*solanaApp.A
 		panic(err)
 	}
 	return asset, nil
+}
+
+func (node *Node) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
+	key := fmt.Sprintf("getBlock:%d", height)
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		var b rpc.GetBlockResult
+		err = json.Unmarshal(common.DecodeHexOrPanic(value), &b)
+		if err != nil {
+			panic(err)
+		}
+		return &b, nil
+	}
+
+	block, err := node.SolanaClient().RPCGetBlockByHeight(ctx, height)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(block)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
+	if err != nil {
+		panic(err)
+	}
+	return block, nil
 }
 
 func (node *Node) SolanaPayer() solana.PublicKey {
