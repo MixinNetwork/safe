@@ -55,9 +55,9 @@ func (node *Node) bootObserver(ctx context.Context, version string) {
 
 	go node.feeInfoLoop(ctx)
 	go node.withdrawalFeeLoop(ctx)
+	go node.unconfirmedWithdrawalLoop(ctx)
 
 	go node.unconfirmedCallLoop(ctx)
-	go node.unwithdrawnCallLoop(ctx)
 	go node.unsignedCallLoop(ctx)
 	go node.signedCallLoop(ctx)
 
@@ -227,9 +227,9 @@ func (node *Node) withdrawalFeeLoop(ctx context.Context) {
 	}
 }
 
-func (node *Node) unwithdrawnCallLoop(ctx context.Context) {
+func (node *Node) unconfirmedWithdrawalLoop(ctx context.Context) {
 	for {
-		err := node.handleUnwithdrawnCalls(ctx)
+		err := node.handleUnconfirmedWithdrawals(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -482,24 +482,25 @@ func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
 	return nil
 }
 
-func (node *Node) handleUnwithdrawnCalls(ctx context.Context) error {
+func (node *Node) handleUnconfirmedWithdrawals(ctx context.Context) error {
 	start := node.readPropertyAsTime(ctx, store.WithdrawalConfirmRequestTimeKey)
 	txs := node.group.ListConfirmedWithdrawalTransactionsAfter(ctx, start, 100)
 	for _, tx := range txs {
-		id := common.UniqueId(tx.TraceId, "confirm-withdrawal")
-		sig := solana.MustSignatureFromBase58(tx.WithdrawalHash.String)
-		extra := uuid.Must(uuid.FromString(tx.TraceId)).Bytes()
-		extra = append(extra, uuid.Must(uuid.FromString(tx.Memo)).Bytes()...)
-		extra = append(extra, sig[:]...)
-		err := node.sendObserverTransactionToGroup(ctx, &common.Operation{
-			Id:    id,
-			Type:  OperationTypeConfirmWithdrawal,
-			Extra: extra,
-		}, nil)
-		if err != nil {
-			return err
+		if !tx.WithdrawalHash.Valid {
+			return fmt.Errorf("invalid withdrawal hash: %s", tx.TraceId)
 		}
-		err = node.writeRequestTime(ctx, store.WithdrawalConfirmRequestTimeKey, tx.UpdatedAt)
+		cid := uuid.Must(uuid.FromString(tx.Memo)).String()
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStateInitial)
+		if err != nil || call == nil {
+			return fmt.Errorf("store.ReadSystemCallByRequestId(%s %d) => %v %v", cid, common.RequestStateInitial, call, err)
+		}
+
+		err = node.store.WriteConfirmedWithdrawal(ctx, &store.ConfirmedWithdrawal{
+			Hash:      tx.WithdrawalHash.String,
+			TraceId:   tx.TraceId,
+			CallId:    call.RequestId,
+			CreatedAt: tx.UpdatedAt,
+		})
 		if err != nil {
 			return err
 		}
@@ -630,10 +631,15 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			if err != nil {
 				panic(err)
 			}
-			// should be processed with its prepare call together
-			if pending {
+			unconfirmed, err := node.store.CheckUnconfirmedWithdrawals(ctx, call)
+			if err != nil {
+				panic(err)
+			}
+			// should be processed with its prepare call together or wait withdrawals getting confirmed
+			if pending || unconfirmed {
 				continue
 			}
+
 			key := fmt.Sprintf("%s:%s", store.CallTypeMain, call.UserIdFromPublicPath().String())
 			// should be processed after previous main call being confirmed
 			if len(callSequence[key]) > 0 {

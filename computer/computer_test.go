@@ -39,8 +39,8 @@ func TestComputer(t *testing.T) {
 	testObserverRequestDeployAsset(ctx, require, nodes)
 
 	user := testUserRequestAddUsers(ctx, require, nodes)
-	call, sub := testUserRequestSystemCall(ctx, require, nodes, mds, user)
-	testConfirmWithdrawal(ctx, require, nodes, call, sub)
+	call := testUserRequestSystemCall(ctx, require, nodes, mds, user)
+	testConfirmWithdrawal(ctx, require, nodes, call)
 	postprocess := testObserverConfirmMainCall(ctx, require, nodes, call)
 	testObserverConfirmPostProcessCall(ctx, require, nodes, postprocess)
 
@@ -131,7 +131,6 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 		require.Equal(main.RequestId, sub.Superior)
 		require.Equal(store.CallTypePostProcess, sub.Type)
 		require.Len(sub.GetWithdrawalIds(), 0)
-		require.True(sub.WithdrawnAt.Valid)
 		require.True(sub.Signature.Valid)
 		require.True(sub.RequestSignerAt.Valid)
 		postprocess = sub
@@ -147,30 +146,22 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 	return postprocess
 }
 
-func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call, sub *store.SystemCall) {
-	tid := call.GetWithdrawalIds()[0]
-	callId := call.RequestId
-
-	id := uuid.Must(uuid.NewV4()).String()
-	sig := solana.MustSignatureFromBase58("jmHyRpKEuc1PgDjDaqaQqo9GpSM3pp9PhLgwzqpfa2uUbtRYJmbKtWp4onfNFsbk47paBjxz1d6s9n56Y8Na9Hp")
-	var extra []byte
-	extra = append(extra, uuid.Must(uuid.FromString(tid)).Bytes()...)
-	extra = append(extra, uuid.Must(uuid.FromString(callId)).Bytes()...)
-	extra = append(extra, sig[:]...)
-	for _, node := range nodes {
-		out := testBuildObserverRequest(node, id, OperationTypeConfirmWithdrawal, extra)
-		testStep(ctx, require, node, out)
-		call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
-		require.Nil(err)
-		require.Equal("", call.WithdrawalTraces.String)
-		require.True(call.WithdrawnAt.Valid)
-		call, err = node.store.ReadSystemCallByRequestId(ctx, sub.RequestId, common.RequestStatePending)
-		require.Nil(err)
-		require.NotNil(call)
+func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nodes []*Node, call *store.SystemCall) {
+	node := nodes[0]
+	withdrawal := &store.ConfirmedWithdrawal{
+		Hash:      "jmHyRpKEuc1PgDjDaqaQqo9GpSM3pp9PhLgwzqpfa2uUbtRYJmbKtWp4onfNFsbk47paBjxz1d6s9n56Y8Na9Hp",
+		TraceId:   uuid.Must(uuid.NewV4()).String(),
+		CallId:    call.RequestId,
+		CreatedAt: time.Now(),
 	}
+	err := node.store.WriteConfirmedWithdrawal(ctx, withdrawal)
+	require.Nil(err)
+	unconfirmed, err := node.store.CheckUnconfirmedWithdrawals(ctx, call)
+	require.Nil(err)
+	require.False(unconfirmed)
 }
 
-func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) (*store.SystemCall, *store.SystemCall) {
+func testUserRequestSystemCall(ctx context.Context, require *require.Assertions, nodes []*Node, mds []*mtg.SQLite3Store, user *store.User) *store.SystemCall {
 	node := nodes[0]
 	conf := node.conf
 	nonce, err := node.store.ReadNonceAccount(ctx, "DaJw3pa9rxr25AT1HnQnmPvwS4JbnwNvQbNLm8PJRhqV")
@@ -238,7 +229,6 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(out.OutputId, call.Superior)
 		require.Equal(store.CallTypeMain, call.Type)
 		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
-		require.False(call.WithdrawnAt.Valid)
 		require.False(call.Signature.Valid)
 		require.True(call.RequestSignerAt.Valid)
 		os, _, err := node.GetSystemCallReferenceOutputs(ctx, user.UserId, call.RequestHash, common.RequestStatePending)
@@ -283,26 +273,22 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	extra = attachSystemCall(extra, cid, raw)
 
 	out = testBuildObserverRequest(node, id, OperationTypeConfirmNonce, extra)
-	var sub *store.SystemCall
 	for _, node := range nodes {
 		go testStep(ctx, require, node, out)
 	}
 	time.Sleep(10 * time.Second)
 	for _, node := range nodes {
-		call, err := node.store.ReadSystemCallByRequestId(ctx, c.RequestId, common.RequestStateInitial)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, c.RequestId, common.RequestStatePending)
 		require.Nil(err)
 		require.Len(call.GetWithdrawalIds(), 1)
-		require.False(call.WithdrawnAt.Valid)
 		c = call
-		call, err = node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStateInitial)
+		call, err = node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
 		require.Nil(err)
 		require.True(call.WithdrawalTraces.Valid)
-		require.True(call.WithdrawnAt.Valid)
-		sub = call
 	}
 	testObserverRequestSignSystemCall(ctx, require, nodes, cid)
 	testObserverRequestSignSystemCall(ctx, require, nodes, c.RequestId)
-	return c, sub
+	return c
 }
 
 func testUserRequestAddUsers(ctx context.Context, require *require.Assertions, nodes []*Node) *store.User {
@@ -566,7 +552,7 @@ func testObserverRequestSignSystemCall(ctx context.Context, require *require.Ass
 		testWaitOperation(ctx, node, cid)
 	}
 	for _, node := range nodes {
-		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, 0)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
 		require.Nil(err)
 		require.True(call.Signature.Valid)
 	}

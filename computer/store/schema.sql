@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS system_calls (
   raw                   TEXT NOT NULL,
   state                 INTEGER NOT NULL,
   withdrawal_traces     VARCHAR,
-  withdrawn_at          TIMESTAMP,
   signature             VARCHAR,
   request_signer_at     TIMESTAMP,
   hash                  VARCHAR,
@@ -164,7 +163,7 @@ CREATE TABLE IF NOT EXISTS system_calls (
 
 CREATE UNIQUE INDEX IF NOT EXISTS calls_by_message ON system_calls(message_hash);
 CREATE INDEX IF NOT EXISTS calls_by_hash ON system_calls(hash);
-CREATE INDEX IF NOT EXISTS calls_by_state_withdrawal_created ON system_calls(state, withdrawal_traces, withdrawn_at, created_at);
+CREATE INDEX IF NOT EXISTS calls_by_state_withdrawal_created ON system_calls(state, withdrawal_traces, created_at);
 CREATE INDEX IF NOT EXISTS calls_by_state_signature_created ON system_calls(state, withdrawal_traces, signature, created_at);
 CREATE INDEX IF NOT EXISTS calls_by_superior_state_created ON system_calls(superior_id, state, created_at);
 

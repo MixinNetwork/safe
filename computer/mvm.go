@@ -290,7 +290,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if err != nil {
 		panic(err)
 	}
-	if call == nil || call.WithdrawalTraces.Valid || call.WithdrawnAt.Valid {
+	if call == nil || call.WithdrawalTraces.Valid {
 		return node.failRequest(ctx, req, "")
 	}
 	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
@@ -323,6 +323,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			prepare.Superior = call.RequestId
 			prepare.Type = store.CallTypePrepare
 			prepare.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
+			prepare.State = common.RequestStatePending
+
 			err = node.VerifySubSystemCall(ctx, tx, solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry), solana.MustPublicKeyFromBase58(user.ChainAddress))
 			logger.Printf("node.VerifySubSystemCall(%s) => %v", user.ChainAddress, err)
 			if err != nil {
@@ -345,7 +347,6 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 				panic(err)
 			}
 			if index == -1 {
-				prepare.State = common.RequestStatePending
 				prepare.Signature = sql.NullString{Valid: true, String: ""}
 			}
 		}
@@ -369,11 +370,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		}
 		call.RequestSignerAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 		call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
-		if len(txs) == 0 {
-			call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
-			call.State = common.RequestStatePending
-			prepare.State = common.RequestStatePending
-		}
+		call.State = common.RequestStatePending
+
 		sessions = append(sessions, &store.Session{
 			Id:         call.RequestId,
 			RequestId:  call.RequestId,
@@ -481,57 +479,6 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 
 	err = node.store.WriteMintCallWithRequest(ctx, req, call, session, as)
 	logger.Printf("store.WriteMintCallWithRequest(%v) => %v", call, err)
-	if err != nil {
-		panic(err)
-	}
-	return nil, ""
-}
-
-func (node *Node) processConfirmWithdrawal(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
-	if req.Role != RequestRoleObserver {
-		panic(req.Role)
-	}
-	if req.Action != OperationTypeConfirmWithdrawal {
-		panic(req.Action)
-	}
-
-	extra := req.ExtraBytes()
-	txId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	callId := uuid.Must(uuid.FromBytes(extra[16:32])).String()
-	hash := solana.SignatureFromBytes(extra[32:]).String()
-
-	withdrawalHash, err := common.SafeReadWithdrawalHashUntilSufficient(ctx, node.SafeUser(), txId)
-	logger.Printf("common.SafeReadWithdrawalHashUntilSufficient(%s) => %s %v", txId, withdrawalHash, err)
-	if err != nil || withdrawalHash != hash {
-		panic(err)
-	}
-	tx, err := node.RPCGetTransaction(ctx, withdrawalHash)
-	logger.Printf("solana.RPCGetTransaction(%s) => %v %v", withdrawalHash, tx, err)
-	if err != nil || tx == nil {
-		panic(err)
-	}
-
-	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStateInitial)
-	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
-	if err != nil {
-		panic(err)
-	}
-	if call == nil || call.WithdrawnAt.Valid || !slices.Contains(call.GetWithdrawalIds(), txId) {
-		return node.failRequest(ctx, req, "")
-	}
-	ids := []string{}
-	for _, id := range call.GetWithdrawalIds() {
-		if id == txId {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	call.WithdrawalTraces = sql.NullString{Valid: true, String: strings.Join(ids, ",")}
-	if len(ids) == 0 {
-		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
-	}
-
-	err = node.store.MarkSystemCallWithdrawnWithRequest(ctx, req, call, txId, withdrawalHash)
 	if err != nil {
 		panic(err)
 	}
@@ -680,7 +627,7 @@ func (node *Node) processObserverRequestSign(ctx context.Context, req *store.Req
 
 	extra := req.ExtraBytes()
 	callId := uuid.Must(uuid.FromBytes(extra[:16])).String()
-	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, 0)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, callId, common.RequestStatePending)
 	logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", callId, call, err)
 	if err != nil {
 		panic(err)

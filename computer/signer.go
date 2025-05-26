@@ -155,7 +155,7 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				if err != nil || public == "" {
 					panic(fmt.Errorf("node.readKeyByFingerPath(%s) => %s %v", op.Public, public, err))
 				}
-				call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, 0)
+				call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, common.RequestStatePending)
 				if err != nil {
 					panic(err)
 				}
@@ -725,7 +725,7 @@ func (node *Node) processSignerSignatureResponse(ctx context.Context, req *store
 	if err != nil || s == nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", sid, s, err))
 	}
-	call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, 0)
+	call, err := node.store.ReadSystemCallByRequestId(ctx, s.RequestId, common.RequestStatePending)
 	if err != nil || call == nil {
 		panic(fmt.Errorf("store.ReadSystemCallByRequestId(%s) => %v %v", s.RequestId, call, err))
 	}

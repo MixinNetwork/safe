@@ -309,7 +309,6 @@ func (node *Node) buildSystemCallFromBytes(ctx context.Context, req *store.Reque
 	}
 	if withdrawn {
 		call.WithdrawalTraces = sql.NullString{Valid: true, String: ""}
-		call.WithdrawnAt = sql.NullTime{Valid: true, Time: req.CreatedAt}
 	}
 	return call, tx, nil
 }

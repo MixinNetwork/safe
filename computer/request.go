@@ -35,7 +35,6 @@ const (
 	OperationTypeDeployExternalAssets = 12
 	OperationTypeDeposit              = 13
 	OperationTypeConfirmNonce         = 14
-	OperationTypeConfirmWithdrawal    = 15
 	OperationTypeConfirmCall          = 16
 	OperationTypeSignInput            = 17
 	OperationTypeUpdateFeeInfo        = 18
