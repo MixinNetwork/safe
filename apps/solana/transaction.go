@@ -368,8 +368,7 @@ func (c *Client) getPriorityFeeInstruction(ctx context.Context) *computebudget.I
 
 func ExtractTransfersFromTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, exception *solana.PublicKey) ([]*Transfer, error) {
 	if meta.Err != nil {
-		// Transaction failed, ignore
-		return nil, nil
+		panic(fmt.Sprint(meta.Err))
 	}
 
 	hash := tx.Signatures[0].String()

@@ -45,7 +45,6 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		offset := checkpoint
 
 		rentExemptBalance, err := node.SolanaClient().RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.NormalAccountSize)
 		if err != nil {
@@ -53,13 +52,12 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		}
 
 		var wg sync.WaitGroup
-		for i := range SolanaBlockBatch {
-			current := checkpoint + int64(i)
-			if current+SolanaBlockDelay > int64(height)+1 {
+		for range SolanaBlockBatch {
+			checkpoint = checkpoint + 1
+			if checkpoint+SolanaBlockDelay > int64(height)+1 {
 				break
 			}
-			offset = current
-			wg.Add(SolanaBlockBatch)
+			wg.Add(1)
 			go func(current int64) {
 				defer wg.Done()
 				err := node.solanaReadBlock(ctx, current, rentExemptBalance)
@@ -67,11 +65,11 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 				if err != nil {
 					panic(err)
 				}
-			}(current)
+			}(checkpoint)
 		}
 		wg.Wait()
 
-		err = node.writeRequestNumber(ctx, store.SolanaScanHeightKey, offset+1)
+		err = node.writeRequestNumber(ctx, store.SolanaScanHeightKey, checkpoint)
 		if err != nil {
 			panic(err)
 		}
@@ -97,6 +95,9 @@ func (node *Node) solanaReadBlock(ctx context.Context, checkpoint int64, rentExe
 }
 
 func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Transaction, meta *rpc.TransactionMeta, rentExemptBalance uint64) error {
+	if meta.Err != nil {
+		return nil
+	}
 	internal := node.checkInternalAccountsFromMeta(ctx, tx, meta)
 	if !internal {
 		return nil
@@ -128,7 +129,8 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 	}
 	changes, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
 	if err != nil {
-		logger.Printf("node.parseSolanaBlockBalanceChanges(%s %d) => %d %v", hash.String(), len(transfers), len(changes), err)
+		logger.Printf("node.parseSolanaBlockBalanceChanges(%s, %d) => %d %v",
+			hash, len(transfers), len(changes), err)
 		return err
 	}
 	if len(changes) == 0 {
@@ -151,7 +153,7 @@ func (node *Node) solanaProcessTransaction(ctx context.Context, tx *solana.Trans
 			decimal = uint8(asset.Decimals)
 		}
 		if transfer.TokenAddress == solanaApp.SolanaEmptyAddress {
-			if transfer.Value.Uint64() == 1 {
+			if transfer.Value.Uint64() < 10 {
 				continue
 			}
 			index, err := tx.GetAccountIndex(solana.MustPublicKeyFromBase58(transfer.Receiver))
