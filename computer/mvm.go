@@ -560,21 +560,36 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if err != nil {
 			panic(err)
 		}
-		if call == nil || call.Type != store.CallTypeMain {
+		if call == nil {
 			return node.failRequest(ctx, req, "")
 		}
 
-		os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
-		if err != nil {
-			panic(err)
+		var outputs []*store.UserOutput
+		switch call.Type {
+		case store.CallTypeMain, store.CallTypePrepare:
+			main := call
+			if call.Type == store.CallTypePrepare {
+				c, err := node.store.ReadSystemCallByRequestId(ctx, call.Superior, common.RequestStatePending)
+				logger.Printf("store.ReadSystemCallByRequestId(%s) => %v %v", call.Superior, call, err)
+				if err != nil || c == nil {
+					panic(err)
+				}
+				main = c
+			}
+
+			os, _, err := node.GetSystemCallReferenceOutputs(ctx, main.UserIdFromPublicPath().String(), main.RequestHash, common.RequestStatePending)
+			if err != nil {
+				panic(err)
+			}
+			outputs = os
 		}
 
+		var session *store.Session
 		post, err := node.getPostProcessCall(ctx, req, call, extra[16:])
 		logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, post, err)
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
-		var session *store.Session
 		if post != nil {
 			session = &store.Session{
 				Id:         post.RequestId,
@@ -589,7 +604,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			}
 		}
 
-		err = node.store.FailSystemCallWithRequest(ctx, req, call, post, session, os)
+		err = node.store.FailSystemCallWithRequest(ctx, req, call, post, session, outputs)
 		if err != nil {
 			panic(err)
 		}
