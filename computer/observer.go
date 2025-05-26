@@ -317,6 +317,11 @@ func (node *Node) deployOrConfirmAssets(ctx context.Context) error {
 	if err != nil || tx == nil {
 		return err
 	}
+	payer := solana.MustPrivateKeyFromBase58(node.conf.SolanaKey)
+	_, err = tx.PartialSign(solanaApp.BuildSignersGetter(payer))
+	if err != nil {
+		panic(err)
+	}
 	rpcTx, err := node.SendTransactionUtilConfirm(ctx, tx, nil)
 	if err != nil {
 		return err
