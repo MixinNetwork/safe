@@ -327,11 +327,22 @@ func (s *SQLite3Store) FailSystemCallWithRequest(ctx context.Context, req *Reque
 	if err != nil {
 		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
 	}
+
 	// if a main system call failed, its prepare call must success
-	query = "UPDATE system_calls SET state=?, updated_at=? WHERE superior_id=? AND call_type=? AND state=?"
-	_, err = tx.ExecContext(ctx, query, common.RequestStateDone, req.CreatedAt, call.RequestId, CallTypePrepare, common.RequestStatePending)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
+	if call.Type == CallTypeMain {
+		query = "UPDATE system_calls SET state=?, updated_at=? WHERE superior_id=? AND call_type=? AND state=?"
+		_, err = tx.ExecContext(ctx, query, common.RequestStateDone, req.CreatedAt, call.RequestId, CallTypePrepare, common.RequestStatePending)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
+		}
+	}
+	// if a prepare system call failed, fail its main call
+	if call.Type == CallTypePrepare {
+		query = "UPDATE system_calls SET state=?, updated_at=? WHERE superior_id=? AND call_type=? AND state=?"
+		_, err = tx.ExecContext(ctx, query, common.RequestStateFailed, req.CreatedAt, call.Superior, CallTypeMain, common.RequestStatePending)
+		if err != nil {
+			return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
+		}
 	}
 
 	if sub != nil {
