@@ -560,7 +560,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 		if err != nil {
 			panic(err)
 		}
-		if call == nil {
+		if call == nil || call.Type != store.CallTypeMain {
 			return node.failRequest(ctx, req, "")
 		}
 
