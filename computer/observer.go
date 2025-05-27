@@ -650,6 +650,14 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			if main == nil {
 				continue
 			}
+			unconfirmed, err := node.store.CheckUnconfirmedWithdrawals(ctx, main)
+			if err != nil {
+				panic(err)
+			}
+			// should wait withdrawals of its main call getting confirmed
+			if unconfirmed {
+				continue
+			}
 			key := fmt.Sprintf("%s:%s", store.CallTypeMain, main.UserIdFromPublicPath().String())
 			// should be processed after previous main call being confirmed
 			if len(callSequence[key]) > 0 {
@@ -688,7 +696,12 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 			if err != nil {
 				panic(err)
 			}
-			if pending {
+			unconfirmed, err := node.store.CheckUnconfirmedWithdrawals(ctx, call)
+			if err != nil {
+				panic(err)
+			}
+			// should be processed with its prepare call together or wait withdrawals getting confirmed
+			if pending || unconfirmed {
 				return
 			}
 		}
