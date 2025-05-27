@@ -159,6 +159,14 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				if err != nil {
 					panic(err)
 				}
+				if call != nil && call.State == common.RequestStateDone {
+					err = node.store.MarkSessionDone(ctx, op.Id)
+					logger.Printf("node.MarkSessionDone(%v) => %v", op, err)
+					if err != nil {
+						panic(err)
+					}
+					break
+				}
 				signed, sig := node.verifySessionSignature(call.MessageBytes(), op.Extra, share, path)
 				if signed {
 					op.Extra = sig
