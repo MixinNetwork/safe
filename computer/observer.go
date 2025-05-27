@@ -489,9 +489,9 @@ func (node *Node) handleUnconfirmedWithdrawals(ctx context.Context) error {
 			return fmt.Errorf("invalid withdrawal hash: %s", tx.TraceId)
 		}
 		cid := uuid.Must(uuid.FromString(tx.Memo)).String()
-		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStateInitial)
+		call, err := node.store.ReadSystemCallByRequestId(ctx, cid, common.RequestStatePending)
 		if err != nil || call == nil {
-			return fmt.Errorf("store.ReadSystemCallByRequestId(%s %d) => %v %v", cid, common.RequestStateInitial, call, err)
+			return fmt.Errorf("store.ReadSystemCallByRequestId(%s %d) => %v %v", cid, common.RequestStatePending, call, err)
 		}
 
 		err = node.store.WriteConfirmedWithdrawal(ctx, &store.ConfirmedWithdrawal{
