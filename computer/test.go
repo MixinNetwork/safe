@@ -187,14 +187,11 @@ func (n *testNetwork) msgChannel(id party.ID) chan []byte {
 }
 
 func getTestSystemConfirmCallMessage(signature string) string {
-	if signature == "MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi" {
-		return "bf1648ad15341bc4225e08e1c6842df68bf80f309764ec32327deab8e2743167"
-	}
 	if signature == "2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb" {
 		return "4d57022c484aebdb7d4472c16740f7e8c4f9047b41cbcf05a9d517558bc276c7"
 	}
 	if signature == "5s3UBMymdgDHwYvuaRdq9SLq94wj5xAgYEsDDB7TQwwuLy1TTYcSf6rF4f2fDfF7PnA9U75run6r1pKm9K1nusCR" {
-		return "0314cf38ff55a04303780f98a5c82498797d9cd7f40d1ed992a7864ca7357436"
+		return "bf1648ad15341bc4225e08e1c6842df68bf80f309764ec32327deab8e2743167"
 	}
 	return ""
 }
