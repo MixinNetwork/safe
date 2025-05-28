@@ -18,7 +18,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*solana.Transaction, error) {
+func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string, rent uint64) (*solana.Transaction, error) {
 	payer, err := solana.PrivateKeyFromBase58(key)
 	if err != nil {
 		panic(err)
@@ -29,11 +29,6 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	}
 
 	computerPriceIns := c.getPriorityFeeInstruction(ctx)
-
-	rentExemptBalance, err := c.RPCGetMinimumBalanceForRentExemption(ctx, nonceAccountSize)
-	if err != nil {
-		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", nonceAccountSize, err)
-	}
 	block, err := c.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentProcessed)
 	if err != nil {
 		return nil, fmt.Errorf("solana.GetLatestBlockhash() => %v", err)
@@ -43,8 +38,8 @@ func (c *Client) CreateNonceAccount(ctx context.Context, key, nonce string) (*so
 	tx, err := solana.NewTransaction(
 		[]solana.Instruction{
 			system.NewCreateAccountInstruction(
-				rentExemptBalance,
-				nonceAccountSize,
+				rent,
+				NonceAccountSize,
 				system.ProgramID,
 				payer.PublicKey(),
 				nonceKey.PublicKey(),
@@ -114,14 +109,10 @@ func (c *Client) InitializeAccount(ctx context.Context, key, user string) (*sola
 	return tx, nil
 }
 
-func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, assets []*DeployedAsset) (*solana.Transaction, error) {
+func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, assets []*DeployedAsset, rent uint64) (*solana.Transaction, error) {
 	builder := solana.NewTransactionBuilder()
 	builder.SetFeePayer(payer)
 
-	rent, err := c.RPCGetMinimumBalanceForRentExemption(ctx, mintSize)
-	if err != nil {
-		return nil, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption() => %v", err)
-	}
 	for _, asset := range assets {
 		if asset.ChainId == SolanaChainBase {
 			return nil, fmt.Errorf("CreateMints(%s) => invalid asset chain", asset.AssetId)
@@ -131,7 +122,7 @@ func (c *Client) CreateMints(ctx context.Context, payer, mtg solana.PublicKey, a
 		builder.AddInstruction(
 			system.NewCreateAccountInstruction(
 				rent,
-				mintSize,
+				MintSize,
 				token.ProgramID,
 				payer,
 				mint,

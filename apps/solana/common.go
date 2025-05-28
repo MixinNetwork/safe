@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	nonceAccountSize  uint64 = 80
-	mintSize          uint64 = 82
+	NonceAccountSize  uint64 = 80
+	MintSize          uint64 = 82
 	NormalAccountSize uint64 = 165
 
 	maxNameLength   = 32

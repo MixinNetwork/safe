@@ -270,7 +270,11 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		}
 	}
 
-	tx, err := node.solana.CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), assets)
+	rent, err := node.RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.MintSize)
+	if err != nil {
+		panic(err)
+	}
+	tx, err := node.solana.CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), assets, rent)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -283,7 +287,11 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
 	nonce := solanaApp.PrivateKeyFromSeed(seed[:])
 
-	tx, err := node.solana.CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
+	rent, err := node.RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.NonceAccountSize)
+	if err != nil {
+		panic(err)
+	}
+	tx, err := node.solana.CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String(), rent)
 	if err != nil {
 		return "", "", err
 	}
