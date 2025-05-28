@@ -442,8 +442,8 @@ func (node *Node) handleFeeInfo(ctx context.Context) error {
 	solPrice := decimal.RequireFromString(sol.PriceUSD)
 	ratio := xinPrice.Div(solPrice)
 
-	node.store.WriteFeeInfoWithRequest(ctx, nil, ratio.String())
-	panic("TODO")
+	id := uuid.Must(uuid.NewV4()).String()
+	return node.store.WriteFeeInfo(ctx, id, ratio)
 }
 
 func (node *Node) handleWithdrawalsFee(ctx context.Context) error {

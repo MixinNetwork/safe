@@ -256,7 +256,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	require.Nil(err)
 	require.Equal("7ipVMFwwgbvyum7yniEHrmxtbcpq6yVEY8iybr7vwsqC", nonce.Address)
 	require.Equal("8uL2Fwc3WNnM7pYkXjn1sxHXGTBmWrB7HpNAtKuuLbEG", nonce.Hash)
-	extraFee, err := node.getSystemCallFeeFromXIN(ctx, c, true)
+	extraFee, err := node.getSystemCallFeeFromXIN(ctx, c)
 	require.Nil(err)
 	feeActual := decimal.RequireFromString(extraFee.Amount)
 	require.True(feeActual.Cmp(solAmount) >= 0)

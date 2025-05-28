@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
+	"github.com/shopspring/decimal"
 )
 
 type FeeInfo struct {
@@ -27,7 +28,7 @@ func feeFromRow(row Row) (*FeeInfo, error) {
 	return &f, err
 }
 
-func (s *SQLite3Store) WriteFeeInfoWithRequest(ctx context.Context, req *Request, ratio string) error {
+func (s *SQLite3Store) WriteFeeInfo(ctx context.Context, id string, ratio decimal.Decimal) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -37,20 +38,15 @@ func (s *SQLite3Store) WriteFeeInfoWithRequest(ctx context.Context, req *Request
 	}
 	defer common.Rollback(tx)
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT fee_id FROM fees WHERE fee_id=?", req.Id)
+	existed, err := s.checkExistence(ctx, tx, "SELECT fee_id FROM fees WHERE fee_id=?", id)
 	if err != nil || existed {
 		return err
 	}
 
-	vals := []any{req.Id, ratio, req.CreatedAt}
+	vals := []any{id, ratio.String(), time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("fees", feeCols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT fees %v", err)
-	}
-
-	err = s.finishRequest(ctx, tx, req, nil, "")
-	if err != nil {
-		return err
 	}
 
 	return tx.Commit()
