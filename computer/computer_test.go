@@ -380,7 +380,7 @@ func testObserverUpdateNetworInfo(ctx context.Context, require *require.Assertio
 	fee, err = node.store.ReadLatestFeeInfo(ctx)
 	require.Nil(err)
 	require.NotNil(fee)
-	require.Equal(ratio, fee.Ratio)
+	require.Equal(ratio.String(), fee.Ratio)
 }
 
 func testObserverSetPriceParams(ctx context.Context, require *require.Assertions, nodes []*Node) {

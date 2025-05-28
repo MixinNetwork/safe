@@ -188,7 +188,7 @@ func (n *testNetwork) msgChannel(id party.ID) chan []byte {
 
 func getTestSystemConfirmCallMessage(signature string) string {
 	if signature == "MBsH9LRbrx4u3kMkFkGuDyxjj3Pio55Puwv66dtR2M3CDfaR7Ef7VEKHDGM7GhB3fE1Jzc7k3zEZ6hvJ399UBNi" {
-		return "a8c28f6c60d06a00a6ffa8d7d4e6ba0a3a9f8fdcaa572f5785781be0a1d2ae36"
+		return "bf1648ad15341bc4225e08e1c6842df68bf80f309764ec32327deab8e2743167"
 	}
 	if signature == "2tPHv7kbUeHRWHgVKKddQqXnjDhuX84kTyCvRy1BmCM4m4Fkq4vJmNAz8A7fXqckrSNRTAKuPmAPWnzr5T7eCChb" {
 		return "4d57022c484aebdb7d4472c16740f7e8c4f9047b41cbcf05a9d517558bc276c7"
