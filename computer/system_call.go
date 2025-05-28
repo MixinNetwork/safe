@@ -194,21 +194,10 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		panic(err)
 	}
 
-	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, call.UserIdFromPublicPath().String(), req.MixinHash.String(), 0)
-	if err != nil {
-		panic(err)
-	}
-	total := decimal.NewFromInt(0)
-	for _, output := range outputs {
-		total = total.Add(decimal.RequireFromString(output.Amount))
-	}
-	if common.CheckTestEnvironment(ctx) { // TODO create these test outputs
-		total = decimal.NewFromFloat(0.28271639 + 0.001)
-	}
-	if total.Compare(plan.OperationPriceAmount) <= 0 {
+	if req.Amount.Compare(plan.OperationPriceAmount) <= 0 {
 		return nil, nil
 	}
-	feeOnXIN := total.Sub(plan.OperationPriceAmount)
+	feeOnXIN := req.Amount.Sub(plan.OperationPriceAmount)
 	feeOnSol := feeOnXIN.Mul(ratio).RoundCeil(8).String()
 
 	asset, err := common.SafeReadAssetUntilSufficient(ctx, common.SafeSolanaChainId)
