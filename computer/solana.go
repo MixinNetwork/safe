@@ -412,10 +412,21 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		}
 	}
 
+	rent, err := node.RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.NormalAccountSize)
+	if err != nil {
+		panic(err)
+	}
 	var transfers []*solanaApp.TokenTransfer
 	for _, asset := range assets {
 		if !asset.Amount.IsPositive() {
 			continue
+		}
+		if asset.AssetId == solanaApp.SolanaChainBase {
+			limit := decimal.NewFromUint64(rent)
+			if asset.Amount.Cmp(limit) < 1 {
+				logger.Printf("skip SOL transfer in post-process: %v", asset)
+				continue
+			}
 		}
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)

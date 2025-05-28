@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -237,4 +238,30 @@ func (node *Node) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.
 		panic(err)
 	}
 	return block, nil
+}
+
+func (node *Node) RPCGetMinimumBalanceForRentExemption(ctx context.Context, dataSize uint64) (uint64, error) {
+	key := fmt.Sprintf("getMinimumBalanceForRentExemption:%d", dataSize)
+	value, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	if value != "" {
+		num, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		return num, nil
+	}
+
+	rentExemptBalance, err := node.solana.RPCGetMinimumBalanceForRentExemption(ctx, dataSize)
+	if err != nil {
+		return 0, fmt.Errorf("soalan.GetMinimumBalanceForRentExemption(%d) => %v", dataSize, err)
+	}
+	err = node.store.WriteCache(ctx, key, fmt.Sprintf("%d", rentExemptBalance))
+	if err != nil {
+		panic(err)
+	}
+	return rentExemptBalance, nil
 }
