@@ -194,13 +194,13 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		panic(err)
 	}
 
-	// TODO what does this mean actually? This is used both by prepare and post call
-	// And why list outputs of this transaction hash? Because maybe it belongs to
-	// many different users.
-	outputs := node.group.ListOutputsByTransactionHash(ctx, req.MixinHash.String(), req.Sequence)
+	outputs, err := node.store.ListUserOutputsByHashAndState(ctx, call.UserIdFromPublicPath().String(), req.MixinHash.String(), 0)
+	if err != nil {
+		panic(err)
+	}
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
-		total = total.Add(output.Amount)
+		total = total.Add(decimal.RequireFromString(output.Amount))
 	}
 	if common.CheckTestEnvironment(ctx) { // TODO create these test outputs
 		total = decimal.NewFromFloat(0.28271639 + 0.001)

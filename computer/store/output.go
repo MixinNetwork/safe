@@ -63,8 +63,14 @@ func (s *SQLite3Store) WriteUserDepositWithRequest(ctx context.Context, req *Req
 }
 
 func (s *SQLite3Store) ListUserOutputsByHashAndState(ctx context.Context, user_id, hash string, state byte) ([]*UserOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM user_outputs WHERE user_id=? AND transaction_hash=? AND state=? ORDER BY created_at ASC LIMIT 100", strings.Join(userOutputCols, ","))
-	return s.listUserOutputsByQuery(ctx, query, user_id, hash, state)
+	vals := []any{user_id, hash}
+	query := fmt.Sprintf("SELECT %s FROM user_outputs WHERE user_id=? AND transaction_hash=?", strings.Join(userOutputCols, ","))
+	if state > 0 {
+		query += " AND state=?"
+		vals = append(vals, state)
+	}
+	query += " ORDER BY created_at ASC LIMIT 100"
+	return s.listUserOutputsByQuery(ctx, query, vals...)
 }
 
 func (s *SQLite3Store) listUserOutputsByQuery(ctx context.Context, query string, params ...any) ([]*UserOutput, error) {
