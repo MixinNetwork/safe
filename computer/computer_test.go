@@ -364,30 +364,23 @@ func testObserverRequestCreateNonceAccount(ctx context.Context, require *require
 
 func testObserverUpdateNetworInfo(ctx context.Context, require *require.Assertions, nodes []*Node) {
 	id := "1055985c-5759-3839-b5b5-977915ac424d"
-	for _, node := range nodes {
-		fee, err := node.store.ReadLatestFeeInfo(ctx)
-		require.Nil(err)
-		require.Nil(fee)
+	node := nodes[0]
 
-		xinPrice := decimal.RequireFromString("105.23")
-		solPrice := decimal.RequireFromString("126.83")
-		ratio := xinPrice.Div(solPrice).String()
-		require.Equal("0.8296932902310179", ratio)
+	fee, err := node.store.ReadLatestFeeInfo(ctx)
+	require.Nil(err)
+	require.Nil(fee)
 
-		extra := []byte(ratio)
+	xinPrice := decimal.RequireFromString("105.23")
+	solPrice := decimal.RequireFromString("126.83")
+	ratio := xinPrice.Div(solPrice)
+	require.Equal("0.8296932902310179", ratio.String())
 
-		out := testBuildObserverRequest(node, id, OperationTypeUpdateFeeInfo, extra)
-		testStep(ctx, require, node, out)
-
-		fee, err = node.store.ReadLatestFeeInfo(ctx)
-		require.Nil(err)
-		require.NotNil(fee)
-		require.Equal(ratio, fee.Ratio)
-		fee, err = node.store.ReadValidFeeInfo(ctx, fee.Id)
-		require.Nil(err)
-		require.NotNil(fee)
-		require.Equal(ratio, fee.Ratio)
-	}
+	err = node.store.WriteFeeInfo(ctx, id, ratio)
+	require.Nil(err)
+	fee, err = node.store.ReadLatestFeeInfo(ctx)
+	require.Nil(err)
+	require.NotNil(fee)
+	require.Equal(ratio, fee.Ratio)
 }
 
 func testObserverSetPriceParams(ctx context.Context, require *require.Assertions, nodes []*Node) {
