@@ -426,10 +426,14 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 	}
 	var transfers []*solanaApp.TokenTransfer
 	for _, asset := range assets {
-		if !asset.Amount.IsPositive() {
+		dust := decimal.RequireFromString("0.00000001")
+		if asset.Amount.Cmp(dust) < 0 {
 			continue
 		}
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
+		if !amount.BigInt().IsUint64() {
+			continue
+		}
 		if asset.AssetId == solanaApp.SolanaChainBase {
 			limit := decimal.NewFromUint64(rent)
 			if amount.Cmp(limit) < 1 {

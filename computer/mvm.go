@@ -442,6 +442,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 				mint.Decimals != uint32(asset.Precision) ||
 				mint.MintAuthority != node.getMTGAddress(ctx).String() ||
 				mint.FreezeAuthority != "" {
+				// TODO check symbol and name
 				logger.Printf("solana.RPCGetAsset(%s) => %v", address, mint)
 				return node.failRequest(ctx, req, "")
 			}
