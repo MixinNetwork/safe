@@ -713,59 +713,6 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 	return nil
 }
 
-func (node *Node) VerifyMintSystemCall(ctx context.Context, tx *solana.Transaction, mtgAccount solana.PublicKey, as map[string]*solanaApp.DeployedAsset) error {
-	for index, ix := range tx.Message.Instructions {
-		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
-		if err != nil {
-			panic(err)
-		}
-		accounts, err := ix.ResolveInstructionAccounts(&tx.Message)
-		if err != nil {
-			panic(err)
-		}
-
-		if index == 0 {
-			_, err := solanaApp.DecodeNonceAdvance(accounts, ix.Data)
-			if err != nil {
-				return fmt.Errorf("invalid nonce advance instruction: %v", err)
-			}
-			continue
-		}
-
-		switch programKey {
-		case solana.TokenMetadataProgramID:
-		case system.ProgramID:
-			if _, ok := solanaApp.DecodeCreateAccount(accounts, ix.Data); ok {
-				continue
-			}
-			return fmt.Errorf("invalid system program instruction: %d", index)
-		case solana.TokenProgramID, solana.Token2022ProgramID:
-			if mint, ok := solanaApp.DecodeMintToken(accounts, ix.Data); ok {
-				address := mint.GetMintAccount().PublicKey
-				asset := as[address.String()]
-				if asset == nil {
-					return fmt.Errorf("invalid token mint instruction: invalid address %s", address.String())
-				}
-				if int(*mint.Decimals) != asset.Asset.Precision {
-					return fmt.Errorf("invalid token mint instruction: invalid decimals %d", mint.Decimals)
-				}
-				if mint.FreezeAuthority != nil {
-					return fmt.Errorf("invalid token mint instruction: invalid freezeAuthority")
-				}
-				if !mint.MintAuthority.Equals(mtgAccount) {
-					return fmt.Errorf("invalid token mint instruction: invalid mintAuthority %s", mint.MintAuthority)
-				}
-				continue
-			}
-			return fmt.Errorf("invalid token program instruction: %d", index)
-		case solana.ComputeBudget:
-		default:
-			return fmt.Errorf("invalid program key: %s", programKey.String())
-		}
-	}
-	return nil
-}
-
 func (node *Node) parseSolanaBlockBalanceChanges(ctx context.Context, transfers []*solanaApp.Transfer) (map[string]*big.Int, error) {
 	mtgAddress := node.getMTGAddress(ctx).String()
 

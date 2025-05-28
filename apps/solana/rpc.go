@@ -35,10 +35,11 @@ type AssetMetadata struct {
 }
 
 type Asset struct {
-	Address       string `json:"address"`
-	Id            string `json:"id"`
-	Decimals      uint32 `json:"decimals"`
-	MintAuthority string `json:"mint_authority"`
+	Address         string `json:"address"`
+	Id              string `json:"id"`
+	Decimals        uint32 `json:"decimals"`
+	MintAuthority   string `json:"mint_authority"`
+	FreezeAuthority string `json:"freeze_authority"`
 }
 
 func (c *Client) RPCGetConfirmedHeight(ctx context.Context) (uint64, error) {
@@ -109,11 +110,16 @@ func (c *Client) RPCGetAsset(ctx context.Context, address string) (*Asset, error
 			panic(err)
 		}
 
+		freezeAuthority := ""
+		if mint.Parsed.Info.FreezeAuthority != nil {
+			freezeAuthority = mint.Parsed.Info.FreezeAuthority.String()
+		}
 		asset := &Asset{
-			Address:       address,
-			Id:            GenerateAssetId(address),
-			Decimals:      uint32(mint.Parsed.Info.Decimals),
-			MintAuthority: mint.Parsed.Info.MintAuthority.String(),
+			Address:         address,
+			Id:              GenerateAssetId(address),
+			Decimals:        uint32(mint.Parsed.Info.Decimals),
+			MintAuthority:   mint.Parsed.Info.MintAuthority.String(),
+			FreezeAuthority: freezeAuthority,
 		}
 		return asset, nil
 	}
