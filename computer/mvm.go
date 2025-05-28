@@ -140,17 +140,13 @@ func (node *Node) processUserDeposit(ctx context.Context, req *store.Request) ([
 //     memo: user id (8 bytes) | call id (16 bytes) | skip post-process flag (1 byte) | fee id (16 bytes if needed)
 //     if memo includes the fee id and mtg receives extra amount of XIN (> 0.001), same value of SOL would be tranfered to user account in prepare system call.
 //     processSystemCall
-//     (state: initial, withdrawal_traces: NULL, withdrawn_at: NULL, signature: NULL)
+//     (state: initial, withdrawal_traces: NULL, signature: NULL)
 //
 //  2. observer confirms nonce available and creates prepare system call to transfer assets to user account in advance
 //     mvm creates withdrawal txs and makes sign requests for user system call and prepare system call
 //     processConfirmNonce
-//     need withdrawals:
-//     (user    system call, state: initial, withdrawal_traces: NOT NULL, withdrawn_at: NULL,     signature: NULL)
-//     (prepare system call, state: initial, withdrawal_traces: "",       withdrawn_at: NOT NULL, signature: NULL)
-//     otherwise:
-//     (user    system call, state: pending, withdrawal_traces: "",       withdrawn_at: NOT NULL, signature: NULL)
-//     (prepare system call, state: pending, withdrawal_traces: "",       withdrawn_at: NOT NULL, signature: NULL)
+//     (user    system call, state: pending, withdrawal_traces: NOT NULL, signature: NULL)
+//     (prepare system call, state: pending, withdrawal_traces: "",       signature: NULL)
 //
 //     1). observer requests to regenerate signatures for system calls if timeout
 //     processObserverRequestSign
@@ -160,28 +156,23 @@ func (node *Node) processUserDeposit(ctx context.Context, req *store.Request) ([
 //     (user    system call, signature: NOT NULL)
 //     (prepare system call, signature: NOT NULL)
 //
-//  3. observer pays the withdrawal fees and confirms all withdrawals success
-//     processConfirmWithdrawal
-//     (user    system call, state: pending, withdrawal_traces: "", withdrawn_at: NOT NULL, signature: NOT NULL)
-//     (prepare system call, state: pending, withdrawal_traces: "", withdrawn_at: NOT NULL, signature: NOT NULL)
+//  3. observer pays the withdrawal fees
 //
-//  4. observer runs prepare system call and confirms prepare system call successfully
-//     (prepare system call state: done)
-//     (user    system call state: pending)
-//
-//  5. observer runs, confirms prepare and main call successfully in order
-//     and creates post-process system call to transfer solana assets to mtg deposit entry and burn external assets
-//     mvm makes sign requests for post-process system call
+//  4. observer runs prepare system call and user system call in a row if withdrawals of user system call are all confirmed,
+//     builds post-process system call to transfer solana assets to mtg deposit entry and burn external assets if needed,
+//     then confirms the two calls successful in one request to mtg with the post-process call.
+//     mtg would mark the prepare and user system call as done, and makes sign requests for post-process system call
 //     processConfirmCall
-//     (user         system call state: done)
-//     (post-process system call state: pending, withdrawal_traces: "", withdrawn_at: NOT NULL, signature: NULL)
+//     (prepare      system call, state: done,    hash: NOT NULL)
+//     (user         system call, state: done,    hash: NOT NULL)
+//     (post-process system call, state: pending, signature: NULL)
 //
 //     1). mtg generate signatures for post-process system call
 //     processSignerSignatureResponse
 //     (post-process system call, signature: NOT NULL)
 //
-//  6. observer runs, confirms post-process call successfully
-//     (post-process system call state: done)
+//  5. observer runs, confirms post-process call successfully
+//     (post-process system call, state: done)
 func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]*mtg.Transaction, string) {
 	if req.Role != RequestRoleUser {
 		panic(req.Role)
