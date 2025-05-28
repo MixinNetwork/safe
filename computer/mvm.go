@@ -243,12 +243,6 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.SkipPostProcess = skipPostProcess
 
-	_, err = node.getSystemCallFeeFromXIN(ctx, call, true)
-	if err != nil {
-		logger.Printf("node.getSystemCallFeeFromXIN(%s) => %v", call.RequestId, err)
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
-	}
-
 	err = node.checkUserSystemCall(ctx, tx)
 	if err != nil {
 		logger.Printf("node.checkUserSystemCall(%v) => %v", tx, err)

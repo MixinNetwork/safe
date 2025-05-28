@@ -75,13 +75,3 @@ func (s *SQLite3Store) ReadLatestFeeInfo(ctx context.Context) (*FeeInfo, error) 
 
 	return feeFromRow(row)
 }
-
-func (s *SQLite3Store) ReadValidFeeInfo(ctx context.Context, id string) (*FeeInfo, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	query := fmt.Sprintf("SELECT %s FROM fees WHERE fee_id=? ORDER BY created_at DESC LIMIT 2", strings.Join(feeCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
-
-	return feeFromRow(row)
-}

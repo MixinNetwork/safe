@@ -29,7 +29,7 @@ const (
 	testUserNonceAccountHash    = "FrqtK1eTYLJtR6mGNaBWF6qyfpjTqk1DJaAQdAm31Xc1"
 )
 
-func TestComputerSolana(t *testing.T) {
+func TestSolana(t *testing.T) {
 	require := require.New(t)
 	ctx, nodes, _ := testPrepare(require)
 	testFROSTPrepareKeys(ctx, require, nodes, testFROSTKeys1, "fb17b60698d36d45bc624c8e210b4c845233c99a7ae312a27e883a8aa8444b9b")

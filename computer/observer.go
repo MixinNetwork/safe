@@ -442,12 +442,8 @@ func (node *Node) handleFeeInfo(ctx context.Context) error {
 	solPrice := decimal.RequireFromString(sol.PriceUSD)
 	ratio := xinPrice.Div(solPrice)
 
-	extra := []byte(ratio.String())
-	return node.sendObserverTransactionToGroup(ctx, &common.Operation{
-		Id:    common.UniqueId(time.Now().String(), fmt.Sprintf("%s:fee", node.id)),
-		Type:  OperationTypeUpdateFeeInfo,
-		Extra: extra,
-	}, nil)
+	node.store.WriteFeeInfoWithRequest(ctx, nil, ratio.String())
+	panic("TODO")
 }
 
 func (node *Node) handleWithdrawalsFee(ctx context.Context) error {
@@ -541,7 +537,7 @@ func (node *Node) handleUnconfirmedCalls(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			fee, err := node.getSystemCallFeeFromXIN(ctx, call, false)
+			fee, err := node.getSystemCallFeeFromXIN(ctx, call)
 			if err != nil {
 				return err
 			}

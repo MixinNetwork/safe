@@ -159,7 +159,7 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.Use
 }
 
 // should only return error when no valid fees found
-func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall, checkValidFee bool) (*store.UserOutput, error) {
+func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.SystemCall) (*store.UserOutput, error) {
 	req, err := node.store.ReadRequestByHash(ctx, call.RequestHash)
 	if err != nil {
 		panic(err)
@@ -171,18 +171,10 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 	feeId := uuid.Must(uuid.FromBytes(extra[25:])).String()
 
 	var fee *store.FeeInfo
-	if checkValidFee {
-		fee, err = node.store.ReadValidFeeInfo(ctx, feeId)
-		logger.Printf("store.ReadValidFeeInfo(%s) => %v %v", feeId, fee, err)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		fee, err = node.store.ReadFeeInfoById(ctx, feeId)
-		logger.Printf("store.ReadFeeInfoById(%s) => %v %v", feeId, fee, err)
-		if err != nil {
-			panic(err)
-		}
+	fee, err = node.store.ReadFeeInfoById(ctx, feeId)
+	logger.Printf("store.ReadFeeInfoById(%s) => %v %v", feeId, fee, err)
+	if err != nil {
+		panic(err)
 	}
 	if fee == nil { // TODO check fee timestamp against the call timestamp not too old
 		return nil, fmt.Errorf("invalid fee id: %s", feeId)
