@@ -335,7 +335,7 @@ func bundleComputerState(ctx context.Context, node *computer.Node, mixin *mixin.
 		}
 		state = state + fmt.Sprintf("💍 SOL Balance: %s\n", solBalance.String())
 
-		balance, err := node.SolanaClient().RPCGetBalance(ctx, node.SolanaPayer())
+		balance, err := node.GetPayerBalance(ctx)
 		if err != nil {
 			return "", err
 		}

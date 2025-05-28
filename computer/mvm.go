@@ -447,7 +447,8 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 			if err != nil {
 				panic(fmt.Errorf("solana.RPCGetAsset(%s) => %v", address, mint))
 			}
-			if mint == nil || mint.MintAuthority != node.getMTGAddress(ctx).String() {
+			if mint == nil || mint.Decimals != uint32(asset.Precision) ||
+				mint.MintAuthority != node.getMTGAddress(ctx).String() {
 				logger.Printf("solana.RPCGetAsset(%s) => %v", address, mint)
 				return node.failRequest(ctx, req, "")
 			}

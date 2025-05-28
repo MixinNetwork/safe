@@ -3,7 +3,6 @@ package computer
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"slices"
@@ -39,14 +38,14 @@ func (node *Node) solanaRPCBlocksLoop(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		height, err := node.SolanaClient().RPCGetConfirmedHeight(ctx)
+		height, err := node.solana.RPCGetConfirmedHeight(ctx)
 		if err != nil {
 			logger.Printf("solana.RPCGetBlockHeight => %v", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
 
-		rentExemptBalance, err := node.SolanaClient().RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.NormalAccountSize)
+		rentExemptBalance, err := node.solana.RPCGetMinimumBalanceForRentExemption(ctx, solanaApp.NormalAccountSize)
 		if err != nil {
 			panic(err)
 		}
@@ -198,7 +197,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 	if err != nil {
 		return err
 	}
-	tx, err := node.SolanaClient().TransferOrBurnTokens(ctx, node.SolanaPayer(), solana.MustPublicKeyFromBase58(user), nonce.Account(), ts)
+	tx, err := node.solana.TransferOrBurnTokens(ctx, node.SolanaPayer(), solana.MustPublicKeyFromBase58(user), nonce.Account(), ts)
 	if err != nil {
 		panic(err)
 	}
@@ -216,7 +215,7 @@ func (node *Node) solanaProcessDepositTransaction(ctx context.Context, depositHa
 }
 
 func (node *Node) InitializeAccount(ctx context.Context, user *store.User) error {
-	tx, err := node.SolanaClient().InitializeAccount(ctx, node.conf.SolanaKey, user.ChainAddress)
+	tx, err := node.solana.InitializeAccount(ctx, node.conf.SolanaKey, user.ChainAddress)
 	if err != nil {
 		return err
 	}
@@ -271,7 +270,7 @@ func (node *Node) CreateMintsTransaction(ctx context.Context, as []string) (stri
 		}
 	}
 
-	tx, err := node.SolanaClient().CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), assets)
+	tx, err := node.solana.CreateMints(ctx, node.SolanaPayer(), node.getMTGAddress(ctx), assets)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -284,7 +283,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 	seed := crypto.Sha256Hash(uuid.Must(uuid.FromString(id)).Bytes())
 	nonce := solanaApp.PrivateKeyFromSeed(seed[:])
 
-	tx, err := node.SolanaClient().CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
+	tx, err := node.solana.CreateNonceAccount(ctx, node.conf.SolanaKey, nonce.String())
 	if err != nil {
 		return "", "", err
 	}
@@ -293,7 +292,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 		return "", "", err
 	}
 	for {
-		hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.PublicKey())
+		hash, err := node.solana.GetNonceAccountHash(ctx, nonce.PublicKey())
 		if err != nil {
 			return "", "", err
 		}
@@ -344,7 +343,7 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 	}
 
 	node.sortSolanaTransfers(transfers)
-	return node.SolanaClient().TransferOrMintTokens(ctx, node.SolanaPayer(), mtg, nonce.Account(), transfers)
+	return node.solana.TransferOrMintTokens(ctx, node.SolanaPayer(), mtg, nonce.Account(), transfers)
 }
 
 func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, tx *solana.Transaction, meta *rpc.TransactionMeta) *solana.Transaction {
@@ -440,7 +439,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		panic(err)
 	}
 
-	tx, err = node.SolanaClient().TransferOrBurnTokens(ctx, node.SolanaPayer(), user, nonce.Account(), transfers)
+	tx, err = node.solana.TransferOrBurnTokens(ctx, node.SolanaPayer(), user, nonce.Account(), transfers)
 	if err != nil {
 		panic(err)
 	}
@@ -449,7 +448,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 
 func (node *Node) ReleaseLockedNonceAccount(ctx context.Context, nonce *store.NonceAccount) error {
 	logger.Printf("observer.ReleaseLockedNonceAccount(%s)", nonce.Address)
-	hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+	hash, err := node.solana.GetNonceAccountHash(ctx, nonce.Account().Address)
 	if err != nil {
 		panic(err)
 	}
@@ -643,66 +642,6 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner *solana.PublicKey) map[s
 	return bm
 }
 
-func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall) (*rpc.GetTransactionResult, error) {
-	id := ""
-	if call != nil {
-		id = call.RequestId
-	}
-
-	hash := tx.Signatures[0].String()
-	retry := SolanaTxRetry
-	for {
-		rpcTx, err := node.RPCGetTransaction(ctx, hash)
-		if err != nil {
-			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
-		}
-		if rpcTx != nil {
-			return rpcTx, nil
-		}
-
-		sig, sendError := node.SolanaClient().SendTransaction(ctx, tx)
-		logger.Printf("solana.SendTransaction(%s) => %s %v", id, sig, sendError)
-		if sendError == nil {
-			retry -= 1
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		if strings.Contains(sendError.Error(), "Blockhash not found") {
-			// retry when observer send tx without nonce account
-			if call == nil {
-				retry -= 1
-				if retry > 0 {
-					time.Sleep(5 * time.Second)
-					continue
-				}
-				return nil, sendError
-			}
-
-			// outdated nonce account hash when sending tx at first time
-			if retry == SolanaTxRetry {
-				return nil, sendError
-			}
-		}
-
-		rpcTx, err = node.RPCGetTransaction(ctx, hash)
-		logger.Printf("solana.RPCGetTransaction(%s) => %v", hash, err)
-		if err != nil {
-			return nil, fmt.Errorf("solana.RPCGetTransaction(%s) => %v", hash, err)
-		}
-		// transaction confirmed after re-sending failure
-		if rpcTx != nil {
-			return rpcTx, nil
-		}
-
-		retry -= 1
-		if retry > 0 {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		return nil, sendError
-	}
-}
-
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
 	if common.CheckTestEnvironment(ctx) {
 		return nil
@@ -732,7 +671,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			}
 			if transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data); ok {
 				recipient := transfer.GetRecipientAccount().PublicKey
-				if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
+				if recipient.Equals(groupDepositEntry) || recipient.Equals(user) {
 					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 				}
 				continue
@@ -878,169 +817,6 @@ func (node *Node) getUserSolanaPublicKeyFromCall(ctx context.Context, c *store.S
 	return solana.PublicKeyFromBytes(pub)
 }
 
-func (node *Node) SolanaClient() *solanaApp.Client {
-	return solanaApp.NewClient(node.conf.SolanaRPC)
-}
-
-func (node *Node) RPCGetTransaction(ctx context.Context, signature string) (*rpc.GetTransactionResult, error) {
-	key := fmt.Sprintf("getTransaction:%s", signature)
-	value, err := node.store.ReadCache(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-
-	if value != "" {
-		var r rpc.GetTransactionResult
-		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
-		if err != nil {
-			panic(err)
-		}
-		return &r, nil
-	}
-
-	tx, err := node.SolanaClient().RPCGetTransaction(ctx, signature)
-	if err != nil {
-		panic(err)
-	}
-	if tx == nil {
-		return nil, nil
-	}
-	b, err := json.Marshal(tx)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
-	if err != nil {
-		panic(err)
-	}
-	return tx, nil
-}
-
-func (node *Node) RPCGetAccount(ctx context.Context, account solana.PublicKey) (*rpc.GetAccountInfoResult, error) {
-	key := fmt.Sprintf("getAccount:%s", account.String())
-	value, err := node.store.ReadCache(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-
-	if value != "" {
-		var r rpc.GetAccountInfoResult
-		err = json.Unmarshal(common.DecodeHexOrPanic(value), &r)
-		if err != nil {
-			panic(err)
-		}
-		return &r, nil
-	}
-
-	acc, err := node.SolanaClient().RPCGetAccount(ctx, account)
-	if err != nil {
-		panic(err)
-	}
-	if acc == nil {
-		return nil, nil
-	}
-	b, err := json.Marshal(acc)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
-	if err != nil {
-		panic(err)
-	}
-	return acc, nil
-}
-
-func (node *Node) RPCGetMultipleAccounts(ctx context.Context, as solana.PublicKeySlice) (*rpc.GetMultipleAccountsResult, error) {
-	accounts, err := node.SolanaClient().RPCGetMultipleAccounts(ctx, as)
-	if err != nil {
-		return nil, err
-	}
-	for index, acc := range accounts.Value {
-		if acc == nil {
-			continue
-		}
-		account := &rpc.GetAccountInfoResult{
-			RPCContext: accounts.RPCContext,
-			Value:      acc,
-		}
-		key := fmt.Sprintf("getAccountInfo:%s", as[index].String())
-		b, err := json.Marshal(account)
-		if err != nil {
-			panic(err)
-		}
-		err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
-		if err != nil {
-			panic(err)
-		}
-	}
-	return accounts, nil
-}
-
-func (node *Node) RPCGetAsset(ctx context.Context, account string) (*solanaApp.Asset, error) {
-	key := fmt.Sprintf("getAsset:%s", account)
-	value, err := node.store.ReadCache(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-
-	if value != "" {
-		var a solanaApp.Asset
-		err = json.Unmarshal(common.DecodeHexOrPanic(value), &a)
-		if err != nil {
-			panic(err)
-		}
-		return &a, nil
-	}
-
-	asset, err := node.SolanaClient().RPCGetAsset(ctx, account)
-	if err != nil {
-		panic(err)
-	}
-	if asset == nil {
-		return nil, nil
-	}
-	b, err := json.Marshal(asset)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
-	if err != nil {
-		panic(err)
-	}
-	return asset, nil
-}
-
-func (node *Node) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.GetBlockResult, error) {
-	key := fmt.Sprintf("getBlock:%d", height)
-	value, err := node.store.ReadCache(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-
-	if value != "" {
-		var b rpc.GetBlockResult
-		err = json.Unmarshal(common.DecodeHexOrPanic(value), &b)
-		if err != nil {
-			panic(err)
-		}
-		return &b, nil
-	}
-
-	block, err := node.SolanaClient().RPCGetBlockByHeight(ctx, height)
-	if err != nil {
-		return nil, err
-	}
-	b, err := json.Marshal(block)
-	if err != nil {
-		panic(err)
-	}
-	err = node.store.WriteCache(ctx, key, hex.EncodeToString(b))
-	if err != nil {
-		panic(err)
-	}
-	return block, nil
-}
-
 func (node *Node) SolanaPayer() solana.PublicKey {
 	return solana.MustPrivateKeyFromBase58(node.conf.SolanaKey).PublicKey()
 }
@@ -1051,16 +827,6 @@ func (node *Node) getMTGAddress(ctx context.Context) solana.PublicKey {
 		panic(fmt.Errorf("store.ReadFirstPublicKey() => %s %v", key, err))
 	}
 	return solana.PublicKeyFromBytes(common.DecodeHexOrPanic(key))
-}
-
-func (node *Node) getMTGPublicWithPath(ctx context.Context) string {
-	key, err := node.store.ReadFirstPublicKey(ctx)
-	if err != nil || key == "" {
-		panic(fmt.Errorf("store.ReadFirstPublicKey() => %s %v", key, err))
-	}
-	fp := common.Fingerprint(key)
-	public := append(fp, store.DefaultPath...)
-	return hex.EncodeToString(public)
 }
 
 func (node *Node) solanaDepositEntry() solana.PublicKey {

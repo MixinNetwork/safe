@@ -244,7 +244,7 @@ func (node *Node) httpLockNonce(w http.ResponseWriter, r *http.Request, params m
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "nonce"})
 		return
 	}
-	hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+	hash, err := node.solana.GetNonceAccountHash(ctx, nonce.Account().Address)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return

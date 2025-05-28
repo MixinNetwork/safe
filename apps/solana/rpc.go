@@ -74,25 +74,6 @@ func (c *Client) RPCGetBlockByHeight(ctx context.Context, height uint64) (*rpc.G
 	}
 }
 
-func (c *Client) getAssetMetadata(ctx context.Context, address string) (*AssetMetadata, error) {
-	for {
-		var resp struct {
-			Content struct {
-				Metadata AssetMetadata `json:"metadata"`
-			} `json:"content"`
-		}
-		err := c.rpcClient.RPCCallForInto(ctx, &resp, "getAsset", []any{address})
-		if mtg.CheckRetryableError(err) {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		return &resp.Content.Metadata, nil
-	}
-}
-
 type MintData struct {
 	Parsed struct {
 		Info struct {

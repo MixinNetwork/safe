@@ -12,6 +12,7 @@ import (
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	solanaApp "github.com/MixinNetwork/safe/apps/solana"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/computer/store"
 	"github.com/MixinNetwork/safe/mtg"
@@ -30,7 +31,8 @@ type Node struct {
 	operations map[string]bool
 	store      *store.SQLite3Store
 
-	mixin *mixin.Client
+	solana *solanaApp.Client
+	mixin  *mixin.Client
 }
 
 func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf *Configuration, mixin *mixin.Client) *Node {
@@ -44,7 +46,7 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 		sessions:   make(map[string]*MultiPartySession),
 		operations: make(map[string]bool),
 		store:      store,
-		mixin:      mixin,
+		solana:     solanaApp.NewClient(conf.SolanaRPC),
 	}
 
 	members := node.GetMembers()

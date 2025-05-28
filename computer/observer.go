@@ -145,7 +145,7 @@ func (node *Node) checkNonceAccounts(ctx context.Context) error {
 		panic(err)
 	}
 	for _, nonce := range ns {
-		hash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+		hash, err := node.solana.GetNonceAccountHash(ctx, nonce.Account().Address)
 		if err != nil {
 			panic(err)
 		}
@@ -402,7 +402,7 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 				return nil
 			}
 			for {
-				newNonceHash, err := node.SolanaClient().GetNonceAccountHash(ctx, nonce.Account().Address)
+				newNonceHash, err := node.solana.GetNonceAccountHash(ctx, nonce.Account().Address)
 				if err != nil {
 					panic(err)
 				}
@@ -605,7 +605,7 @@ func (node *Node) processUnsignedCalls(ctx context.Context) error {
 }
 
 func (node *Node) handleSignedCalls(ctx context.Context) error {
-	balance, err := node.SolanaClient().RPCGetBalance(ctx, node.SolanaPayer())
+	balance, err := node.solana.RPCGetBalance(ctx, node.SolanaPayer())
 	if err != nil {
 		return err
 	}
