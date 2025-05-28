@@ -119,7 +119,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string
 // be used to refund by mtg without fee
 // be used to create prepare call by observer with fee from payer (isolatedFee = true)
 // be used to create post call by observer with fee to calculate rest SOL
-func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput, isolatedFee bool) []*ReferencedTxAsset {
+func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.UserOutput) []*ReferencedTxAsset {
 	am := make(map[string]*ReferencedTxAsset)
 	for _, output := range os {
 		logger.Printf("node.GetReferencedTxAsset() => %v", output)
@@ -140,19 +140,12 @@ func (node *Node) GetSystemCallRelatedAsset(ctx context.Context, os []*store.Use
 			Amount:  amt,
 			AssetId: output.AssetId,
 			ChainId: output.Asset.ChainID,
-			Fee:     output.FeeOnXIN,
+			Fee:     false,
 		}
-		fk := output.AssetId
-		if ra.Fee && isolatedFee {
-			// an independent ReferencedTxAsset (Fee: true) to transfer SOL from payer account
-			// the others are sent from mtg solana account
-			fk = "fee"
-		}
-		old := am[fk]
-		if old != nil {
+		if old := am[output.AssetId]; old != nil {
 			ra.Amount = ra.Amount.Add(old.Amount)
 		}
-		am[fk] = ra
+		am[output.AssetId] = ra
 	}
 	var assets []*ReferencedTxAsset
 	for _, a := range am {
@@ -201,6 +194,9 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		panic(err)
 	}
 
+	// TODO what does this mean actually? This is used both by prepare and post call
+	// And why list outputs of this transaction hash? Because maybe it belongs to
+	// many different users.
 	outputs := node.group.ListOutputsByTransactionHash(ctx, req.MixinHash.String(), req.Sequence)
 	total := decimal.NewFromInt(0)
 	for _, output := range outputs {
@@ -209,7 +205,7 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 	if common.CheckTestEnvironment(ctx) { // TODO create these test outputs
 		total = decimal.NewFromFloat(0.28271639 + 0.001)
 	}
-	if total.Compare(plan.OperationPriceAmount) == 0 {
+	if total.Compare(plan.OperationPriceAmount) <= 0 {
 		return nil, nil
 	}
 	feeOnXIN := total.Sub(plan.OperationPriceAmount)
@@ -232,8 +228,7 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 
-		Asset:    *asset,
-		FeeOnXIN: true,
+		Asset: *asset,
 	}, nil
 }
 

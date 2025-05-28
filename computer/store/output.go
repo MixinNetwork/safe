@@ -24,8 +24,7 @@ type UserOutput struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 
-	Asset    bot.AssetNetwork
-	FeeOnXIN bool
+	Asset bot.AssetNetwork
 }
 
 var userOutputCols = []string{"output_id", "user_id", "transaction_hash", "output_index", "asset_id", "chain_id", "amount", "state", "signed_by", "created_at", "updated_at"}

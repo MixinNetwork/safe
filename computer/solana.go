@@ -313,15 +313,11 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 }
 
 func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.UserOutput) (*solana.Transaction, error) {
-	var transfers []*solanaApp.TokenTransfer
 	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
 	if err != nil {
 		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
 	}
-	if fee != nil {
-		os = append(os, fee)
-	}
-	if len(os) == 0 {
+	if len(os) == 0 && fee == nil {
 		return nil, nil
 	}
 
@@ -331,7 +327,8 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 		return nil, fmt.Errorf("store.ReadUser(%s) => %s %v", call.UserIdFromPublicPath().String(), user, err)
 	}
 	destination := solana.MustPublicKeyFromBase58(user.ChainAddress)
-	assets := node.GetSystemCallRelatedAsset(ctx, os, true)
+	assets := node.GetSystemCallRelatedAsset(ctx, os)
+	var transfers []*solanaApp.TokenTransfer
 	for _, asset := range assets {
 		amount := asset.Amount.Mul(decimal.New(1, int32(asset.Decimal)))
 		mint := solana.MustPublicKeyFromBase58(asset.Address)
@@ -344,6 +341,20 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 			Amount:      amount.BigInt().Uint64(),
 			Decimals:    uint8(asset.Decimal),
 			Fee:         asset.Fee,
+		})
+	}
+	if fee != nil {
+		amount := decimal.RequireFromString(fee.Amount).Mul(decimal.New(1, int32(fee.Asset.Precision)))
+		mint := solana.MustPublicKeyFromBase58(fee.Asset.AssetKey)
+		transfers = append(transfers, &solanaApp.TokenTransfer{
+			SolanaAsset: true,
+			AssetId:     fee.AssetId,
+			ChainId:     fee.ChainId,
+			Mint:        mint,
+			Destination: destination,
+			Amount:      amount.BigInt().Uint64(),
+			Decimals:    uint8(fee.Asset.Precision),
+			Fee:         true,
 		})
 	}
 	if len(transfers) == 0 {
@@ -367,7 +378,7 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 		os = append(os, fee)
 	}
 
-	ras := node.GetSystemCallRelatedAsset(ctx, os, false)
+	ras := node.GetSystemCallRelatedAsset(ctx, os)
 	assets := make(map[string]*ReferencedTxAsset)
 	for _, a := range ras {
 		if assets[a.Address] != nil {
