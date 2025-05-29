@@ -423,7 +423,15 @@ func (node *Node) releaseNonceAccounts(ctx context.Context) error {
 
 func (node *Node) releaseLockedNonceAccount(ctx context.Context, nonce *store.NonceAccount) {
 	logger.Printf("observer.releaseLockedNonceAccount(%v)", nonce)
-	err := node.ReleaseLockedNonceAccount(ctx, nonce)
+	hash, err := node.solana.GetNonceAccountHash(ctx, nonce.Account().Address)
+	if err != nil {
+		panic(err)
+	}
+	if hash.String() != nonce.Hash {
+		panic(fmt.Errorf("observer.releaseLockedNonceAccount(%s) => inconsistent hash %s %s ",
+			nonce.Address, nonce.Hash, hash.String()))
+	}
+	err = node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
 	if err != nil {
 		panic(err)
 	}

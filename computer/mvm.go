@@ -182,7 +182,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 
 	data := req.ExtraBytes()
-	if len(data) != 25 && len(data) != 41 {
+	if len(data) != 25 {
 		logger.Printf("invalid extra length of request to create system call: %d", len(data))
 		return node.failRequest(ctx, req, "")
 	}

@@ -219,7 +219,6 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	extra = user.IdBytes()
 	extra = append(extra, uuid.Must(uuid.FromString(id)).Bytes()...)
 	extra = append(extra, FlagWithPostProcess)
-	extra = append(extra, uuid.Must(uuid.FromString(fee.Id)).Bytes()...)
 	out := testBuildUserRequest(node, id, hash, "0.001", mtg.StorageAssetId, OperationTypeSystemCall, extra, refs, &xinFee)
 	for _, node := range nodes {
 		testStep(ctx, require, node, out)

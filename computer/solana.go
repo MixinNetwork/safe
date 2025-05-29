@@ -473,18 +473,6 @@ func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.
 	return tx
 }
 
-func (node *Node) ReleaseLockedNonceAccount(ctx context.Context, nonce *store.NonceAccount) error {
-	logger.Printf("observer.ReleaseLockedNonceAccount(%s)", nonce.Address)
-	hash, err := node.solana.GetNonceAccountHash(ctx, nonce.Account().Address)
-	if err != nil {
-		panic(err)
-	}
-	if hash.String() != nonce.Hash {
-		panic(fmt.Errorf("observer.ReleaseLockedNonceAccount(%s) => inconsistent hash %s %s ", nonce.Address, nonce.Hash, hash.String()))
-	}
-	return node.store.ReleaseLockedNonceAccount(ctx, nonce.Address)
-}
-
 type BalanceChange struct {
 	Owner    solana.PublicKey
 	Amount   decimal.Decimal
@@ -670,14 +658,11 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner *solana.PublicKey) map[s
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
+	// TODO do test verification with a real transaction
 	if common.CheckTestEnvironment(ctx) {
 		return nil
 	}
 	for index, ix := range tx.Message.Instructions {
-		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
-		if err != nil {
-			panic(err)
-		}
 		accounts, err := ix.ResolveInstructionAccounts(&tx.Message)
 		if err != nil {
 			panic(err)
@@ -691,6 +676,10 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			continue
 		}
 
+		programKey, err := tx.Message.Program(ix.ProgramIDIndex)
+		if err != nil {
+			panic(err)
+		}
 		switch programKey {
 		case system.ProgramID:
 			if _, ok := solanaApp.DecodeCreateAccount(accounts, ix.Data); ok {
@@ -698,7 +687,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			}
 			if transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data); ok {
 				recipient := transfer.GetRecipientAccount().PublicKey
-				if !(recipient.Equals(groupDepositEntry) || recipient.Equals(user)) {
+				if !recipient.Equals(groupDepositEntry) && !recipient.Equals(user) {
 					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 				}
 				continue
