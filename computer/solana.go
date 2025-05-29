@@ -313,10 +313,7 @@ func (node *Node) CreateNonceAccount(ctx context.Context, index int) (string, st
 }
 
 func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, fee *store.UserOutput) (*solana.Transaction, error) {
-	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
-	if err != nil {
-		return nil, fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err)
-	}
+	os, _ := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
 	if len(os) == 0 && fee == nil {
 		return nil, nil
 	}
@@ -366,9 +363,9 @@ func (node *Node) CreatePrepareTransaction(ctx context.Context, call *store.Syst
 }
 
 func (node *Node) CreatePostProcessTransaction(ctx context.Context, call *store.SystemCall, nonce *store.NonceAccount, tx *solana.Transaction, meta *rpc.TransactionMeta) *solana.Transaction {
-	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
-	if err != nil {
-		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
+	os, sh := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
+	if len(os) == 0 && sh == nil {
+		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => empty", call.RequestId))
 	}
 
 	ras := node.GetSystemCallRelatedAsset(ctx, os)

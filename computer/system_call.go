@@ -28,10 +28,9 @@ type ReferencedTxAsset struct {
 	Fee     bool
 }
 
-// should only return error when mtg could not find outputs from referenced transaction
 // all assets needed in system call should be referenced
 // extra amount of XIN is used for fees in system call like rent
-func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, uid, requestHash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
+func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, uid, requestHash string, state byte) ([]*store.UserOutput, *crypto.Hash) {
 	var outputs []*store.UserOutput
 	req, err := node.store.ReadRequestByHash(ctx, requestHash)
 	if err != nil || req == nil {
@@ -47,10 +46,7 @@ func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, uid, reques
 
 	var storage *crypto.Hash
 	for _, ref := range ver.References {
-		os, hash, err := node.getSystemCallReferenceTx(ctx, uid, ref.String(), state)
-		if err != nil {
-			return nil, nil, err
-		}
+		os, hash := node.getSystemCallReferenceTx(ctx, uid, ref.String(), state)
 		if len(os) > 0 {
 			outputs = append(outputs, os...)
 		}
@@ -63,10 +59,10 @@ func (node *Node) GetSystemCallReferenceOutputs(ctx context.Context, uid, reques
 			panic(storage.String())
 		}
 	}
-	return outputs, storage, nil
+	return outputs, storage
 }
 
-func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string, state byte) ([]*store.UserOutput, *crypto.Hash, error) {
+func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string, state byte) ([]*store.UserOutput, *crypto.Hash) {
 	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, hash)
 	if err != nil || ver == nil {
 		panic(fmt.Errorf("group.ReadKernelTransactionUntilSufficient(%s) => %v %v", hash, ver, err))
@@ -96,7 +92,7 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string
 	// skip referenced storage transaction
 	if ver.Asset.String() == common.XINKernelAssetId && len(ver.Extra) > mc.ExtraSizeGeneralLimit {
 		h, _ := crypto.HashFromString(hash)
-		return nil, &h, nil
+		return nil, &h
 	}
 
 	asset, err := common.SafeReadAssetUntilSufficient(ctx, ver.Asset.String())
@@ -108,12 +104,12 @@ func (node *Node) getSystemCallReferenceTx(ctx context.Context, uid, hash string
 		panic(err)
 	}
 	if len(outputs) == 0 {
-		return nil, nil, fmt.Errorf("unreceived reference %s", hash)
+		return nil, nil
 	}
 	for _, o := range outputs {
 		o.Asset = *asset
 	}
-	return outputs, nil, nil
+	return outputs, nil
 }
 
 // be used to refund by mtg without fee
