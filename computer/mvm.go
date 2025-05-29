@@ -219,7 +219,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	case FlagWithPostProcess:
 	default:
 		logger.Printf("invalid skip post process flag: %d", data[24])
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
+		return node.failRequest(ctx, req, "")
 	}
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, req.CreatedAt)
@@ -230,13 +230,13 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		!plan.OperationPriceAmount.IsPositive() ||
 		req.AssetId != plan.OperationPriceAsset ||
 		req.Amount.Cmp(plan.OperationPriceAmount) < 0 {
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
+		return node.failRequest(ctx, req, "")
 	}
 
 	rb := node.readStorageExtraFromObserver(ctx, *storage)
 	call, tx, err := node.buildSystemCallFromBytes(ctx, req, cid, rb, false)
 	if err != nil {
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
+		return node.failRequest(ctx, req, "")
 	}
 	call.Superior = call.RequestId
 	call.Type = store.CallTypeMain
@@ -246,7 +246,7 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	err = node.checkUserSystemCall(ctx, tx)
 	if err != nil {
 		logger.Printf("node.checkUserSystemCall(%v) => %v", tx, err)
-		return node.refundAndFailRequest(ctx, req, mix.Members(), int(mix.Threshold), nil, os)
+		return node.failRequest(ctx, req, "")
 	}
 
 	err = node.store.WriteInitialSystemCallWithRequest(ctx, req, call, os)
@@ -934,9 +934,9 @@ func (node *Node) confirmPostProcessSystemCall(ctx context.Context, req *store.R
 			continue
 		}
 
-		id := common.UniqueId(call.RequestId, fmt.Sprintf("refund-burn-asset:%s", da.AssetId))
+		id := common.UniqueId(call.RequestId, fmt.Sprintf("BURN:%s", da.AssetId))
 		id = common.UniqueId(id, user.MixAddress)
-		tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amt.String(), []byte("refund"), id)
+		tx := node.buildTransaction(ctx, req.Output, node.conf.AppId, da.AssetId, mix.Members(), int(mix.Threshold), amt.String(), nil, id)
 		if tx == nil {
 			return node.failRequest(ctx, req, da.AssetId)
 		}
