@@ -425,16 +425,12 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 		}
 		if !common.CheckTestEnvironment(ctx) {
 			mint, err := node.RPCGetAsset(ctx, address)
-			if err != nil {
-				panic(fmt.Errorf("solana.RPCGetAsset(%s) => %v", address, mint))
-			}
-			if mint == nil ||
+			if err != nil || mint == nil ||
 				mint.Decimals != uint32(asset.Precision) ||
 				mint.MintAuthority != node.getMTGAddress(ctx).String() ||
 				mint.FreezeAuthority != "" {
 				// TODO check symbol and name
-				logger.Printf("solana.RPCGetAsset(%s) => %v", address, mint)
-				return node.failRequest(ctx, req, "")
+				panic(fmt.Errorf("solana.RPCGetAsset(%s) => %v", address, mint))
 			}
 		}
 		as = append(as, &solanaApp.DeployedAsset{
@@ -680,11 +676,8 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	}
 
 	txx, err := node.RPCGetTransaction(ctx, signature.String())
-	if err != nil {
-		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v %v", signature.String(), txx, err))
-	}
-	if txx == nil {
-		return node.failRequest(ctx, req, "")
+	if err != nil || txx == nil {
+		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v", signature.String(), err))
 	}
 	tx, err := txx.Transaction.GetTransaction()
 	if err != nil {
@@ -799,11 +792,8 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 	if err != nil {
 		panic(err)
 	}
-	if err := node.processTransactionWithAddressLookups(ctx, tx); err != nil {
-		// FIXME handle address table closed
-		if strings.Contains(err.Error(), "get account info: not found") {
-			return nil, ""
-		}
+	err = node.processTransactionWithAddressLookups(ctx, tx)
+	if err != nil {
 		panic(err)
 	}
 	ts, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, rpcTx.Meta, nil)
@@ -877,11 +867,8 @@ func (node *Node) refundAndFailRequest(ctx context.Context, req *store.Request, 
 
 func (node *Node) checkConfirmCallSignature(ctx context.Context, signature string) (*store.SystemCall, *solana.Transaction, error) {
 	transaction, err := node.RPCGetTransaction(ctx, signature)
-	if err != nil {
-		panic(err)
-	}
-	if transaction == nil {
-		return nil, nil, fmt.Errorf("checkConfirmCallSignature(%s) => not found", signature)
+	if err != nil || transaction == nil {
+		panic(fmt.Errorf("checkConfirmCallSignature(%s) => %v", signature, err))
 	}
 	tx, err := transaction.Transaction.GetTransaction()
 	if err != nil {
