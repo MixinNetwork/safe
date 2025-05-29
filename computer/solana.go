@@ -698,7 +698,7 @@ func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transactio
 			}
 			if transfer, ok := solanaApp.DecodeSystemTransfer(accounts, ix.Data); ok {
 				recipient := transfer.GetRecipientAccount().PublicKey
-				if recipient.Equals(groupDepositEntry) || recipient.Equals(user) {
+				if !(recipient.Equals(groupDepositEntry) || recipient.Equals(user)) {
 					return fmt.Errorf("invalid system transfer recipient: %s", recipient.String())
 				}
 				continue
