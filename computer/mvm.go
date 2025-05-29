@@ -101,7 +101,7 @@ func (node *Node) processUserDeposit(ctx context.Context, req *store.Request) ([
 		return node.failRequest(ctx, req, "")
 	}
 	id := new(big.Int).SetBytes(data[:8])
-	user, err := node.store.ReadUser(ctx, id)
+	user, err := node.store.ReadUser(ctx, id.String())
 	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadUser() => %v", err))
@@ -182,12 +182,12 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 	}
 
 	data := req.ExtraBytes()
-	if len(data) != 25 {
+	if len(data) != 25 && len(data) != 41 { // because a fee id for observer usage
 		logger.Printf("invalid extra length of request to create system call: %d", len(data))
 		return node.failRequest(ctx, req, "")
 	}
 	id := new(big.Int).SetBytes(data[:8])
-	user, err := node.store.ReadUser(ctx, id)
+	user, err := node.store.ReadUser(ctx, id.String())
 	logger.Printf("store.ReadUser(%d) => %v %v", id, user, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadUser() => %v", err))
@@ -278,7 +278,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
 	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v", req.MixinHash.String(), os, err)
 	if err != nil {
 		err = node.store.ExpireSystemCallWithRequest(ctx, req, call, nil, "")
@@ -298,7 +298,7 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		}
 		if prepare != nil {
 			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-			logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath().String(), user, err)
+			logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath(), user, err)
 			if err != nil {
 				panic(call.RequestId)
 			}
@@ -512,7 +512,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				continue
 			}
 
-			os, _, err = node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath().String(), call.RequestHash, common.RequestStatePending)
+			os, _, err = node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
 			if err != nil {
 				panic(err)
 			}
@@ -566,7 +566,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				main = c
 			}
 
-			os, _, err := node.GetSystemCallReferenceOutputs(ctx, main.UserIdFromPublicPath().String(), main.RequestHash, common.RequestStatePending)
+			os, _, err := node.GetSystemCallReferenceOutputs(ctx, main.UserIdFromPublicPath(), main.RequestHash, common.RequestStatePending)
 			if err != nil {
 				panic(err)
 			}

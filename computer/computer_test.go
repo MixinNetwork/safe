@@ -135,7 +135,7 @@ func testObserverConfirmMainCall(ctx context.Context, require *require.Assertion
 		require.True(sub.RequestSignerAt.Valid)
 		postprocess = sub
 
-		uid := main.UserIdFromPublicPath().String()
+		uid := main.UserIdFromPublicPath()
 		os, err := node.store.ListUserOutputsByHashAndState(ctx, uid, "a8eed784060b200ea7f417309b12a33ced8344c24f5cdbe0237b7fc06125f459", common.RequestStateDone)
 		require.Nil(err)
 		require.Len(os, 1)
@@ -219,6 +219,7 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 	extra = user.IdBytes()
 	extra = append(extra, uuid.Must(uuid.FromString(id)).Bytes()...)
 	extra = append(extra, FlagWithPostProcess)
+	extra = append(extra, uuid.Must(uuid.FromString(fee.Id)).Bytes()...)
 	out := testBuildUserRequest(node, id, hash, "0.001", mtg.StorageAssetId, OperationTypeSystemCall, extra, refs, &xinFee)
 	for _, node := range nodes {
 		testStep(ctx, require, node, out)

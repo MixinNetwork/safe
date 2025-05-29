@@ -643,7 +643,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 				continue
 			}
 
-			key := fmt.Sprintf("%s:%s", store.CallTypeMain, call.UserIdFromPublicPath().String())
+			key := fmt.Sprintf("%s:%s", store.CallTypeMain, call.UserIdFromPublicPath())
 			// should be processed after previous main call being confirmed
 			if len(callSequence[key]) > 0 {
 				continue
@@ -662,7 +662,7 @@ func (node *Node) handleSignedCalls(ctx context.Context) error {
 			if unconfirmed {
 				continue
 			}
-			key := fmt.Sprintf("%s:%s", store.CallTypeMain, main.UserIdFromPublicPath().String())
+			key := fmt.Sprintf("%s:%s", store.CallTypeMain, main.UserIdFromPublicPath())
 			// should be processed after previous main call being confirmed
 			if len(callSequence[key]) > 0 {
 				continue

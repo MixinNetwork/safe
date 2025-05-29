@@ -125,7 +125,7 @@ func (node *Node) httpGetSystemCall(w http.ResponseWriter, r *http.Request, para
 
 	resp := map[string]any{
 		"id":            call.RequestId,
-		"user_id":       call.UserIdFromPublicPath().String(),
+		"user_id":       call.UserIdFromPublicPath(),
 		"nonce_account": call.NonceAccount,
 		"raw":           call.Raw,
 		"state":         state,

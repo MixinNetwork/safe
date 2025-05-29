@@ -57,7 +57,7 @@ func (c *SystemCall) GetWithdrawalIds() []string {
 	return util.SplitIds(c.WithdrawalTraces.String, ",")
 }
 
-func (c *SystemCall) UserIdFromPublicPath() *big.Int {
+func (c *SystemCall) UserIdFromPublicPath() string {
 	data := common.DecodeHexOrPanic(c.Public)
 	if len(data) != 16 {
 		panic(fmt.Errorf("invalid public of system call: %v", c))
@@ -66,7 +66,7 @@ func (c *SystemCall) UserIdFromPublicPath() *big.Int {
 		panic(fmt.Errorf("invalid user id"))
 	}
 	id := new(big.Int).SetBytes(data[8:])
-	return id
+	return id.String()
 }
 
 func (c *SystemCall) MessageBytes() []byte {
@@ -102,7 +102,7 @@ func (s *SQLite3Store) WriteInitialSystemCallWithRequest(ctx context.Context, re
 
 	for _, o := range os {
 		query := "UPDATE user_outputs SET state=?, signed_by=?, updated_at=? WHERE output_id=? AND state=? AND user_id=?"
-		err = s.execOne(ctx, tx, query, common.RequestStatePending, call.RequestId, req.CreatedAt, o.OutputId, common.RequestStateInitial, call.UserIdFromPublicPath().String())
+		err = s.execOne(ctx, tx, query, common.RequestStatePending, call.RequestId, req.CreatedAt, o.OutputId, common.RequestStateInitial, call.UserIdFromPublicPath())
 		if err != nil {
 			return fmt.Errorf("SQLite3Store UPDATE user_outputs %v", err)
 		}

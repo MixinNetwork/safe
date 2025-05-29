@@ -86,9 +86,9 @@ func (s *SQLite3Store) ReadLatestUser(ctx context.Context) (*User, error) {
 	return userFromRow(row)
 }
 
-func (s *SQLite3Store) ReadUser(ctx context.Context, id *big.Int) (*User, error) {
+func (s *SQLite3Store) ReadUser(ctx context.Context, id string) (*User, error) {
 	query := fmt.Sprintf("SELECT %s FROM users WHERE user_id=?", strings.Join(userCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id.String())
+	row := s.db.QueryRowContext(ctx, query, id)
 
 	return userFromRow(row)
 }

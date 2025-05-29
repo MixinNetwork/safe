@@ -199,7 +199,7 @@ func (node *Node) getSystemCallFeeFromXIN(ctx context.Context, call *store.Syste
 
 	return &store.UserOutput{
 		OutputId:        req.Id,
-		UserId:          call.UserIdFromPublicPath().String(),
+		UserId:          call.UserIdFromPublicPath(),
 		TransactionHash: req.MixinHash.String(),
 		OutputIndex:     req.MixinIndex,
 		AssetId:         common.SafeSolanaChainId,
@@ -232,7 +232,7 @@ func (node *Node) getPostProcessCall(ctx context.Context, req *store.Request, ca
 		panic(err)
 	}
 	if user == nil {
-		return nil, fmt.Errorf("store.ReadUser(%s) => nil", call.UserIdFromPublicPath().String())
+		return nil, fmt.Errorf("store.ReadUser(%s) => nil", call.UserIdFromPublicPath())
 	}
 	mtgDeposit := solana.MustPublicKeyFromBase58(node.conf.SolanaDepositEntry)
 	err = node.VerifySubSystemCall(ctx, tx, mtgDeposit, solana.MustPublicKeyFromBase58(user.ChainAddress))
