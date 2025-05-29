@@ -150,7 +150,7 @@ func testConfirmWithdrawal(ctx context.Context, require *require.Assertions, nod
 	node := nodes[0]
 	withdrawal := &store.ConfirmedWithdrawal{
 		Hash:      "jmHyRpKEuc1PgDjDaqaQqo9GpSM3pp9PhLgwzqpfa2uUbtRYJmbKtWp4onfNFsbk47paBjxz1d6s9n56Y8Na9Hp",
-		TraceId:   uuid.Must(uuid.NewV4()).String(),
+		TraceId:   call.GetWithdrawalIds()[0],
 		CallId:    call.RequestId,
 		CreatedAt: time.Now(),
 	}
