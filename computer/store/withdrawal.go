@@ -73,5 +73,5 @@ func (s *SQLite3Store) CheckUnconfirmedWithdrawals(ctx context.Context, call *Sy
 	} else if err != nil {
 		return true, err
 	}
-	return count == len(ids), err
+	return count < len(ids), err
 }
