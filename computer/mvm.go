@@ -278,6 +278,10 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid {
 		return node.failRequest(ctx, req, "")
 	}
+	user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
+	if err != nil || user == nil {
+		panic(fmt.Errorf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath(), user, err))
+	}
 	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
 	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v", req.MixinHash.String(), os, err)
 	if err != nil {
@@ -311,6 +315,12 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
+			err = node.compareSystemCallWithSolanaTx(tx, as)
+			logger.Printf("node.compareSystemCallWithSolanaTx(%s) => %v", call.RequestId, err)
+			if err != nil {
+				return node.failRequest(ctx, req, "")
+			}
+
 			sessions = append(sessions, &store.Session{
 				Id:         prepare.RequestId,
 				RequestId:  prepare.RequestId,

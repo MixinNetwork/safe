@@ -539,6 +539,15 @@ func ExtractInitialTransfersFromInstruction(
 				Value:        new(big.Int).SetUint64(*transfer.Amount),
 			}
 		}
+		if mint, ok := DecodeTokenMintTo(accounts, cix.Data); ok {
+			addr := mint.GetMintAccount().PublicKey.String()
+			return &Transfer{
+				TokenAddress: addr,
+				AssetId:      ethereum.BuildChainAssetId(SolanaChainBase, addr),
+				Receiver:     mint.GetDestinationAccount().PublicKey.String(),
+				Value:        new(big.Int).SetUint64(*mint.Amount),
+			}
+		}
 	}
 
 	return nil

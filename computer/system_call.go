@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"math/big"
 	"slices"
 
 	mc "github.com/MixinNetwork/mixin/common"
@@ -307,6 +308,35 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 	for i, ins := range tx.Message.Instructions[1:] {
 		if slices.Contains(ins.Accounts, uint16(index)) {
 			return fmt.Errorf("invalid instruction: %d %v", i+1, ins)
+		}
+	}
+	return nil
+}
+
+func (node *Node) compareSystemCallWithSolanaTx(tx *solana.Transaction, as []*ReferencedTxAsset) error {
+	changes := make(map[string]*solanaApp.Transfer)
+	for _, ix := range tx.Message.Instructions {
+		transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix)
+		if transfer == nil || transfer.Sender == node.SolanaPayer().String() {
+			continue
+		}
+		key := transfer.TokenAddress
+		old := changes[key]
+		if old != nil {
+			changes[key].Value = new(big.Int).Add(old.Value, transfer.Value)
+			continue
+		}
+		changes[key] = transfer
+	}
+
+	for _, a := range as {
+		expected := a.Amount.Mul(decimal.New(1, int32(a.Decimal))).BigInt()
+		old := changes[a.Address]
+		if old == nil {
+			return fmt.Errorf("invalid missed referenced asset: %v", a)
+		}
+		if old.Value.Cmp(expected) != 0 {
+			return fmt.Errorf("invalid referenced asset: %s %s %s", a.AssetId, old.Value.String(), expected.String())
 		}
 	}
 	return nil
