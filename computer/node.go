@@ -46,6 +46,7 @@ func NewNode(store *store.SQLite3Store, group *mtg.Group, network Network, conf 
 		sessions:   make(map[string]*MultiPartySession),
 		operations: make(map[string]bool),
 		store:      store,
+		mixin:      mixin,
 		solana:     solanaApp.NewClient(conf.SolanaRPC),
 	}
 
