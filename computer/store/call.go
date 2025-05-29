@@ -183,29 +183,6 @@ func (s *SQLite3Store) ConfirmNonceAvailableWithRequest(ctx context.Context, req
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ExpireSystemCallWithRequest(ctx context.Context, req *Request, call *SystemCall, txs []*mtg.Transaction, compaction string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	query := "UPDATE system_calls SET state=?, updated_at=? WHERE id=? AND state=? AND withdrawal_traces IS NULL"
-	_, err = tx.ExecContext(ctx, query, common.RequestStateFailed, req.CreatedAt, call.RequestId, common.RequestStateInitial)
-	if err != nil {
-		return fmt.Errorf("SQLite3Store UPDATE system_calls %v", err)
-	}
-
-	err = s.finishRequest(ctx, tx, req, txs, compaction)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
 func (s *SQLite3Store) RefundOutputsWithRequest(ctx context.Context, req *Request, call *SystemCall, os []*UserOutput, txs []*mtg.Transaction, compaction string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

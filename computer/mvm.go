@@ -205,9 +205,9 @@ func (node *Node) processSystemCall(ctx context.Context, req *store.Request) ([]
 		return node.failRequest(ctx, req, "")
 	}
 
-	os, storage := node.GetSystemCallReferenceOutputs(ctx, user.UserId, req.MixinHash.String(), common.RequestStateInitial)
-	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %d %v", req.MixinHash.String(), len(os), storage)
-	if len(os) == 0 && storage == nil {
+	os, storage, err := node.GetSystemCallReferenceOutputs(ctx, user.UserId, req.MixinHash.String(), common.RequestStateInitial)
+	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v %v", req.MixinHash.String(), os, storage, err)
+	if err != nil || storage == nil {
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -278,10 +278,10 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 	if call == nil || call.WithdrawalTraces.Valid {
 		return node.failRequest(ctx, req, "")
 	}
-	os, sh := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
-	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %d", req.MixinHash, len(os))
-	if len(os) == 0 && sh == nil {
-		panic(call.RequestHash)
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
+	logger.Printf("node.GetSystemCallReferenceTxs(%s) => %v %v", req.MixinHash.String(), os, err)
+	if err != nil {
+		panic(err)
 	}
 	as := node.GetSystemCallRelatedAsset(ctx, os)
 
@@ -473,54 +473,60 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 			logger.Printf("invalid length of signature: %d", n)
 			return node.failRequest(ctx, req, "")
 		}
-		if n == 1 {
-			signature := base58.Encode(extra[:64])
-			call, tx, err := node.checkConfirmCallSignature(ctx, signature)
-			if err != nil {
-				logger.Printf("node.checkConfirmCallSignature(%s) => %v", signature, err)
-				return node.failRequest(ctx, req, "")
-			}
 
-			switch call.Type {
-			case store.CallTypeDeposit:
-				err := node.store.ConfirmSystemCallsWithRequest(ctx, req, []*store.SystemCall{call}, nil, nil, nil)
-				if err != nil {
-					panic(err)
-				}
-				return nil, ""
-			case store.CallTypePostProcess:
-				return node.confirmPostProcessSystemCall(ctx, req, call, tx)
-			}
+		var calls []*store.SystemCall
+
+		signature := base58.Encode(extra[:64])
+		call, tx, err := node.checkConfirmCallSignature(ctx, signature)
+		if err != nil {
+			logger.Printf("node.checkConfirmCallSignature(%s) => %v", signature, err)
+			return node.failRequest(ctx, req, "")
 		}
 
-		var outputs []*store.UserOutput
-		var calls []*store.SystemCall
-		var session *store.Session
-		var sub *store.SystemCall
-		for i := range n {
-			signature := base58.Encode(extra[i*64 : (i+1)*64])
-			call, _, err := node.checkConfirmCallSignature(ctx, signature)
+		switch call.Type {
+		case store.CallTypeDeposit:
+			err := node.store.ConfirmSystemCallsWithRequest(ctx, req, []*store.SystemCall{call}, nil, nil, nil)
 			if err != nil {
-				return node.failRequest(ctx, req, "")
+				panic(err)
+			}
+			return nil, ""
+		case store.CallTypePostProcess:
+			return node.confirmPostProcessSystemCall(ctx, req, call, tx)
+		case store.CallTypePrepare:
+			calls = append(calls, call)
+			if n == 2 {
+				signature := base58.Encode(extra[64:128])
+				call, _, err = node.checkConfirmCallSignature(ctx, signature)
+				if err != nil {
+					return node.failRequest(ctx, req, "")
+				}
+				calls = append(calls, call)
+			}
+		case store.CallTypeMain:
+			if n == 2 {
+				panic(call.Type)
 			}
 			calls = append(calls, call)
-			if call.Type == store.CallTypePrepare {
-				continue
-			}
+		default:
+			panic(call.Type)
+		}
 
-			os, sh := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
-			if sh == nil {
-				panic(call.RequestHash)
+		var session *store.Session
+		var outputs []*store.UserOutput
+		var post *store.SystemCall
+		if call.Type == store.CallTypeMain {
+			os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
+			if err != nil {
+				panic(err)
 			}
-			outputs = os // TODO but this is a loop, the outputs could be overiden
+			outputs = os
 
-			post, err := node.getPostProcessCall(ctx, req, call, extra[(i+1)*64:])
+			post, err = node.getPostProcessCall(ctx, req, call, extra[n*64:])
 			logger.Printf("node.getPostProcessCall(%v %v) => %v %v", req, call, post, err)
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
 			if post != nil {
-				sub = post
 				session = &store.Session{
 					Id:         post.RequestId,
 					RequestId:  post.RequestId,
@@ -534,7 +540,7 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				}
 			}
 		}
-		err := node.store.ConfirmSystemCallsWithRequest(ctx, req, calls, sub, session, outputs)
+		err = node.store.ConfirmSystemCallsWithRequest(ctx, req, calls, post, session, outputs)
 		if err != nil {
 			panic(err)
 		}
@@ -563,9 +569,9 @@ func (node *Node) processConfirmCall(ctx context.Context, req *store.Request) ([
 				main = c
 			}
 
-			os, sh := node.GetSystemCallReferenceOutputs(ctx, main.UserIdFromPublicPath(), main.RequestHash, common.RequestStatePending)
-			if sh == nil {
-				panic(main.RequestHash)
+			os, _, err := node.GetSystemCallReferenceOutputs(ctx, main.UserIdFromPublicPath(), main.RequestHash, common.RequestStatePending)
+			if err != nil {
+				panic(err)
 			}
 			outputs = os
 		}

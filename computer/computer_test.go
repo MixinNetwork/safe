@@ -231,7 +231,8 @@ func testUserRequestSystemCall(ctx context.Context, require *require.Assertions,
 		require.Equal(hex.EncodeToString(user.FingerprintWithPath()), call.Public)
 		require.False(call.Signature.Valid)
 		require.True(call.RequestSignerAt.Valid)
-		os, _ := node.GetSystemCallReferenceOutputs(ctx, user.UserId, call.RequestHash, common.RequestStatePending)
+		os, _, err := node.GetSystemCallReferenceOutputs(ctx, user.UserId, call.RequestHash, common.RequestStatePending)
+		require.Nil(err)
 		require.Len(os, 2)
 	}
 
