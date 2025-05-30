@@ -275,14 +275,6 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 	return outputs
 }
 
-func (grp *Group) ListOutputsByTransactionHash(ctx context.Context, hash string, sequence uint64) []*UnifiedOutput {
-	outputs, err := grp.store.ListOutputsByTransactionHash(ctx, hash, sequence)
-	if err != nil {
-		panic(err)
-	}
-	return outputs
-}
-
 func (grp *Group) ListUnconfirmedWithdrawalTransactions(ctx context.Context, limit int) []*Transaction {
 	txs, err := grp.store.ListUnconfirmedWithdrawalTransactions(ctx, limit)
 	if err != nil {
