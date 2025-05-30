@@ -144,6 +144,52 @@ session-private-key = ""
 server-public-key = ""
 spend-private-key = ""
 
+
+[computer]
+# the id represents actions and outptus for computer group
+app-id = "a7376114-5db3-4822-bd3c-26416b57da1b"
+store-dir = "/tmp/safe/computer"
+# the mixin messenger group conversation id for computer communication
+messenger-conversation-id = ""
+# the mixin messenger group for monitor messages
+monitor-conversation-id = ""
+timestamp = 1721930640000000000
+# the mpc threshold is recommended to be 2/3 of the mtg members count
+threshold = 2
+asset-id = "a946936b-1b52-3e02-aec6-4fbccf284d5f"
+observer-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
+observer-spend-public-key = "5079d10fd5318aff7dea72de4173be2cc1a0b7841ab9ddc804ac3041e707829c"
+operation-price-asset-id = "c94ac88f-4671-3976-b60a-09064f1811e8"
+operation-price-amount = "0.001"
+# the number of base mpc key
+mpc-key-number = 1
+mixin-messenger-api="https://api.mixin.one"
+mixin-rpc = "https://kernel.mixin.dev"
+solana-rpc = "https://omniscient-omniscient-reel.solana-mainnet.quiknode.pro/ba89021c3319102fdeaaba182d89b8039280ef21"
+# solana private key to sign and send transaction
+solana-key = "56HtVW5YQ9Xi8MTeQFAWdSuzV17mrDAr1AUCYzTdx36VLvsodA89eSuZd6axrufzo4tyoUNdgjDpm4fnLJLRcXmF"
+solana-deposit-entry = "HT7X7p5XPERge4ZShYALRKzkgxua1fW7rVMfwChRrG9V"
+
+
+[computer.mtg.genesis]
+members = [
+  "member-id-0",
+  "member-id-1",
+  "member-id-2",
+  "member-id-3",
+]
+# the mtg threshold must not be smaller than the mpc threshold
+threshold = 3
+epoch = 15903300
+
+[computer.mtg.app]
+app-id = "member-id-0"
+session-id = "194ac88f-4671-3976-b60a-09064f1811e8"
+session-private-key = "9b727c4954c0f29d9e76258a97f45c4c32a748c3536bee03e486a17d7ba59409"
+server-public-key = "849bd198be846981839a5e5bef929cf8b71543ec31d5ff3cee4f272656a921d5"
+spend-private-key = "6004d10dab1c2ee8fb512399eeb9aa8ce2112eee07c20df780fb76d840cbcd0e"
+
+
 [dev]
 # set a listen port to enable go pprof
 profile-port = 12345
