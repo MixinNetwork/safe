@@ -765,15 +765,6 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		if t.Receiver != node.solanaDepositEntry().String() {
 			continue
 		}
-		asset, err := common.SafeReadAssetUntilSufficient(ctx, t.AssetId)
-		if err != nil {
-			panic(err)
-		}
-		expected := mc.NewIntegerFromString(decimal.NewFromBigInt(t.Value, -int32(asset.Precision)).String())
-		actual := mc.NewIntegerFromString(out.Amount.String())
-		if expected.Cmp(actual) != 0 {
-			panic(fmt.Errorf("invalid deposit amount: %s %s", expected.String(), actual.String()))
-		}
 		user, err := node.store.ReadUserByChainAddress(ctx, t.Sender)
 		logger.Verbosef("store.ReadUserByAddress(%s) => %v %v", t.Sender, user, err)
 		if err != nil {
@@ -784,6 +775,15 @@ func (node *Node) processDeposit(ctx context.Context, out *mtg.Action) ([]*mtg.T
 		mix, err := bot.NewMixAddressFromString(user.MixAddress)
 		if err != nil {
 			panic(err)
+		}
+		asset, err := common.SafeReadAssetUntilSufficient(ctx, t.AssetId)
+		if err != nil {
+			panic(err)
+		}
+		expected := mc.NewIntegerFromString(decimal.NewFromBigInt(t.Value, -int32(asset.Precision)).String())
+		actual := mc.NewIntegerFromString(out.Amount.String())
+		if expected.Cmp(actual) != 0 {
+			panic(fmt.Errorf("invalid deposit amount: %s %s", expected.String(), actual.String()))
 		}
 		id := common.UniqueId(deposit.Transaction, fmt.Sprintf("deposit-%d", i))
 		id = common.UniqueId(id, t.Receiver)
