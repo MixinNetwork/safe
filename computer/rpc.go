@@ -17,6 +17,39 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
+func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
+	as := solanaApp.ExtractCreatedAtasFromTransaction(ctx, tx)
+	for _, ata := range as {
+		for {
+			acc, err := node.RPCGetAccount(ctx, ata)
+			if err != nil {
+				return err
+			}
+			if acc != nil {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+	}
+	return nil
+}
+
+func (node *Node) checkMintsUntilSufficient(ctx context.Context, ts []*solanaApp.TokenTransfer) error {
+	for _, t := range ts {
+		for {
+			acc, err := node.RPCGetAccount(ctx, t.Mint)
+			if err != nil {
+				return err
+			}
+			if acc != nil {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+	}
+	return nil
+}
+
 func (node *Node) SendTransactionUtilConfirm(ctx context.Context, tx *solana.Transaction, call *store.SystemCall) (*rpc.GetTransactionResult, error) {
 	id := ""
 	if call != nil {

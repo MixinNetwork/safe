@@ -71,15 +71,15 @@ func (node *Node) initMPCKeys(ctx context.Context) error {
 			return err
 		}
 
-		now := time.Now().UTC()
 		requestAt := node.readPropertyAsTime(ctx, store.KeygenRequestTimeKey)
-		if now.Before(requestAt.Add(frostKeygenRoundTimeout + 1*time.Minute)) {
+		if time.Since(requestAt) < time.Hour {
 			time.Sleep(1 * time.Minute)
 			continue
 		}
 
+		now := time.Now().UTC()
 		for i := count; i < node.conf.MPCKeyNumber; i++ {
-			id := common.UniqueId("mpc base key", fmt.Sprintf("%d", i))
+			id := common.UniqueId(node.group.GenesisId(), fmt.Sprintf("MPC:BASE:%d", i))
 			id = common.UniqueId(id, now.String())
 			extra := []byte{byte(i)}
 			err = node.sendObserverTransactionToGroup(ctx, &common.Operation{
@@ -212,7 +212,7 @@ func (node *Node) feeInfoLoop(ctx context.Context) {
 			panic(err)
 		}
 
-		time.Sleep(40 * time.Minute)
+		time.Sleep(7 * time.Minute)
 	}
 }
 
@@ -755,27 +755,6 @@ func (node *Node) handleSignedCallSequence(ctx context.Context, wg *sync.WaitGro
 	if err != nil {
 		panic(err)
 	}
-}
-
-func (node *Node) checkCreatedAtaUntilSufficient(ctx context.Context, tx *solana.Transaction) error {
-	as := solanaApp.ExtractCreatedAtasFromTransaction(ctx, tx)
-	for _, ata := range as {
-		_, err := node.RPCGetAccount(ctx, ata)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (node *Node) checkMintsUntilSufficient(ctx context.Context, ts []*solanaApp.TokenTransfer) error {
-	for _, t := range ts {
-		_, err := node.RPCGetAccount(ctx, t.Mint)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (node *Node) handleSignedCall(ctx context.Context, call *store.SystemCall) (*solana.Transaction, *rpc.TransactionMeta, error) {
