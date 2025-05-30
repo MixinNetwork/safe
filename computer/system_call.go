@@ -340,14 +340,22 @@ func (node *Node) comparePrepareCallWithSolanaTx(tx *solana.Transaction, as []*R
 		changes[key] = transfer
 	}
 
+	assets := make(map[string]*ReferencedTxAsset, len(as))
 	for _, a := range as {
-		expected := a.Amount.Mul(decimal.New(1, int32(a.Decimal))).BigInt()
-		old := changes[a.Address]
-		if old == nil {
+		if assets[a.Address] != nil {
+			assets[a.Address].Amount = assets[a.Address].Amount.Add(a.Amount)
+			continue
+		}
+		assets[a.Address] = a
+	}
+	for addr, change := range changes {
+		a := assets[addr]
+		if a == nil {
 			return fmt.Errorf("invalid missed referenced asset: %v", a)
 		}
-		if old.Value.Cmp(expected) != 0 {
-			return fmt.Errorf("invalid referenced asset: %s %s %s", a.AssetId, old.Value.String(), expected.String())
+		expected := a.Amount.Mul(decimal.New(1, int32(a.Decimal))).BigInt()
+		if expected.Cmp(change.Value) != 0 {
+			return fmt.Errorf("invalid referenced asset: %s %s %s", a.AssetId, change.Value.String(), expected.String())
 		}
 	}
 	return nil
