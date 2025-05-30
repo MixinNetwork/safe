@@ -241,6 +241,17 @@ func (node *Node) getPostProcessCall(ctx context.Context, req *store.Request, ca
 	if err != nil {
 		return nil, err
 	}
+
+	os, _, err := node.GetSystemCallReferenceOutputs(ctx, call.UserIdFromPublicPath(), call.RequestHash, common.RequestStatePending)
+	if err != nil {
+		panic(fmt.Errorf("node.GetSystemCallReferenceTxs(%s) => %v", call.RequestId, err))
+	}
+	ras := node.GetSystemCallRelatedAsset(ctx, os)
+	err = node.comparePostCallWithSolanaTx(ctx, ras, tx, call.Hash.String, user.ChainAddress)
+	logger.Printf("node.comparePostCallWithSolanaTx(%s %s) => %v", call.Hash.String, user.ChainAddress, err)
+	if err != nil {
+		return nil, err
+	}
 	return post, nil
 }
 
@@ -313,7 +324,7 @@ func (node *Node) checkUserSystemCall(ctx context.Context, tx *solana.Transactio
 	return nil
 }
 
-func (node *Node) compareSystemCallWithSolanaTx(tx *solana.Transaction, as []*ReferencedTxAsset) error {
+func (node *Node) comparePrepareCallWithSolanaTx(tx *solana.Transaction, as []*ReferencedTxAsset) error {
 	changes := make(map[string]*solanaApp.Transfer)
 	for _, ix := range tx.Message.Instructions {
 		transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix)
@@ -337,6 +348,68 @@ func (node *Node) compareSystemCallWithSolanaTx(tx *solana.Transaction, as []*Re
 		}
 		if old.Value.Cmp(expected) != 0 {
 			return fmt.Errorf("invalid referenced asset: %s %s %s", a.AssetId, old.Value.String(), expected.String())
+		}
+	}
+	return nil
+}
+
+func (node *Node) comparePostCallWithSolanaTx(ctx context.Context, as []*ReferencedTxAsset, tx *solana.Transaction, signature, user string) error {
+	rpcTx, err := node.solana.RPCGetTransaction(ctx, signature)
+	if err != nil || rpcTx == nil {
+		panic(fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", signature, rpcTx, err))
+	}
+	utx, err := rpcTx.Transaction.GetTransaction()
+	if err != nil {
+		panic(err)
+	}
+
+	assets := make(map[string]*ReferencedTxAsset)
+	for _, a := range as {
+		if assets[a.Address] != nil {
+			assets[a.Address].Amount = assets[a.Address].Amount.Add(a.Amount)
+			continue
+		}
+		assets[a.Address] = a
+	}
+	cs := node.buildUserBalanceChangesFromMeta(ctx, utx, rpcTx.Meta, solana.MPK(user))
+	for address, change := range cs {
+		old := assets[address]
+		if old != nil {
+			assets[address].Amount = assets[address].Amount.Add(change.Amount)
+			continue
+		}
+		if !change.Amount.IsNegative() {
+			continue
+		}
+		assets[address] = &ReferencedTxAsset{
+			Address: address,
+			Decimal: int(change.Decimals),
+			Amount:  change.Amount,
+		}
+	}
+
+	changes := make(map[string]*solanaApp.Transfer)
+	for _, ix := range tx.Message.Instructions {
+		transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix)
+		if transfer == nil || transfer.Sender == node.SolanaPayer().String() {
+			continue
+		}
+		key := transfer.TokenAddress
+		old := changes[key]
+		if old != nil {
+			changes[key].Value = new(big.Int).Add(old.Value, transfer.Value)
+			continue
+		}
+		changes[key] = transfer
+	}
+	for address, c := range changes {
+		old := assets[address]
+		if old == nil {
+			return fmt.Errorf("invalid missed user balance change: %s", address)
+		}
+		ea := old.Amount.Mul(decimal.New(1, int32(old.Decimal))).BigInt()
+		if ea.Cmp(c.Value) != 0 {
+			return fmt.Errorf("invalid user balance change: %s %s %s", address, c.Value.String(), ea.String())
 		}
 	}
 	return nil

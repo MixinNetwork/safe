@@ -315,8 +315,8 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
-			err = node.compareSystemCallWithSolanaTx(tx, as)
-			logger.Printf("node.compareSystemCallWithSolanaTx(%s) => %v", call.RequestId, err)
+			err = node.comparePrepareCallWithSolanaTx(tx, as)
+			logger.Printf("node.comparePrepareCallWithSolanaTx(%s) => %v", call.RequestId, err)
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
