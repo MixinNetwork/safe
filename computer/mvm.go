@@ -297,14 +297,6 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 			return node.failRequest(ctx, req, "")
 		}
 		if prepare != nil {
-			user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-			logger.Printf("store.ReadUser(%s) => %v %v", call.UserIdFromPublicPath(), user, err)
-			if err != nil {
-				panic(call.RequestId)
-			}
-			if user == nil {
-				return node.failRequest(ctx, req, "")
-			}
 			prepare.Superior = call.RequestId
 			prepare.Type = store.CallTypePrepare
 			prepare.Public = hex.EncodeToString(user.FingerprintWithEmptyPath())
@@ -381,10 +373,6 @@ func (node *Node) processConfirmNonce(ctx context.Context, req *store.Request) (
 		}
 		return txs, ""
 	case ConfirmFlagNonceExpired:
-		user, err := node.store.ReadUser(ctx, call.UserIdFromPublicPath())
-		if err != nil || user == nil {
-			panic(err)
-		}
 		mix, err := bot.NewMixAddressFromString(user.MixAddress)
 		if err != nil {
 			panic(err)
@@ -408,10 +396,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 	extra := req.ExtraBytes()
 	n, extra := extra[0], extra[1:]
 	offset := 0
-	for {
-		if len(as) == int(n) {
-			break
-		}
+	for len(as) < int(n) {
 		assetId := uuid.Must(uuid.FromBytes(extra[offset : offset+16])).String()
 		offset += 16
 		address := solana.PublicKeyFromBytes(extra[offset : offset+32]).String()
@@ -433,7 +418,7 @@ func (node *Node) processDeployExternalAssetsCall(ctx context.Context, req *stor
 			logger.Printf("processDeployExternalAssets(%s) => asset already existed", assetId)
 			return node.failRequest(ctx, req, "")
 		}
-		if !common.CheckTestEnvironment(ctx) {
+		if !common.CheckTestEnvironment(ctx) { // TODO should not skip the test
 			mint, err := node.RPCGetAsset(ctx, address)
 			if err != nil || mint == nil ||
 				mint.Decimals != uint32(asset.Precision) ||

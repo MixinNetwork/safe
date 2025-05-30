@@ -1,6 +1,7 @@
 package computer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -428,6 +429,10 @@ func (node *Node) comparePostCallWithSolanaTx(ctx context.Context, as []*Referen
 }
 
 func (node *Node) compareDepositCallWithSolanaTx(ctx context.Context, tx *solana.Transaction, signature, user string) error {
+	ob, err := tx.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
 	rpcTx, err := node.solana.RPCGetTransaction(ctx, signature)
 	if err != nil || rpcTx == nil {
 		panic(fmt.Errorf("solana.RPCGetTransaction(%s) => %v %v", signature, rpcTx, err))
@@ -436,6 +441,14 @@ func (node *Node) compareDepositCallWithSolanaTx(ctx context.Context, tx *solana
 	if err != nil {
 		panic(err)
 	}
+	db, err := dtx.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	if !bytes.Equal(ob, db) {
+		return fmt.Errorf("compareDepositCallWithSolanaTx(%s) malformed %x", signature, ob)
+	}
+
 	err = node.checkCreatedAtaUntilSufficient(ctx, dtx)
 	if err != nil {
 		panic(err)
@@ -444,43 +457,7 @@ func (node *Node) compareDepositCallWithSolanaTx(ctx context.Context, tx *solana
 	if err != nil {
 		panic(err)
 	}
-	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, dtx, rpcTx.Meta, nil)
-	if err != nil {
-		panic(err)
-	}
-	expectedChanges, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
-	if err != nil {
-		panic(err)
-	}
 
-	transfers = nil
-	for _, ix := range tx.Message.Instructions {
-		if transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix); transfer != nil {
-			transfers = append(transfers, transfer)
-		}
-	}
-	actualChanges := make(map[string]*big.Int)
-	for _, t := range transfers {
-		if t.Sender != user || t.Receiver != node.getMTGAddress(ctx).String() {
-			continue
-		}
-		key := fmt.Sprintf("%s:%s", t.Receiver, t.TokenAddress)
-		total := actualChanges[key]
-		if total != nil {
-			actualChanges[key] = new(big.Int).Add(total, t.Value)
-		} else {
-			actualChanges[key] = t.Value
-		}
-	}
-	for key, actual := range actualChanges {
-		expected := expectedChanges[key]
-		if expected == nil {
-			return fmt.Errorf("non-existed deposit: %s %s %s", signature, key, tx.MustToBase64())
-		}
-		if expected.Cmp(actual) != 0 {
-			return fmt.Errorf("invalid deposit: %s %s %s %s %s", signature, key, expected.String(), actual.String(), tx.MustToBase64())
-		}
-	}
 	return nil
 }
 
