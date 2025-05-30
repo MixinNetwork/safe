@@ -685,31 +685,6 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 		return node.failRequest(ctx, req, "")
 	}
 
-	txx, err := node.RPCGetTransaction(ctx, signature.String())
-	if err != nil || txx == nil {
-		panic(fmt.Errorf("rpc.RPCGetTransaction(%s) => %v", signature.String(), err))
-	}
-	tx, err := txx.Transaction.GetTransaction()
-	if err != nil {
-		panic(err)
-	}
-	err = node.processTransactionWithAddressLookups(ctx, tx)
-	if err != nil {
-		panic(err)
-	}
-	transfers, err := solanaApp.ExtractTransfersFromTransaction(ctx, tx, txx.Meta, nil)
-	if err != nil {
-		panic(err)
-	}
-	expectedChanges, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
-	if err != nil {
-		panic(err)
-	}
-	err = node.checkCreatedAtaUntilSufficient(ctx, tx)
-	if err != nil {
-		panic(err)
-	}
-
 	call, tx, err := node.getSubSystemCallFromExtra(ctx, req, extra[96:])
 	if err != nil {
 		logger.Printf("node.getSubSystemCallFromExtra(%v) => %v", req, err)
@@ -725,26 +700,10 @@ func (node *Node) processObserverCreateDepositCall(ctx context.Context, req *sto
 	call.Public = hex.EncodeToString(user.FingerprintWithPath())
 	call.State = common.RequestStatePending
 
-	transfers = nil
-	for _, ix := range tx.Message.Instructions {
-		if transfer := solanaApp.ExtractInitialTransfersFromInstruction(&tx.Message, ix); transfer != nil {
-			transfers = append(transfers, transfer)
-		}
-	}
-	actualChanges, err := node.parseSolanaBlockBalanceChanges(ctx, transfers)
+	err = node.compareDepositCallWithSolanaTx(ctx, tx, signature.String(), user.ChainAddress)
 	if err != nil {
-		panic(err)
-	}
-	for key, actual := range actualChanges {
-		expected := expectedChanges[key]
-		if expected == nil {
-			logger.Printf("non-existed deposit: %s %s %s %s", signature.String(), tx.MustToBase64(), key, actual.String())
-			return node.failRequest(ctx, req, "")
-		}
-		if expected.Cmp(actual) != 0 {
-			logger.Printf("invalid deposit: %s %s %s %s %s", signature.String(), tx.MustToBase64(), key, expected.String(), actual.String())
-			return node.failRequest(ctx, req, "")
-		}
+		logger.Printf("node.compareDepositCallWithSolanaTx(%s %s) => %v", signature.String(), user.ChainAddress, err)
+		return node.failRequest(ctx, req, "")
 	}
 
 	session := &store.Session{
