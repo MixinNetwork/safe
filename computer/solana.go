@@ -658,10 +658,6 @@ func buildBalanceMap(balances []rpc.TokenBalance, owner *solana.PublicKey) map[s
 }
 
 func (node *Node) VerifySubSystemCall(ctx context.Context, tx *solana.Transaction, groupDepositEntry, user solana.PublicKey) error {
-	// TODO do test verification with a real transaction
-	if common.CheckTestEnvironment(ctx) {
-		return nil
-	}
 	for index, ix := range tx.Message.Instructions {
 		accounts, err := ix.ResolveInstructionAccounts(&tx.Message)
 		if err != nil {
