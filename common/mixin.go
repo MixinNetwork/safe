@@ -98,8 +98,13 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, reci
 		if err != nil {
 			return crypto.Hash{}, err
 		}
-		if old != nil && old.State == mixin.SafeUtxoStateSpent {
-			return crypto.HashFromString(old.TransactionHash)
+		if old != nil {
+			if old.State == mixin.SafeUtxoStateSpent {
+				return crypto.HashFromString(old.TransactionHash)
+			}
+			logger.Verbosef("common.mixin.SafeReadTransactionRequestUntilSufficient(%s) => %s", sTraceId, old.State)
+			time.Sleep(time.Second)
+			continue
 		}
 
 		req, err := SafeReadMultisigRequestUntilSufficient(ctx, client, sTraceId)
