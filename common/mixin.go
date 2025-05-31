@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -99,6 +100,21 @@ func WriteStorageUntilSufficient(ctx context.Context, client *mixin.Client, reci
 		}
 		if old != nil && old.State == mixin.SafeUtxoStateSpent {
 			return crypto.HashFromString(old.TransactionHash)
+		}
+
+		req, err := SafeReadMultisigRequestUntilSufficient(ctx, client, sTraceId)
+		if err != nil {
+			return crypto.Hash{}, err
+		}
+		if req != nil {
+			if !slices.Contains(req.Signers, client.ClientID) {
+				_, err = signMultisigUntilSufficient(ctx, client, req.RequestID, req.RawTransaction, req.Views, []string{client.ClientID}, su.SpendPrivateKey)
+				if err != nil {
+					return crypto.Hash{}, err
+				}
+			}
+			time.Sleep(time.Second)
+			continue
 		}
 
 		_, err = bot.CreateObjectStorageTransaction(ctx, recipients, nil, extra, sTraceId, nil, "", &su)
@@ -238,7 +254,43 @@ func signTransactionUntilSufficient(ctx context.Context, client *mixin.Client, r
 			RawTransaction: signedRaw,
 		})
 		logger.Verbosef("common.mixin.SafeSubmitTransactionRequest(%s, %s) => %v %v\n", requestId, signedRaw, req, err)
-		if CheckRetryableError(err) {
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		return req, err
+	}
+}
+
+func signMultisigUntilSufficient(ctx context.Context, client *mixin.Client, requestId, raw string, views []mixinnet.Key, members []string, spendPrivateKey string) (*mixin.SafeMultisigRequest, error) {
+	key, err := mixinnet.KeyFromString(spendPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	index := slices.Index(members, client.ClientID)
+	if index == -1 {
+		return nil, fmt.Errorf("invalid signer index: %d", index)
+	}
+
+	ver, err := mixinnet.TransactionFromRaw(raw)
+	if err != nil {
+		return nil, err
+	}
+	err = mixin.SafeSignTransaction(ver, key, views, uint16(index))
+	if err != nil {
+		return nil, err
+	}
+	signedRaw, err := ver.Dump()
+	if err != nil {
+		return nil, err
+	}
+	for {
+		req, err := client.SafeSignMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID:      requestId,
+			RawTransaction: signedRaw,
+		})
+		logger.Verbosef("common.mixin.SafeSignMultisigRequest(%s, %s) => %v %v\n", requestId, signedRaw, req, err)
+		if mtg.CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
 		}
@@ -254,6 +306,21 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 			return req, nil
 		}
 		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		return nil, err
+	}
+}
+
+func SafeReadMultisigRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeMultisigRequest, error) {
+	for {
+		req, err := client.SafeReadMultisigRequests(ctx, id)
+		logger.Verbosef("common.mixin.SafeReadMultisigRequests(%s) => %v %v", id, req, err)
+		if err == nil || mixin.IsErrorCodes(err, 404) {
+			return req, nil
+		}
+		if mtg.CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
 		}
