@@ -271,6 +271,8 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	}
 
 	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.TransactionHash, ethereumAssetId, deposit.AssetAddress, deposit.Receiver, deposit.OutputIndex, ethereum.ParseAmount(deposit.Amount, decimals))
+	logger.Printf("ethereum.VerifyDeposit(%d, %s, %d) => %v %v %v",
+		deposit.Chain, deposit.TransactionHash, deposit.OutputIndex, match, etx, err)
 	if err != nil {
 		panic(err)
 	}
@@ -947,7 +949,7 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 	if err != nil {
 		return err
 	}
-	msg := []byte(fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash))
+	msg := fmt.Appendf(nil, "REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
 	err = ethereum.VerifyMessageSignature(tx.Holder, msg, sig)
 	logger.Printf("holder: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 	if err != nil {

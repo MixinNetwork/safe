@@ -128,7 +128,7 @@ func HashMessageForSignature(msg string) []byte {
 	if err != nil {
 		panic(msg)
 	}
-	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(b), b)))
+	hash := crypto.Keccak256Hash(fmt.Appendf(nil, "\x19Ethereum Signed Message:\n%d%s", len(b), b))
 	return hash.Bytes()
 }
 

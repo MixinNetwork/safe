@@ -242,9 +242,8 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 		return nil, err
 	}
 	fee := fvb * int64(virtualSize)
-	if fee < bitcoin.ValueDust(tx.Chain) {
-		fee = bitcoin.ValueDust(tx.Chain)
-	}
+	dust := bitcoin.ValueDust(tx.Chain)
+	fee = max(fee, dust)
 
 	feeInput, err := node.bitcoinRetrieveFeeInputsForTransaction(ctx, uint64(fee), uint64(fvb), tx)
 	if err != nil {

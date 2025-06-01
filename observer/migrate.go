@@ -46,7 +46,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	key, val := "SCHEMA:VERSION:4faf897808e00865d3772ac683f484c1eb842e80", ""
 	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
