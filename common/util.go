@@ -87,6 +87,7 @@ func CheckTransactionLockedError(err error) bool {
 	}
 	es := err.Error()
 	switch {
+	case strings.Contains(es, "insufficient outputs for"):
 	case strings.Contains(es, "locked by another transaction"):
 	case strings.Contains(es, "locked by other transaction"):
 	case strings.Contains(es, "spent by other transaction"):

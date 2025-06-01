@@ -215,37 +215,37 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 }
 
 type SafeTransactionReceiver struct {
-	Members        []string `json:"members,omitempty"`
-	MemberHash     string   `json:"members_hash,omitempty"`
-	Threshold      uint8    `json:"threshold,omitempty"`
-	Destination    string   `json:"destination,omitempty"`
-	Tag            string   `json:"Tag,omitempty"`
-	WithdrawalHash string   `json:"withdrawal_hash,omitempty"`
+	Members        []string `json:"members"`
+	MemberHash     string   `json:"members_hash"`
+	Threshold      uint8    `json:"threshold"`
+	Destination    string   `json:"destination"`
+	Tag            string   `json:"tag"`
+	WithdrawalHash string   `json:"withdrawal_hash"`
 }
 
 type SafeTransactionRequest struct {
-	RequestID        string                     `json:"request_id,omitempty"`
-	TransactionHash  string                     `json:"transaction_hash,omitempty"`
-	UserID           string                     `json:"user_id,omitempty"`
-	KernelAssetID    mixinnet.Hash              `json:"kernel_asset_id,omitempty"`
-	AssetID          mixinnet.Hash              `json:"asset_id,omitempty"`
-	Amount           decimal.Decimal            `json:"amount,omitempty"`
-	CreatedAt        time.Time                  `json:"created_at,omitempty"`
-	UpdatedAt        time.Time                  `json:"updated_at,omitempty"`
-	Extra            string                     `json:"extra,omitempty"`
-	Receivers        []*SafeTransactionReceiver `json:"receivers,omitempty"`
-	Senders          []string                   `json:"senders,omitempty"`
-	SendersHash      string                     `json:"senders_hash,omitempty"`
-	SendersThreshold uint8                      `json:"senders_threshold,omitempty"`
-	Signers          []string                   `json:"signers,omitempty"`
-	SnapshotHash     string                     `json:"snapshot_hash,omitempty"`
-	SnapshotAt       *time.Time                 `json:"snapshot_at,omitempty"`
-	State            SafeUtxoState              `json:"state,omitempty"`
+	RequestID        string                     `json:"request_id"`
+	TransactionHash  string                     `json:"transaction_hash"`
+	UserID           string                     `json:"user_id"`
+	KernelAssetID    mixinnet.Hash              `json:"kernel_asset_id"`
+	AssetID          mixinnet.Hash              `json:"asset_id"`
+	Amount           decimal.Decimal            `json:"amount"`
+	CreatedAt        time.Time                  `json:"created_at"`
+	UpdatedAt        time.Time                  `json:"updated_at"`
+	Extra            string                     `json:"extra"`
+	Receivers        []*SafeTransactionReceiver `json:"receivers"`
+	Senders          []string                   `json:"senders"`
+	SendersHash      string                     `json:"senders_hash"`
+	SendersThreshold uint8                      `json:"senders_threshold"`
+	Signers          []string                   `json:"signers"`
+	SnapshotHash     string                     `json:"snapshot_hash"`
+	SnapshotAt       *time.Time                 `json:"snapshot_at"`
+	State            SafeUtxoState              `json:"state"`
 	RawTransaction   string                     `json:"raw_transaction"`
-	Views            []mixinnet.Key             `json:"views,omitempty"`
+	Views            []mixinnet.Key             `json:"views"`
 	RevokedBy        string                     `json:"revoked_by"`
 
-	Asset mixinnet.Hash `json:"asset,omitempty"`
+	Asset mixinnet.Hash `json:"asset"`
 }
 
 func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*SafeTransactionRequest, error) {
