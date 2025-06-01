@@ -135,7 +135,7 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 func sendTransaction(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	req, err := readTransaction(ctx, client, traceId)
 	if err != nil || req != nil {
-		return nil, err
+		return req, err
 	}
 
 	utxos, err := listSafeUtxos(ctx, client, members, threshold, assetId)
@@ -150,12 +150,10 @@ func sendTransaction(ctx context.Context, client *mixin.Client, members []string
 	b.Memo = memo
 	b.Hint = traceId
 
-	tx, err := client.MakeTransaction(ctx, b, []*mixin.TransactionOutput{
-		{
-			Address: mixin.RequireNewMixAddress(receivers, byte(receiversThreshold)),
-			Amount:  amount,
-		},
-	})
+	tx, err := client.MakeTransaction(ctx, b, []*mixin.TransactionOutput{{
+		Address: mixin.RequireNewMixAddress(receivers, byte(receiversThreshold)),
+		Amount:  amount,
+	}})
 	if err != nil {
 		return nil, err
 	}

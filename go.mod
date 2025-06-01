@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	filippo.io/edwards25519 v1.1.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.12.1
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.12.2
 	github.com/MixinNetwork/mixin v0.18.26
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/btcsuite/btcd v0.24.2
