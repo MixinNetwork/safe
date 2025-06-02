@@ -92,6 +92,7 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 }
 
 func CreateObjectStorageUntilSufficient(ctx context.Context, client *mixin.Client, recipients []*bot.TransactionRecipient, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
+	su.IsSpendPrivateSum = true // FIXME put this in configuration file
 	for {
 		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
