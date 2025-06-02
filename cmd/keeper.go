@@ -72,8 +72,8 @@ func KeeperBootCmd(c *cli.Context) error {
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 
-	if mmc := mc.Keeper.MonitorConversaionId; mmc != "" {
-		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, mmc, version)
+	if mc.Keeper.MonitorConversaionId != "" {
+		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, version)
 	}
 
 	group.AttachWorker(mc.Keeper.AppId, keeper)

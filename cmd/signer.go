@@ -83,8 +83,8 @@ func SignerBootCmd(c *cli.Context) error {
 	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
 	node.Boot(ctx)
 
-	if mmc := mc.Signer.MonitorConversaionId; mmc != "" {
-		go MonitorSigner(ctx, db, kd, mc.Signer, group, mmc, version)
+	if mc.Signer.MonitorConversaionId != "" {
+		go MonitorSigner(ctx, db, kd, mc.Signer, group, version)
 	}
 
 	group.AttachWorker(mc.Signer.AppId, node)
