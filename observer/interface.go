@@ -31,11 +31,12 @@ type Configuration struct {
 	PolygonKeeperDepositEntry   string `toml:"polygon-keeper-deposit-entry"`
 	EVMKey                      string `toml:"evm-key"`
 	App                         struct {
-		AppId             string `toml:"app-id"`
-		SessionId         string `toml:"session-id"`
-		SessionPrivateKey string `toml:"session-private-key"`
-		ServerPublicKey   string `toml:"server-public-key"`
-		SpendPrivateKey   string `toml:"spend-private-key"`
+		AppId               string `toml:"app-id"`
+		SessionId           string `toml:"session-id"`
+		SessionPrivateKey   string `toml:"session-private-key"`
+		ServerPublicKey     string `toml:"server-public-key"`
+		SpendPrivateKey     string `toml:"spend-private-key"`
+		IsSpendKeyCanonical bool   `toml:"is-spend-key-canonical"`
 	} `toml:"app"`
 }
 

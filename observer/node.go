@@ -543,6 +543,7 @@ func (node *Node) safeUser() bot.SafeUser {
 		ServerPublicKey:   node.conf.App.ServerPublicKey,
 		SessionPrivateKey: node.conf.App.SessionPrivateKey,
 		SpendPrivateKey:   node.conf.App.SpendPrivateKey,
+		IsSpendPrivateSum: node.conf.App.IsSpendKeyCanonical,
 	}
 }
 

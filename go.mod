@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	filippo.io/edwards25519 v1.1.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.12.3-0.20250602075147-880af5e4623e
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.13.0
 	github.com/MixinNetwork/mixin v0.18.26
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/btcsuite/btcd v0.24.2
@@ -18,7 +18,7 @@ require (
 	github.com/fox-one/mixin-sdk-go/v2 v2.0.11
 	github.com/fxamacker/cbor/v2 v2.8.0
 	github.com/gofrs/uuid/v5 v5.3.2
-	github.com/mattn/go-sqlite3 v1.14.27
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0

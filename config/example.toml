@@ -143,6 +143,8 @@ session-id = ""
 session-private-key = ""
 server-public-key = ""
 spend-private-key = ""
+# set to true if the app generates the private spend key without keeping the seed
+is-spend-key-canonical = false
 
 [dev]
 # set a listen port to enable go pprof
