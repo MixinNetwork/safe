@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS outputs_by_trace_sequence ON outputs(trace_id, sequen
 CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_app_asset_state_sequence ON outputs(app_id, asset_id, state, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_transaction_hash_output_index ON outputs(transaction_hash, output_index);
-CREATE UNIQUE INDEX IF NOT EXISTS outputs_by_deposit_hash_index ON outputs(deposit_hash, deposit_index) WHERE deposit_hash IS NOT NULL;
+-- FIXME CREATE UNIQUE INDEX IF NOT EXISTS outputs_by_deposit_hash_index ON outputs(deposit_hash, deposit_index) WHERE deposit_hash IS NOT NULL;
 
 
 
@@ -108,4 +108,4 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE UNIQUE INDEX IF NOT EXISTS transactions_by_hash ON transactions(hash) WHERE hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS transactions_by_state_sequence_hash ON transactions(state, sequence, hash);
 CREATE INDEX IF NOT EXISTS transactions_by_asset_state_sequence ON transactions(asset_id, state, sequence);
--- CREATE INDEX IF NOT EXISTS transactions_by_state_withdrawal_hash_updated ON transactions(state, withdrawal_hash, updated_at);
+CREATE INDEX IF NOT EXISTS transactions_by_state_withdrawal_hash_updated ON transactions(state, withdrawal_hash, updated_at);

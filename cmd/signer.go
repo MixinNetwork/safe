@@ -42,6 +42,11 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer db.Close()
+	err = mtg.MigrateSchema(ctx, db)
+	if err != nil {
+		return err
+	}
+
 	group, err := mtg.BuildGroup(ctx, db, mc.Signer.MTG)
 	if err != nil {
 		return err
