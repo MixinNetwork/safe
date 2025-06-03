@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"slices"
 	"sort"
-	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -127,7 +126,8 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 	if common.CheckTestEnvironment(ctx) {
 		return false
 	}
-	ver, err := common.VerifyKernelTransaction(ctx, node.group, out, time.Minute)
+	// FIXME we will use out.deposit_hash to check after all nodes upgraded and synced
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, out.TransactionHash)
 	if err != nil {
 		panic(err)
 	}

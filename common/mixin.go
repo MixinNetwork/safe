@@ -2,53 +2,17 @@ package common
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
 )
-
-type KernelTransactionReader interface {
-	ReadKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error)
-}
-
-// TODO the output should include the snapshot signature, then it can just be
-// verified against the active kernel nodes public key
-func VerifyKernelTransaction(ctx context.Context, reader KernelTransactionReader, out *mtg.Action, timeout time.Duration) (*common.VersionedTransaction, error) {
-	signed, err := reader.ReadKernelTransactionUntilSufficient(ctx, out.TransactionHash)
-	if err != nil {
-		return nil, err
-	}
-	logger.Printf("common.readKernelTransaction(%s) => %v %v", out.TransactionHash, signed, err)
-
-	if signed == nil {
-		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) not found %v", out, err)
-	}
-
-	if !strings.Contains(string(signed.Extra), out.Extra) && !strings.Contains(hex.EncodeToString(signed.Extra), out.Extra) {
-		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) memo mismatch %x", out, signed.Extra)
-	}
-	if signed.Asset != crypto.Sha256Hash([]byte(out.AssetId)) {
-		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) asset mismatch %s", out, signed.Asset)
-	}
-	if len(signed.Outputs) < out.OutputIndex+1 {
-		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) output mismatch %d", out, len(signed.Outputs))
-	}
-	if a := decimal.RequireFromString(signed.Outputs[out.OutputIndex].Amount.String()); !a.Equal(out.Amount) {
-		return nil, fmt.Errorf("common.VerifyKernelTransaction(%v) amount mismatch %s", out, a)
-	}
-
-	return signed, nil
-}
 
 func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) ([]*mixin.SafeUtxo, bool) {
 	total := decimal.NewFromInt(0)

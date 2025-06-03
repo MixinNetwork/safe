@@ -31,7 +31,7 @@ type Action struct {
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
 
-var actionJoinCols = []string{"actions.output_id", "actions.transaction_hash", "action_state", "actions.sequence", "restore_sequence", "request_id", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "created_at", "updated_at", "signers", "signed_by", "trace_id", "app_id"}
+var actionJoinCols = []string{"actions.output_id", "actions.transaction_hash", "action_state", "actions.sequence", "restore_sequence", "request_id", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "created_at", "updated_at", "signers", "signed_by", "trace_id", "app_id", "deposit_hash", "deposit_index"}
 
 func (a *Action) values() []any {
 	return []any{a.OutputId, a.TransactionHash, a.ActionState, a.Sequence, a.restoreSequence}
@@ -49,7 +49,7 @@ func actionFromRow(row Row) (*Action, error) {
 func actionJoinFromRow(row Row) (*Action, error) {
 	var a Action
 	var senders, signers string
-	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.TransactionRequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &a.Extra, &a.State, &a.SequencerCreatedAt, &a.updatedAt, &signers, &a.SignedBy, &a.TraceId, &a.AppId)
+	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.TransactionRequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &a.Extra, &a.State, &a.SequencerCreatedAt, &a.updatedAt, &signers, &a.SignedBy, &a.TraceId, &a.AppId, &a.DepositHash, &a.DepositIndex)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {

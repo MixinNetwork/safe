@@ -30,7 +30,6 @@ import (
 
 const (
 	SessionTimeout       = time.Hour
-	KernelTimeout        = 3 * time.Minute
 	OperationExtraLimit  = 128
 	MPCFirstMessageRound = 2
 	PrepareExtra         = "PREPARE"
@@ -623,7 +622,8 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 		return false
 	}
 
-	ver, err := common.VerifyKernelTransaction(ctx, node.group, out, KernelTimeout)
+	// FIXME we will use out.deposit_hash to check after all nodes upgraded and synced
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, out.TransactionHash)
 	if err != nil {
 		panic(err)
 	}

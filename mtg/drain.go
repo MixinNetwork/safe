@@ -2,6 +2,8 @@ package mtg
 
 import (
 	"context"
+	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -68,17 +70,25 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	if !output.checkId() {
 		panic(output.OutputId)
 	}
+	if output.Extra != hex.EncodeToString(ver.Extra) {
+		panic(output.OutputId)
+	}
 
 	appId, _ := DecodeMixinExtraBase64(string(ver.Extra))
-	if ver.DepositData() != nil {
+	if dd := ver.DepositData(); dd != nil {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)
 		if err != nil {
 			panic(err)
+		}
+		if dd.Transaction != d.DepositHash || dd.Index != uint64(d.DepositIndex) {
+			panic(output.OutputId)
 		}
 		appId = grp.FindAppByEntry(DepositEntry{
 			Destination: d.Destination,
 			Tag:         d.Tag,
 		}.UniqueKey())
+		output.DepositHash = sql.NullString{Valid: true, String: d.DepositHash}
+		output.DepositIndex = sql.NullInt64{Valid: true, Int64: d.DepositIndex}
 	}
 	if appId == "" {
 		appId = grp.GroupId

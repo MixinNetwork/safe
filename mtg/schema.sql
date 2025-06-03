@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS outputs (
   signed_by            VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
   app_id               VARCHAR NOT NULL,
+  deposit_hash         VARCHAR,
+  deposit_index        INTEGER,
   PRIMARY KEY ('output_id')
 );
 
@@ -59,6 +61,7 @@ CREATE INDEX IF NOT EXISTS outputs_by_trace_sequence ON outputs(trace_id, sequen
 CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_app_asset_state_sequence ON outputs(app_id, asset_id, state, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_transaction_hash_output_index ON outputs(transaction_hash, output_index);
+CREATE UNIQUE INDEX IF NOT EXISTS outputs_by_deposit_hash_index ON outputs(deposit_hash, deposit_index) WHERE deposit_hash IS NOT NULL;
 
 
 
