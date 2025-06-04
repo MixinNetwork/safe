@@ -8,20 +8,13 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/shopspring/decimal"
 )
 
 type MixinWallet struct {
 	client *mixin.Client
 	store  *SQLite3Store
 	epoch  uint64
-}
-
-func NewWallet(client *mixin.Client, store *SQLite3Store, epoch uint64) *MixinWallet {
-	return &MixinWallet{
-		client: client,
-		store:  store,
-		epoch:  epoch,
-	}
 }
 
 func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
@@ -53,6 +46,10 @@ func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 
 func (mw *MixinWallet) Boot(ctx context.Context) {
 	go mw.drainOutputsFromNetwork(ctx)
+}
+
+func (mw *MixinWallet) LockUTXOs(ctx context.Context, traceId, assetId string, amount decimal.Decimal) ([]*Output, error) {
+	return mw.store.LockUTXOs(ctx, traceId, assetId, amount)
 }
 
 func (mw *MixinWallet) writeOutputsIfNotExists(ctx context.Context, outputs []*mixin.SafeUtxo) error {

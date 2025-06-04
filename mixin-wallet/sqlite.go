@@ -25,6 +25,10 @@ type SQLite3Store struct {
 	mutex *sync.Mutex
 }
 
+type Row interface {
+	Scan(dest ...any) error
+}
+
 func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 	db, err := common.OpenSQLite3Store(path, SCHEMA)
 	if err != nil {
