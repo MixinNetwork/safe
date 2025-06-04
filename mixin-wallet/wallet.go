@@ -8,6 +8,7 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
 )
 
@@ -48,16 +49,38 @@ func (mw *MixinWallet) Boot(ctx context.Context) {
 	go mw.drainOutputsFromNetwork(ctx)
 }
 
-func (mw *MixinWallet) LockUTXOs(ctx context.Context, traceId, assetId string, amount decimal.Decimal) ([]*Output, error) {
+func (mw *MixinWallet) LockUTXOs(ctx context.Context, traceId, assetId string, amount decimal.Decimal) ([]*mixin.SafeUtxo, error) {
 	os, err := mw.store.LockUTXOs(ctx, traceId, assetId, amount)
 	if err != nil {
 		return nil, err
 	}
+	var utxos []*mixin.SafeUtxo
 	for _, o := range os {
-		o.Receivers = []string{mw.client.ClientID}
-		o.ReceiversThreshold = 1
+		hash, err := mixinnet.HashFromString(o.TransactionHash)
+		if err != nil {
+			panic(err)
+		}
+		asset, err := mixinnet.HashFromString(o.KernelAssetId)
+		if err != nil {
+			panic(err)
+		}
+
+		utxos = append(utxos, &mixin.SafeUtxo{
+			OutputID:           o.OutputId,
+			TransactionHash:    hash,
+			OutputIndex:        uint8(o.OutputIndex),
+			KernelAssetID:      asset,
+			AssetID:            o.AssetId,
+			Amount:             o.Amount,
+			SendersThreshold:   uint8(o.SendersThreshold),
+			Senders:            o.Senders,
+			ReceiversThreshold: 1,
+			Receivers:          []string{mw.client.ClientID},
+			Sequence:           o.Sequence,
+			CreatedAt:          o.CreatedAt,
+		})
 	}
-	return os, nil
+	return utxos, nil
 }
 
 func (mw *MixinWallet) writeOutputsIfNotExists(ctx context.Context, outputs []*mixin.SafeUtxo) error {
