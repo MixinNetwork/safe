@@ -42,7 +42,7 @@ var outputCols = []string{"output_id", "transaction_hash", "output_index", "asse
 func outputFromRow(row Row) (*Output, error) {
 	var output Output
 	var senders string
-	err := row.Scan(&output.OutputId, &output.TransactionHash, &output.OutputIndex, &output.AssetId, &output.KernelAssetId, &output.Amount, &output.SendersThreshold, senders, &output.State, &output.Sequence, &output.CreatedAt, &output.UpdatedAt, &output.SignedBy)
+	err := row.Scan(&output.OutputId, &output.TransactionHash, &output.OutputIndex, &output.AssetId, &output.KernelAssetId, &output.Amount, &output.SendersThreshold, &senders, &output.State, &output.Sequence, &output.CreatedAt, &output.UpdatedAt, &output.SignedBy)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -59,7 +59,7 @@ func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*m
 
 	now := time.Now().UTC()
 	for _, output := range outputs {
-		existed, err := s.checkExistence(ctx, tx, "SELECT output_id FROM outputs where output_id=?", output.OutputID)
+		existed, err := s.checkExistence(ctx, tx, "SELECT output_id FROM outputs WHERE output_id=?", output.OutputID)
 		if err != nil {
 			return err
 		}
@@ -67,7 +67,7 @@ func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*m
 			continue
 		}
 
-		vals := []any{output.OutputID, output.TransactionHash, output.OutputIndex, output.AssetID, output.KernelAssetID, output.Amount.String(), output.SendersThreshold, strings.Join(output.Senders, ","), OutputStateUnspent, output.Sequence, now, now, nil}
+		vals := []any{output.OutputID, output.TransactionHash.String(), output.OutputIndex, output.AssetID, output.KernelAssetID.String(), output.Amount.String(), output.SendersThreshold, strings.Join(output.Senders, ","), OutputStateUnspent, output.Sequence, now, now, nil}
 		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT outputs %v", err)
@@ -119,7 +119,7 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 	for _, o := range os {
 		o.State = OutputStateLocked
 		o.SignedBy = sql.NullString{Valid: true, String: trace}
-		err = s.execOne(ctx, tx, query, OutputStateLocked, trace, asset, OutputStateUnspent)
+		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, o.OutputId, o.AssetId, OutputStateUnspent)
 		if err != nil {
 			return nil, fmt.Errorf("UPDATE outputs %v", err)
 		}
@@ -149,4 +149,20 @@ func (s *SQLite3Store) listOutputsByQuery(ctx context.Context, tx *sql.Tx, query
 		os = append(os, o)
 	}
 	return os, nil
+}
+
+func (s *SQLite3Store) TestListOutputsByQuery(ctx context.Context, query string, params ...any) ([]*Output, error) {
+	if !common.CheckTestEnvironment(ctx) {
+		panic(ctx)
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.listOutputsByQuery(ctx, tx, query, params...)
 }
