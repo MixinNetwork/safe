@@ -236,8 +236,13 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if output == nil {
 		return node.failRequest(ctx, req, "")
 	}
+	amt := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
+	min := decimal.RequireFromString("0.00000001")
+	if amt.Cmp(min) < 0 {
+		return node.failRequest(ctx, req, "")
+	}
 
-	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).String(), nil, req.Id)
+	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amt.String(), nil, req.Id)
 	if t == nil {
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")

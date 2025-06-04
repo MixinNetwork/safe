@@ -176,23 +176,10 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return nil
 	}
 
-	safe, err := node.keeperStore.ReadSafeByAddress(ctx, transfer.Receiver)
-	logger.Printf("keeperStore.ReadSafeByAddress(%s, %s) => %v %v", transfer.Hash, transfer.Receiver, safe, err)
-	if err != nil {
-		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
-	} else if safe == nil || safe.Chain != chain {
-		return nil
-	}
-
 	asset, err := node.fetchAssetMeta(ctx, transfer.AssetId)
 	logger.Printf("node.fetchAssetMeta(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
 	if err != nil || asset == nil {
 		return err
-	}
-
-	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder, safe.Address)
-	if err != nil {
-		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
 	}
 
 	var amount decimal.Decimal
@@ -207,6 +194,22 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 			return nil
 		}
 		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
+	}
+	min := decimal.RequireFromString("0.00000001")
+	if amount.Cmp(min) < 0 {
+		return nil
+	}
+
+	safe, err := node.keeperStore.ReadSafeByAddress(ctx, transfer.Receiver)
+	logger.Printf("keeperStore.ReadSafeByAddress(%s, %s) => %v %v", transfer.Hash, transfer.Receiver, safe, err)
+	if err != nil {
+		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", transfer.Receiver, err)
+	} else if safe == nil || safe.Chain != chain {
+		return nil
+	}
+	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, transfer.AssetId, transfer.TokenAddress, safe.Holder, safe.Address)
+	if err != nil {
+		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", safe.Holder, err)
 	}
 
 	id := common.UniqueId(transfer.AssetId, safe.Holder)

@@ -48,7 +48,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 			continue
 		}
 		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverUserId)
-		time.Sleep(30 * time.Minute)
+		time.Sleep(2 * time.Minute)
 	}
 }
 
@@ -129,7 +129,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 			continue
 		}
 		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverUserId)
-		time.Sleep(30 * time.Minute)
+		time.Sleep(2 * time.Minute)
 	}
 }
 
