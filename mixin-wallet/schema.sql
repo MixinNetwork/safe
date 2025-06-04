@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS outputs (
   transaction_hash     VARCHAR NOT NULL,
   output_index         INTEGER NOT NULL,
   asset_id             VARCHAR NOT NULL,
+  kernel_asset_id      VARCHAR NOT NULL,
   amount               VARCHAR NOT NULL,
   senders_threshold    INTEGER NOT NULL,
   senders              VARCHAR NOT NULL,

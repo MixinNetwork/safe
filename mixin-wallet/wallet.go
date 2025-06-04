@@ -49,7 +49,15 @@ func (mw *MixinWallet) Boot(ctx context.Context) {
 }
 
 func (mw *MixinWallet) LockUTXOs(ctx context.Context, traceId, assetId string, amount decimal.Decimal) ([]*Output, error) {
-	return mw.store.LockUTXOs(ctx, traceId, assetId, amount)
+	os, err := mw.store.LockUTXOs(ctx, traceId, assetId, amount)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range os {
+		o.Receivers = []string{mw.client.ClientID}
+		o.ReceiversThreshold = 1
+	}
+	return os, nil
 }
 
 func (mw *MixinWallet) writeOutputsIfNotExists(ctx context.Context, outputs []*mixin.SafeUtxo) error {

@@ -23,6 +23,7 @@ type Output struct {
 	TransactionHash  string
 	OutputIndex      int
 	AssetId          string
+	KernelAssetId    string
 	Amount           decimal.Decimal
 	SendersThreshold int64
 	Senders          []string
@@ -31,14 +32,17 @@ type Output struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	SignedBy         sql.NullString
+
+	Receivers          []string
+	ReceiversThreshold int
 }
 
-var outputCols = []string{"output_id", "transaction_hash", "output_index", "asset_id", "amount", "senders_threshold", "senders", "state", "sequence", "created_at", "updated_at", "signed_by"}
+var outputCols = []string{"output_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "state", "sequence", "created_at", "updated_at", "signed_by"}
 
 func outputFromRow(row Row) (*Output, error) {
 	var output Output
 	var senders string
-	err := row.Scan(output.OutputId, output.TransactionHash, output.OutputIndex, output.AssetId, output.Amount, output.SendersThreshold, senders, output.State, output.Sequence, output.CreatedAt, output.UpdatedAt, output.SignedBy)
+	err := row.Scan(&output.OutputId, &output.TransactionHash, &output.OutputIndex, &output.AssetId, &output.KernelAssetId, &output.Amount, &output.SendersThreshold, senders, &output.State, &output.Sequence, &output.CreatedAt, &output.UpdatedAt, &output.SignedBy)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -63,7 +67,7 @@ func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*m
 			continue
 		}
 
-		vals := []any{output.OutputID, output.TransactionHash, output.OutputIndex, output.AssetID, output.Amount.String(), output.SendersThreshold, strings.Join(output.Senders, ","), OutputStateUnspent, output.Sequence, now, now, nil}
+		vals := []any{output.OutputID, output.TransactionHash, output.OutputIndex, output.AssetID, output.KernelAssetID, output.Amount.String(), output.SendersThreshold, strings.Join(output.Senders, ","), OutputStateUnspent, output.Sequence, now, now, nil}
 		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT outputs %v", err)
