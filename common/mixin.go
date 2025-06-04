@@ -102,7 +102,7 @@ func sendTransaction(ctx context.Context, client *mixin.Client, members []string
 		return req, err
 	}
 
-	utxos, err := listSafeUtxos(ctx, client, members, threshold, assetId)
+	utxos, err := SafeListUtxos(ctx, client, members, threshold, assetId, 0, mixin.SafeUtxoStateUnspent)
 	if err != nil {
 		return nil, err
 	}
@@ -133,15 +133,22 @@ func sendTransaction(ctx context.Context, client *mixin.Client, members []string
 	return signTransaction(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
 }
 
-func listSafeUtxos(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) ([]*mixin.SafeUtxo, error) {
-	utxos, err := client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
-		Members:   members,
-		Threshold: uint8(threshold),
-		State:     mixin.SafeUtxoStateUnspent,
-		Asset:     assetId,
-	})
-	logger.Verbosef("common.mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
-	return utxos, err
+func SafeListUtxos(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string, offset uint64, state mixin.SafeUtxoState) ([]*mixin.SafeUtxo, error) {
+	for {
+		utxos, err := client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
+			Members:   members,
+			Threshold: uint8(threshold),
+			State:     state,
+			Asset:     assetId,
+			Offset:    offset,
+		})
+		logger.Verbosef("common.mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		return utxos, err
+	}
 }
 
 func createTransaction(ctx context.Context, client *mixin.Client, id, raw string) (*mixin.SafeTransactionRequest, error) {
@@ -266,11 +273,7 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 
 func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, int, error) {
 	for {
-		utxos, err := listSafeUtxos(ctx, client, members, threshold, assetId)
-		if CheckRetryableError(err) {
-			time.Sleep(time.Second)
-			continue
-		}
+		utxos, err := SafeListUtxos(ctx, client, members, threshold, assetId, 0, mixin.SafeUtxoStateUnspent)
 		if err != nil {
 			return nil, 0, err
 		}
