@@ -106,13 +106,13 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 	}
 	defer Rollback(tx)
 
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by=?", strings.Join(outputCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by=? ORDER BY sequence", strings.Join(outputCols, ","))
 	outputs, err := s.listOutputsByQuery(ctx, tx, query, asset, OutputStateLocked, trace)
 	if err != nil || len(outputs) > 0 {
 		return outputs, err
 	}
 
-	query = fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by IS NULL LIMIT 200", strings.Join(outputCols, ","))
+	query = fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by IS NULL ORDER BY sequence LIMIT 256", strings.Join(outputCols, ","))
 	outputs, err = s.listOutputsByQuery(ctx, tx, query, asset, OutputStateUnspent)
 	if err != nil {
 		return nil, err

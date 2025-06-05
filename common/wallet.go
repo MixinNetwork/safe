@@ -116,9 +116,9 @@ func (mw *MixinWallet) writeDrainCheckpoint(ctx context.Context, offset uint64) 
 }
 
 func toBotOutput(utxos []*mixin.SafeUtxo) []*bot.Output {
-	var outputs []*bot.Output
-	for _, o := range utxos {
-		outputs = append(outputs, &bot.Output{
+	outputs := make([]*bot.Output, len(utxos))
+	for i, o := range utxos {
+		outputs[i] = &bot.Output{
 			OutputID:        o.OutputID,
 			TransactionHash: o.TransactionHash.String(),
 			OutputIndex:     uint(o.OutputIndex),
@@ -127,7 +127,7 @@ func toBotOutput(utxos []*mixin.SafeUtxo) []*bot.Output {
 			Amount:          o.Amount.String(),
 			State:           string(o.State),
 			Sequence:        int64(o.Sequence),
-		})
+		}
 	}
 	return outputs
 }

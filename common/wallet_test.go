@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sequence = 0
-
 func TestWallet(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
@@ -34,17 +32,21 @@ func TestWallet(t *testing.T) {
 		},
 	}
 
+	var sequence uint64
 	var os []*mixin.SafeUtxo
 	for range 4 {
-		o := buildOutput(mtg.StorageAssetId, "0.2")
+		sequence = sequence + 2
+		o := buildOutput(mtg.StorageAssetId, "0.2", sequence)
 		os = append(os, o)
 	}
 	for range 4 {
-		o := buildOutput(mtg.StorageAssetId, "0.1")
+		sequence = sequence + 2
+		o := buildOutput(mtg.StorageAssetId, "0.1", sequence)
 		os = append(os, o)
 	}
 	for range 4 {
-		o := buildOutput(SafeSolanaChainId, "0.1")
+		sequence = sequence + 2
+		o := buildOutput(SafeSolanaChainId, "0.1", sequence)
 		os = append(os, o)
 	}
 	err = mw.writeOutputsIfNotExists(ctx, os)
@@ -79,7 +81,7 @@ func TestWallet(t *testing.T) {
 	require.Len(os, 0)
 }
 
-func buildOutput(assetId string, amount string) *mixin.SafeUtxo {
+func buildOutput(assetId, amount string, sequence uint64) *mixin.SafeUtxo {
 	id := UniqueId(assetId, amount)
 	id = UniqueId(id, fmt.Sprintf("%d", sequence))
 	hash := mixinnet.NewHash([]byte(id))
@@ -92,8 +94,7 @@ func buildOutput(assetId string, amount string) *mixin.SafeUtxo {
 		AssetID:         assetId,
 		Amount:          amt,
 		State:           OutputStateUnspent,
-		Sequence:        uint64(sequence),
+		Sequence:        sequence,
 	}
-	sequence += 2
 	return o
 }
