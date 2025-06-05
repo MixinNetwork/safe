@@ -37,6 +37,11 @@ func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
+		if len(utxos) == 0 {
+			time.Sleep(time.Second * 3)
+			continue
+		}
+
 		err = mw.writeOutputsIfNotExists(ctx, utxos)
 		if err != nil {
 			panic(err)
