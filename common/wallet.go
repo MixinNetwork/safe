@@ -85,6 +85,7 @@ func (mw *MixinWallet) LockUTXOs(ctx context.Context, traceId, assetId string, a
 			Senders:            o.Senders,
 			ReceiversThreshold: 1,
 			Receivers:          []string{mw.client.ClientID},
+			State:              mixin.SafeUtxoState(o.State),
 			Sequence:           o.Sequence,
 			CreatedAt:          o.CreatedAt,
 		})

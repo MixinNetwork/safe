@@ -42,6 +42,3 @@ jobs:
 
     - name: TestSigner
       run: go test -v ./signer/...
-
-    - name: TestWallet
-      run: go test -v ./mixin-wallet/...

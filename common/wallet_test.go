@@ -62,8 +62,8 @@ func TestWallet(t *testing.T) {
 		require.Equal("0.2", o1.Amount.String())
 		require.Equal("0.2", o2.Amount.String())
 
-		require.Equal(OutputStateUnspent, o1.State)
-		require.Equal(OutputStateLocked, o2.State)
+		require.Equal(OutputStateLocked, string(o1.State))
+		require.Equal(OutputStateLocked, string(o2.State))
 	}
 
 	id = uuid.Must(uuid.NewV4()).String()
