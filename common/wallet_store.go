@@ -125,7 +125,7 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 		if total.Cmp(amount) < 0 {
 			continue
 		}
-		os = outputs[:i]
+		os = outputs[:i+1]
 		break
 	}
 	if len(os) == 0 {

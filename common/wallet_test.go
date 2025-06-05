@@ -23,6 +23,7 @@ func TestWallet(t *testing.T) {
 	ctx = EnableTestEnvironment(ctx)
 
 	root, err := os.MkdirTemp("", "wallet-test")
+	require.Nil(err)
 	db, err := OpenWalletSQLite3Store(root + "/wallet.sqlite3")
 	require.Nil(err)
 	mw := &MixinWallet{
@@ -75,6 +76,7 @@ func TestWallet(t *testing.T) {
 	os, err = mw.LockUTXOs(ctx, id, mtg.StorageAssetId, decimal.RequireFromString("0.2"))
 	require.NotNil(err)
 	require.True(strings.Contains(err.Error(), "insufficient outputs"))
+	require.Len(os, 0)
 }
 
 func buildOutput(assetId string, amount string) *mixin.SafeUtxo {
