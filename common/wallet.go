@@ -29,16 +29,16 @@ func NewMixinWallet(client *mixin.Client, db *SQLite3Store, epoch uint64) *Mixin
 
 func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 	for {
+		time.Sleep(time.Second)
 		checkpoint, err := mw.readDrainCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
-		utxos, err := SafeListUtxos(ctx, mw.client, nil, 1, "", checkpoint, mixin.SafeUtxoStateUnspent)
+		utxos, err := listUnspentUTXOsUntilSufficient(ctx, mw.client, "", checkpoint)
 		if err != nil {
 			panic(err)
 		}
 		if len(utxos) == 0 {
-			time.Sleep(time.Second * 3)
 			continue
 		}
 
@@ -50,12 +50,6 @@ func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-
-		interval := time.Second * 3
-		if len(utxos) == 500 {
-			interval = time.Second * 1
-		}
-		time.Sleep(interval)
 	}
 }
 

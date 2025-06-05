@@ -125,16 +125,16 @@ func sendTransaction(ctx context.Context, mw *MixinWallet, client *mixin.Client,
 	return signTransaction(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
 }
 
-func SafeListUtxos(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string, offset uint64, state mixin.SafeUtxoState) ([]*mixin.SafeUtxo, error) {
+func listUnspentUTXOsUntilSufficient(ctx context.Context, client *mixin.Client, assetId string, offset uint64) ([]*mixin.SafeUtxo, error) {
 	for {
 		utxos, err := client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
-			Members:   members,
-			Threshold: uint8(threshold),
-			State:     state,
+			Members:   []string{client.ClientID},
+			Threshold: uint8(1),
+			State:     mixin.SafeUtxoStateUnspent,
 			Asset:     assetId,
 			Offset:    offset,
 		})
-		logger.Verbosef("common.mixin.SafeListUtxos(%v %d %s) => %v %v\n", members, threshold, assetId, utxos, err)
+		logger.Verbosef("common.mixin.SafeListUtxos(%s, %s) => %d %v\n", client.ClientID, assetId, len(utxos), err)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
@@ -264,7 +264,7 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 }
 
 func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, int, error) {
-	utxos, err := SafeListUtxos(ctx, client, members, threshold, assetId, 0, mixin.SafeUtxoStateUnspent)
+	utxos, err := listUnspentUTXOsUntilSufficient(ctx, client, assetId, 0)
 	if err != nil {
 		return nil, 0, err
 	}

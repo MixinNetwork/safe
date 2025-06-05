@@ -56,14 +56,14 @@ type Output struct {
 var outputCols = []string{"output_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "state", "sequence", "created_at", "updated_at", "signed_by"}
 
 func outputFromRow(row Row) (*Output, error) {
-	var output Output
+	var o Output
 	var senders string
-	err := row.Scan(&output.OutputId, &output.TransactionHash, &output.OutputIndex, &output.AssetId, &output.KernelAssetId, &output.Amount, &output.SendersThreshold, &senders, &output.State, &output.Sequence, &output.CreatedAt, &output.UpdatedAt, &output.SignedBy)
+	err := row.Scan(&o.OutputId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.SendersThreshold, &senders, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &o.SignedBy)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	output.Senders = util.SplitIds(senders, ",")
-	return &output, err
+	o.Senders = util.SplitIds(senders, ",")
+	return &o, err
 }
 
 func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*mixin.SafeUtxo) error {
@@ -74,8 +74,11 @@ func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*m
 	defer Rollback(tx)
 
 	now := time.Now().UTC()
-	for _, output := range outputs {
-		existed, err := s.checkExistence(ctx, tx, "SELECT output_id FROM outputs WHERE output_id=?", output.OutputID)
+	for _, o := range outputs {
+		if o.State != mixin.SafeUtxoStateUnspent {
+			panic(o.OutputID)
+		}
+		existed, err := s.checkExistence(ctx, tx, "SELECT output_id FROM outputs WHERE output_id=?", o.OutputID)
 		if err != nil {
 			return err
 		}
@@ -83,7 +86,7 @@ func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*m
 			continue
 		}
 
-		vals := []any{output.OutputID, output.TransactionHash.String(), output.OutputIndex, output.AssetID, output.KernelAssetID.String(), output.Amount.String(), output.SendersThreshold, strings.Join(output.Senders, ","), OutputStateUnspent, output.Sequence, now, now, nil}
+		vals := []any{o.OutputID, o.TransactionHash.String(), o.OutputIndex, o.AssetID, o.KernelAssetID.String(), o.Amount.String(), o.SendersThreshold, strings.Join(o.Senders, ","), OutputStateUnspent, o.Sequence, now, now, nil}
 		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT outputs %v", err)
@@ -101,17 +104,15 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 	if err != nil {
 		return nil, err
 	}
+	defer Rollback(tx)
 
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by=?", strings.Join(outputCols, ","))
 	outputs, err := s.listOutputsByQuery(ctx, tx, query, asset, OutputStateLocked, trace)
-	if err != nil {
-		return nil, err
-	}
-	if len(outputs) > 0 {
-		return outputs, nil
+	if err != nil || len(outputs) > 0 {
+		return outputs, err
 	}
 
-	query = fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by IS NULL", strings.Join(outputCols, ","))
+	query = fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by IS NULL LIMIT 200", strings.Join(outputCols, ","))
 	outputs, err = s.listOutputsByQuery(ctx, tx, query, asset, OutputStateUnspent)
 	if err != nil {
 		return nil, err
@@ -124,7 +125,7 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 		if total.Cmp(amount) < 0 {
 			continue
 		}
-		os = outputs[:i+1]
+		os = outputs[:i]
 		break
 	}
 	if len(os) == 0 {
@@ -145,7 +146,6 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 	if err != nil {
 		return nil, err
 	}
-
 	return os, nil
 }
 
@@ -165,20 +165,4 @@ func (s *SQLite3Store) listOutputsByQuery(ctx context.Context, tx *sql.Tx, query
 		os = append(os, o)
 	}
 	return os, nil
-}
-
-func (s *SQLite3Store) TestListOutputsByQuery(ctx context.Context, query string, params ...any) ([]*Output, error) {
-	if !CheckTestEnvironment(ctx) {
-		panic(ctx)
-	}
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.listOutputsByQuery(ctx, tx, query, params...)
 }
