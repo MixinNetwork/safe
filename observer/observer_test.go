@@ -286,7 +286,7 @@ func testBuildNode(_ context.Context, require *require.Assertions, root string) 
 	db, err := OpenSQLite3Store(conf.Observer.StoreDir + "/observer.sqlite3")
 	require.Nil(err)
 
-	node := NewNode(db, kd, conf.Observer, conf.Keeper.MTG, nil)
+	node := NewNode(db, kd, conf.Observer, conf.Keeper.MTG, nil, nil)
 	return node
 }
 

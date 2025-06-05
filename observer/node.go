@@ -36,11 +36,12 @@ type Node struct {
 	aesKey      [32]byte
 	keeper      *mtg.Configuration
 	mixin       *mixin.Client
+	wallet      *common.MixinWallet
 	keeperStore *store.SQLite3Store
 	store       *SQLite3Store
 }
 
-func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
+func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, wallet *common.MixinWallet) *Node {
 	err := conf.Validate()
 	if err != nil {
 		panic(err)
@@ -51,6 +52,7 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 		store:       db,
 		keeperStore: kd,
 		mixin:       mixin,
+		wallet:      wallet,
 	}
 	node.aesKey = common.ECDHEd25519(conf.PrivateKey, conf.KeeperPublicKey)
 	abi.InitFactoryContractAddress(conf.PolygonFactoryAddress)

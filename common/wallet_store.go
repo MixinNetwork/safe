@@ -1,13 +1,14 @@
-package mixinwallet
+package common
 
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/shopspring/decimal"
@@ -16,7 +17,22 @@ import (
 const (
 	OutputStateUnspent = "unspent"
 	OutputStateLocked  = "locked"
+	OutputsDrainKey    = "outputs-drain-key"
 )
+
+//go:embed wallet_schema.sql
+var SCHEMA string
+
+func OpenWalletSQLite3Store(path string) (*SQLite3Store, error) {
+	db, err := OpenSQLite3Store(path, SCHEMA)
+	if err != nil {
+		return nil, err
+	}
+	return &SQLite3Store{
+		db:    db,
+		mutex: new(sync.Mutex),
+	}, nil
+}
 
 type Output struct {
 	OutputId         string
@@ -55,7 +71,7 @@ func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*m
 	if err != nil {
 		return err
 	}
-	defer common.Rollback(tx)
+	defer Rollback(tx)
 
 	now := time.Now().UTC()
 	for _, output := range outputs {
@@ -152,7 +168,7 @@ func (s *SQLite3Store) listOutputsByQuery(ctx context.Context, tx *sql.Tx, query
 }
 
 func (s *SQLite3Store) TestListOutputsByQuery(ctx context.Context, query string, params ...any) ([]*Output, error) {
-	if !common.CheckTestEnvironment(ctx) {
+	if !CheckTestEnvironment(ctx) {
 		panic(ctx)
 	}
 

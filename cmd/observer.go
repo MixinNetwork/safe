@@ -52,6 +52,11 @@ func ObserverBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer db.Close()
+	wd, err := common.OpenWalletSQLite3Store(mc.Observer.StoreDir + "/wallet.sqlite3")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 
 	kd, err := keeper.OpenSQLite3ReadOnlyStore(mc.Observer.KeeperStoreDir + "/safe.sqlite3")
 	if err != nil {
@@ -78,12 +83,14 @@ func ObserverBootCmd(c *cli.Context) error {
 	}
 	mc.Observer.App.SpendPrivateKey = key.String()
 
-	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin)
+	mw := common.NewMixinWallet(mixin, wd, mc.Keeper.MTG.Genesis.Epoch)
+	node := observer.NewNode(db, kd, mc.Observer, mc.Keeper.MTG, mixin, mw)
 	readme := c.App.Metadata["README"].(string)
 	go node.StartHTTP(version, readme)
 	if mc.Dev.Network == config.MainNetworkName {
 		go node.Blaze(ctx)
 	}
+	mw.Boot(ctx)
 	node.Boot(ctx)
 	return nil
 }

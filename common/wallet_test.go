@@ -1,4 +1,4 @@
-package mixinwallet
+package common
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
@@ -21,10 +20,10 @@ var sequence = 0
 func TestWallet(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
-	ctx = common.EnableTestEnvironment(ctx)
+	ctx = EnableTestEnvironment(ctx)
 
 	root, err := os.MkdirTemp("", "wallet-test")
-	db, err := OpenSQLite3Store(root + "/wallet.sqlite3")
+	db, err := OpenWalletSQLite3Store(root + "/wallet.sqlite3")
 	require.Nil(err)
 	mw := &MixinWallet{
 		epoch: 0,
@@ -44,7 +43,7 @@ func TestWallet(t *testing.T) {
 		os = append(os, o)
 	}
 	for range 4 {
-		o := buildOutput(common.SafeSolanaChainId, "0.1")
+		o := buildOutput(SafeSolanaChainId, "0.1")
 		os = append(os, o)
 	}
 	err = mw.writeOutputsIfNotExists(ctx, os)
@@ -79,8 +78,8 @@ func TestWallet(t *testing.T) {
 }
 
 func buildOutput(assetId string, amount string) *mixin.SafeUtxo {
-	id := common.UniqueId(assetId, amount)
-	id = common.UniqueId(id, fmt.Sprintf("%d", sequence))
+	id := UniqueId(assetId, amount)
+	id = UniqueId(id, fmt.Sprintf("%d", sequence))
 	hash := mixinnet.NewHash([]byte(id))
 	amt := decimal.RequireFromString(amount)
 

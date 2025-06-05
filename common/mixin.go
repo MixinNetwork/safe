@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
@@ -55,7 +56,7 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 	return int(limit)
 }
 
-func CreateObjectStorageUntilSufficient(ctx context.Context, client *mixin.Client, recipients []*bot.TransactionRecipient, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
+func CreateObjectStorageUntilSufficient(ctx context.Context, mw *MixinWallet, client *mixin.Client, recipients []*bot.TransactionRecipient, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
 	for {
 		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
@@ -69,7 +70,14 @@ func CreateObjectStorageUntilSufficient(ctx context.Context, client *mixin.Clien
 			continue
 		}
 
-		_, err = bot.CreateObjectStorageTransaction(ctx, recipients, nil, extra, sTraceId, nil, "", &su)
+		amount := bot.EstimateStorageCost(extra)
+		utxos, err := mw.LockUTXOs(ctx, sTraceId, mtg.StorageAssetId, decimal.RequireFromString(amount.String()))
+		if err != nil {
+			return crypto.Hash{}, err
+		}
+		os := toBotOutput(utxos)
+
+		_, err = bot.CreateObjectStorageTransaction(ctx, recipients, os, extra, sTraceId, nil, "", &su)
 		logger.Verbosef("common.mixin.CreateObjectStorageTransaction(%s) => %v", sTraceId, err)
 		if err == nil || CheckRetryableError(err) {
 			time.Sleep(time.Second)
@@ -79,9 +87,9 @@ func CreateObjectStorageUntilSufficient(ctx context.Context, client *mixin.Clien
 	}
 }
 
-func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func SendTransactionUntilSufficient(ctx context.Context, mw *MixinWallet, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
-		req, err := sendTransaction(ctx, client, members, threshold, receivers, receiversThreshold, amount, traceId, assetId, memo, references, spendPrivateKey)
+		req, err := sendTransaction(ctx, mw, client, members, threshold, receivers, receiversThreshold, amount, traceId, assetId, memo, references, spendPrivateKey)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
@@ -96,19 +104,15 @@ func SendTransactionUntilSufficient(ctx context.Context, client *mixin.Client, m
 	}
 }
 
-func sendTransaction(ctx context.Context, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func sendTransaction(ctx context.Context, mw *MixinWallet, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	req, err := readTransaction(ctx, client, traceId)
 	if err != nil || req != nil {
 		return req, err
 	}
 
-	utxos, err := SafeListUtxos(ctx, client, members, threshold, assetId, 0, mixin.SafeUtxoStateUnspent)
+	utxos, err := mw.LockUTXOs(ctx, traceId, assetId, amount)
 	if err != nil {
 		return nil, err
-	}
-	utxos, sufficient := getEnoughUtxosToSpend(utxos, amount)
-	if !sufficient {
-		return nil, fmt.Errorf("insufficient outputs for %s of %s", assetId, amount)
 	}
 	b := mixin.NewSafeTransactionBuilder(utxos)
 	b.Memo = memo

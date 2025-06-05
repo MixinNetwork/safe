@@ -1,12 +1,13 @@
-package mixinwallet
+package common
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
@@ -18,13 +19,21 @@ type MixinWallet struct {
 	epoch  uint64
 }
 
+func NewMixinWallet(client *mixin.Client, db *SQLite3Store, epoch uint64) *MixinWallet {
+	return &MixinWallet{
+		client: client,
+		store:  db,
+		epoch:  epoch,
+	}
+}
+
 func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 	for {
 		checkpoint, err := mw.readDrainCheckpoint(ctx)
 		if err != nil {
 			panic(err)
 		}
-		utxos, err := common.SafeListUtxos(ctx, mw.client, nil, 1, "", checkpoint, mixin.SafeUtxoStateUnspent)
+		utxos, err := SafeListUtxos(ctx, mw.client, nil, 1, "", checkpoint, mixin.SafeUtxoStateUnspent)
 		if err != nil {
 			panic(err)
 		}
@@ -104,4 +113,21 @@ func (mw *MixinWallet) readDrainCheckpoint(ctx context.Context) (uint64, error) 
 
 func (mw *MixinWallet) writeDrainCheckpoint(ctx context.Context, offset uint64) error {
 	return mw.store.WriteOrUpdateProperty(ctx, OutputsDrainKey, fmt.Sprintf("%d", offset))
+}
+
+func toBotOutput(utxos []*mixin.SafeUtxo) []*bot.Output {
+	var outputs []*bot.Output
+	for _, o := range utxos {
+		outputs = append(outputs, &bot.Output{
+			OutputID:        o.OutputID,
+			TransactionHash: o.TransactionHash.String(),
+			OutputIndex:     uint(o.OutputIndex),
+			AssetId:         o.AssetID,
+			KernelAssetId:   o.KernelAssetID.String(),
+			Amount:          o.Amount.String(),
+			State:           string(o.State),
+			Sequence:        int64(o.Sequence),
+		})
+	}
+	return outputs
 }
