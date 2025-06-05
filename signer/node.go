@@ -39,11 +39,12 @@ type Node struct {
 
 	keeper       *mtg.Configuration
 	mixin        *mixin.Client
+	wallet       *common.MixinWallet
 	backupClient *http.Client
 	saverKey     *crypto.Key
 }
 
-func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client) *Node {
+func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, mw *common.MixinWallet) *Node {
 	node := &Node{
 		id:         party.ID(conf.MTG.App.AppId),
 		threshold:  conf.Threshold,
@@ -56,6 +57,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 		store:      store,
 		keeper:     keeper,
 		mixin:      mixin,
+		wallet:     mw,
 		backupClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -557,6 +559,6 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 		return node.mtgQueueTestOutput(ctx, memo)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	_, err := common.SendTransactionUntilSufficient(ctx, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, nil, node.conf.MTG.App.SpendPrivateKey)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.wallet, node.mixin, receivers, threshold, amount, traceId, node.conf.AssetId, m, nil, node.conf.MTG.App.SpendPrivateKey)
 	return err
 }

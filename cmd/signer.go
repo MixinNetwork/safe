@@ -60,6 +60,11 @@ func SignerBootCmd(c *cli.Context) error {
 		return err
 	}
 	defer kd.Close()
+	wd, err := common.OpenWalletSQLite3Store(mc.Signer.StoreDir + "/wallet.sqlite3")
+	if err != nil {
+		return err
+	}
+	defer kd.Close()
 
 	s := &mixin.Keystore{
 		ClientID:          mc.Signer.MTG.App.AppId,
@@ -81,7 +86,9 @@ func SignerBootCmd(c *cli.Context) error {
 	}
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
 
-	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client)
+	mw := common.NewMixinWallet(client, wd, mc.Signer.MTG.Genesis.Epoch)
+	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client, mw)
+	mw.Boot(ctx)
 	node.Boot(ctx)
 
 	if mc.Signer.MonitorConversaionId != "" {
