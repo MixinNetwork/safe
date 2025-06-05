@@ -15,18 +15,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func getEnoughUtxosToSpend(utxos []*mixin.SafeUtxo, amount decimal.Decimal) ([]*mixin.SafeUtxo, bool) {
-	total := decimal.NewFromInt(0)
-	for i, o := range utxos {
-		total = total.Add(o.Amount)
-		if total.Cmp(amount) < 0 {
-			continue
-		}
-		return utxos[:i+1], true
-	}
-	return nil, false
-}
-
 func ExtraLimit(tx mixinnet.Transaction) int {
 	if tx.Asset != mixinnet.XINAssetId {
 		return common.ExtraSizeGeneralLimit
@@ -87,9 +75,9 @@ func CreateObjectStorageUntilSufficient(ctx context.Context, mw *MixinWallet, cl
 	}
 }
 
-func SendTransactionUntilSufficient(ctx context.Context, mw *MixinWallet, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func SendTransactionUntilSufficient(ctx context.Context, mw *MixinWallet, client *mixin.Client, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
-		req, err := sendTransaction(ctx, mw, client, members, threshold, receivers, receiversThreshold, amount, traceId, assetId, memo, references, spendPrivateKey)
+		req, err := sendTransaction(ctx, mw, client, receivers, receiversThreshold, amount, traceId, assetId, memo, references, spendPrivateKey)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
@@ -104,7 +92,7 @@ func SendTransactionUntilSufficient(ctx context.Context, mw *MixinWallet, client
 	}
 }
 
-func sendTransaction(ctx context.Context, mw *MixinWallet, client *mixin.Client, members []string, threshold int, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
+func sendTransaction(ctx context.Context, mw *MixinWallet, client *mixin.Client, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	req, err := readTransaction(ctx, client, traceId)
 	if err != nil || req != nil {
 		return req, err
@@ -276,18 +264,16 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 }
 
 func SafeAssetBalance(ctx context.Context, client *mixin.Client, members []string, threshold int, assetId string) (*common.Integer, int, error) {
-	for {
-		utxos, err := SafeListUtxos(ctx, client, members, threshold, assetId, 0, mixin.SafeUtxoStateUnspent)
-		if err != nil {
-			return nil, 0, err
-		}
-		var total common.Integer
-		for _, o := range utxos {
-			amt := common.NewIntegerFromString(o.Amount.String())
-			total = total.Add(amt)
-		}
-		return &total, len(utxos), nil
+	utxos, err := SafeListUtxos(ctx, client, members, threshold, assetId, 0, mixin.SafeUtxoStateUnspent)
+	if err != nil {
+		return nil, 0, err
 	}
+	var total common.Integer
+	for _, o := range utxos {
+		amt := common.NewIntegerFromString(o.Amount.String())
+		total = total.Add(amt)
+	}
+	return &total, len(utxos), nil
 }
 
 func SafeAssetBalanceUntilSufficient(ctx context.Context, su *bot.SafeUser, id string) (*common.Integer, error) {

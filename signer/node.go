@@ -559,6 +559,6 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 		return node.mtgQueueTestOutput(ctx, memo)
 	}
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
-	_, err := common.SendTransactionUntilSufficient(ctx, node.wallet, node.mixin, []string{node.mixin.ClientID}, 1, receivers, threshold, amount, traceId, node.conf.AssetId, m, nil, node.conf.MTG.App.SpendPrivateKey)
+	_, err := common.SendTransactionUntilSufficient(ctx, node.wallet, node.mixin, receivers, threshold, amount, traceId, node.conf.AssetId, m, nil, node.conf.MTG.App.SpendPrivateKey)
 	return err
 }
