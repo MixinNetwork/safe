@@ -126,10 +126,5 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 	if common.CheckTestEnvironment(ctx) {
 		return false
 	}
-	// FIXME we will use out.deposit_hash to check after all nodes upgraded and synced
-	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, out.TransactionHash)
-	if err != nil {
-		panic(err)
-	}
-	return ver.DepositData() != nil
+	return out.DepositHash.Valid
 }
