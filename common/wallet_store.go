@@ -129,7 +129,7 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 		break
 	}
 	if len(os) == 0 {
-		return nil, fmt.Errorf("insufficient outputs to send tx: %s %s %s", trace, amount.String(), total.String())
+		return nil, fmt.Errorf("insufficient outputs for tx: %s %s %s", trace, amount.String(), total.String())
 	}
 
 	query = "UPDATE outputs SET state=?, signed_by=? WHERE output_id=? AND asset_id=? AND state=? AND signed_by IS NULL"
