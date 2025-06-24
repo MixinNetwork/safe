@@ -149,6 +149,28 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 	return os, nil
 }
 
+func (s *SQLite3Store) ListUnspentUTXOsByAsset(ctx context.Context, asset string) ([]*Output, decimal.Decimal, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	total := decimal.Zero
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, total, err
+	}
+	defer Rollback(tx)
+
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by IS NULL ORDER BY sequence", strings.Join(outputCols, ","))
+	outputs, err := s.listOutputsByQuery(ctx, tx, query, asset, OutputStateUnspent)
+	if err != nil || len(outputs) == 0 {
+		return nil, total, err
+	}
+	for _, o := range outputs {
+		total = total.Add(o.Amount)
+	}
+	return outputs, total, nil
+}
+
 func (s *SQLite3Store) listOutputsByQuery(ctx context.Context, tx *sql.Tx, query string, params ...any) ([]*Output, error) {
 	rows, err := tx.QueryContext(ctx, query, params...)
 	if err != nil {
