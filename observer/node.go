@@ -597,3 +597,18 @@ func (node *Node) getChainFinalizationDelay(chain byte) int64 {
 		panic(chain)
 	}
 }
+
+func (node *Node) getChainBlockBatch(chain byte) int64 {
+	switch chain {
+	case common.SafeChainBitcoin:
+		return 2
+	case common.SafeChainLitecoin:
+		return 4
+	case common.SafeChainEthereum:
+		return 8
+	case common.SafeChainPolygon:
+		return 32
+	default:
+		panic(chain)
+	}
+}

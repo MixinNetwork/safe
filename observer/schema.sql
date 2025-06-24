@@ -146,3 +146,13 @@ CREATE TABLE IF NOT EXISTS nodes (
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('app_id', 'node_type')
 );
+
+
+CREATE TABLE IF NOT EXISTS caches (
+  key           VARCHAR NOT NULL,
+  value         TEXT NOT NULL,
+  created_at    TIMESTAMP NOT NULL,
+  PRIMARY KEY ('key')
+);
+
+CREATE INDEX IF NOT EXISTS caches_by_created ON caches(created_at);

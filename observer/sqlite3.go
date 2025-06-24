@@ -88,6 +88,15 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 	}
 	defer common.Rollback(tx)
 
+	err = s.writeProperty(ctx, tx, k, v)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) writeProperty(ctx context.Context, tx *sql.Tx, k, v string) error {
 	existed, err := s.checkExistence(ctx, tx, "SELECT value FROM properties WHERE key=?", k)
 	if err != nil {
 		return err
@@ -106,5 +115,5 @@ func (s *SQLite3Store) WriteProperty(ctx context.Context, k, v string) error {
 			return fmt.Errorf("INSERT properties %v", err)
 		}
 	}
-	return tx.Commit()
+	return nil
 }

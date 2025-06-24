@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -335,28 +336,56 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 			time.Sleep(duration)
 			continue
 		}
-		txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)
-		logger.Printf("node.bitcoinReadBlock(%d, %d) => %d %v", chain, checkpoint, len(txs), err)
-		if err != nil {
-			time.Sleep(time.Second * 5)
-			continue
-		}
+		batch := node.getChainBlockBatch(chain)
 
-		for _, tx := range txs {
-			for {
-				err := node.bitcoinProcessTransaction(ctx, tx, chain)
-				if err == nil {
-					break
-				}
-				logger.Printf("node.bitcoinProcessTransaction(%s) => %v", tx.TxId, err)
+		var wg sync.WaitGroup
+		for range batch {
+			ckpt := checkpoint + 1
+			if ckpt+delay > int64(height)+1 {
+				break
 			}
+			wg.Add(1)
+			checkpoint = ckpt
+			go func(current int64) {
+				defer wg.Done()
+				err := node.processBitcoinRPCBlock(ctx, chain, current)
+				logger.Printf("node.processBitcoinRPCBlock(%d %d) => %v", chain, current, err)
+				if err != nil {
+					panic(err)
+				}
+			}(ckpt)
 		}
+		wg.Wait()
 
-		err = node.bitcoinWriteDepositCheckpoint(ctx, checkpoint+1, chain)
+		err = node.store.writeBlockCheckpoint(ctx, chain, checkpoint)
 		if err != nil {
 			panic(err)
 		}
 	}
+}
+
+func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkpoint int64) error {
+	key := fmt.Sprintf("block:%d:%d", chain, checkpoint)
+	val, err := node.store.ReadCache(ctx, key)
+	if err != nil || val != "" {
+		return err
+	}
+
+	txs, err := node.bitcoinReadBlock(ctx, checkpoint, chain)
+	logger.Printf("node.bitcoinReadBlock(%d, %d) => %d %v", chain, checkpoint, len(txs), err)
+	if err != nil {
+		return err
+	}
+
+	for _, tx := range txs {
+		err := node.bitcoinProcessTransaction(ctx, tx, chain)
+		if err != nil {
+			logger.Printf("node.bitcoinProcessTransaction(%s) => %v", tx.TxId, err)
+			return err
+		}
+	}
+
+	return node.store.WriteCache(ctx, key, "processed")
 }
 
 func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
@@ -381,10 +410,6 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 	}
 
 	return nil
-}
-
-func (node *Node) bitcoinWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
-	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
 }
 
 func (node *Node) bitcoinTransactionApprovalLoop(ctx context.Context, chain byte) {
