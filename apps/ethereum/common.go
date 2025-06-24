@@ -206,7 +206,7 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 	}
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
-		logger.Printf("transfer %d: %v", i, t)
+		logger.Verbosef("transfer %d: %v", i, t)
 		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
 			return t, etx, nil
 		}

@@ -145,6 +145,12 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) error {
+	key := fmt.Sprintf("block:%d:%d", chain, num)
+	val, err := node.store.ReadCache(ctx, key)
+	if err != nil || val != "" {
+		return err
+	}
+
 	rpc, ethAssetId := node.ethereumParams(chain)
 
 	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
@@ -165,7 +171,12 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
 	transfers = append(transfers, erc20Transfers...)
 
-	return node.ethereumProcessBlock(ctx, chain, block, transfers)
+	err = node.ethereumProcessBlock(ctx, chain, block, transfers)
+	if err != nil {
+		return err
+	}
+
+	return node.store.WriteCache(ctx, key, "processed")
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
