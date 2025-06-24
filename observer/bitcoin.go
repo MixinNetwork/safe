@@ -357,7 +357,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		}
 		wg.Wait()
 
-		err = node.store.WriteBlockCheckpointAndClearCache(ctx, chain, checkpoint)
+		err = node.store.writeBlockCheckpoint(ctx, chain, checkpoint)
 		if err != nil {
 			panic(err)
 		}
