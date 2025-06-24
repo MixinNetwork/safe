@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -395,14 +396,28 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			time.Sleep(duration)
 			continue
 		}
-		err = node.ethereumReadBlock(ctx, checkpoint, chain)
-		logger.Printf("node.ethereumReadBlock(%d, %d) => %v", chain, checkpoint, err)
-		if err != nil {
-			time.Sleep(time.Second * 5)
-			continue
-		}
+		batch := node.getChainBlockBatch(chain)
 
-		err = node.ethereumWriteDepositCheckpoint(ctx, checkpoint+1, chain)
+		var wg sync.WaitGroup
+		for range batch {
+			ckpt := checkpoint + 1
+			if ckpt+delay > int64(height)+1 {
+				break
+			}
+			wg.Add(1)
+			checkpoint = ckpt
+			go func(current int64) {
+				defer wg.Done()
+				err = node.ethereumReadBlock(ctx, current, chain)
+				logger.Printf("node.ethereumReadBlock(%d, %d) => %v", chain, current, err)
+				if err != nil {
+					panic(err)
+				}
+			}(ckpt)
+		}
+		wg.Wait()
+
+		err = node.store.WriteBlockCheckpointAndClearCache(ctx, chain, checkpoint)
 		if err != nil {
 			panic(err)
 		}
@@ -506,10 +521,6 @@ func (node *Node) parseEthereumBlockBalanceChanges(ctx context.Context, chain by
 		}
 	}
 	return changes, nil
-}
-
-func (node *Node) ethereumWriteDepositCheckpoint(ctx context.Context, num int64, chain byte) error {
-	return node.store.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(num))
 }
 
 func (node *Node) ethereumTransactionApprovalLoop(ctx context.Context, chain byte) {
