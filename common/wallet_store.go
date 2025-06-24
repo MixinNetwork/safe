@@ -158,6 +158,7 @@ func (s *SQLite3Store) ListUnspentUTXOsByAsset(ctx context.Context, asset string
 	if err != nil {
 		return nil, total, err
 	}
+	defer Rollback(tx)
 
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE asset_id=? AND state=? AND signed_by IS NULL ORDER BY sequence", strings.Join(outputCols, ","))
 	outputs, err := s.listOutputsByQuery(ctx, tx, query, asset, OutputStateUnspent)
