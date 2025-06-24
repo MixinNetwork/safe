@@ -144,15 +144,23 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 	}
 }
 
-func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) error {
+func (node *Node) processEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {
 	key := fmt.Sprintf("block:%d:%d", chain, num)
 	val, err := node.store.ReadCache(ctx, key)
 	if err != nil || val != "" {
 		return err
 	}
 
-	rpc, ethAssetId := node.ethereumParams(chain)
+	err = node.doProcessEthereumRPCBlock(ctx, num, chain)
+	if err != nil {
+		return err
+	}
 
+	return node.store.WriteCache(ctx, key, "processed")
+}
+
+func (node *Node) doProcessEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {
+	rpc, ethAssetId := node.ethereumParams(chain)
 	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
 	if err != nil {
 		return err
@@ -171,12 +179,7 @@ func (node *Node) ethereumReadBlock(ctx context.Context, num int64, chain byte) 
 	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
 	transfers = append(transfers, erc20Transfers...)
 
-	err = node.ethereumProcessBlock(ctx, chain, block, transfers)
-	if err != nil {
-		return err
-	}
-
-	return node.store.WriteCache(ctx, key, "processed")
+	return node.ethereumProcessBlock(ctx, chain, block, transfers)
 }
 
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
@@ -419,8 +422,8 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			checkpoint = ckpt
 			go func(current int64) {
 				defer wg.Done()
-				err = node.ethereumReadBlock(ctx, current, chain)
-				logger.Printf("node.ethereumReadBlock(%d, %d) => %v", chain, current, err)
+				err = node.processEthereumRPCBlock(ctx, current, chain)
+				logger.Printf("node.processEthereumRPCBlock(%d, %d) => %v", chain, current, err)
 				if err != nil {
 					panic(err)
 				}

@@ -378,12 +378,10 @@ func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkp
 	}
 
 	for _, tx := range txs {
-		for {
-			err := node.bitcoinProcessTransaction(ctx, tx, chain)
-			if err == nil {
-				break
-			}
+		err := node.bitcoinProcessTransaction(ctx, tx, chain)
+		if err != nil {
 			logger.Printf("node.bitcoinProcessTransaction(%s) => %v", tx.TxId, err)
+			return err
 		}
 	}
 
