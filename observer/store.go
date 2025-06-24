@@ -1054,7 +1054,7 @@ func (s SQLite3Store) WriteBlockCheckpointAndClearCache(ctx context.Context, cha
 		return err
 	}
 
-	key := fmt.Sprintf("block:%d:%", chain)
+	key := fmt.Sprintf("block:%d:%%", chain)
 	query := fmt.Sprintf("DELETE FROM caches WHERE key LIKE '%s'", key)
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
