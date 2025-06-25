@@ -186,7 +186,8 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 }
 
 func (node *Node) checkKeeperHasSufficientBond(ctx context.Context, bondId string, deposit *Deposit) (bool, error) {
-	balance, _, err := common.SafeAssetBalance(ctx, node.mixin, node.GetKeepers(), node.keeper.Genesis.Threshold, bondId)
+	threshold := uint8(node.keeper.Genesis.Threshold)
+	balance, _, err := common.SafeAssetBalance(ctx, node.mixin, node.GetKeepers(), threshold, bondId)
 	if err != nil {
 		return false, fmt.Errorf("mixin.SafeAssetBalance(%s) => %v", bondId, err)
 	}

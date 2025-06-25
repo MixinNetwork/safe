@@ -34,7 +34,8 @@ func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		utxos, err := listUnspentUTXOsUntilSufficient(ctx, mw.client, "", checkpoint)
+		members := []string{mw.client.ClientID}
+		utxos, err := listUnspentUTXOsUntilSufficient(ctx, mw.client, members, 1, "", checkpoint)
 		if err != nil {
 			panic(err)
 		}
