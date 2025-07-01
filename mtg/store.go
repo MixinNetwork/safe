@@ -34,6 +34,19 @@ func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit
 	return as, nil
 }
 
+func (s *SQLite3Store) ReadAction(ctx context.Context, id string) (*Action, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer rollBack(tx)
+
+	return s.readAction(ctx, tx, id)
+}
+
 func (s *SQLite3Store) readOutput(ctx context.Context, tx *sql.Tx, id string) (*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id=?", strings.Join(outputCols, ","))
 	row := tx.QueryRowContext(ctx, query, id)

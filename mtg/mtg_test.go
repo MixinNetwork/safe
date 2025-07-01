@@ -120,59 +120,91 @@ func TestMTGCompaction(t *testing.T) {
 	require.NotNil(node)
 	defer teardownTestDatabase(node.Group.store)
 
-	testDrainInitialOutputs(ctx, require, node.Group, "0.0037")
+	count := OutputsBatchSize*5 + 1
+	amount := "0.0181"
+	os := testDrainInitialOutputs(ctx, require, node.Group, count, amount)
+	out := testBuildOutput(node.Group, require, USDTAssetId, "0.0036", "", SafeUtxoStateUnspent, uint64(os[len(os)-1].Sequence+10), "")
+	err := node.Group.store.WriteAction(ctx, out, ActionStateDone)
+	require.Nil(err)
+	balance := decimal.RequireFromString(amount).Add(decimal.RequireFromString("0.0036")).String()
 
 	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
 	require.Nil(err)
-	require.Len(as, OutputsBatchSize+1)
+	require.Len(as, count+1)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	require.Nil(err)
 	require.Len(as, 1)
+	actionId := as[0].OutputId
+	appId := as[0].AppId
 	hash := as[0].TransactionHash
-
 	wkr := node.Group.FindWorker(as[0].AppId)
 	require.NotNil(wkr)
-	err = node.Group.handleActionsQueue(ctx)
-	require.Nil(err)
-	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	require.Nil(err)
-	require.Len(as, 0)
-	as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
-	require.Nil(err)
-	require.Len(as, 1)
 
-	out := testHandleCompactionTransaction(ctx, require, node.Group, hash)
-	node.Group.processSafeOutput(ctx, out)
-	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	require.Nil(err)
-	require.Len(as, 1)
-	err = node.Group.handleActionsQueue(ctx)
-	require.Nil(err)
+	for range 5 {
+		// compaction would not change the balance
+		_, b := testGetTotalBalanceByAsset(ctx, *node.Group, as[0].AppId, USDTAssetId)
+		require.Equal(balance, b.String())
 
-	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	require.Nil(err)
-	require.Len(as, 1)
+		// process normal action and build compaction tx
+		as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+		require.Nil(err)
+		require.Len(as, 1)
+		if as[0].restoreSequence > 0 {
+			as[0].Sequence = as[0].restoreSequence
+		}
+		err = node.Group.handleActionsQueue(ctx)
+		require.Nil(err)
+		as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+		require.Nil(err)
+		require.Len(as, 0)
+		as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
+		require.Nil(err)
+		require.Len(as, 1)
 
-	as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
-	require.Nil(err)
-	require.Len(as, 0)
+		// write output from compaction tx
+		out := testHandleCompactionTransaction(ctx, require, node.Group, hash)
+		node.Group.processSafeOutput(ctx, out)
+		as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+		require.Nil(err)
+		require.Len(as, 1)
+
+		// restore action
+		err = node.Group.handleActionsQueue(ctx)
+		require.Nil(err)
+		as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
+		require.Nil(err)
+		require.Len(as, 0)
+		as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+		require.Nil(err)
+		require.Len(as, 1)
+		require.Equal(as[0].OutputId, actionId)
+	}
+	os, b := testGetTotalBalanceByAsset(ctx, *node.Group, appId, USDTAssetId)
+	require.Len(os, 7)
+	require.Equal(balance, b.String())
+
 	err = node.Group.handleActionsQueue(ctx)
 	require.Nil(err)
 	ts, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(ts, 1)
-
 	tx := ts[0]
 	tx.consumed = node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	for _, o := range tx.consumed {
 		tx.consumedIds = append(tx.consumedIds, o.OutputId)
 	}
 	tsb := SerializeTransactions(ts)
-	require.Equal("010154b26ff29615c93faf99f74c4c5dcdb8847201c7d7eac8374ca5ec9dcb47a38fa5e559f9bda186359d9a1aba83cc3c0fa94c7337f67eaa3fcb95ee8513140604a20a218bc6f479273f8e85683a3725b743610006302e303033370000000000000047090500000000000000000000000000000000000000024c7337f67eaa3fcb95ee8513140604a28194ae75a00338f8ab2b4ce9ffbc87f4000000b862313237626363352d353536382d333832622d383937612d3531613131356133623734612c33306139393264622d666133362d333638302d396436392d3065363939333662373837622c38333864333032642d613131392d336462382d393966352d3034386533323235653437312c32613430363437612d376337642d333331392d616464332d6366393566346237383338642c31343662323264332d393766382d333938662d383036622d39393565633134393764373503", hex.EncodeToString(tsb))
 	dts, err := DeserializeTransactions(tsb)
 	require.Nil(err)
 	require.Len(dts, 1)
 	require.True(ts[0].Equal(dts[0]))
+
+	a, err := node.Group.store.ReadAction(ctx, actionId)
+	require.Nil(err)
+	require.Equal(ActionStateDone, a.ActionState)
+	os, b = testGetTotalBalanceByAsset(ctx, *node.Group, appId, USDTAssetId)
+	require.Len(os, 1)
+	require.Equal("0.0036", b.String())
 }
 
 func TestMTGCheckTxs(t *testing.T) {
@@ -181,7 +213,7 @@ func TestMTGCheckTxs(t *testing.T) {
 	require.NotNil(node)
 	defer teardownTestDatabase(node.Group.store)
 
-	testDrainInitialOutputs(ctx, require, node.Group, "0.003,0.0008")
+	testDrainInitialOutputs(ctx, require, node.Group, OutputsBatchSize+1, "0.003,0.0008")
 
 	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
 	require.Nil(err)
@@ -203,7 +235,7 @@ func TestMTGStorage(t *testing.T) {
 	require.NotNil(node)
 	defer teardownTestDatabase(node.Group.store)
 
-	testDrainInitialOutputs(ctx, require, node.Group, "storage,0.0001")
+	testDrainInitialOutputs(ctx, require, node.Group, OutputsBatchSize+1, "storage,0.0001")
 
 	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
 	require.Nil(err)
@@ -268,7 +300,7 @@ func TestMTGWithdrawal(t *testing.T) {
 	}, ActionStateDone)
 	require.Nil(err)
 
-	testDrainInitialOutputs(ctx, require, node.Group, "withdrawal")
+	testDrainInitialOutputs(ctx, require, node.Group, OutputsBatchSize+1, "withdrawal")
 	as, err := node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	require.Nil(err)
 	require.Len(as, 1)
@@ -337,6 +369,15 @@ func TestMTGWithdrawal(t *testing.T) {
 	require.True(txs[0].Equal(dtxs[0]))
 }
 
+func testGetTotalBalanceByAsset(ctx context.Context, group Group, appId, assetId string) ([]*UnifiedOutput, decimal.Decimal) {
+	os := group.ListOutputsForAsset(ctx, appId, assetId, 0, 50454214, SafeUtxoStateUnspent, 0)
+	total := decimal.Zero
+	for _, o := range os {
+		total = total.Add(o.Amount)
+	}
+	return os, total
+}
+
 func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {
 	ts, _, err := group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
@@ -371,14 +412,14 @@ func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transa
 	return testBuildOutput(group, require, tx.AssetId, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }
 
-func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, group *Group, memo string) {
-	count := OutputsBatchSize + 1
+func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, group *Group, count int, memo string) []*UnifiedOutput {
 	start := 4655228
 
 	out := testBuildOutput(group, require, StorageAssetId, "1", "", SafeUtxoStateUnspent, uint64(start), "")
 	err := group.store.WriteAction(ctx, out, ActionStateDone)
 	require.Nil(err)
 
+	var os []*UnifiedOutput
 	for i := range count {
 		extra := ""
 		state := ActionStateDone
@@ -391,7 +432,9 @@ func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, g
 
 		err := group.store.WriteAction(ctx, out, state)
 		require.Nil(err)
+		os = append(os, out)
 	}
+	return os
 }
 
 func testBuildOutput(group *Group, require *require.Assertions, asset, amount string, extra string, state SafeUtxoState, sequence uint64, hash string) *UnifiedOutput {

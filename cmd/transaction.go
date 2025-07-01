@@ -49,7 +49,6 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 	sid := uuid.Must(uuid.NewV4()).String()
 	amount := decimal.NewFromFloat(c.Float64("amount"))
 
-	fmt.Println("session: " + sid)
 	memo := testBuildHolderRequest(sid, holder, common.ActionBitcoinSafeProposeTransaction, extra)
 	return makeKeeperPaymentRequest(c.String("config"), bondId, amount, sid, memo)
 }
