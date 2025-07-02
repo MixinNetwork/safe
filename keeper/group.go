@@ -48,6 +48,15 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if err != nil {
 		panic(err)
 	}
+	if req.Restored && ar.Compaction != "" {
+		err = node.store.ResetRequest(ctx, req)
+		if err != nil {
+			panic(err)
+		}
+		txs, asset := node.processRequest(ctx, req)
+		logger.Printf("node.processRestoredRequest(%v) => %v %s", req, txs, asset)
+		return txs, asset
+	}
 	if ar != nil {
 		return ar.Transactions, ar.Compaction
 	}

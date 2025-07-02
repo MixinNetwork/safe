@@ -40,11 +40,26 @@ func (s *SQLite3Store) FailAction(ctx context.Context, req *common.Request) erro
 }
 
 func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, outputId, compaction string, txs []*mtg.Transaction, requestId string) error {
-	vals := []any{outputId, compaction, common.Base91Encode(mtg.SerializeTransactions(txs)), requestId, time.Now().UTC()}
-	err := s.execOne(ctx, tx, buildInsertionSQL("action_results", requestTransactionsCols), vals...)
+	existed, err := s.checkExistence(ctx, tx, "SELECT output_id FROM action_results WHERE output_id=?", outputId)
 	if err != nil {
-		return fmt.Errorf("INSERT action_results %v", err)
+		return err
 	}
+
+	data := common.Base91Encode(mtg.SerializeTransactions(txs))
+	if existed {
+		err = s.execOne(ctx, tx, "UPDATE action_results SET compaction=?, transactions=?, updated_at=? WHERE outputId=?",
+			compaction, data, time.Now().UTC(), outputId)
+		if err != nil {
+			return fmt.Errorf("UPDATE action_results %v", err)
+		}
+	} else {
+		vals := []any{outputId, compaction, data, requestId, time.Now().UTC()}
+		err = s.execOne(ctx, tx, buildInsertionSQL("action_results", requestTransactionsCols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT action_results %v", err)
+		}
+	}
+
 	return nil
 }
 

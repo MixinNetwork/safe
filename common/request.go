@@ -84,7 +84,8 @@ type Request struct {
 	CreatedAt  time.Time
 	Sequence   uint64
 
-	Output *mtg.Action
+	Restored bool
+	Output   *mtg.Action
 }
 
 type AccountProposal struct {
@@ -132,7 +133,8 @@ func DecodeRequest(out *mtg.Action, b []byte, role uint8) (*Request, error) {
 		CreatedAt:  out.SequencerCreatedAt,
 		Sequence:   out.Sequence,
 
-		Output: out,
+		Restored: out.Restored(),
+		Output:   out,
 	}
 	return r, r.VerifyFormat()
 }
