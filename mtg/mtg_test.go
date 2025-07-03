@@ -514,6 +514,19 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	return ctx, n
 }
 
+func (s *SQLite3Store) ReadAction(ctx context.Context, id string) (*Action, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer rollBack(tx)
+
+	return s.readAction(ctx, tx, id)
+}
+
 func teardownTestDatabase(store *SQLite3Store) {
 	dropTablesDDL := `
 		DROP TABLE IF EXISTS properties;
