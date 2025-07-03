@@ -84,6 +84,25 @@ func (s *SQLite3Store) FailRequest(ctx context.Context, req *common.Request, com
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) ResetRequest(ctx context.Context, req *common.Request) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=? AND state=?",
+		common.RequestStateInitial, time.Now().UTC(), req.Id, common.RequestStateFailed)
+	if err != nil {
+		return fmt.Errorf("UPDATE requests %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) ReadPendingRequest(ctx context.Context) (*common.Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE state=? ORDER BY created_at ASC, request_id ASC LIMIT 1", strings.Join(requestCols, ","))
 	row := s.db.QueryRowContext(ctx, query, common.RequestStateInitial)

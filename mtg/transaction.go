@@ -347,7 +347,7 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 		return nil, err
 	}
 
-	traceId := UniqueId(act.OutputId, "compaction")
+	traceId := grp.getCompactionTraceId(ctx, act)
 	tx := act.BuildTransaction(ctx, traceId, act.AppId, asset, total.String(), "", grp.GetMembers(), grp.GetThreshold())
 	tx.references = []crypto.Hash{hash}
 	tx.compaction = true
@@ -617,4 +617,19 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return nil, nil, fmt.Errorf("large extra %d > %d", len(ver.Extra), l)
 	}
 	return ver.AsVersioned(), inputs, nil
+}
+
+func (grp *Group) getCompactionTraceId(ctx context.Context, act *Action) string {
+	traceId := UniqueId(act.OutputId, "compaction")
+	for {
+		tx, err := grp.store.ReadTransactionByTraceId(ctx, traceId)
+		if err != nil {
+			panic(err)
+		}
+		if tx == nil {
+			return traceId
+		}
+		traceId = UniqueId(traceId, "compaction")
+		time.Sleep(time.Millisecond * 100)
+	}
 }

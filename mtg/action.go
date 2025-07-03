@@ -37,6 +37,10 @@ func (a *Action) values() []any {
 	return []any{a.OutputId, a.TransactionHash, a.ActionState, a.Sequence, a.restoreSequence}
 }
 
+func (a *Action) Restored() bool {
+	return a.restoreSequence > 0
+}
+
 func actionFromRow(row Row) (*Action, error) {
 	var a Action
 	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence)
