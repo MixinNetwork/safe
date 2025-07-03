@@ -47,8 +47,8 @@ func (s *SQLite3Store) writeActionResult(ctx context.Context, tx *sql.Tx, output
 
 	data := common.Base91Encode(mtg.SerializeTransactions(txs))
 	if existed {
-		err = s.execOne(ctx, tx, "UPDATE action_results SET compaction=?, transactions=?, updated_at=? WHERE outputId=?",
-			compaction, data, time.Now().UTC(), outputId)
+		err = s.execOne(ctx, tx, "UPDATE action_results SET compaction=?, transactions=?, WHERE output_id=?",
+			compaction, data, outputId)
 		if err != nil {
 			return fmt.Errorf("UPDATE action_results %v", err)
 		}
