@@ -177,7 +177,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 
 	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: tx.TxId}})
-	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", tx.TxId, sent, err)
+	logger.Verbosef("store.QueryDepositSentHashes(%s) => %v %v", tx.TxId, sent, err)
 	if err != nil {
 		return fmt.Errorf("store.QueryDepositSentHashes(%s) => %v", tx.TxId, err)
 	}
@@ -195,7 +195,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	}
 
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, receiver)
-	logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", receiver, safe, err)
+	logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
 	} else if safe == nil {
@@ -203,7 +203,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	}
 
 	c, err := node.keeperStore.ReadUnspentUtxoCountForSafe(ctx, receiver)
-	logger.Printf("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
+	logger.Verbosef("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
 	if err != nil || c >= bitcoin.MaxUnspentUtxo/2 {
 		return err
 	}
