@@ -612,3 +612,39 @@ func (node *Node) getChainBlockBatch(chain byte) int64 {
 		panic(chain)
 	}
 }
+
+func (node *Node) RPCGetBlockHeight(ctx context.Context, chain byte) (int64, error) {
+	key := fmt.Sprintf("blockheight:%d", chain)
+	val, err := node.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+	if val != "" {
+		num, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		return num, nil
+	}
+
+	var height int64
+	switch chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		rpc, _ := node.bitcoinParams(chain)
+		height, err = bitcoin.RPCGetBlockHeight(rpc)
+		if err != nil {
+			return 0, err
+		}
+	case common.SafeChainEthereum, common.SafeChainPolygon:
+		rpc, _ := node.ethereumParams(chain)
+		height, err = ethereum.RPCGetBlockHeight(rpc)
+		if err != nil {
+			return 0, err
+		}
+	}
+	err = node.store.WriteCache(ctx, key, fmt.Sprint(height), time.Second*5)
+	if err != nil {
+		panic(err)
+	}
+	return height, nil
+}
