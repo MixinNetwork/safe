@@ -121,7 +121,7 @@ func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx
 		return nil
 	}
 	old, err := node.store.ReadBitcoinUTXO(ctx, tx.TxId, index, chain)
-	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
+	logger.Verbosef("store.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", tx.TxId, index, err)
 	} else if old != nil {
@@ -129,7 +129,7 @@ func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx
 	}
 
 	accountant, err := node.store.ReadAccountantPrivateKey(ctx, receiver)
-	logger.Printf("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
+	logger.Verbosef("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
 	} else if accountant == "" {
@@ -187,7 +187,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	}
 
 	old, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.TxId, int(index))
-	logger.Printf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
+	logger.Verbosef("keeperStore.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v", tx.TxId, index, err)
 	} else if old != nil {
