@@ -1009,7 +1009,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration)
 	return value, nil
 }
 
-func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, duration time.Duration) error {
+func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1019,7 +1019,7 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, duration tim
 	}
 	defer common.Rollback(tx)
 
-	threshold := time.Now().Add(-duration).UTC()
+	threshold := time.Now().Add(-cacheTTL).UTC()
 	_, err = tx.ExecContext(ctx, "DELETE FROM caches WHERE created_at<?", threshold)
 	if err != nil {
 		return err
