@@ -615,7 +615,7 @@ func (node *Node) getChainBlockBatch(chain byte) int64 {
 
 func (node *Node) RPCGetBlockHeight(ctx context.Context, chain byte) (int64, error) {
 	key := fmt.Sprintf("blockheight:%d", chain)
-	val, err := node.store.ReadCache(ctx, key)
+	val, err := node.store.ReadCacheTTL(ctx, key, time.Second*5)
 	if err != nil {
 		panic(err)
 	}

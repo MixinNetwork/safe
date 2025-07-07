@@ -1009,6 +1009,25 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) 
 	return value, nil
 }
 
+func (s *SQLite3Store) ReadCacheTTL(ctx context.Context, k string, d time.Duration) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	row := s.db.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
+	var value string
+	var createdAt time.Time
+	err := row.Scan(&value, &createdAt)
+	if err == sql.ErrNoRows {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	if createdAt.Add(d).Before(time.Now()) {
+		return "", nil
+	}
+	return value, nil
+}
+
 func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, duration time.Duration) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
