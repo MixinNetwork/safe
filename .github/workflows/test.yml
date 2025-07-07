@@ -7,6 +7,7 @@ on:
     branches: [ "main" ]
 env:
   POLYGONRPC: ${{ vars.POLYGONRPC }}
+  BITCOINRPC: ${{ vars.BITCOINRPC }}
 
 jobs:
   test:

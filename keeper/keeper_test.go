@@ -1045,6 +1045,9 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	if rpc := os.Getenv("POLYGONRPC"); rpc != "" {
 		conf.Keeper.PolygonRPC = rpc
 	}
+	if rpc := os.Getenv("BITCOINRPC"); rpc != "" {
+		conf.Keeper.BitcoinRPC = rpc
+	}
 
 	conf.Keeper.StoreDir = root
 	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
