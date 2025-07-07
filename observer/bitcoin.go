@@ -311,7 +311,6 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
 	duration := 3 * time.Minute
 	switch chain {
 	case common.SafeChainLitecoin:
@@ -324,9 +323,9 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		if err != nil {
 			panic(err)
 		}
-		height, err := bitcoin.RPCGetBlockHeight(rpc)
+		height, err := node.RPCGetBlockHeight(ctx, chain)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
+			logger.Printf("node.RPCGetBlockHeight(%d) => %v", chain, err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
