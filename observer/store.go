@@ -994,16 +994,16 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	row := s.db.QueryRowContext(ctx, "SELECT value,expired_at FROM caches WHERE key=?", k)
+	row := s.db.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
 	var value string
-	var expiredAt time.Time
-	err := row.Scan(&value, &expiredAt)
+	var createdAt time.Time
+	err := row.Scan(&value, &createdAt)
 	if err == sql.ErrNoRows {
 		return "", nil
 	} else if err != nil {
 		return "", err
 	}
-	if expiredAt.Before(time.Now()) {
+	if createdAt.Add(cacheTTL).Before(time.Now()) {
 		return "", nil
 	}
 	return value, nil
@@ -1030,10 +1030,8 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, duration tim
 		return err
 	}
 
-	now := time.Now().UTC()
-	exp := now.Add(duration)
-	cols := []string{"key", "value", "created_at", "expired_at"}
-	vals := []any{k, v, now, exp}
+	cols := []string{"key", "value", "created_at"}
+	vals := []any{k, v, time.Now().UTC()}
 	err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
 	if err != nil {
 		return fmt.Errorf("INSERT caches %v", err)

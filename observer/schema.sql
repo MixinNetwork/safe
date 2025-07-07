@@ -152,7 +152,6 @@ CREATE TABLE IF NOT EXISTS caches (
   key           VARCHAR NOT NULL,
   value         TEXT NOT NULL,
   created_at    TIMESTAMP NOT NULL,
-  expired_at    TIMESTAMP NOT NULL,
   PRIMARY KEY ('key')
 );
 
