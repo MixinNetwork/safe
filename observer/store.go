@@ -990,7 +990,7 @@ func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeSt
 	return nodes, nil
 }
 
-func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) {
+func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1003,7 +1003,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) 
 	} else if err != nil {
 		return "", err
 	}
-	if createdAt.Add(cacheTTL).Before(time.Now()) {
+	if createdAt.Add(d).Before(time.Now()) {
 		return "", nil
 	}
 	return value, nil

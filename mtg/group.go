@@ -291,6 +291,10 @@ func (grp *Group) ListConfirmedWithdrawalTransactionsAfter(ctx context.Context, 
 	return txs
 }
 
+func (grp *Group) TestUpdateOutputsState(ctx context.Context, os []*UnifiedOutput, state string) error {
+	return grp.store.TestUpdateOutputsState(ctx, os, state)
+}
+
 // this function or rpc should be used only in ProcessOutput
 func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
 	os := act.group.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)

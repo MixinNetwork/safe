@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -313,6 +314,31 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 	for _, o := range os {
 		query := "UPDATE outputs SET state=?,signed_by=?,updated_at=? WHERE output_id=? AND state=? AND trace_id=?"
 		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, t.UpdatedAt, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
+		if err != nil {
+			return fmt.Errorf("UPDATE outputs %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) TestUpdateOutputsState(ctx context.Context, os []*UnifiedOutput, state string) error {
+	if !util.CheckTestEnvironment(ctx) {
+		panic(fmt.Errorf("invalid env"))
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollBack(tx)
+
+	for _, o := range os {
+		query := "UPDATE outputs SET state=?, updated_at=? WHERE output_id=?"
+		err = s.execOne(ctx, tx, query, state, time.Now(), o.OutputId)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}

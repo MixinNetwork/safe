@@ -146,7 +146,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 
 func (node *Node) processEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {
 	key := fmt.Sprintf("block:%d:%d", chain, num)
-	val, err := node.store.ReadCache(ctx, key)
+	val, err := node.store.ReadCache(ctx, key, cacheTTL)
 	if err != nil || val != "" {
 		return err
 	}
@@ -385,7 +385,6 @@ func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.ethereumParams(chain)
 	duration := 5 * time.Second
 	switch chain {
 	case ethereum.ChainPolygon:
@@ -398,9 +397,9 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		if err != nil {
 			panic(err)
 		}
-		height, err := ethereum.RPCGetBlockHeight(rpc)
+		height, err := node.RPCGetBlockHeight(ctx, chain)
 		if err != nil {
-			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
+			logger.Printf("node.RPCGetBlockHeight(%d) => %v", chain, err)
 			time.Sleep(time.Second * 5)
 			continue
 		}

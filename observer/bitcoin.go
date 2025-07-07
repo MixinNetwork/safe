@@ -121,7 +121,7 @@ func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx
 		return nil
 	}
 	old, err := node.store.ReadBitcoinUTXO(ctx, tx.TxId, index, chain)
-	logger.Printf("store.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
+	logger.Verbosef("store.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadBitcoinUTXO(%s, %d) => %v", tx.TxId, index, err)
 	} else if old != nil {
@@ -129,7 +129,7 @@ func (node *Node) bitcoinWriteFeeOutput(ctx context.Context, receiver string, tx
 	}
 
 	accountant, err := node.store.ReadAccountantPrivateKey(ctx, receiver)
-	logger.Printf("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
+	logger.Verbosef("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
 	if err != nil {
 		return fmt.Errorf("store.ReadAccountantPrivateKey(%s) => %v", receiver, err)
 	} else if accountant == "" {
@@ -177,7 +177,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
 
 	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: tx.TxId}})
-	logger.Printf("store.QueryDepositSentHashes(%s) => %v %v", tx.TxId, sent, err)
+	logger.Verbosef("store.QueryDepositSentHashes(%s) => %v %v", tx.TxId, sent, err)
 	if err != nil {
 		return fmt.Errorf("store.QueryDepositSentHashes(%s) => %v", tx.TxId, err)
 	}
@@ -187,7 +187,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	}
 
 	old, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.TxId, int(index))
-	logger.Printf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
+	logger.Verbosef("keeperStore.ReadBitcoinUTXO(%s, %d) => %v %v", tx.TxId, index, old, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadBitcoinUTXO(%s, %d) => %v", tx.TxId, index, err)
 	} else if old != nil {
@@ -195,7 +195,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	}
 
 	safe, err := node.keeperStore.ReadSafeByAddress(ctx, receiver)
-	logger.Printf("keeperStore.ReadSafeByAddress(%s) => %v %v", receiver, safe, err)
+	logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
 	} else if safe == nil {
@@ -203,7 +203,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	}
 
 	c, err := node.keeperStore.ReadUnspentUtxoCountForSafe(ctx, receiver)
-	logger.Printf("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
+	logger.Verbosef("keeperStore.ReadUnspentUtxoCountForSafe(%s) => %d %v", receiver, c, err)
 	if err != nil || c >= bitcoin.MaxUnspentUtxo/2 {
 		return err
 	}
@@ -311,7 +311,6 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
 	duration := 3 * time.Minute
 	switch chain {
 	case common.SafeChainLitecoin:
@@ -324,9 +323,9 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		if err != nil {
 			panic(err)
 		}
-		height, err := bitcoin.RPCGetBlockHeight(rpc)
+		height, err := node.RPCGetBlockHeight(ctx, chain)
 		if err != nil {
-			logger.Printf("bitcoin.RPCGetBlockHeight(%d) => %v", chain, err)
+			logger.Printf("node.RPCGetBlockHeight(%d) => %v", chain, err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -366,7 +365,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 
 func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkpoint int64) error {
 	key := fmt.Sprintf("block:%d:%d", chain, checkpoint)
-	val, err := node.store.ReadCache(ctx, key)
+	val, err := node.store.ReadCache(ctx, key, cacheTTL)
 	if err != nil || val != "" {
 		return err
 	}
