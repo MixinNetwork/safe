@@ -146,7 +146,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 
 func (node *Node) processEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {
 	key := fmt.Sprintf("block:%d:%d", chain, num)
-	val, err := node.store.ReadCache(ctx, key)
+	val, err := node.store.ReadCache(ctx, key, cacheTTL)
 	if err != nil || val != "" {
 		return err
 	}

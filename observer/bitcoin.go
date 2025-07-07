@@ -365,7 +365,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 
 func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkpoint int64) error {
 	key := fmt.Sprintf("block:%d:%d", chain, checkpoint)
-	val, err := node.store.ReadCache(ctx, key)
+	val, err := node.store.ReadCache(ctx, key, cacheTTL)
 	if err != nil || val != "" {
 		return err
 	}
