@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
@@ -203,6 +204,21 @@ func SafeReadAssetUntilSufficient(ctx context.Context, id string) (*bot.AssetNet
 		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)
 		if err == nil || mixin.IsErrorCodes(err, 404) {
 			return asset, nil
+		}
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		return nil, err
+	}
+}
+
+func SafeReadAssetsUntilSufficient(ctx context.Context, ids []string, su *bot.SafeUser) ([]*bot.Asset, error) {
+	for {
+		as, err := bot.FetchAssets(ctx, ids, su)
+		logger.Verbosef("common.mixin.FetchAssets(%s) => %d %v", strings.Join(ids, ","), len(as), err)
+		if err == nil {
+			return as, nil
 		}
 		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
