@@ -1,10 +1,10 @@
 module github.com/MixinNetwork/safe
 
-go 1.24.4
+go 1.24.5
 
 require (
 	filippo.io/edwards25519 v1.1.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.16.2
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.16.7
 	github.com/MixinNetwork/mixin v0.18.27
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/btcsuite/btcd v0.24.2
@@ -24,7 +24,7 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.39.0
+	golang.org/x/crypto v0.40.0
 )
 
 require (
@@ -67,12 +67,12 @@ require (
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
+	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
