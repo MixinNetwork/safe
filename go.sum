@@ -4,10 +4,10 @@ filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/MixinNetwork/bot-api-go-client/v3 v3.16.7 h1:6H9NpljxRmmtAdFiUTGbrdU3BvTEyq1bHSkWTcvXAMI=
-github.com/MixinNetwork/bot-api-go-client/v3 v3.16.7/go.mod h1:khtIfwx2ZKYlNwNVa1w7wDvCAnseazjZXdATCQ6Q9/M=
-github.com/MixinNetwork/go-number v0.1.1 h1:Ui/xi0WGiBWI6cPrZaffB6q8lP7m2Zw0CXgOqLXb/3c=
-github.com/MixinNetwork/go-number v0.1.1/go.mod h1:4kaXQW9NOjjO3uZ5ehRVn3m+G+5ENGEKgiwfxea3zGQ=
+github.com/MixinNetwork/bot-api-go-client/v3 v3.16.8 h1:0RlgtdBHsKfLg1ANcL2ntK+GnzipLGbwhKKuuQVR1dM=
+github.com/MixinNetwork/bot-api-go-client/v3 v3.16.8/go.mod h1:NaymfxiTtm/NwL8hHdyYmxA3lf633fEKR63PSAGLHxc=
+github.com/MixinNetwork/go-number v0.2.0 h1:1TJtC3LuKeBqrlVQ5KymNy1gc6O9i1UgY0/8wH20p/M=
+github.com/MixinNetwork/go-number v0.2.0/go.mod h1:xn7WHrhI1Ra8irldx2YQVmL8SerzJZNHX92AWyI3Ars=
 github.com/MixinNetwork/mixin v0.18.27 h1:dF5WdyenUH0FbuwEO0WkloxTrKJ6Y4h2SNMtTnMsgdw=
 github.com/MixinNetwork/mixin v0.18.27/go.mod h1:4SpfCfGb2MICD4suiSHPJ2E0lAoqwY2PFuBC6OZQLwE=
 github.com/MixinNetwork/multi-party-sig v0.4.1 h1:rQdIVSDQQOUMub8ERDV1gbFHxGSD5/+Ve7gj5hGHiPs=
