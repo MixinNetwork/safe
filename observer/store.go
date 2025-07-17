@@ -990,17 +990,31 @@ func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeSt
 	return nodes, nil
 }
 
-func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	row := s.db.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
+func (s *SQLite3Store) readCache(ctx context.Context, tx *sql.Tx, k string) (string, time.Time, error) {
+	row := tx.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
 	var value string
 	var createdAt time.Time
 	err := row.Scan(&value, &createdAt)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return "", time.Time{}, nil
 	} else if err != nil {
+		return "", time.Time{}, err
+	}
+	return value, createdAt, nil
+}
+
+func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration) (string, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer common.Rollback(tx)
+
+	value, createdAt, err := s.readCache(ctx, tx, k)
+	if err != nil {
 		return "", err
 	}
 	if createdAt.Add(d).Before(time.Now()) {
@@ -1009,7 +1023,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration)
 	return value, nil
 }
 
-func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
+func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, d time.Duration) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1025,17 +1039,28 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 		return err
 	}
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT key FROM caches WHERE key=?", k)
-	if err != nil || existed {
+	now := time.Now().UTC()
+	value, createdAt, err := s.readCache(ctx, tx, k)
+	if err != nil {
 		return err
 	}
-
-	cols := []string{"key", "value", "created_at"}
-	vals := []any{k, v, time.Now().UTC()}
-	err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
-	if err != nil {
-		return fmt.Errorf("INSERT caches %v", err)
+	if value == "" {
+		cols := []string{"key", "value", "created_at"}
+		vals := []any{k, v, now}
+		err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT caches %v", err)
+		}
+	} else {
+		if createdAt.Add(d).After(now) {
+			return nil
+		}
+		err = s.execOne(ctx, tx, "UPDATE caches SET value=?, created_at=? WHERE key=?", v, createdAt, k)
+		if err != nil {
+			return fmt.Errorf("UPDATE caches %v", err)
+		}
 	}
+
 	return tx.Commit()
 }
 

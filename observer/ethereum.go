@@ -156,7 +156,7 @@ func (node *Node) processEthereumRPCBlock(ctx context.Context, num int64, chain 
 		return err
 	}
 
-	return node.store.WriteCache(ctx, key, "processed")
+	return node.store.WriteCache(ctx, key, "processed", cacheTTL)
 }
 
 func (node *Node) doProcessEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {

@@ -384,7 +384,7 @@ func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkp
 		}
 	}
 
-	return node.store.WriteCache(ctx, key, "processed")
+	return node.store.WriteCache(ctx, key, "processed", cacheTTL)
 }
 
 func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
