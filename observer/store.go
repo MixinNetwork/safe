@@ -1055,7 +1055,7 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, d time.Durat
 		if createdAt.Add(d).After(now) {
 			return nil
 		}
-		err = s.execOne(ctx, tx, "UPDATE caches SET value=?, created_at=? WHERE key=?", v, createdAt, k)
+		err = s.execOne(ctx, tx, "UPDATE caches SET value=?, created_at=? WHERE key=?", v, now, k)
 		if err != nil {
 			return fmt.Errorf("UPDATE caches %v", err)
 		}
