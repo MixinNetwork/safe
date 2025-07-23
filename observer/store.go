@@ -1026,15 +1026,23 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 	}
 
 	existed, err := s.checkExistence(ctx, tx, "SELECT key FROM caches WHERE key=?", k)
-	if err != nil || existed {
+	if err != nil {
 		return err
 	}
+	if existed {
+		err = s.execOne(ctx, tx, "UPDATE caches SET value=?,created_at=? WHERE key=?",
+			v, time.Now().UTC(), k)
+		if err != nil {
+			return fmt.Errorf("UPDATE caches %v", err)
+		}
 
-	cols := []string{"key", "value", "created_at"}
-	vals := []any{k, v, time.Now().UTC()}
-	err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
-	if err != nil {
-		return fmt.Errorf("INSERT caches %v", err)
+	} else {
+		cols := []string{"key", "value", "created_at"}
+		vals := []any{k, v, time.Now().UTC()}
+		err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
+		if err != nil {
+			return fmt.Errorf("INSERT caches %v", err)
+		}
 	}
 	return tx.Commit()
 }
