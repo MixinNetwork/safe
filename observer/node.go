@@ -642,7 +642,7 @@ func (node *Node) RPCGetBlockHeight(ctx context.Context, chain byte) (int64, err
 			return 0, err
 		}
 	}
-	err = node.store.WriteCache(ctx, key, fmt.Sprint(height), time.Second*5)
+	err = node.store.WriteCache(ctx, key, fmt.Sprint(height))
 	if err != nil {
 		panic(err)
 	}

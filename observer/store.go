@@ -1023,7 +1023,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration)
 	return value, nil
 }
 
-func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, d time.Duration) error {
+func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1040,7 +1040,7 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, d time.Durat
 	}
 
 	now := time.Now().UTC()
-	value, createdAt, err := s.readCache(ctx, tx, k)
+	value, _, err := s.readCache(ctx, tx, k)
 	if err != nil {
 		return err
 	}
@@ -1052,9 +1052,6 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string, d time.Durat
 			return fmt.Errorf("INSERT caches %v", err)
 		}
 	} else {
-		if createdAt.Add(d).After(now) {
-			return nil
-		}
 		err = s.execOne(ctx, tx, "UPDATE caches SET value=?, created_at=? WHERE key=?", v, now, k)
 		if err != nil {
 			return fmt.Errorf("UPDATE caches %v", err)
