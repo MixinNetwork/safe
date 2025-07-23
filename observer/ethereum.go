@@ -385,6 +385,7 @@ func (node *Node) ethereumDepositConfirmLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
+	rpc, _ := node.ethereumParams(chain)
 	duration := 5 * time.Second
 	switch chain {
 	case ethereum.ChainPolygon:
@@ -393,14 +394,14 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 	}
 
 	for {
+		time.Sleep(time.Second)
 		checkpoint, err := node.readDepositCheckpoint(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
-		height, err := node.RPCGetBlockHeight(ctx, chain)
+		height, err := ethereum.RPCGetBlockHeight(rpc)
 		if err != nil {
 			logger.Printf("node.RPCGetBlockHeight(%d) => %v", chain, err)
-			time.Sleep(time.Second * 5)
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
