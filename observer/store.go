@@ -990,31 +990,17 @@ func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeSt
 	return nodes, nil
 }
 
-func (s *SQLite3Store) readCache(ctx context.Context, tx *sql.Tx, k string) (string, time.Time, error) {
-	row := tx.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
-	var value string
-	var createdAt time.Time
-	err := row.Scan(&value, &createdAt)
-	if err == sql.ErrNoRows {
-		return "", time.Time{}, nil
-	} else if err != nil {
-		return "", time.Time{}, err
-	}
-	return value, createdAt, nil
-}
-
 func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", err
-	}
-	defer common.Rollback(tx)
-
-	value, createdAt, err := s.readCache(ctx, tx, k)
-	if err != nil {
+	row := s.db.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
+	var value string
+	var createdAt time.Time
+	err := row.Scan(&value, &createdAt)
+	if err == sql.ErrNoRows {
+		return "", nil
+	} else if err != nil {
 		return "", err
 	}
 	if createdAt.Add(d).Before(time.Now()) {
@@ -1039,25 +1025,25 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 		return err
 	}
 
-	now := time.Now().UTC()
-	value, _, err := s.readCache(ctx, tx, k)
+	existed, err := s.checkExistence(ctx, tx, "SELECT key FROM caches WHERE key=?", k)
 	if err != nil {
 		return err
 	}
-	if value == "" {
+	if existed {
+		err = s.execOne(ctx, tx, "UPDATE caches SET value=?,created_at=? WHERE key=?",
+			v, time.Now().UTC(), k)
+		if err != nil {
+			return fmt.Errorf("UPDATE caches %v", err)
+		}
+
+	} else {
 		cols := []string{"key", "value", "created_at"}
-		vals := []any{k, v, now}
+		vals := []any{k, v, time.Now().UTC()}
 		err = s.execOne(ctx, tx, buildInsertionSQL("caches", cols), vals...)
 		if err != nil {
 			return fmt.Errorf("INSERT caches %v", err)
 		}
-	} else {
-		err = s.execOne(ctx, tx, "UPDATE caches SET value=?, created_at=? WHERE key=?", v, now, k)
-		if err != nil {
-			return fmt.Errorf("UPDATE caches %v", err)
-		}
 	}
-
 	return tx.Commit()
 }
 
