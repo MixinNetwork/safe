@@ -183,19 +183,16 @@ func (mm *MixinMessenger) OnMessage(ctx context.Context, msg bot.MessageView, us
 	if msg.ConversationId != mm.conversationId {
 		return nil
 	}
-	sender, err := uuid.FromString(msg.UserId)
-	if err != nil {
-		return nil
-	}
+	sender := uuid.Must(uuid.FromString(msg.UserId))
 	if !slices.Contains(mm.members, sender.String()) {
 		return nil
 	}
 	data, err := base64.RawURLEncoding.DecodeString(msg.DataBase64)
-	if err != nil {
+	if err != nil || len(data) == 0 {
 		return nil
 	}
 	data, err = base64.RawURLEncoding.DecodeString(string(data))
-	if err != nil {
+	if err != nil || len(data) == 0 {
 		return nil
 	}
 	now := uint64(msg.CreatedAt.UnixNano())
