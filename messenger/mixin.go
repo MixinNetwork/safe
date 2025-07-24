@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type MixinConfiguration struct {
 
 type MixinMessenger struct {
 	client         *mixin.Client
+	members        []string
 	conf           *MixinConfiguration
 	conversationId string
 	recv           chan []byte
@@ -40,7 +42,7 @@ type MixinMessage struct {
 	CreatedAt time.Time
 }
 
-func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMessenger, error) {
+func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration, members []string) (*MixinMessenger, error) {
 	if conf.SendBuffer >= 100 || conf.SendBuffer == 0 {
 		panic(fmt.Errorf("messenger messages limit %d", conf.SendBuffer))
 	}
@@ -57,6 +59,7 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration) (*MixinMes
 	}
 	mm := &MixinMessenger{
 		client:         client,
+		members:        members,
 		conf:           conf,
 		conversationId: conf.ConversationId,
 		recv:           make(chan []byte, conf.ReceiveBuffer),
@@ -180,15 +183,18 @@ func (mm *MixinMessenger) OnMessage(ctx context.Context, msg bot.MessageView, us
 	if msg.ConversationId != mm.conversationId {
 		return nil
 	}
+	sender, err := uuid.FromString(msg.UserId)
+	if err != nil {
+		return nil
+	}
+	if !slices.Contains(mm.members, sender.String()) {
+		return nil
+	}
 	data, err := base64.RawURLEncoding.DecodeString(msg.DataBase64)
 	if err != nil {
 		return nil
 	}
 	data, err = base64.RawURLEncoding.DecodeString(string(data))
-	if err != nil {
-		return nil
-	}
-	sender, err := uuid.FromString(msg.UserId)
 	if err != nil {
 		return nil
 	}
