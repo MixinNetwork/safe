@@ -50,7 +50,7 @@ func SignerBootCmd(c *cli.Context) error {
 	group.EnableDebug()
 	group.SetKernelRPC(mc.Signer.MixinRPC)
 
-	messenger, err := messenger.NewMixinMessenger(ctx, mc.Signer.Messenger(), mc.Signer.MTG.Genesis.Members)
+	messenger, err := messenger.NewMixinMessenger(ctx, mc.Signer.Messenger(), group.GetMembers())
 	if err != nil {
 		return err
 	}

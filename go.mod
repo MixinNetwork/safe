@@ -18,7 +18,7 @@ require (
 	github.com/fox-one/mixin-sdk-go/v2 v2.1.0
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/gofrs/uuid/v5 v5.3.2
-	github.com/mattn/go-sqlite3 v1.14.28
+	github.com/mattn/go-sqlite3 v1.14.29
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0
