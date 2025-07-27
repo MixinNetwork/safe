@@ -624,11 +624,14 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
 	rpc, _ := node.bitcoinParams(chain)
 	id, err := bitcoin.RPCSendRawTransaction(rpc, hex.EncodeToString(raw))
-	if err != nil && strings.Contains(err.Error(), "Transaction already in block chain") {
-		return nil
-	}
 	if err != nil {
-		return err
+		switch {
+		case strings.Contains(err.Error(), "Transaction already in block chain"):
+		case strings.Contains(err.Error(), "Transaction outputs already in utxo set"):
+		default:
+			return err
+		}
+		return nil
 	}
 	if id != hash {
 		return fmt.Errorf("malformed bitcoin transaction %s %s", hash, id)
