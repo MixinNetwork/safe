@@ -911,7 +911,7 @@ func (node *Node) getPendingBitcoinChanges(ctx context.Context, safe *store.Safe
 	if safe == nil {
 		return view, nil
 	}
-	tx, err := node.store.ReadLatestTransactionByHolder(ctx, safe.Holder)
+	tx, err := node.keeperStore.ReadLatestTransactionByHolder(ctx, safe.Holder)
 	if err != nil || tx == nil {
 		return view, err
 	}
@@ -920,6 +920,10 @@ func (node *Node) getPendingBitcoinChanges(ctx context.Context, safe *store.Safe
 	case common.RequestStateDone:
 	default:
 		return view, nil
+	}
+	otx, err := node.store.ReadTransactionApproval(ctx, tx.TransactionHash)
+	if err != nil || otx == nil {
+		return nil, fmt.Errorf("store.ReadTransactionApproval(%s) => %v %v", tx.TransactionHash, otx, err)
 	}
 
 	script, err := bitcoin.ParseAddress(safe.Address, safe.Chain)
@@ -932,7 +936,7 @@ func (node *Node) getPendingBitcoinChanges(ctx context.Context, safe *store.Safe
 			continue
 		}
 
-		utxo, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.SpentHash.String, index)
+		utxo, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, otx.SpentHash.String, index)
 		if err != nil {
 			return nil, err
 		}
@@ -940,7 +944,7 @@ func (node *Node) getPendingBitcoinChanges(ctx context.Context, safe *store.Safe
 			continue
 		}
 		view = append(view, &utxoView{
-			TransactionHash: tx.SpentHash.String,
+			TransactionHash: otx.SpentHash.String,
 			OutputIndex:     uint32(index),
 			Satoshi:         out.Value,
 			Script:          hex.EncodeToString(wsa.Script),
