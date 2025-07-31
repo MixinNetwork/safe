@@ -3,6 +3,7 @@ package observer
 // FIXME do rate limit based on IP
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	_ "embed"
@@ -856,12 +857,18 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			common.RenderError(w, r, err)
 			return
 		}
+		unreceived, err := node.getUnreceivedBitcoinChanges(ctx, safe, wsa)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":         sp.Chain,
 			"id":            sp.RequestId,
 			"address":       sp.Address,
 			"outputs":       viewOutputs(mainInputs),
 			"pendings":      viewOutputs(pendings),
+			"unreceived":    unreceived,
 			"script":        hex.EncodeToString(wsa.Script),
 			"keys":          node.viewSafeXPubs(r.Context(), sp),
 			"safe_asset_id": safeAssetId,
@@ -897,4 +904,51 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
 	}
+}
+
+func (node *Node) getUnreceivedBitcoinChanges(ctx context.Context, safe *store.Safe, wsa *bitcoin.WitnessScriptAccount) ([]map[string]any, error) {
+	// the outputs used by pending tx would show in pending field
+	tx, err := node.store.ReadLatestFinishedTransactionByHolder(ctx, safe.Holder)
+	if err != nil || tx == nil {
+		return nil, err
+	}
+
+	script, err := bitcoin.ParseAddress(safe.Address, safe.Chain)
+	if err != nil {
+		panic(err)
+	}
+	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
+
+	view := make([]map[string]any, 0)
+	for index, out := range psbt.UnsignedTx.TxOut {
+		if out.Value == 0 || !bytes.Equal(out.PkScript, script) {
+			continue
+		}
+		if !tx.SpentHash.Valid {
+			view = append(view, map[string]any{
+				"transaction_hash": tx.TransactionHash,
+				"output_index":     index,
+				"satoshi":          out.Value,
+				"script":           hex.EncodeToString(wsa.Script),
+				"sequence":         wsa.Sequence,
+			})
+			continue
+		}
+
+		utxo, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, tx.SpentHash.String, index)
+		if err != nil {
+			return nil, err
+		}
+		if utxo != nil {
+			continue
+		}
+		view = append(view, map[string]any{
+			"transaction_hash": tx.SpentHash.String,
+			"output_index":     index,
+			"satoshi":          out.Value,
+			"script":           hex.EncodeToString(wsa.Script),
+			"sequence":         wsa.Sequence,
+		})
+	}
+	return view, nil
 }
