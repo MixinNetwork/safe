@@ -910,10 +910,15 @@ func (node *Node) getUnreceivedBitcoinChanges(ctx context.Context, safe *store.S
 	if safe == nil {
 		return nil, nil
 	}
-	// the outputs used by pending tx would show in pending field
-	tx, err := node.store.ReadLatestFinishedTransactionByHolder(ctx, safe.Holder)
+	tx, err := node.store.ReadLatestTransactionByHolder(ctx, safe.Holder)
 	if err != nil || tx == nil {
 		return nil, err
+	}
+	switch tx.State {
+	// the outputs used by unfinished tx would show in pending field
+	case common.RequestStateDone:
+	default:
+		return nil, nil
 	}
 
 	script, err := bitcoin.ParseAddress(safe.Address, safe.Chain)

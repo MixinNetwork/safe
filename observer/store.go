@@ -736,9 +736,9 @@ func (s *SQLite3Store) ReadTransactionApproval(ctx context.Context, hash string)
 	return &t, err
 }
 
-func (s *SQLite3Store) ReadLatestFinishedTransactionByHolder(ctx context.Context, hoder string) (*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions WHERE holder=? AND state=? ORDER BY created_at DESC LIMIT 1", strings.Join(transactionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, hoder, common.RequestStateDone)
+func (s *SQLite3Store) ReadLatestTransactionByHolder(ctx context.Context, hoder string) (*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions WHERE holder=? ORDER BY created_at DESC LIMIT 1", strings.Join(transactionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, hoder)
 
 	var t Transaction
 	err := row.Scan(&t.TransactionHash, &t.RawTransaction, &t.Chain, &t.Holder, &t.Signer, &t.State, &t.SpentHash, &t.SpentRaw, &t.CreatedAt, &t.UpdatedAt)
