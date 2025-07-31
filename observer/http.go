@@ -907,18 +907,19 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 }
 
 func (node *Node) getUnreceivedBitcoinChanges(ctx context.Context, safe *store.Safe, wsa *bitcoin.WitnessScriptAccount) ([]map[string]any, error) {
+	view := make([]map[string]any, 0)
 	if safe == nil {
-		return nil, nil
+		return view, nil
 	}
 	tx, err := node.store.ReadLatestTransactionByHolder(ctx, safe.Holder)
 	if err != nil || tx == nil {
-		return nil, err
+		return view, err
 	}
 	switch tx.State {
 	// the outputs used by unfinished tx would show in pending field
 	case common.RequestStateDone:
 	default:
-		return nil, nil
+		return view, nil
 	}
 
 	script, err := bitcoin.ParseAddress(safe.Address, safe.Chain)
@@ -926,8 +927,6 @@ func (node *Node) getUnreceivedBitcoinChanges(ctx context.Context, safe *store.S
 		panic(err)
 	}
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
-
-	view := make([]map[string]any, 0)
 	for index, out := range psbt.UnsignedTx.TxOut {
 		if out.Value == 0 || !bytes.Equal(out.PkScript, script) {
 			continue
