@@ -3,6 +3,7 @@ package observer
 // FIXME do rate limit based on IP
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	_ "embed"
@@ -746,15 +747,15 @@ func (node *Node) viewRecoveries(_ context.Context, recoveries []*Recovery) []ma
 	return view
 }
 
-func viewOutputs(outputs []*bitcoin.Input) []map[string]any {
-	view := make([]map[string]any, 0)
+func viewOutputs(outputs []*bitcoin.Input) []*utxoView {
+	view := make([]*utxoView, 0)
 	for _, out := range outputs {
-		view = append(view, map[string]any{
-			"transaction_hash": out.TransactionHash,
-			"output_index":     out.Index,
-			"satoshi":          out.Satoshi,
-			"script":           hex.EncodeToString(out.Script),
-			"sequence":         out.Sequence,
+		view = append(view, &utxoView{
+			TransactionHash: out.TransactionHash,
+			OutputIndex:     out.Index,
+			Satoshi:         out.Satoshi,
+			Script:          hex.EncodeToString(out.Script),
+			Sequence:        out.Sequence,
 		})
 	}
 	return view
@@ -856,12 +857,18 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			common.RenderError(w, r, err)
 			return
 		}
+		changes, err := node.getPendingBitcoinChanges(ctx, safe, wsa)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":         sp.Chain,
 			"id":            sp.RequestId,
 			"address":       sp.Address,
 			"outputs":       viewOutputs(mainInputs),
 			"pendings":      viewOutputs(pendings),
+			"changes":       changes,
 			"script":        hex.EncodeToString(wsa.Script),
 			"keys":          node.viewSafeXPubs(r.Context(), sp),
 			"safe_asset_id": safeAssetId,
@@ -897,4 +904,60 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
 	}
+}
+
+func (node *Node) getPendingBitcoinChanges(ctx context.Context, safe *store.Safe, wsa *bitcoin.WitnessScriptAccount) ([]*utxoView, error) {
+	view := make([]*utxoView, 0)
+	if safe == nil {
+		return view, nil
+	}
+	tx, err := node.keeperStore.ReadLatestTransactionByHolder(ctx, safe.Holder)
+	if err != nil || tx == nil {
+		return view, err
+	}
+	switch tx.State {
+	// the outputs used by unfinished tx would show in pending field
+	case common.RequestStateDone:
+	default:
+		return view, nil
+	}
+	otx, err := node.store.ReadTransactionApproval(ctx, tx.TransactionHash)
+	if err != nil || otx == nil {
+		return nil, fmt.Errorf("store.ReadTransactionApproval(%s) => %v %v", tx.TransactionHash, otx, err)
+	}
+
+	script, err := bitcoin.ParseAddress(safe.Address, safe.Chain)
+	if err != nil {
+		panic(err)
+	}
+	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
+	for index, out := range psbt.UnsignedTx.TxOut {
+		if out.Value == 0 || !bytes.Equal(out.PkScript, script) {
+			continue
+		}
+
+		utxo, _, err := node.keeperStore.ReadBitcoinUTXO(ctx, otx.SpentHash.String, index)
+		if err != nil {
+			return nil, err
+		}
+		if utxo != nil {
+			continue
+		}
+		view = append(view, &utxoView{
+			TransactionHash: otx.SpentHash.String,
+			OutputIndex:     uint32(index),
+			Satoshi:         out.Value,
+			Script:          hex.EncodeToString(wsa.Script),
+			Sequence:        wsa.Sequence,
+		})
+	}
+	return view, nil
+}
+
+type utxoView struct {
+	TransactionHash string `json:"transaction_hash"`
+	OutputIndex     uint32 `json:"output_index"`
+	Satoshi         int64  `json:"satoshi"`
+	Script          string `json:"script"`
+	Sequence        uint32 `json:"sequence"`
 }
