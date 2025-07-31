@@ -907,6 +907,9 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 }
 
 func (node *Node) getUnreceivedBitcoinChanges(ctx context.Context, safe *store.Safe, wsa *bitcoin.WitnessScriptAccount) ([]map[string]any, error) {
+	if safe == nil {
+		return nil, nil
+	}
 	// the outputs used by pending tx would show in pending field
 	tx, err := node.store.ReadLatestFinishedTransactionByHolder(ctx, safe.Holder)
 	if err != nil || tx == nil {
