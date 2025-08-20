@@ -305,6 +305,14 @@ func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) deci
 	return total
 }
 
+func (grp *Group) CheckTransactionFinished(ctx context.Context, id string) bool {
+	tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return tx.State == TransactionStateSnapshot
+}
+
 func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, extra []byte) bool {
 	if len(extra) > common.ExtraSizeStorageCapacity {
 		panic(fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity))
