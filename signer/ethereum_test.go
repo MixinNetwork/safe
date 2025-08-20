@@ -233,7 +233,7 @@ func testEthereumSignMessage(priv string, message []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	hash := crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message)))
+	hash := crypto.Keccak256Hash(fmt.Appendf(nil, "\x19Ethereum Signed Message:\n%d%s", len(message), message))
 	signature, err := crypto.Sign(hash.Bytes(), private)
 	if err != nil {
 		return nil, err

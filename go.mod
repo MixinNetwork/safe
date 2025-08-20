@@ -1,10 +1,10 @@
 module github.com/MixinNetwork/safe
 
-go 1.24.5
+go 1.25.0
 
 require (
 	filippo.io/edwards25519 v1.1.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.16.8
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.16.9
 	github.com/MixinNetwork/mixin v0.18.27
 	github.com/MixinNetwork/multi-party-sig v0.4.1
 	github.com/btcsuite/btcd v0.24.2
@@ -14,17 +14,17 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/dimfeld/httptreemux/v5 v5.5.0
-	github.com/ethereum/go-ethereum v1.16.1
+	github.com/ethereum/go-ethereum v1.16.2
 	github.com/fox-one/mixin-sdk-go/v2 v2.1.0
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/gofrs/uuid/v5 v5.3.2
-	github.com/mattn/go-sqlite3 v1.14.30
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.40.0
+	golang.org/x/crypto v0.41.0
 )
 
 require (
@@ -32,7 +32,7 @@ require (
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.22.0 // indirect
+	github.com/bits-and-blooms/bitset v1.24.0 // indirect
 	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/btcsuite/btcutil v1.0.2 // indirect
 	github.com/consensys/gnark-crypto v0.18.0 // indirect
@@ -70,11 +70,11 @@ require (
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
-	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )

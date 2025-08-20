@@ -39,7 +39,7 @@ func newEncoding(encoder string) *Encoding {
 	e := new(Encoding)
 	copy(e.encode[:], encoder)
 
-	for i := 0; i < len(e.decodeMap); i++ {
+	for i := range len(e.decodeMap) {
 		// 0xff indicates that this entry in the decode map is not in the encoding alphabet.
 		e.decodeMap[i] = 0xff
 	}
@@ -63,7 +63,7 @@ func (enc *Encoding) Encode(dst, src []byte) int {
 	var queue, numBits uint
 
 	n := 0
-	for i := 0; i < len(src); i++ {
+	for i := range src {
 		queue |= uint(src[i]) << numBits
 		numBits += 8
 		if numBits > 13 {
@@ -121,7 +121,7 @@ func (enc *Encoding) Decode(dst, src []byte) (int, error) {
 	var v = -1
 
 	n := 0
-	for i := 0; i < len(src); i++ {
+	for i := range src {
 		if enc.decodeMap[src[i]] == 0xff {
 			// The character is not in the encoding alphabet.
 			return n, invalidCharacterError()
