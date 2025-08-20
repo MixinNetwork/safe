@@ -305,15 +305,15 @@ func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) deci
 	return total
 }
 
-func (grp *Group) ReadFinishedTxHashByTraceId(ctx context.Context, id string) (string, error) {
+func (grp *Group) ReadFinishedTxHashByTraceId(ctx context.Context, id string) string {
 	tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
 	if err != nil || tx == nil {
 		panic(fmt.Errorf("store.ReadTransactionByTraceId(%s) => %v %v", id, tx, err))
 	}
 	if tx.State != TransactionStateSnapshot {
-		return "", nil
+		return ""
 	}
-	return tx.Hash.String(), nil
+	return tx.Hash.String()
 }
 
 func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, extra []byte) bool {
