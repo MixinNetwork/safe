@@ -242,6 +242,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		return node.failRequest(ctx, req, "")
 	}
 
+	amt = amt.RoundFloor(8)
 	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amt.String(), nil, req.Id)
 	if t == nil {
 		// no compaction needed, just retry from observer

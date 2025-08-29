@@ -424,3 +424,12 @@ func testGetGhostKeys(tx *Transaction, index int) (*mixin.GhostKeys, error) {
 	k.Mask = m
 	return k, nil
 }
+
+func checkAmountPrecision(amount string) {
+	amt := decimal.RequireFromString(amount)
+	amt = amt.Mul(decimal.New(1, 8))
+	valid := amt.IsInteger()
+	if !valid {
+		panic(fmt.Errorf("invalid precision of tx amount: %s", amount))
+	}
+}
