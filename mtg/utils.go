@@ -100,20 +100,6 @@ func EncodeMixinExtraBase64(appId string, extra []byte) string {
 	return s
 }
 
-func newCommonOutput(out *mixinnet.Output) *common.Output {
-	cout := &common.Output{
-		Type:   common.OutputTypeScript,
-		Amount: common.NewIntegerFromString(out.Amount.String()),
-		Script: common.Script(out.Script),
-		Mask:   crypto.Key(out.Mask),
-	}
-	for _, k := range out.Keys {
-		ck := crypto.Key(k)
-		cout.Keys = append(cout.Keys, &ck)
-	}
-	return cout
-}
-
 func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string, error) {
 	for {
 		me, err := grp.mixin.UserMe(ctx)

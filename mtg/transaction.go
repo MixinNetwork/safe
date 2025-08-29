@@ -598,13 +598,17 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 			continue
 		}
 
-		ver.Outputs = append(ver.Outputs, newCommonOutput(&mixinnet.Output{
+		out := &common.Output{
 			Type:   common.OutputTypeScript,
-			Mask:   keys[i].Mask,
-			Keys:   keys[i].Keys,
-			Amount: mixinnet.IntegerFromString(r.Amount),
-			Script: mixinnet.NewThresholdScript(uint8(r.MixAddress.Threshold)),
-		}))
+			Amount: common.NewIntegerFromString(r.Amount),
+			Script: common.NewThresholdScript(r.MixAddress.Threshold),
+			Mask:   crypto.Key(keys[i].Mask),
+		}
+		for _, k := range keys[i].Keys {
+			ck := crypto.Key(k)
+			out.Keys = append(out.Keys, &ck)
+		}
+		ver.Outputs = append(ver.Outputs, out)
 	}
 
 	ver.References = tx.references
