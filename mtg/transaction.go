@@ -140,6 +140,8 @@ func transactionFromRow(row Row) (*Transaction, error) {
 }
 
 func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
+	checkAmountPrecision(amount)
+
 	rs := make([]string, len(receivers))
 	copy(rs, receivers)
 	sort.Strings(rs)
@@ -195,6 +197,7 @@ func (act *Action) BuildStorageTransaction(ctx context.Context, extra []byte) *T
 }
 
 func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetId, amount, memo, destination, tag string) *Transaction {
+	checkAmountPrecision(amount)
 	tx := &Transaction{
 		TraceId:        traceId,
 		AppId:          act.AppId,
