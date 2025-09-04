@@ -119,7 +119,7 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	}
 
 	raw := hex.EncodeToString(hpsbt.Marshal())
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStateDone)
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, spsbt.Hash(), raw, common.RequestStateDone)
 	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
 	if err != nil {
 		return err
@@ -161,7 +161,7 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 		return fmt.Errorf("Ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
 	}
 
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, "", common.RequestStateDone)
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, st.TxHash, raw, common.RequestStateDone)
 	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
 	if err != nil {
 		return err
