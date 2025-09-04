@@ -916,7 +916,56 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
+	return node.store.UpdateRecoveryState(ctx, safe.Address, hash, raw, common.RequestStatePending)
+}
+
+func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, recovery *Recovery, txHash string, sigHex string) error {
+	logger.Printf("node.httpCloseEthereumAccountRecoveryRequest(%s, %s)", txHash, sigHex)
+	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
+	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+	if err != nil {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		return err
+	}
+
+	sig, err := hex.DecodeString(sigHex)
+	if err != nil {
+		return err
+	}
+	msg := fmt.Appendf(nil, "REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
+	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
+	if err != nil {
+		return err
+	}
+
+	// recover without holder key, need to revoke proposed tx
+	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		id := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
+		rid := uuid.Must(uuid.FromString(tx.RequestId))
+		extra := append(rid.Bytes(), sig...)
+		action := common.ActionEthereumSafeRevokeTransaction
+		err = node.sendKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
+		logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", tx.Holder, action, id, extra)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = node.store.CloseRecoveryWithHolderKey(ctx, recovery.Address, txHash, sigHex+":"+approval.RawTransaction)
+	logger.Printf("store.RevokeTransactionApproval(%s %s) => %v", recovery.Address, txHash, err)
+	return err
 }
 
 func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string) error {

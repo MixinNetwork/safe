@@ -869,7 +869,7 @@ func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recov
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw string, state int) error {
+func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, hash, raw string, state int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -879,22 +879,47 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, raw str
 	}
 	defer common.Rollback(tx)
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=?", address)
+	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=? AND hash=?", address, hash)
 	if err != nil || !existed {
 		return err
 	}
 	switch state {
 	case common.RequestStatePending:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state=?",
-			state, raw, time.Now().UTC(), address, common.RequestStateInitial)
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND hash=? AND state=?",
+			state, raw, time.Now().UTC(), address, hash, common.RequestStateInitial)
 	case common.RequestStateDone:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND state IN (?, ?)",
-			state, raw, time.Now().UTC(), address, common.RequestStateInitial, common.RequestStatePending)
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND hash=? AND state IN (?, ?)",
+			state, raw, time.Now().UTC(), address, hash, common.RequestStateInitial, common.RequestStatePending)
 	default:
 		panic(state)
 	}
 	if err != nil {
 		return fmt.Errorf("UPDATE recoveries %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) CloseRecoveryWithHolderKey(ctx context.Context, address, hash, sig string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	now := time.Now().UTC()
+	err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND hash=? AND state=?",
+		common.RequestStateFailed, now, address, hash, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE recoveries %v", err)
+	}
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+		sig, common.RequestStateFailed, now, hash, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
 	return tx.Commit()

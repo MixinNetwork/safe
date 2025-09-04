@@ -422,8 +422,10 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 
 func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
-		Raw  string `json:"raw"`
-		Hash string `json:"hash"`
+		Signature string `json:"signature"`
+		Raw       string `json:"raw"`
+		Hash      string `json:"hash"`
+		Action    string `json:"action"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -448,9 +450,21 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 
-	err = node.httpSignAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
-	if err != nil {
-		common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+	switch body.Action {
+	case "approve":
+		err = node.httpSignAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	case "close":
+		err = node.httpCloseAccountRecoveryRequest(r.Context(), safe.Address, body.Signature, body.Hash)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	default:
+		common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": "action"})
 		return
 	}
 
