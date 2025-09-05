@@ -64,6 +64,10 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	err = node.store.MigrateRecoveries(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	for _, chain := range []byte{
 		common.SafeChainBitcoin,

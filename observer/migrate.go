@@ -89,3 +89,53 @@ func (s *SQLite3Store) ListAllSafes(ctx context.Context) ([]*Account, error) {
 	}
 	return accounts, nil
 }
+
+func (s *SQLite3Store) MigrateRecoveries(ctx context.Context) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	key, val := "SCHEMA:VERSION:MIGRATE_RECOVERIES", ""
+	row := tx.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", key)
+	err = row.Scan(&val)
+	if err == nil || err != sql.ErrNoRows {
+		return err
+	}
+
+	query := `
+	CREATE TABLE IF NOT EXISTS recoveries_copy (
+		address            VARCHAR NOT NULL,
+		chain              INTEGER NOT NULL,
+		holder             VARCHAR NOT NULL,
+		observer           VARCHAR NOT NULL,
+		raw_transaction    VARCHAR NOT NULL,
+		transaction_hash   VARCHAR NOT NULL,
+		state              INTEGER NOT NULL,
+		created_at         TIMESTAMP NOT NULL,
+		updated_at         TIMESTAMP NOT NULL,
+		PRIMARY KEY ('address', 'transaction_hash')
+	);\n
+	`
+	cols := strings.Join(recoveryCols, ",")
+	query += fmt.Sprintf("INSERT INTO recoveries_copy (%s) SELECT %s FROM recoveries;\n", cols, cols)
+	query += "DROP TABLE recoveries;\n"
+	query += "ALTER TABLE recoveries_copy RENAME TO recoveries;\n"
+
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)", key, query, now, now)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
