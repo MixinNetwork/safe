@@ -107,8 +107,7 @@ func (s *SQLite3Store) MigrateRecoveries(ctx context.Context) error {
 		return err
 	}
 
-	query := `
-	CREATE TABLE IF NOT EXISTS recoveries_copy (
+	query := `CREATE TABLE IF NOT EXISTS recoveries_copy (
 		address            VARCHAR NOT NULL,
 		chain              INTEGER NOT NULL,
 		holder             VARCHAR NOT NULL,
@@ -119,13 +118,16 @@ func (s *SQLite3Store) MigrateRecoveries(ctx context.Context) error {
 		created_at         TIMESTAMP NOT NULL,
 		updated_at         TIMESTAMP NOT NULL,
 		PRIMARY KEY ('address', 'transaction_hash')
-	);\n
-	`
+	);`
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
 	cols := strings.Join(recoveryCols, ",")
 	query += fmt.Sprintf("INSERT INTO recoveries_copy (%s) SELECT %s FROM recoveries;\n", cols, cols)
 	query += "DROP TABLE recoveries;\n"
 	query += "ALTER TABLE recoveries_copy RENAME TO recoveries;\n"
-
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
