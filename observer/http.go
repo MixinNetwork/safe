@@ -445,7 +445,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "hash"})
 		return
 	}
-	if body.Raw == "" {
+	if body.Raw == "" && body.Signature == "" {
 		common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
 		return
 	}
