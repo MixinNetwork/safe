@@ -222,7 +222,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	r, err := node.store.ReadRecovery(ctx, safe.Address)
+	r, err := node.store.ReadRecovery(ctx, safe.Address, hash)
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 }
 
 func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, id, sig, hash string) error {
-	logger.Printf("node.httpSignAccountRecoveryRequest(%s, %s, %v)", addr, sig, hash)
+	logger.Printf("node.httpCloseAccountRecoveryRequest(%s, %s, %v)", addr, sig, hash)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
 		return err
@@ -261,7 +261,7 @@ func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, id,
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	r, err := node.store.ReadRecovery(ctx, safe.Address)
+	r, err := node.store.ReadRecovery(ctx, safe.Address, hash)
 	if err != nil {
 		return err
 	}

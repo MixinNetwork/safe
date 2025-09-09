@@ -925,9 +925,21 @@ func (s *SQLite3Store) CloseRecoveryWithHolderKey(ctx context.Context, address, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadRecovery(ctx context.Context, address string) (*Recovery, error) {
-	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=?", strings.Join(recoveryCols, ","))
-	row := s.db.QueryRowContext(ctx, query, address)
+func (s *SQLite3Store) ReadRecovery(ctx context.Context, address, hash string) (*Recovery, error) {
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=? AND hash=?", strings.Join(recoveryCols, ","))
+	row := s.db.QueryRowContext(ctx, query, address, hash)
+
+	var r Recovery
+	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.CreatedAt, &r.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &r, err
+}
+
+func (s *SQLite3Store) ReadRecoveryByHash(ctx context.Context, hash string) (*Recovery, error) {
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE hash=?", strings.Join(recoveryCols, ","))
+	row := s.db.QueryRowContext(ctx, query, hash)
 
 	var r Recovery
 	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.CreatedAt, &r.UpdatedAt)

@@ -288,22 +288,22 @@ func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, par
 }
 
 func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	safe, _, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
-		return
-	}
-	recovery, err := node.store.ReadRecovery(r.Context(), safe.Address)
+	recovery, err := node.store.ReadRecoveryByHash(r.Context(), params["id"])
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
 	if recovery == nil {
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "recovery"})
+		return
+	}
+	safe, _, err := node.readSafeProposalOrRequest(r.Context(), recovery.Address)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 
