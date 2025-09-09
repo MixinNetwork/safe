@@ -869,7 +869,7 @@ func (node *Node) httpCloseBitcoinAccountRecoveryRequest(ctx context.Context, re
 	}
 
 	err = node.store.CloseRecoveryWithHolderKey(ctx, recovery.Address, txHash, sigBase64+":"+approval.RawTransaction)
-	logger.Printf("store.RevokeTransactionApproval(%s %s) => %v", recovery.Address, txHash, err)
+	logger.Printf("store.CloseRecoveryWithHolderKey(%s %s) => %v", recovery.Address, txHash, err)
 	return err
 }
 

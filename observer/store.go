@@ -911,7 +911,7 @@ func (s *SQLite3Store) CloseRecoveryWithHolderKey(ctx context.Context, address, 
 	defer common.Rollback(tx)
 
 	now := time.Now().UTC()
-	err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND hash=? AND state=?",
+	err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, updated_at=? WHERE address=? AND transaction_hash=? AND state=?",
 		common.RequestStateFailed, now, address, hash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE recoveries %v", err)

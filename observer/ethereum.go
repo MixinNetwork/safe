@@ -964,7 +964,7 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 	}
 
 	err = node.store.CloseRecoveryWithHolderKey(ctx, recovery.Address, txHash, sigHex+":"+approval.RawTransaction)
-	logger.Printf("store.RevokeTransactionApproval(%s %s) => %v", recovery.Address, txHash, err)
+	logger.Printf("store.CloseRecoveryWithHolderKey(%s %s) => %v", recovery.Address, txHash, err)
 	return err
 }
 
