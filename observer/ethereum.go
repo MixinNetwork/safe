@@ -958,12 +958,12 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 
 	// recover without holder key, need to revoke proposed tx
 	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-		id := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
+		oid := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
 		rid := uuid.Must(uuid.FromString(id))
 		extra := append(rid.Bytes(), sig...)
 		action := common.ActionEthereumSafeRevokeTransaction
-		err = node.sendKeeperResponse(ctx, approval.Holder, byte(action), approval.Chain, id, extra)
-		logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", approval.Holder, action, id, extra)
+		err = node.sendKeeperResponse(ctx, approval.Holder, byte(action), approval.Chain, oid, extra)
+		logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", approval.Holder, action, oid, extra)
 		if err != nil {
 			return err
 		}
