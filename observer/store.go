@@ -926,7 +926,7 @@ func (s *SQLite3Store) CloseRecoveryWithHolderKey(ctx context.Context, address, 
 }
 
 func (s *SQLite3Store) ReadRecovery(ctx context.Context, address, hash string) (*Recovery, error) {
-	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=? AND hash=?", strings.Join(recoveryCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=? AND transaction_hash=?", strings.Join(recoveryCols, ","))
 	row := s.db.QueryRowContext(ctx, query, address, hash)
 
 	var r Recovery
@@ -938,7 +938,7 @@ func (s *SQLite3Store) ReadRecovery(ctx context.Context, address, hash string) (
 }
 
 func (s *SQLite3Store) ReadRecoveryByHash(ctx context.Context, hash string) (*Recovery, error) {
-	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE hash=?", strings.Join(recoveryCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE transaction_hash=?", strings.Join(recoveryCols, ","))
 	row := s.db.QueryRowContext(ctx, query, hash)
 
 	var r Recovery
