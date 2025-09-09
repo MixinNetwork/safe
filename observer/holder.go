@@ -243,7 +243,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 	}
 }
 
-func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, sig, hash string) error {
+func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, id, sig, hash string) error {
 	logger.Printf("node.httpSignAccountRecoveryRequest(%s, %s, %v)", addr, sig, hash)
 	proposed, err := node.store.CheckAccountProposed(ctx, addr)
 	if err != nil || !proposed {
@@ -274,9 +274,9 @@ func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, sig
 
 	switch safe.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		return node.httpCloseBitcoinAccountRecoveryRequest(ctx, r, hash, sig)
+		return node.httpCloseBitcoinAccountRecoveryRequest(ctx, r, id, hash, sig)
 	case common.SafeChainPolygon, common.SafeChainEthereum:
-		return node.httpCloseEthereumAccountRecoveryRequest(ctx, r, hash, sig)
+		return node.httpCloseEthereumAccountRecoveryRequest(ctx, r, id, hash, sig)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}

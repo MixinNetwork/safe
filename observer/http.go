@@ -425,6 +425,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		Signature string `json:"signature"`
 		Raw       string `json:"raw"`
 		Hash      string `json:"hash"`
+		Id        string `json:"id"`
 		Action    string `json:"action"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -458,7 +459,11 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 			return
 		}
 	case "close":
-		err = node.httpCloseAccountRecoveryRequest(r.Context(), safe.Address, body.Signature, body.Hash)
+		if body.Id == "" {
+			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "id"})
+			return
+		}
+		err = node.httpCloseAccountRecoveryRequest(r.Context(), safe.Address, body.Id, body.Signature, body.Hash)
 		if err != nil {
 			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
 			return

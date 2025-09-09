@@ -919,7 +919,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	return node.store.UpdateRecoveryState(ctx, safe.Address, hash, raw, common.RequestStatePending)
 }
 
-func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, recovery *Recovery, txHash string, sigHex string) error {
+func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, recovery *Recovery, id, txHash string, sigHex string) error {
 	logger.Printf("node.httpCloseEthereumAccountRecoveryRequest(%s, %s)", txHash, sigHex)
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
@@ -929,23 +929,29 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 	if approval.State != common.RequestStateInitial {
 		return nil
 	}
-	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
-	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	if err != nil {
 		return err
 	}
-	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
-	if err != nil {
-		return err
-	}
-
 	sig, err := hex.DecodeString(sigHex)
 	if err != nil {
 		return err
 	}
-	msg := fmt.Appendf(nil, "REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
+
+	msg := fmt.Appendf(nil, "REVOKE:%s:%s", id, approval.TransactionHash)
+	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+		if err != nil {
+			return err
+		}
+		if id != tx.RequestId {
+			return fmt.Errorf("invalid transaction id to close: %s %s", id, tx.RequestId)
+		}
+		msg = fmt.Appendf(nil, "REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
+	}
 	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
-	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
+	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", approval, err)
 	if err != nil {
 		return err
 	}
@@ -953,11 +959,11 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 	// recover without holder key, need to revoke proposed tx
 	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		id := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
-		rid := uuid.Must(uuid.FromString(tx.RequestId))
+		rid := uuid.Must(uuid.FromString(id))
 		extra := append(rid.Bytes(), sig...)
 		action := common.ActionEthereumSafeRevokeTransaction
-		err = node.sendKeeperResponse(ctx, tx.Holder, byte(action), approval.Chain, id, extra)
-		logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", tx.Holder, action, id, extra)
+		err = node.sendKeeperResponse(ctx, approval.Holder, byte(action), approval.Chain, id, extra)
+		logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", approval.Holder, action, id, extra)
 		if err != nil {
 			return err
 		}
