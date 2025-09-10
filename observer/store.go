@@ -879,16 +879,16 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, hash, r
 	}
 	defer common.Rollback(tx)
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=? AND hash=?", address, hash)
+	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE address=? AND transaction_hash=?", address, hash)
 	if err != nil || !existed {
 		return err
 	}
 	switch state {
 	case common.RequestStatePending:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND hash=? AND state=?",
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND transaction_hash=? AND state=?",
 			state, raw, time.Now().UTC(), address, hash, common.RequestStateInitial)
 	case common.RequestStateDone:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND hash=? AND state IN (?, ?)",
+		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND transaction_hash=? AND state IN (?, ?)",
 			state, raw, time.Now().UTC(), address, hash, common.RequestStateInitial, common.RequestStatePending)
 	default:
 		panic(state)
