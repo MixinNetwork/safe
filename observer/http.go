@@ -297,7 +297,7 @@ func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "recovery"})
 		return
 	}
-	safe, _, err := node.readSafeProposalOrRequest(r.Context(), recovery.Address)
+	safe, err := node.keeperStore.ReadSafeByAddress(r.Context(), recovery.Address)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
