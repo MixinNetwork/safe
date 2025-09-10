@@ -900,7 +900,7 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, hash, r
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) CloseRecoveryWithHolderKey(ctx context.Context, address, hash, sig string) error {
+func (s *SQLite3Store) CloseRecoveryWithObserverKey(ctx context.Context, address, hash, sig string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
