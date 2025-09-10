@@ -777,8 +777,15 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
+	las := 0
+	for _, b := range sbm {
+		if b.BigBalance().Cmp(big.NewInt(0)) == 0 {
+			continue
+		}
+		las += 1
+	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != len(sbm) {
+	if len(outputs) != las {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
