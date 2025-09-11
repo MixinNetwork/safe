@@ -125,10 +125,12 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
+		logger.Printf("uuid.FromBytes(%x) => %v", extra[:16], err)
 		return node.failRequest(ctx, req, "")
 	}
 	if rid.String() == uuid.Nil.String() {
 		if count != 0 {
+			logger.Printf("invalid count: %d", count)
 			return node.failRequest(ctx, req, "")
 		}
 		txs, asset := node.closeEthereumAccountWithHolder(ctx, req, safe, raw)
@@ -137,6 +139,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 
 	if count != 1 {
+		logger.Printf("invalid count: %d", count)
 		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
