@@ -162,3 +162,18 @@ func (s *SQLite3Store) ReadAllEthereumTokenBalancesMap(ctx context.Context, addr
 	}
 	return sbm, nil
 }
+
+func (s *SQLite3Store) ReadPositiveEthereumTokenBalancesMap(ctx context.Context, address string) (map[string]*SafeBalance, error) {
+	sbs, err := s.ReadAllEthereumTokenBalances(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	sbm := make(map[string]*SafeBalance, len(sbs))
+	for _, sb := range sbs {
+		if sb.BigBalance().Cmp(big.NewInt(0)) == 0 {
+			continue
+		}
+		sbm[sb.AssetAddress] = sb
+	}
+	return sbm, nil
+}

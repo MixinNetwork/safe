@@ -85,21 +85,14 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.failRequest(ctx, req, "")
 	}
 
-	sbm, err := node.store.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		panic(err)
 	}
-	las := 0
-	for _, b := range sbm {
-		if b.BigBalance().Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		las += 1
-	}
 	outputs := t.ExtractOutputs()
-	if len(outputs) != las {
-		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), las)
+	if len(outputs) != len(sbm) {
+		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 		return node.failRequest(ctx, req, "")
 	}
 

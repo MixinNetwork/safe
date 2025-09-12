@@ -772,21 +772,14 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
 	}
-	las := 0
-	for _, b := range sbm {
-		if b.BigBalance().Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		las += 1
-	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != las {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), las)
+	if len(outputs) != len(sbm) {
+		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
 		sbb := sbm[o.TokenAddress].BigBalance()
@@ -877,21 +870,14 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
 	}
-	las := 0
-	for _, b := range sbm {
-		if b.BigBalance().Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		las += 1
-	}
 	outputs := st.ExtractOutputs()
-	if len(outputs) != las {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), las)
+	if len(outputs) != len(sbm) {
+		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
 	for _, o := range outputs {
 		sbb := sbm[o.TokenAddress].BigBalance()
