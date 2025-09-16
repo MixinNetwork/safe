@@ -839,17 +839,6 @@ func (node *Node) httpCloseBitcoinAccountRecoveryRequest(ctx context.Context, re
 	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", id, approval.TransactionHash)
-	if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
-		tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
-		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
-		if err != nil {
-			return err
-		}
-		if id != tx.RequestId {
-			return fmt.Errorf("invalid transaction id to close: %s %s", id, tx.RequestId)
-		}
-		ms = fmt.Sprintf("REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
-	}
 	msg := bitcoin.HashMessageForSignature(ms, approval.Chain)
 	odk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
 	if err != nil {
@@ -863,7 +852,17 @@ func (node *Node) httpCloseBitcoinAccountRecoveryRequest(ctx context.Context, re
 
 	// recover without holder key, need to revoke proposed tx
 	if !bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+		if err != nil {
+			return err
+		}
+		if id != tx.RequestId {
+			return fmt.Errorf("invalid transaction id to close: %s %s", id, tx.RequestId)
+		}
+
 		oid := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
+		oid = common.UniqueId(oid, "REVOKERECOVERY")
 		rid := uuid.Must(uuid.FromString(id))
 		extra := append(rid.Bytes(), sig...)
 		action := common.ActionBitcoinSafeRevokeTransaction

@@ -939,6 +939,13 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 	}
 
 	msg := fmt.Appendf(nil, "REVOKE:%s:%s", id, approval.TransactionHash)
+	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", approval, err)
+	if err != nil {
+		return err
+	}
+
+	// recover without holder key, need to revoke proposed tx
 	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
@@ -948,17 +955,9 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 		if id != tx.RequestId {
 			return fmt.Errorf("invalid transaction id to close: %s %s", id, tx.RequestId)
 		}
-		msg = fmt.Appendf(nil, "REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
-	}
-	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
-	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", approval, err)
-	if err != nil {
-		return err
-	}
 
-	// recover without holder key, need to revoke proposed tx
-	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
 		oid := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
+		oid = common.UniqueId(oid, "REVOKERECOVERY")
 		rid := uuid.Must(uuid.FromString(id))
 		extra := append(rid.Bytes(), sig...)
 		action := common.ActionEthereumSafeRevokeTransaction
