@@ -93,7 +93,7 @@ var GUIDE = `
 
 func (node *Node) StartHTTP(version, readme string) {
 	VERSION = version
-	GUIDE = strings.TrimSpace(strings.Replace(GUIDE, "README", readme, -1))
+	GUIDE = strings.TrimSpace(strings.ReplaceAll(GUIDE, "README", readme))
 
 	router := httptreemux.New()
 	router.PanicHandler = common.HandlePanic
@@ -288,22 +288,22 @@ func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, par
 }
 
 func (node *Node) httpGetRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	safe, _, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	if safe == nil {
-		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
-		return
-	}
-	recovery, err := node.store.ReadRecovery(r.Context(), safe.Address)
+	recovery, err := node.store.ReadRecoveryByHash(r.Context(), params["id"])
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
 	if recovery == nil {
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "recovery"})
+		return
+	}
+	safe, err := node.keeperStore.ReadSafeByAddress(r.Context(), recovery.Address)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
 		return
 	}
 
@@ -422,8 +422,11 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 
 func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
-		Raw  string `json:"raw"`
-		Hash string `json:"hash"`
+		Signature string `json:"signature"`
+		Raw       string `json:"raw"`
+		Hash      string `json:"hash"`
+		Id        string `json:"id"`
+		Action    string `json:"action"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -443,14 +446,34 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "hash"})
 		return
 	}
-	if body.Raw == "" {
-		common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
-		return
-	}
 
-	err = node.httpSignAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
-	if err != nil {
-		common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+	switch body.Action {
+	case "approve":
+		if body.Raw == "" {
+			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
+			return
+		}
+		err = node.httpSignAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	case "close":
+		if body.Id == "" {
+			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "id"})
+			return
+		}
+		if body.Signature == "" {
+			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "signature"})
+			return
+		}
+		err = node.httpCloseAccountRecoveryRequest(r.Context(), safe.Address, body.Id, body.Signature, body.Hash)
+		if err != nil {
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			return
+		}
+	default:
+		common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": "action"})
 		return
 	}
 

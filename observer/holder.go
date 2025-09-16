@@ -222,7 +222,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	r, err := node.store.ReadRecovery(ctx, safe.Address)
+	r, err := node.store.ReadRecovery(ctx, safe.Address, hash)
 	if err != nil {
 		return err
 	}
@@ -238,6 +238,45 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 		return node.httpSignBitcoinAccountRecoveryRequest(ctx, safe, raw, hash)
 	case common.SafeChainPolygon, common.SafeChainEthereum:
 		return node.httpSignEthereumAccountRecoveryRequest(ctx, safe, raw, hash)
+	default:
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+}
+
+func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, id, sig, hash string) error {
+	logger.Printf("node.httpCloseAccountRecoveryRequest(%s, %s, %v)", addr, sig, hash)
+	proposed, err := node.store.CheckAccountProposed(ctx, addr)
+	if err != nil || !proposed {
+		return err
+	}
+	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
+	if err != nil {
+		return err
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	if err != nil {
+		return err
+	}
+	if safe == nil || safe.State != common.RequestStateDone {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	r, err := node.store.ReadRecovery(ctx, safe.Address, hash)
+	if err != nil {
+		return err
+	}
+	if r == nil || r.State != common.RequestStateInitial {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+	if r.TransactionHash != hash {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+
+	switch safe.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		return node.httpCloseBitcoinAccountRecoveryRequest(ctx, r, id, hash, sig)
+	case common.SafeChainPolygon, common.SafeChainEthereum:
+		return node.httpCloseEthereumAccountRecoveryRequest(ctx, r, id, hash, sig)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}

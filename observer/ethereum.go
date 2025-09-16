@@ -772,8 +772,8 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
 	}
@@ -870,8 +870,8 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("safe %s is locked", safe.Address)
 	}
 
-	sbm, err := node.keeperStore.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		return err
 	}
@@ -916,7 +916,61 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	return node.store.UpdateRecoveryState(ctx, safe.Address, raw, common.RequestStatePending)
+	return node.store.UpdateRecoveryState(ctx, safe.Address, hash, raw, common.RequestStatePending)
+}
+
+func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, recovery *Recovery, id, txHash string, sigHex string) error {
+	logger.Printf("node.httpCloseEthereumAccountRecoveryRequest(%s, %s)", txHash, sigHex)
+	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
+	if err != nil || approval == nil {
+		return err
+	}
+	if approval.State != common.RequestStateInitial {
+		return nil
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	if err != nil {
+		return err
+	}
+	sig, err := hex.DecodeString(sigHex)
+	if err != nil {
+		return err
+	}
+
+	msg := fmt.Appendf(nil, "REVOKE:%s:%s", id, approval.TransactionHash)
+	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", approval, err)
+	if err != nil {
+		return err
+	}
+
+	// recover without holder key, need to revoke proposed tx
+	if !ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder) {
+		tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
+		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", txHash, tx, err)
+		if err != nil {
+			return err
+		}
+		if id != tx.RequestId {
+			return fmt.Errorf("invalid transaction id to close: %s %s", id, tx.RequestId)
+		}
+
+		oid := common.UniqueId(approval.TransactionHash, approval.TransactionHash)
+		oid = common.UniqueId(oid, "REVOKERECOVERY")
+		rid := uuid.Must(uuid.FromString(id))
+		extra := append(rid.Bytes(), sig...)
+		action := common.ActionEthereumSafeRevokeTransaction
+		err = node.sendKeeperResponse(ctx, approval.Holder, byte(action), approval.Chain, oid, extra)
+		logger.Printf("node.sendKeeperResponse(%s, %d, %s, %x)", approval.Holder, action, oid, extra)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = node.store.CloseRecoveryWithObserverKey(ctx, recovery.Address, txHash, sigHex+":"+approval.RawTransaction)
+	logger.Printf("store.CloseRecoveryWithObserverKey(%s %s) => %v", recovery.Address, txHash, err)
+	return err
 }
 
 func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string) error {

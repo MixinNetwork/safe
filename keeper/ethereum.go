@@ -85,13 +85,14 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		return node.failRequest(ctx, req, "")
 	}
 
-	sbm, err := node.store.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
 	if err != nil {
 		panic(err)
 	}
 	outputs := t.ExtractOutputs()
 	if len(outputs) != len(sbm) {
+		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -117,10 +118,12 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 
 	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
+		logger.Printf("uuid.FromBytes(%x) => %v", extra[:16], err)
 		return node.failRequest(ctx, req, "")
 	}
 	if rid.String() == uuid.Nil.String() {
 		if count != 0 {
+			logger.Printf("invalid count: %d", count)
 			return node.failRequest(ctx, req, "")
 		}
 		txs, asset := node.closeEthereumAccountWithHolder(ctx, req, safe, raw)
@@ -129,6 +132,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 
 	if count != 1 {
+		logger.Printf("invalid count: %d", count)
 		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())

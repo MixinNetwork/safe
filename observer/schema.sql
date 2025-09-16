@@ -130,11 +130,11 @@ CREATE TABLE IF NOT EXISTS recoveries (
   holder             VARCHAR NOT NULL,
   observer           VARCHAR NOT NULL,
   raw_transaction    VARCHAR NOT NULL,
-  transaction_hash   VARCHAR,
+  transaction_hash   VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
-  PRIMARY KEY ('address')
+  PRIMARY KEY ('address', 'transaction_hash')
 );
 
 
