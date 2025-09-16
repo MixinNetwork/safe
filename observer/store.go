@@ -900,7 +900,7 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, hash, r
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) CloseRecoveryWithObserverKey(ctx context.Context, address, hash, sig string) error {
+func (s *SQLite3Store) CloseRecoveryWithObserverKey(ctx context.Context, address, hash, sigRaw string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -917,7 +917,7 @@ func (s *SQLite3Store) CloseRecoveryWithObserverKey(ctx context.Context, address
 		return fmt.Errorf("UPDATE recoveries %v", err)
 	}
 	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=? AND state=?",
-		sig, common.RequestStateFailed, now, hash, common.RequestStateInitial)
+		sigRaw, common.RequestStateFailed, now, hash, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
@@ -926,15 +926,14 @@ func (s *SQLite3Store) CloseRecoveryWithObserverKey(ctx context.Context, address
 }
 
 func (s *SQLite3Store) ReadRecovery(ctx context.Context, address, hash string) (*Recovery, error) {
-	query := fmt.Sprintf("SELECT %s FROM recoveries WHERE address=? AND transaction_hash=?", strings.Join(recoveryCols, ","))
-	row := s.db.QueryRowContext(ctx, query, address, hash)
-
-	var r Recovery
-	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.CreatedAt, &r.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	r, err := s.ReadRecoveryByHash(ctx, hash)
+	if err != nil || r == nil {
+		return nil, err
 	}
-	return &r, err
+	if r.Address != address {
+		panic(r.Address)
+	}
+	return r, nil
 }
 
 func (s *SQLite3Store) ReadRecoveryByHash(ctx context.Context, hash string) (*Recovery, error) {

@@ -93,7 +93,7 @@ var GUIDE = `
 
 func (node *Node) StartHTTP(version, readme string) {
 	VERSION = version
-	GUIDE = strings.TrimSpace(strings.Replace(GUIDE, "README", readme, -1))
+	GUIDE = strings.TrimSpace(strings.ReplaceAll(GUIDE, "README", readme))
 
 	router := httptreemux.New()
 	router.PanicHandler = common.HandlePanic
@@ -446,13 +446,13 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "hash"})
 		return
 	}
-	if body.Raw == "" && body.Signature == "" {
-		common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
-		return
-	}
 
 	switch body.Action {
 	case "approve":
+		if body.Raw == "" {
+			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "raw"})
+			return
+		}
 		err = node.httpSignAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
 		if err != nil {
 			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
@@ -461,6 +461,10 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 	case "close":
 		if body.Id == "" {
 			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "id"})
+			return
+		}
+		if body.Signature == "" {
+			common.RenderJSON(w, r, http.StatusNotAcceptable, map[string]any{"error": "signature"})
 			return
 		}
 		err = node.httpCloseAccountRecoveryRequest(r.Context(), safe.Address, body.Id, body.Signature, body.Hash)
