@@ -1,10 +1,10 @@
 module github.com/MixinNetwork/safe
 
-go 1.25.1
+go 1.25.2
 
 require (
 	filippo.io/edwards25519 v1.1.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.16.9
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.17.4
 	github.com/MixinNetwork/mixin v0.18.27
 	github.com/MixinNetwork/multi-party-sig v0.5.0
 	github.com/btcsuite/btcd v0.24.2
@@ -14,7 +14,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/dimfeld/httptreemux/v5 v5.5.0
-	github.com/ethereum/go-ethereum v1.16.3
+	github.com/ethereum/go-ethereum v1.16.4
 	github.com/fox-one/mixin-sdk-go/v2 v2.1.1
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/gofrs/uuid/v5 v5.3.2
@@ -24,7 +24,7 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.42.0
+	golang.org/x/crypto v0.43.0
 )
 
 require (
@@ -32,7 +32,7 @@ require (
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.24.0 // indirect
+	github.com/bits-and-blooms/bitset v1.24.1 // indirect
 	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/btcsuite/btcutil v1.0.2 // indirect
 	github.com/consensys/gnark-crypto v0.19.0 // indirect
@@ -43,7 +43,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
-	github.com/ethereum/c-kzg-4844/v2 v2.1.3 // indirect
+	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/fox-one/msgpack v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -61,8 +61,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/supranational/blst v0.3.16-0.20250831170142-f48500c1fdbe // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
+	github.com/supranational/blst v0.3.16 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
@@ -70,11 +70,11 @@ require (
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
-	golang.org/x/net v0.44.0 // indirect
+	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.36.9 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
