@@ -210,6 +210,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		}
 		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
 	}
+	amount = amount.RoundFloor(8)
 	min := decimal.RequireFromString("0.00000001")
 	if amount.Cmp(min) < 0 {
 		return nil

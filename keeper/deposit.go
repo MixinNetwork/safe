@@ -236,19 +236,19 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if output == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	amt := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
+	amt := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).RoundFloor(8)
 	min := decimal.RequireFromString("0.00000001")
 	if amt.Cmp(min) < 0 {
 		return node.failRequest(ctx, req, "")
 	}
+	b := amt.Mul(decimal.New(1, int32(asset.Decimals))).BigInt()
 
-	amt = amt.RoundFloor(8)
 	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amt.String(), nil, req.Id)
 	if t == nil {
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), deposit.Amount, output.Sender, req, []*mtg.Transaction{t})
+	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), b, output.Sender, req, []*mtg.Transaction{t})
 	logger.Printf("store.UpdateEthereumBalanceFromRequest(%v) => %v", req, err)
 	if err != nil {
 		panic(err)
