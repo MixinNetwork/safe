@@ -41,6 +41,29 @@ const (
 	testEthereumTransactionReceiver = "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 )
 
+func TestEthereumDepositKeeper(t *testing.T) {
+	require := require.New(t)
+	ctx, node, db, _, _ := testEthereumPrepare(require)
+
+	hash := "8375f2b2964b74c6313225887dc5e7f5006e04b0f5cd139342d01e54360d9900"
+	rpc, _ := node.ethereumParams(common.SafeChainPolygon)
+	tx, err := ethereum.RPCGetTransactionByHash(rpc, "0x"+hash)
+	require.Nil(err)
+	value, success := new(big.Int).SetString(tx.Value, 0)
+	require.True(success)
+	require.Equal(value.String(), "11000000000")
+	amount := ethereum.NormallizeAmount(value, 18)
+	require.Equal(amount.String(), "10000000000")
+
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromBigInt(amount, 1))
+	require.Nil(err)
+	action := &mtg.Action{
+		UnifiedOutput: *output,
+	}
+	node.ProcessOutput(ctx, action)
+	testEthereumObserverHolderDeposit(ctx, require, node, hash, common.SafePolygonChainId, ethereum.EthereumEmptyAddress, amount.String())
+}
+
 func TestEthereumKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, db, _, signers := testEthereumPrepare(require)

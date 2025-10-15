@@ -379,6 +379,9 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	}, deposit.Hash) {
 		confirmations = 1000000
 	}
+	if common.CheckTestEnvironment(ctx) {
+		confirmations = 1000000
+	}
 	if !ethereum.CheckFinalization(confirmations, safe.Chain) {
 		return nil, fmt.Errorf("ethereum.CheckFinalization(%s)", etx.Hash)
 	}
