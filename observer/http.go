@@ -792,7 +792,6 @@ type AssetBalance struct {
 }
 
 func (node *Node) viewBalances(ctx context.Context, bs []*store.SafeBalance, txs []*store.Transaction) (map[string]*AssetBalance, map[string]*AssetBalance, error) {
-	am := make(map[string]*Asset)
 	pendingBalances := viewPendingBalances(txs)
 
 	assetBalance := make(map[string]*AssetBalance, 0)
@@ -805,13 +804,9 @@ func (node *Node) viewBalances(ctx context.Context, bs []*store.SafeBalance, txs
 			pendingBalances[b.AssetId].SafeAssetId = b.SafeAssetId
 		}
 
-		asset := am[b.AssetId]
-		if asset == nil {
-			a, err := node.store.ReadAssetMeta(ctx, b.AssetId)
-			if err != nil || a == nil {
-				return nil, nil, fmt.Errorf("store.ReadAssetMeta(%s) => %v %v", b.AssetId, a, err)
-			}
-			asset = a
+		asset, err := node.store.ReadAssetMeta(ctx, b.AssetId)
+		if err != nil || asset == nil {
+			return nil, nil, fmt.Errorf("store.ReadAssetMeta(%s) => %v %v", b.AssetId, asset, err)
 		}
 		d := decimal.NewFromBigInt(amount, -int32(asset.Decimals)).RoundFloor(8)
 		amount = d.Mul(decimal.New(1, int32(asset.Decimals))).BigInt()
