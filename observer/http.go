@@ -22,7 +22,6 @@ import (
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/dimfeld/httptreemux/v5"
-	"github.com/shopspring/decimal"
 )
 
 //go:embed assets/favicon.ico
@@ -808,8 +807,7 @@ func (node *Node) viewBalances(ctx context.Context, bs []*store.SafeBalance, txs
 		if err != nil || asset == nil {
 			return nil, nil, fmt.Errorf("store.ReadAssetMeta(%s) => %v %v", b.AssetId, asset, err)
 		}
-		d := decimal.NewFromBigInt(amount, -int32(asset.Decimals)).RoundFloor(8)
-		amount = d.Mul(decimal.New(1, int32(asset.Decimals))).BigInt()
+		amount = ethereum.NormallizeAmount(amount, int32(asset.Decimals))
 
 		assetBalance[b.AssetId] = &AssetBalance{
 			Amount:       amount.String(),

@@ -228,7 +228,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 		safeBalance.AssetAddress = deposit.AssetAddress
 	}
 
-	output, err := node.verifyEthereumTransaction(ctx, req, deposit, safe)
+	output, err := node.verifyEthereumTransaction(ctx, req, deposit, safe, asset)
 	logger.Printf("node.verifyEthereumTransaction(%v) => %v %v", req, output, err)
 	if err != nil {
 		panic(fmt.Errorf("node.verifyEthereumTransaction(%s) => %v", deposit.Hash, err))
@@ -236,19 +236,19 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if output == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	amt := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals)).RoundFloor(8)
+	amount := ethereum.NormallizeAmount(deposit.Amount, int32(asset.Decimals))
+	amt := decimal.NewFromBigInt(amount, -int32(asset.Decimals))
 	min := decimal.RequireFromString("0.00000001")
 	if amt.Cmp(min) < 0 {
 		return node.failRequest(ctx, req, "")
 	}
-	b := amt.Mul(decimal.New(1, int32(asset.Decimals))).BigInt()
 
 	t := node.buildTransaction(ctx, req.Output, safe.RequestId, safeAssetId, safe.Receivers, int(safe.Threshold), amt.String(), nil, req.Id)
 	if t == nil {
 		// no compaction needed, just retry from observer
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), b, output.Sender, req, []*mtg.Transaction{t})
+	err = node.store.CreateEthereumBalanceDepositFromRequest(ctx, safe, safeBalance, deposit.Hash, int64(deposit.Index), amount, output.Sender, req, []*mtg.Transaction{t})
 	logger.Printf("store.UpdateEthereumBalanceFromRequest(%v) => %v", req, err)
 	if err != nil {
 		panic(err)
@@ -343,7 +343,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	return input, nil
 }
 
-func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe) (*ethereum.Transfer, error) {
+func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, asset *store.Asset) (*ethereum.Transfer, error) {
 	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil || info == nil {
@@ -354,7 +354,7 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	}
 
 	rpc, chainId := node.ethereumParams(safe.Chain)
-	t, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, deposit.AssetAddress, safe.Address, int64(deposit.Index), deposit.Amount)
+	t, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.Hash, chainId, deposit.AssetAddress, safe.Address, int32(asset.Decimals), int64(deposit.Index), deposit.Amount)
 	logger.Printf("ethereum.VerifyDeposit(%s, %d) => %v %v %v", deposit.Hash, deposit.Index, t, etx, err)
 	if err != nil || t == nil || etx.BlockHeight < 1 {
 		return nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", deposit.Hash, err)

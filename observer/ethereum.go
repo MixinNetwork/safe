@@ -289,7 +289,7 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 		panic(fmt.Errorf("malicious ethereum network info %v", info))
 	}
 
-	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.TransactionHash, ethereumAssetId, deposit.AssetAddress, deposit.Receiver, deposit.OutputIndex, ethereum.ParseAmount(deposit.Amount, decimals))
+	match, etx, err := ethereum.VerifyDeposit(ctx, deposit.Chain, rpc, deposit.TransactionHash, ethereumAssetId, deposit.AssetAddress, deposit.Receiver, decimals, deposit.OutputIndex, ethereum.ParseAmount(deposit.Amount, decimals))
 	logger.Printf("ethereum.VerifyDeposit(%d, %s, %d) => %v %v %v",
 		deposit.Chain, deposit.TransactionHash, deposit.OutputIndex, match, etx, err)
 	if err != nil {
