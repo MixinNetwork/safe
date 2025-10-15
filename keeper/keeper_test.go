@@ -1050,7 +1050,8 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	}
 
 	conf.Keeper.StoreDir = root
-	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
+	if !strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") &&
+		!strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders") {
 		panic(root)
 	}
 	err = os.MkdirAll(conf.Keeper.StoreDir, os.ModePerm)

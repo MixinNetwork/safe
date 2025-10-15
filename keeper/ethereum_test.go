@@ -18,6 +18,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/signer"
 	gc "github.com/ethereum/go-ethereum/common"
@@ -44,6 +45,23 @@ const (
 func TestEthereumDepositKeeper(t *testing.T) {
 	require := require.New(t)
 	ctx, node, db, _, _ := testEthereumPrepare(require)
+	req := &common.Request{
+		Id:     uuid.Must(uuid.NewV4()).String(),
+		State:  common.RequestStateInitial,
+		Role:   common.RequestRoleObserver,
+		Output: &mtg.Action{UnifiedOutput: mtg.UnifiedOutput{OutputId: uuid.Must(uuid.NewV4()).String()}},
+	}
+	err := node.store.WriteRequestIfNotExist(ctx, req)
+	require.Nil(err)
+	err = node.store.WriteNetworkInfoFromRequest(ctx, &store.NetworkInfo{
+		RequestId: req.Id,
+		Chain:     common.SafeChainPolygon,
+		Fee:       100,
+		Height:    77770000,
+		Hash:      "0x" + strings.Repeat("0", 64),
+		CreatedAt: time.Now(),
+	}, req)
+	require.Nil(err)
 
 	hash := "8375f2b2964b74c6313225887dc5e7f5006e04b0f5cd139342d01e54360d9900"
 	rpc, _ := node.ethereumParams(common.SafeChainPolygon)
