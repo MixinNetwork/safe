@@ -790,7 +790,7 @@ type AssetBalance struct {
 	SafeAssetId  string `json:"safe_asset_id"`
 }
 
-func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) (map[string]*AssetBalance, map[string]*AssetBalance) {
+func (node *Node) viewBalances(ctx context.Context, bs []*store.SafeBalance, txs []*store.Transaction) (map[string]*AssetBalance, map[string]*AssetBalance, error) {
 	pendingBalances := viewPendingBalances(txs)
 
 	assetBalance := make(map[string]*AssetBalance, 0)
@@ -802,13 +802,20 @@ func viewBalances(bs []*store.SafeBalance, txs []*store.Transaction) (map[string
 			amount = new(big.Int).Sub(amount, pending)
 			pendingBalances[b.AssetId].SafeAssetId = b.SafeAssetId
 		}
+
+		asset, err := node.store.ReadAssetMeta(ctx, b.AssetId)
+		if err != nil || asset == nil {
+			return nil, nil, fmt.Errorf("store.ReadAssetMeta(%s) => %v %v", b.AssetId, asset, err)
+		}
+		amount = ethereum.NormallizeAmount(amount, int32(asset.Decimals))
+
 		assetBalance[b.AssetId] = &AssetBalance{
 			Amount:       amount.String(),
 			AssetAddress: b.AssetAddress,
 			SafeAssetId:  b.SafeAssetId,
 		}
 	}
-	return assetBalance, pendingBalances
+	return assetBalance, pendingBalances, nil
 }
 
 func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
@@ -912,7 +919,11 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 		if safe != nil {
 			nonce = int(safe.Nonce)
 		}
-		bs, ps := viewBalances(balances, pendings)
+		bs, ps, err := node.viewBalances(ctx, balances, pendings)
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
 			"chain":          sp.Chain,
 			"id":             sp.RequestId,

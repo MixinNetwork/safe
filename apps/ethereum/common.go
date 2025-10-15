@@ -186,7 +186,7 @@ func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace,
 	return transfers, index
 }
 
-func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, index int64, amount *big.Int) (*Transfer, *RPCTransaction, error) {
+func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, precision int32, index int64, amount *big.Int) (*Transfer, *RPCTransaction, error) {
 	etx, err := RPCGetTransactionByHash(rpc, hash)
 	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
 	if err != nil || etx == nil {
@@ -207,7 +207,8 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Verbosef("transfer %d: %v", i, t)
-		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(t.Value) == 0 {
+		tv := NormallizeAmount(t.Value, precision)
+		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(tv) == 0 {
 			return t, etx, nil
 		}
 	}
@@ -302,6 +303,10 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 		Decimals: uint32(decimals),
 		Chain:    chain,
 	}, nil
+}
+
+func NormallizeAmount(b *big.Int, precision int32) *big.Int {
+	return decimal.NewFromBigInt(b, -precision).RoundFloor(8).Mul(decimal.New(1, precision)).BigInt()
 }
 
 func NormalizeAddress(addr string) string {
