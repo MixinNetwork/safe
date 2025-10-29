@@ -178,7 +178,7 @@ func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context,
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, txs []*mtg.Transaction, req *common.Request) error {
+func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, lock *InheritanceLock, txs []*mtg.Transaction, req *common.Request) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -191,6 +191,12 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStatePending)
 	if err != nil {
 		return err
+	}
+	if lock != nil {
+		err = s.processInheritanceLockOperation(ctx, tx, lock)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, trx.RequestId)

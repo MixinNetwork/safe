@@ -651,6 +651,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
+	var lock *store.InheritanceLock
 	var t *ethereum.SafeTransaction
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	txType := ethereum.TypeETHTx
@@ -716,6 +717,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if err != nil {
 			panic(err)
 		}
+	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
+		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
+		if err != nil {
+			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
+			return node.failRequest(ctx, req, "")
+		}
+		extra = extra[34:]
 	default:
 		logger.Printf("invalid transaction flag: %d", flag)
 		return node.failRequest(ctx, req, "")
@@ -749,7 +757,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	err = node.store.WriteTransactionWithRequest(ctx, tx, nil, txs, req)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, nil, lock, txs, req)
 	if err != nil {
 		panic(err)
 	}

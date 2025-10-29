@@ -198,6 +198,18 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
+	l, err := s.readInitialInheritanceLockByRequestHash(ctx, tx, transactionHash)
+	if err != nil {
+		return err
+	}
+	if l != nil {
+		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=?",
+			common.RequestStateDone, req.CreatedAt, l.LockId)
+		if err != nil {
+			return fmt.Errorf("UPDATE inheritance_locks %v", err)
+		}
+	}
+
 	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
 	if err != nil {
 		return err

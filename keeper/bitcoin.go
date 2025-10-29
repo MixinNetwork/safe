@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -522,21 +523,30 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if len(extra) < 33 {
 		return node.failRequest(ctx, req, "")
 	}
+	flag, extra := extra[0], extra[1:]
 
 	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
 	if err != nil {
 		panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
 	}
-	switch extra[0] {
+
+	var lock *store.InheritanceLock
+	switch flag {
 	case common.FlagProposeNormalTransaction:
 	case common.FlagProposeRecoveryTransaction:
 		for _, input := range mainInputs {
 			input.RouteBackup = true
 		}
+	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
+		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
+		if err != nil {
+			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
+			return node.failRequest(ctx, req, "")
+		}
+		extra = extra[34:]
 	default:
 		return node.failRequest(ctx, req, "")
 	}
-	extra = extra[1:]
 
 	iid, err := uuid.FromBytes(extra[:16])
 	if err != nil || iid.String() == uuid.Nil.String() {
@@ -642,7 +652,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		UpdatedAt:       req.CreatedAt,
 	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, txs, req)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, lock, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -877,4 +887,55 @@ func (node *Node) checkTransactionIndexSignaturePending(ctx context.Context, has
 func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wire.OutPoint) bool {
 	utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
+}
+
+func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, error) {
+	hash := hex.EncodeToString(extra[:32])
+	dec := mc.NewDecoder(extra[32:])
+	hours, err := dec.ReadUint16()
+	if err != nil {
+		return nil, fmt.Errorf("invalid inheritance extra: %s %x", req.Id, extra)
+	}
+	inheritanceLock := time.Duration(hours) * time.Hour
+	if inheritanceLock-safe.Timelock < time.Hour*24*365 {
+		return nil, fmt.Errorf("invalid inheritance duration: %s %d", req.Id, hours)
+	}
+
+	ls, err := node.store.ListUnfailedInheritanceLocksByHolder(ctx, safe.Holder)
+	if err != nil || len(ls) > 1 {
+		return nil, fmt.Errorf("store.ReadInheritanceLock(%s) => %d %v", safe.Holder, len(ls), err)
+	}
+	if len(ls) == 0 {
+		if flag == common.FlagProposeRemoveInheritance {
+			return nil, fmt.Errorf("invalid inheritance operation flag: %s %d", req.Id, flag)
+		}
+		return &store.InheritanceLock{
+			LockId:      common.UniqueId(safe.Holder, fmt.Sprintf("%s:%s:%d", req.Id, hash, hours)),
+			RequestHash: req.Id,
+			Hash:        hash,
+			Holder:      safe.Holder,
+			Address:     safe.Address,
+			Chain:       safe.Chain,
+			Duration:    inheritanceLock,
+			State:       common.RequestStateInitial,
+			CreatedAt:   req.CreatedAt,
+			UpdatedAt:   req.CreatedAt,
+		}, nil
+	}
+
+	l := ls[0]
+	if l.State != common.RequestStateDone {
+		return nil, fmt.Errorf("invalid inheritance lock state to update: %s %d", l.LockId, l.State)
+	}
+	switch flag {
+	case common.FlagProposeRemoveInheritance:
+		l.State = common.RequestStateFailed
+	case common.FlagProposeSetInheritance:
+		l.RequestHash = req.Id
+		l.Hash = hash
+		l.Duration = inheritanceLock
+		l.State = common.RequestStateInitial
+	}
+	l.UpdatedAt = req.CreatedAt
+	return l, nil
 }

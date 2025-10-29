@@ -277,6 +277,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS migrate_assets_by_address_asset ON migrate_ass
 
 
 
+CREATE TABLE IF NOT EXISTS inheritance_locks (
+  lock_id          VARCHAR NOT NULL,
+  request_hash     VARCHAR NOT NULL,
+  hash             VARCHAR NOT NULL,
+  holder           VARCHAR NOT NULL,
+  address          VARCHAR NOT NULL,
+  chain            INTEGER NOT NULL,
+  duration         INTEGER NOT NULL,
+  state            INTEGER NOT NULL,
+  created_at       TIMESTAMP NOT NULL,
+  updated_at       TIMESTAMP NOT NULL,
+  PRIMARY KEY ('lock_id')
+);
+
+
+
+
+
 CREATE TABLE IF NOT EXISTS properties (
   key           VARCHAR NOT NULL,
   value         VARCHAR NOT NULL,

@@ -67,6 +67,8 @@ const (
 
 	FlagProposeNormalTransaction   = 0
 	FlagProposeRecoveryTransaction = 1
+	FlagProposeSetInheritance      = 2
+	FlagProposeRemoveInheritance   = 3
 )
 
 type Request struct {
