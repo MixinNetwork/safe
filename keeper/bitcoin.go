@@ -534,8 +534,26 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	switch flag {
 	case common.FlagProposeNormalTransaction:
 	case common.FlagProposeRecoveryTransaction:
+		info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+		if err != nil || info == nil {
+			panic(fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err))
+		}
+		rpc, _ := node.bitcoinParams(safe.Chain)
+		sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
+
 		for _, input := range mainInputs {
 			input.RouteBackup = true
+			_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, input.TransactionHash, int64(input.Index))
+			logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", input.TransactionHash, input.Index, bo, err)
+			if err != nil {
+				panic(err)
+			}
+			if bo.Height > info.Height || bo.Height == 0 {
+				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+			}
+			if bo.Height+sequence+100 > info.Height {
+				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+			}
 		}
 	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
 		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)

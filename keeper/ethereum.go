@@ -672,8 +672,22 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	case common.FlagProposeRecoveryTransaction:
 		if len(outputs) != 1 {
 			logger.Printf("invalid recovery transaction outputs: %d", len(outputs))
-			return node.failRequest(ctx, req, "")
+			return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 		}
+		rpc, _ := node.ethereumParams(safe.Chain)
+		latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+		if err != nil {
+			panic(fmt.Errorf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err))
+		}
+		latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+		if err != nil {
+			panic(fmt.Errorf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err))
+		}
+		if latestTxTime.Add(safe.Timelock + 1*time.Hour).After(latest.Time) {
+			logger.Printf("safe %s is locked", safe.Address)
+			return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+		}
+
 		balances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
 		logger.Printf("store.ReadAllEthereumTokenBalances(%s) => %v %v", safe.Address, balances, err)
 		if err != nil {
