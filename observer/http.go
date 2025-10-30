@@ -112,6 +112,7 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
 	router.POST("/transactions/:id", node.httpApproveTransaction)
+	router.POST("/inheritances", node.httpCreateInheritanceTransaction)
 	router.GET("/keys/:public", node.httpGetCustomKey)
 	handler := common.HandleCORS(router)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", 7080), handler)
@@ -613,6 +614,58 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"raw":     approval.RawTransaction,
 		"signers": approval.Signers(r.Context(), node, safe),
 		"state":   common.StateName(tx.State),
+	}
+	if approval.SpentRaw.Valid {
+		data["hash"] = approval.SpentHash.String
+		data["raw"] = approval.SpentRaw.String
+		data["state"] = "spent"
+	}
+	common.RenderJSON(w, r, http.StatusOK, data)
+}
+
+func (node *Node) httpCreateInheritanceTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	var body struct {
+		Hash   string `json:"hash"`
+		Raw    string `json:"raw"`
+		Holder string `json:"holder"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+
+	safe, err := node.keeperStore.ReadSafe(r.Context(), body.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if safe == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
+		return
+	}
+
+	approval, err := node.httpCreateSafeInheritanceTransaction(r.Context(), safe, body.Hash, body.Raw)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	tx, err := node.keeperStore.ReadTransaction(r.Context(), approval.TransactionHash)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	state := common.RequestStateInitial
+	if tx != nil {
+		state = tx.State
+	}
+
+	data := map[string]any{
+		"chain":   safe.Chain,
+		"hash":    approval.TransactionHash,
+		"raw":     approval.RawTransaction,
+		"signers": approval.Signers(r.Context(), node, safe),
+		"state":   common.StateName(state),
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String

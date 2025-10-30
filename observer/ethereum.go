@@ -1061,3 +1061,88 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
 }
+
+func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
+	logger.Printf("node.httpCreateEthereumInheritanceTransaction(%s)", raw)
+	rb := common.DecodeHexOrPanic(raw)
+	st, err := ethereum.UnmarshalSafeTransaction(rb)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, st, err)
+	if err != nil {
+		return nil, err
+	}
+	if st.TxHash != hash {
+		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", st.TxHash, hash)
+	}
+	if st.Destination.Hex() == safe.Address {
+		return nil, fmt.Errorf("invalid inheritance tx destination: %s", st.Destination.Hex())
+	}
+
+	approval, err := node.store.ReadTransactionApproval(ctx, hash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+	if err != nil || approval != nil {
+		return nil, err
+	}
+
+	rpc, _ := node.ethereumParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil || info == nil {
+		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	}
+	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
+	if err != nil {
+		return nil, err
+	}
+	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
+	if err != nil {
+		return nil, err
+	}
+	if latestTxTime.Add(lock.Duration + 1*time.Hour).After(latest.Time) {
+		return nil, fmt.Errorf("safe %s is locked", safe.Address)
+	}
+
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	if err != nil {
+		return nil, err
+	}
+	outputs := st.ExtractOutputs()
+	if len(outputs) != len(sbm) {
+		return nil, fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
+	}
+	for _, o := range outputs {
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			return nil, fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
+		}
+	}
+
+	approval = &Transaction{
+		TransactionHash: hash,
+		RawTransaction:  raw,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Signer:          safe.Signer,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
+	if err != nil {
+		return nil, err
+	}
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  raw,
+		TransactionHash: hash,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	return approval, node.store.WriteInitialRecovery(ctx, r)
+}

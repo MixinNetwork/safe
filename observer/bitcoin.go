@@ -971,3 +971,91 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
 }
+
+func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
+	logger.Printf("node.httpCreateBitcoinInheritanceTransaction(%s)", raw)
+	rb := common.DecodeHexOrPanic(raw)
+	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	if err != nil {
+		return nil, err
+	}
+	isRecoveryTx := psbt.IsRecoveryTransaction()
+	if !isRecoveryTx {
+		return nil, fmt.Errorf("invalid inheritance tx sequence")
+	}
+	txHash := psbt.Hash()
+	if txHash != hash {
+		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", txHash, hash)
+	}
+	msgTx := psbt.UnsignedTx
+
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return nil, err
+	}
+	if receiver == safe.Address {
+		return nil, fmt.Errorf("invalid inheritance tx destination: %s", receiver)
+	}
+
+	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
+	if err != nil || approval != nil {
+		return nil, err
+	}
+
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+	if err != nil || info == nil {
+		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	}
+	sequence := uint64(bitcoin.ParseSequence(lock.Duration, safe.Chain))
+
+	var balance int64
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			return nil, err
+		}
+		if bo.Height > info.Height || bo.Height == 0 || bo.Height+sequence+100 > info.Height {
+			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
+				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
+		}
+		balance = balance + bo.Satoshi
+	}
+	if msgTx.TxOut[0].Value != balance {
+		return nil, fmt.Errorf("invalid inheritance tx amount: %d %d", msgTx.TxOut[0].Value, balance)
+	}
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return nil, fmt.Errorf("invalid inheritance tx: %d %d", len(msgTx.TxOut), msgTx.TxOut[1].Value)
+	}
+
+	approval = &Transaction{
+		TransactionHash: txHash,
+		RawTransaction:  raw,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Signer:          safe.Signer,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
+	if err != nil {
+		return nil, err
+	}
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  raw,
+		TransactionHash: txHash,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	return approval, node.store.WriteInitialRecovery(ctx, r)
+}
