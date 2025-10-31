@@ -494,6 +494,17 @@ func (node *Node) sendToKeeperBitcoinApproveNormalTransaction(ctx context.Contex
 }
 
 func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	r, err := node.store.ReadRecoveryByHash(ctx, approval.TransactionHash)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		panic(fmt.Errorf("sendToKeeperBitcoinApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
+	}
+	if r.Inheritance {
+		return node.sendToKeeperBitcoinApproveInheritanceTransaction(ctx, approval)
+	}
+
 	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
 	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
@@ -510,8 +521,8 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder)
 
+	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder)
 	var extra []byte
 	switch {
 	case signedByHolder:
@@ -544,6 +555,47 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	id := common.UniqueId(safe.Address, receiver)
 	extra = append(extra, ref[:]...)
 	action := common.ActionBitcoinSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.Context, approval *Transaction) error {
+	objectRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	ref, err := common.CreateObjectStorageUntilSufficient(ctx, node.wallet, node.mixin, nil, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.CreateObjectStorageUntilSufficient(%v) => %s %v", traceId, ref, err)
+	if err != nil {
+		return err
+	}
+
+	id := common.UniqueId(safe.Address, "inheritance")
+	extra := ref[:]
+	action := common.ActionBitcoinSafeCloseAccountByInheritance
 	references := []crypto.Hash{ref}
 	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
@@ -1062,6 +1114,7 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		RawTransaction:  raw,
 		TransactionHash: txHash,
 		State:           common.RequestStateInitial,
+		Inheritance:     true,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}

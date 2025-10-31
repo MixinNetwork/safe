@@ -617,6 +617,17 @@ func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Conte
 }
 
 func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	r, err := node.store.ReadRecoveryByHash(ctx, approval.TransactionHash)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		panic(fmt.Errorf("sendToKeeperBitcoinApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
+	}
+	if r.Inheritance {
+		return node.sendToKeeperEthereumApproveInheritanceTransaction(ctx, approval)
+	}
+
 	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
 	st, err := ethereum.UnmarshalSafeTransaction(signedRaw)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", approval.RawTransaction, st, err)
@@ -662,6 +673,47 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 	id := common.UniqueId(safe.Address, st.Destination.Hex())
 	extra = append(extra, ref[:]...)
 	action := common.ActionEthereumSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperEthereumApproveInheritanceTransaction(ctx context.Context, approval *Transaction) error {
+	objectRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	ref, err := common.CreateObjectStorageUntilSufficient(ctx, node.wallet, node.mixin, nil, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.CreateObjectStorageUntilSufficient(%v) => %s %v", traceId, ref, err)
+	if err != nil {
+		return err
+	}
+
+	id := common.UniqueId(safe.Address, "inheritance")
+	extra := ref[:]
+	action := common.ActionEthereumSafeCloseAccountByInheritance
 	references := []crypto.Hash{ref}
 	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
@@ -1144,6 +1196,7 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 		RawTransaction:  raw,
 		TransactionHash: hash,
 		State:           common.RequestStateInitial,
+		Inheritance:     true,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
