@@ -26,6 +26,51 @@ type SignatureRequest struct {
 
 var signatureCols = []string{"request_id", "transaction_hash", "input_index", "signer", "curve", "message", "signature", "state", "created_at", "updated_at"}
 
+func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context, req *common.Request, trx *Transaction, utxos []*TransactionInput, requests []*SignatureRequest, txs []*mtg.Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	_, err = tx.ExecContext(ctx, "UPDATE safes SET state=?, updated_at=? WHERE holder=?",
+		common.RequestStateFailed, req.CreatedAt, req.Holder)
+	if err != nil {
+		return fmt.Errorf("UPDATE safes %v", err)
+	}
+
+	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, trx.TransactionHash, req)
+	if err != nil {
+		return err
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
+	if err != nil {
+		return err
+	}
+	if !existed {
+		err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStateDone)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
+			common.RequestStateDone, time.Now().UTC(), trx.RequestId)
+		if err != nil {
+			return fmt.Errorf("UPDATE requests %v", err)
+		}
+	}
+
+	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Context, requests []*SignatureRequest, transactionHash, raw string, req *common.Request, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

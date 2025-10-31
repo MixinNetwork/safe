@@ -22,6 +22,171 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
+	if req.Role != common.RequestRoleObserver {
+		panic(req.Role)
+	}
+	chain := common.SafeCurveChain(req.Curve)
+	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
+	}
+	if safe == nil || safe.Chain != chain {
+		return node.failRequest(ctx, req, "")
+	}
+	switch safe.State {
+	case SafeStateApproved, SafeStateClosed:
+	default:
+		return node.failRequest(ctx, req, "")
+	}
+
+	ref, err := crypto.HashFromString(req.ExtraHEX)
+	if err != nil {
+		logger.Printf("invalid extra: %s", req.ExtraHEX)
+		return node.failRequest(ctx, req, "")
+	}
+	raw := node.readStorageExtraFromObserver(ctx, ref)
+
+	opk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
+	if err != nil {
+		panic(fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", safe.Observer, err))
+	}
+	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), opk)
+	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, opk, signedByObserver)
+	if !signedByObserver {
+		return node.failRequest(ctx, req, "")
+	}
+	opsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
+	if !opsbt.IsRecoveryTransaction() {
+		return node.failRequest(ctx, req, "")
+	}
+	msgTx := opsbt.UnsignedTx
+	txHash := msgTx.TxHash().String()
+
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	if receiver == safe.Address {
+		return node.failRequest(ctx, req, "")
+	}
+
+	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	if count > 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
+	if err != nil {
+		panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
+	}
+	if len(mainInputs) != 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		panic(err)
+	}
+	if info == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	ls, err := node.store.ListUnfailedInheritanceLocksByHolder(ctx, safe.Holder)
+	if err != nil || len(ls) != 1 {
+		logger.Printf("store.ListUnfailedInheritanceLocksByHolder(%s) => %v %v", safe.Holder, len(ls), err)
+		return node.failRequest(ctx, req, "")
+	}
+	lock := ls[0]
+	if lock.State != common.RequestStateDone {
+		logger.Printf("invalid lock state: %d", lock.State)
+		return node.failRequest(ctx, req, "")
+	}
+	sequence := uint64(bitcoin.ParseSequence(lock.Duration, safe.Chain))
+
+	var total int64
+	var requests []*store.SignatureRequest
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
+		logger.Printf("node.checkBitcoinUTXOSignatureRequired(%s, %d) => %t", pop.Hash.String(), pop.Index, required)
+		if !required {
+			continue
+		}
+
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			panic(err)
+		}
+		if bo.Height == 0 || bo.Height+sequence+100 > info.Height {
+			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		}
+		total = total + bo.Satoshi
+
+		pending, err := node.checkTransactionIndexSignaturePending(ctx, txHash, idx, req)
+		logger.Printf("node.checkTransactionIndexSignaturePending(%s, %d) => %t %v", txHash, idx, pending, err)
+		if err != nil {
+			panic(err)
+		} else if pending {
+			continue
+		}
+
+		sr := &store.SignatureRequest{
+			TransactionHash: txHash,
+			InputIndex:      idx,
+			Signer:          safe.Signer,
+			Curve:           req.Curve,
+			Message:         hex.EncodeToString(opsbt.SigHash(idx)),
+			State:           common.RequestStateInitial,
+			CreatedAt:       req.CreatedAt,
+			UpdatedAt:       req.CreatedAt,
+		}
+		sr.RequestId = common.UniqueId(req.Id, sr.Message)
+		requests = append(requests, sr)
+	}
+	if total != msgTx.TxOut[0].Value {
+		return node.failRequest(ctx, req, "")
+	}
+
+	amt := decimal.New(msgTx.TxOut[0].Value, -bitcoin.ValuePrecision)
+	data := common.MarshalJSONOrPanic([]map[string]string{{
+		"receiver": receiver,
+		"amount":   amt.String(),
+	}})
+	tx := &store.Transaction{
+		TransactionHash: txHash,
+		RawTransaction:  hex.EncodeToString(raw),
+		Holder:          req.Holder,
+		Chain:           safe.Chain,
+		State:           common.RequestStateInitial,
+		Data:            string(data),
+		RequestId:       req.Id,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+
+	txs := node.buildSignerSignRequests(ctx, req, requests, safe.Path)
+	if len(txs) == 0 {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, transacionInputs, requests, txs)
+	if err != nil {
+		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", txHash, err))
+	}
+	return txs, ""
+}
+
 // This will close the account and move all funds to recovery address.
 // For Ethereum, the smart contract account should have a function to move
 // all assets to the recovery address, and the safe asset here used is safeETH.
