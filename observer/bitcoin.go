@@ -987,6 +987,14 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if txHash != hash {
 		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", txHash, hash)
 	}
+
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !bitcoin.CheckTransactionPartiallySignedBy(raw, opk) {
+		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
+	}
 	msgTx := psbt.UnsignedTx
 
 	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)

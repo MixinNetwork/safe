@@ -1070,6 +1070,9 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
+	}
 	if st.TxHash != hash {
 		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", st.TxHash, hash)
 	}
