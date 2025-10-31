@@ -117,7 +117,10 @@ func (node *Node) getActionRole(act byte) byte {
 		return common.RequestRoleObserver
 	case common.ActionBitcoinSafeRevokeTransaction, common.ActionEthereumSafeRevokeTransaction:
 		return common.RequestRoleObserver
-	case common.ActionBitcoinSafeCloseAccount, common.ActionEthereumSafeCloseAccount:
+	case common.ActionBitcoinSafeCloseAccount,
+		common.ActionBitcoinSafeCloseAccountByInheritance,
+		common.ActionEthereumSafeCloseAccount,
+		common.ActionEthereumSafeCloseAccountByInheritance:
 		return common.RequestRoleObserver
 	case common.ActionEthereumSafeRefundTransaction:
 		return common.RequestRoleObserver

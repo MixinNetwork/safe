@@ -42,12 +42,13 @@ const (
 	ActionObserverSetOperationParams  = 106
 
 	// For all Bitcoin like chains
-	ActionBitcoinSafeProposeAccount     = 110
-	ActionBitcoinSafeApproveAccount     = 111
-	ActionBitcoinSafeProposeTransaction = 112
-	ActionBitcoinSafeApproveTransaction = 113
-	ActionBitcoinSafeRevokeTransaction  = 114
-	ActionBitcoinSafeCloseAccount       = 115
+	ActionBitcoinSafeProposeAccount            = 110
+	ActionBitcoinSafeApproveAccount            = 111
+	ActionBitcoinSafeProposeTransaction        = 112
+	ActionBitcoinSafeApproveTransaction        = 113
+	ActionBitcoinSafeRevokeTransaction         = 114
+	ActionBitcoinSafeCloseAccount              = 115
+	ActionBitcoinSafeCloseAccountByInheritance = 116
 
 	// For Mixin Kernel mainnet
 	ActionMixinSafeProposeAccount     = 120
@@ -57,13 +58,14 @@ const (
 	ActionMixinSafeRevokeTransaction  = 124
 
 	// For all Ethereum like chains
-	ActionEthereumSafeProposeAccount     = 130
-	ActionEthereumSafeApproveAccount     = 131
-	ActionEthereumSafeProposeTransaction = 132
-	ActionEthereumSafeApproveTransaction = 133
-	ActionEthereumSafeRevokeTransaction  = 134
-	ActionEthereumSafeCloseAccount       = 135
-	ActionEthereumSafeRefundTransaction  = 136
+	ActionEthereumSafeProposeAccount            = 130
+	ActionEthereumSafeApproveAccount            = 131
+	ActionEthereumSafeProposeTransaction        = 132
+	ActionEthereumSafeApproveTransaction        = 133
+	ActionEthereumSafeRevokeTransaction         = 134
+	ActionEthereumSafeCloseAccount              = 135
+	ActionEthereumSafeRefundTransaction         = 136
+	ActionEthereumSafeCloseAccountByInheritance = 137
 
 	FlagProposeNormalTransaction      = 0
 	FlagProposeRecoveryTransaction    = 1
