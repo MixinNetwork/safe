@@ -1224,7 +1224,37 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 	txs = append(txs, tt)
 
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, sbm, txs)
+	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	if lock != nil {
+		txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
+		if err != nil {
+			panic(err)
+		}
+		if txReq == nil {
+			logger.Printf("store.ReadRequest(%s) => %v", tx.RequestId, txReq)
+			return node.failRequest(ctx, req, "")
+		}
+		flag := req.ExtraBytes()[0]
+		switch flag {
+		case common.FlagProposeSetInheritance:
+			if lock.State != common.RequestStateInitial {
+				lock.State = common.RequestStateFailed
+			} else {
+				lock.State = common.RequestStateDone
+			}
+		case common.FlagProposeRemoveInheritance:
+			if lock.State != common.RequestStateDone {
+				lock = nil
+			} else {
+				lock.State = common.RequestStateFailed
+			}
+		}
+	}
+
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, sbm, lock, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	if err != nil {
 		panic(err)

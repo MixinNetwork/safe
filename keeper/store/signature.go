@@ -193,7 +193,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance, lock *InheritanceLock, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -243,13 +243,9 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		return fmt.Errorf("UPDATE requests %v", err)
 	}
 
-	l, err := s.readInitialInheritanceLockByRequestHash(ctx, tx, transactionHash)
-	if err != nil {
-		return err
-	}
-	if l != nil {
+	if lock != nil {
 		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=?",
-			common.RequestStateDone, req.CreatedAt, l.LockId)
+			lock.State, req.CreatedAt, lock.LockId)
 		if err != nil {
 			return fmt.Errorf("UPDATE inheritance_locks %v", err)
 		}
