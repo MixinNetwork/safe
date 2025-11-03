@@ -38,7 +38,7 @@ func (s *SQLite3Store) processInheritanceLockOperation(ctx context.Context, tx *
 		}
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET request_hash=?, hash=?, duration=?, state=?, updated_at=? WHERE lock_id=?",
+	err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET request_id=?, hash=?, duration=?, state=?, updated_at=? WHERE lock_id=?",
 		lock.RequestId, lock.Hash, lock.Duration, lock.State, lock.UpdatedAt, lock.LockId)
 	if err != nil {
 		return fmt.Errorf("UPDATE inheritance_locks %v", err)
@@ -79,20 +79,6 @@ func (s *SQLite3Store) ReadInheritanceLockByRequestId(ctx context.Context, id st
 func (s *SQLite3Store) readInheritanceLock(ctx context.Context, tx *sql.Tx, id string) (*InheritanceLock, error) {
 	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE lock_id=?", strings.Join(inheritanceLockCols, ","))
 	row := tx.QueryRowContext(ctx, query, id)
-
-	var lock InheritanceLock
-	err := row.Scan(&lock.LockId, &lock.RequestId, &lock.Hash, &lock.Holder, &lock.Address, &lock.Chain, &lock.Duration, &lock.State, &lock.CreatedAt, &lock.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	return &lock, nil
-}
-
-func (s *SQLite3Store) readInitialInheritanceLockByRequestHash(ctx context.Context, tx *sql.Tx, hash string) (*InheritanceLock, error) {
-	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE request_hash=? AND state=?", strings.Join(inheritanceLockCols, ","))
-	row := tx.QueryRowContext(ctx, query, hash, common.RequestStateInitial)
 
 	var lock InheritanceLock
 	err := row.Scan(&lock.LockId, &lock.RequestId, &lock.Hash, &lock.Holder, &lock.Address, &lock.Chain, &lock.Duration, &lock.State, &lock.CreatedAt, &lock.UpdatedAt)

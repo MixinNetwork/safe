@@ -1015,6 +1015,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	txs = append(txs, t)
 
 	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+	logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err)
 	if err != nil {
 		panic(err)
 	}
@@ -1027,7 +1028,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 			logger.Printf("store.ReadRequest(%s) => %v", tx.RequestId, txReq)
 			return node.failRequest(ctx, req, "")
 		}
-		flag := req.ExtraBytes()[0]
+		flag := txReq.ExtraBytes()[0]
 		switch flag {
 		case common.FlagProposeSetInheritance:
 			if lock.State != common.RequestStateInitial {
@@ -1046,7 +1047,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 
 	raw := hex.EncodeToString(spsbt.Marshal())
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
-	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
+	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v, %v) => %v", old.TransactionHash, raw, req, lock, err)
 	if err != nil {
 		panic(err)
 	}
