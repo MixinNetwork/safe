@@ -84,10 +84,11 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		return node.failRequest(ctx, req, "")
 	}
 	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
+	logger.Printf("store.ListAllBitcoinUTXOsForHolder(%s) => %d %v", safe.Holder, len(mainInputs), err)
 	if err != nil {
 		panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
 	}
-	if len(mainInputs) != 0 {
+	if len(mainInputs) == 0 {
 		return node.failRequest(ctx, req, "")
 	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
@@ -180,7 +181,7 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, transacionInputs, requests, txs)
+	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, transacionInputs, requests, lock, txs)
 	if err != nil {
 		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", txHash, err))
 	}

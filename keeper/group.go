@@ -206,7 +206,7 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 		return node.processSafeRevokeTransaction(ctx, req)
 	case common.ActionBitcoinSafeCloseAccount:
 		return node.processBitcoinSafeCloseAccount(ctx, req)
-	case common.ActionEthereumSafeCloseAccountByInheritance:
+	case common.ActionBitcoinSafeCloseAccountByInheritance:
 		return node.processBitcoinSafeCloseAccountByInheritance(ctx, req)
 	case common.ActionEthereumSafeProposeAccount:
 		return node.processEthereumSafeProposeAccount(ctx, req)
@@ -222,7 +222,7 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 		return node.processEthereumSafeCloseAccount(ctx, req)
 	case common.ActionEthereumSafeRefundTransaction:
 		return node.processEthereumSafeRefundTransaction(ctx, req)
-	case common.ActionBitcoinSafeCloseAccountByInheritance:
+	case common.ActionEthereumSafeCloseAccountByInheritance:
 		return node.processEthereumSafeCloseAccountByInheritance(ctx, req)
 	default:
 		panic(req.Action)

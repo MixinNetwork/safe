@@ -26,7 +26,7 @@ type SignatureRequest struct {
 
 var signatureCols = []string{"request_id", "transaction_hash", "input_index", "signer", "curve", "message", "signature", "state", "created_at", "updated_at"}
 
-func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context, req *common.Request, trx *Transaction, utxos []*TransactionInput, requests []*SignatureRequest, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context, req *common.Request, trx *Transaction, utxos []*TransactionInput, requests []*SignatureRequest, lock *InheritanceLock, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -42,7 +42,7 @@ func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context,
 		return fmt.Errorf("UPDATE safes %v", err)
 	}
 
-	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, trx.TransactionHash, req)
+	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, trx.TransactionHash, req, lock)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	if !existed {
+	if !existed || lock != nil {
 		err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStateDone)
 		if err != nil {
 			return err
@@ -87,7 +87,7 @@ func (s *SQLite3Store) CloseAccountBySignatureRequestsWithRequest(ctx context.Co
 		return fmt.Errorf("UPDATE safes %v", err)
 	}
 
-	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
+	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req, nil)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	}
 	defer common.Rollback(tx)
 
-	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req)
+	err = s.writeSignatureRequestsWithRequest(ctx, tx, requests, transactionHash, req, nil)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (s *SQLite3Store) WriteSignatureRequestsWithRequest(ctx context.Context, re
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) writeSignatureRequestsWithRequest(ctx context.Context, tx *sql.Tx, requests []*SignatureRequest, transactionHash string, req *common.Request) error {
+func (s *SQLite3Store) writeSignatureRequestsWithRequest(ctx context.Context, tx *sql.Tx, requests []*SignatureRequest, transactionHash string, req *common.Request, lock *InheritanceLock) error {
 	err := s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
 		common.RequestStateDone, time.Now().UTC(), req.Id)
 	if err != nil {
@@ -153,10 +153,12 @@ func (s *SQLite3Store) writeSignatureRequestsWithRequest(ctx context.Context, tx
 		return err
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state IN (?, ?)",
-		common.RequestStatePending, req.CreatedAt, transactionHash, common.RequestStateInitial, common.RequestStatePending)
-	if err != nil {
-		return fmt.Errorf("UPDATE transactions %v", err)
+	if lock == nil {
+		err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state IN (?, ?)",
+			common.RequestStatePending, req.CreatedAt, transactionHash, common.RequestStateInitial, common.RequestStatePending)
+		if err != nil {
+			return fmt.Errorf("UPDATE transactions %v", err)
+		}
 	}
 
 	for _, r := range requests {

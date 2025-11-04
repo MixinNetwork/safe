@@ -180,7 +180,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	if len(txs) == 0 {
 		return node.failRequest(ctx, req, "")
 	}
-	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, nil, []*store.SignatureRequest{sr}, txs)
+	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, nil, []*store.SignatureRequest{sr}, lock, txs)
 	if err != nil {
 		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", t.TxHash, err))
 	}
