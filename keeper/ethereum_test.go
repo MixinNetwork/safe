@@ -382,6 +382,103 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(int(l.State), common.RequestStateFailed)
 }
 
+func TestEthereumKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) {
+	require := require.New(t)
+	ctx, node, db, _, signers := testEthereumPrepare(require)
+
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
+	observer := testEthereumPublicKey(testEthereumKeyObserver)
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action := &mtg.Action{
+		UnifiedOutput: *output,
+	}
+	node.ProcessOutput(ctx, action)
+	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
+
+	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
+	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
+	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
+	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
+	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action = &mtg.Action{
+		UnifiedOutput: *output,
+	}
+	node.ProcessOutput(ctx, action)
+	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
+
+	safe, _ := node.store.ReadSafe(ctx, holder)
+	require.Equal(safe.Timelock, time.Hour)
+	require.Equal(common.RequestStateDone, int(safe.State))
+	require.Equal(safe.Timelock, time.Hour)
+
+	transactionHash := testEthereumSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 10, cnbBondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5137b99216af5c2c42438dfba493eab4b28c73decdc140068a5a8f136c8c0c08", "00000000000000890000000000000000004035313337623939323136616635633263343234333864666261343933656162346232386337336465636463313430303638613561386631333663386330633038002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014c2132d05d31c914a87c6611c10748aeb04b58e8f00000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a0550000000000000000000000000000000000000000000000000000000000000064000101002045fca74a7dc95b2b94e78e39477dc900f6b4d10fcbca5e45d49ee85fdb5ab2df00022c2c")
+	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	ls, err := node.store.ListUnfailedInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(len(ls), 1)
+	l, err := node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
+	require.Nil(err)
+	require.Equal(l.Duration, 10*time.Hour)
+	require.Equal(l.Hash, mc.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(10)}).String())
+	require.Equal(int(l.State), common.RequestStateDone)
+
+	for range 10 {
+		testEthereumUpdateNetworkStatus(ctx, require, node, 78621270, "969a55ec9598bd6c5308da6adf6362c7b6521a1965a9ef0f14daae7a67e939de")
+	}
+
+	safeBalances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
+	require.Nil(err)
+	var outputs []*ethereum.Output
+	for _, b := range safeBalances {
+		if b.BigBalance().Sign() == 0 {
+			continue
+		}
+		output := &ethereum.Output{
+			Destination:  testEthereumTransactionReceiver,
+			Amount:       b.BigBalance(),
+			TokenAddress: b.AssetAddress,
+		}
+		outputs = append(outputs, output)
+	}
+	txType := ethereum.TypeETHTx
+	switch {
+	case len(outputs) > 1:
+		txType = ethereum.TypeMultiSendTx
+	case outputs[0].TokenAddress != ethereum.EthereumEmptyAddress:
+		txType = ethereum.TypeERC20Tx
+	}
+	id := uuid.Must(uuid.NewV4())
+	st, err := ethereum.CreateTransactionFromOutputs(ctx, txType, ethereum.GetEvmChainID(common.SafeChainPolygon), id.String(), testEthereumSafeAddress, outputs, big.NewInt(safe.Nonce))
+	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	for i, pub := range pubs {
+		if pub == observer {
+			sig := testEthereumSignMessage(require, testEthereumKeyObserver, st.Message)
+			st.Signatures[i] = sig
+		}
+		if pub == holder {
+			sig := testEthereumSignMessage(require, testEthereumKeyHolder, st.Message)
+			st.Signatures[i] = sig
+		}
+	}
+	raw := st.Marshal()
+	ref := mc.Sha256Hash(raw)
+	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+	require.Nil(err)
+	out := testBuildObserverRequest(node, id.String(), holder, common.ActionEthereumSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSAPolygon)
+	testStep(ctx, require, node, out)
+
+	tx, err := node.store.ReadTransaction(ctx, st.TxHash)
+	require.Nil(err)
+	require.Equal(common.RequestStateDone, tx.State)
+	safe, err = node.store.ReadSafe(ctx, holder)
+	require.Nil(err)
+	require.Equal(common.RequestStateFailed, int(safe.State))
+
+}
+
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
 	logger.SetLevel(logger.INFO)
 	ctx, signers, _ := signer.TestPrepare(require)
