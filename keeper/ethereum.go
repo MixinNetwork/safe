@@ -730,6 +730,17 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 	flag, extra := extra[0], extra[1:]
+	var lock *store.InheritanceLock
+	switch flag {
+	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
+		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
+		if err != nil {
+			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
+			return node.failRequest(ctx, req, "")
+		}
+		extra = extra[34:]
+	}
+
 	iid, err := uuid.FromBytes(extra[:16])
 	if err != nil || iid.String() == uuid.Nil.String() {
 		return node.failRequest(ctx, req, "")
@@ -818,12 +829,11 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
-	var lock *store.InheritanceLock
 	var t *ethereum.SafeTransaction
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	txType := ethereum.TypeETHTx
 	switch flag {
-	case common.FlagProposeNormalTransaction:
+	case common.FlagProposeNormalTransaction, common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
 		switch {
 		case len(outputs) > 1:
 			txType = ethereum.TypeMultiSendTx
@@ -898,13 +908,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if err != nil {
 			panic(err)
 		}
-	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
-		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
-		if err != nil {
-			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
-			return node.failRequest(ctx, req, "")
-		}
-		extra = extra[34:]
 	default:
 		logger.Printf("invalid transaction flag: %d", flag)
 		return node.failRequest(ctx, req, "")
@@ -1237,7 +1240,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			logger.Printf("store.ReadRequest(%s) => %v", tx.RequestId, txReq)
 			return node.failRequest(ctx, req, "")
 		}
-		flag := req.ExtraBytes()[0]
+		flag := txReq.ExtraBytes()[0]
 		switch flag {
 		case common.FlagProposeSetInheritance:
 			if lock.State != common.RequestStateInitial {

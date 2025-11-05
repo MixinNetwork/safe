@@ -306,6 +306,82 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require.Equal(common.RequestStateFailed, int(safe.State))
 }
 
+func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
+	require := require.New(t)
+	ctx, node, db, _, signers := testEthereumPrepare(require)
+	for range 10 {
+		testEthereumUpdateNetworkStatus(ctx, require, node, 78621270, "969a55ec9598bd6c5308da6adf6362c7b6521a1965a9ef0f14daae7a67e939de")
+	}
+
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action := &mtg.Action{
+		UnifiedOutput: *output,
+	}
+	node.ProcessOutput(ctx, action)
+	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
+	testEthereumObserverHolderDeposit(ctx, require, node, "bf84a0728f43681078ffa9f3507125b7bd90e4afbefed99c6006f31a1172230f", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "1000000000000000000")
+
+	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
+	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
+	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
+	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
+	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action = &mtg.Action{
+		UnifiedOutput: *output,
+	}
+	node.ProcessOutput(ctx, action)
+	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
+
+	safe, _ := node.store.ReadSafe(ctx, holder)
+	require.Equal(safe.Timelock, time.Hour)
+	require.Equal(common.RequestStateDone, int(safe.State))
+
+	safeBalances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
+	require.Nil(err)
+	for _, b := range safeBalances {
+		switch b.AssetId {
+		case common.SafePolygonChainId:
+			require.Equal(int64(1000100000000000000), b.BigBalance().Int64())
+		case testEthereumUSDTBondAssetId:
+			require.Equal(100, b.BigBalance().Int64())
+		}
+	}
+
+	transactionHash := testEthereumSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 10, cnbBondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5137b99216af5c2c42438dfba493eab4b28c73decdc140068a5a8f136c8c0c08", "00000000000000890000000000000000004035313337623939323136616635633263343234333864666261343933656162346232386337336465636463313430303638613561386631333663386330633038002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014c2132d05d31c914a87c6611c10748aeb04b58e8f00000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a0550000000000000000000000000000000000000000000000000000000000000064000101002045fca74a7dc95b2b94e78e39477dc900f6b4d10fcbca5e45d49ee85fdb5ab2df00022c2c")
+	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	ls, err := node.store.ListUnfailedInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(len(ls), 1)
+	l, err := node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
+	require.Nil(err)
+	require.Equal(l.Duration, 10*time.Hour)
+	require.Equal(l.Hash, mc.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(10)}).String())
+	require.Equal(int(l.State), common.RequestStateDone)
+
+	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59475", "d78266795f625c785433617c932ed7d2d9ffc0b6b1dc83582a0f9ece8afb7bef", "00000000000000890000000000000000004064373832363637393566363235633738353433333631376339333265643764326439666663306236623164633833353832613066396563653861666237626566002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a40000000000102002047a466f99f9e418aa3ea44259b13841354e0c7eed32e6ab33b7a1ac5d5abb1a700022c2c")
+	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	ls, err = node.store.ListUnfailedInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(len(ls), 1)
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "1924a324-dbcb-48db-b0ea-5d23ebe59475")
+	require.Nil(err)
+	require.Equal(l.Duration, 20*time.Hour)
+	require.Equal(l.Hash, mc.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(20)}).String())
+	require.Equal(int(l.State), common.RequestStateDone)
+
+	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, common.FlagProposeRemoveInheritance, 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59471", "d36c44b4ceebe792e05a385ee245d420c6082b5e4fb0c55f6d4b61e181c0e1ca", "00000000000000890000000000000000004064333663343462346365656265373932653035613338356565323435643432306336303832623565346662306335356636643462363165313831633065316361002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a4000000000010300209ff24b9847958aacac35ee9d7561734ba466c016795f247e64f933c396facdc400022c2c")
+	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	ls, err = node.store.ListUnfailedInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(len(ls), 0)
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "1924a324-dbcb-48db-b0ea-5d23ebe59471")
+	require.Nil(err)
+	require.Equal(int(l.State), common.RequestStateFailed)
+}
+
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
 	logger.SetLevel(logger.INFO)
 	ctx, signers, _ := signer.TestPrepare(require)
@@ -379,6 +455,95 @@ func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	require.Equal(int64(1), safe.Nonce)
 	return ctx, node, db, mpc, signers
+}
+
+func testEthereumSafeSetInheritanceLock(ctx context.Context, require *require.Assertions, node *Node, flag byte, lock int, bondId string, rid, rhash, rraw string) string {
+	holder := testPublicKey(testEthereumKeyHolder)
+	hash := mc.Sha256Hash([]byte{flag, byte(lock)})
+
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	extra := []byte{flag}
+	extra = append(extra, hash[:]...)
+	extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
+	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
+	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))
+	testStep(ctx, require, node, out)
+
+	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeProposeTransaction)
+	t, err := ethereum.UnmarshalSafeTransaction(b)
+	require.Nil(err)
+	require.Equal(rhash, t.TxHash)
+	require.Equal(rraw, hex.EncodeToString(b))
+
+	amt := decimal.NewFromBigInt(t.Value, -ethereum.ValuePrecision)
+	if bondId == testEthereumBondAssetId {
+		require.Equal(testEthereumTransactionReceiver, t.Destination.Hex())
+		require.Equal("0.0001", amt.String())
+	} else {
+		require.Equal(testEthereumUSDTAddress, t.Destination.Hex())
+		require.Equal("0", amt.String())
+	}
+	require.Equal(testEthereumSafeAddress, t.SafeAddress)
+
+	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
+	require.Nil(err)
+	require.Equal(hex.EncodeToString(t.Marshal()), stx.RawTransaction)
+	require.Equal(common.RequestStateInitial, stx.State)
+
+	return stx.TransactionHash
+}
+
+func testEthereumSafeApproveLockTransaction(ctx context.Context, require *require.Assertions, node *Node, transactionHash string, signers []*signer.Node) {
+	id := uuid.Must(uuid.NewV4()).String()
+
+	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStateInitial, tx.State)
+	raw, err := hex.DecodeString(tx.RawTransaction)
+	require.Nil(err)
+	t, err := ethereum.UnmarshalSafeTransaction(raw)
+	require.Nil(err)
+
+	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+
+	holder := testEthereumPublicKey(testEthereumKeyHolder)
+	for i, pub := range pubs {
+		if pub == holder {
+			sig := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
+			t.Signatures[i] = sig
+		}
+	}
+
+	raw = t.Marshal()
+	ref := mc.Sha256Hash(raw)
+	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+	require.Nil(err)
+	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	extra = append(extra, ref[:]...)
+
+	out := testBuildObserverRequest(node, id, testPublicKey(testEthereumKeyHolder), common.ActionEthereumSafeApproveTransaction, extra, common.CurveSecp256k1ECDSAPolygon)
+	testStep(ctx, require, node, out)
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
+	require.Nil(err)
+	require.Len(requests, 1)
+	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStatePending, tx.State)
+
+	msg, _ := hex.DecodeString(requests[0].Message)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
+	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
+	testStep(ctx, require, node, out)
+
+	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
+	require.Equal(common.RequestStateDone, tx.State)
+	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
+	require.Len(requests, 0)
+	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStatePending)
+	require.Len(requests, 0)
+	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateDone)
+	require.Len(requests, 1)
 }
 
 func testEthereumProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, bondId string, rid string) string {
@@ -666,9 +831,9 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	require.Equal(testEthereumSafeAddress, safeAddress.Hex())
 }
 
-func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, txHash, assetId, assetAddress, balance string) {
+func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Assertions, node *Node, txHash, assetId, assetAddress, amount string) {
 	id := uuid.Must(uuid.NewV4()).String()
-	amt := decimal.RequireFromString(balance)
+	amt := decimal.RequireFromString(amount)
 	b, err := hex.DecodeString(txHash)
 	require.Nil(err)
 
@@ -713,9 +878,6 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 
 	safeAssetId := node.getBondAssetId(ctx, node.conf.PolygonKeeperDepositEntry, assetId, holder)
 	require.Equal(bondId, safeAssetId)
-	safeBalance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, assetId, safeAssetId)
-	require.Nil(err)
-	require.Equal(balance, safeBalance.BigBalance().String())
 }
 
 func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Assertions, node *Node, blockHeight int, blockHash string) {
