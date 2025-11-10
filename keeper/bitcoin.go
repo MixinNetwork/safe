@@ -1015,37 +1015,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	}
 	txs = append(txs, t)
 
-	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
-	logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err)
-	if err != nil {
-		panic(err)
-	}
-	if lock != nil {
-		txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
-		if err != nil {
-			panic(err)
-		}
-		if txReq == nil {
-			logger.Printf("store.ReadRequest(%s) => %v", tx.RequestId, txReq)
-			return node.failRequest(ctx, req, "")
-		}
-		flag := txReq.ExtraBytes()[0]
-		switch flag {
-		case common.FlagProposeSetInheritance:
-			if lock.State != common.RequestStateInitial {
-				lock.State = common.RequestStateFailed
-			} else {
-				lock.State = common.RequestStateDone
-			}
-		case common.FlagProposeRemoveInheritance:
-			if lock.State != common.RequestStateDone {
-				lock = nil
-			} else {
-				lock.State = common.RequestStateFailed
-			}
-		}
-	}
-
+	lock := node.checkPendingSafeInheritanceLock(ctx, tx)
 	raw := hex.EncodeToString(spsbt.Marshal())
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v, %v) => %v", old.TransactionHash, raw, req, lock, err)
@@ -1152,4 +1122,39 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 	l.RequestId = req.Id
 	l.UpdatedAt = req.CreatedAt
 	return l, nil
+}
+
+func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
+	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+	logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err)
+	if err != nil {
+		panic(err)
+	}
+	if lock != nil {
+		txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
+		if err != nil {
+			panic(err)
+		}
+		if txReq == nil {
+			logger.Printf("store.ReadRequest(%s) => %v", tx.RequestId, txReq)
+			lock.State = common.RequestStateFailed
+			return nil
+		}
+		flag := txReq.ExtraBytes()[0]
+		switch flag {
+		case common.FlagProposeSetInheritance:
+			if lock.State != common.RequestStateInitial {
+				lock.State = common.RequestStateFailed
+			} else {
+				lock.State = common.RequestStateDone
+			}
+		case common.FlagProposeRemoveInheritance:
+			if lock.State != common.RequestStateDone {
+				lock = nil
+			} else {
+				lock.State = common.RequestStateFailed
+			}
+		}
+	}
+	return lock
 }
