@@ -67,11 +67,10 @@ const (
 	ActionEthereumSafeRefundTransaction         = 136
 	ActionEthereumSafeCloseAccountByInheritance = 137
 
-	FlagProposeNormalTransaction      = 0
-	FlagProposeRecoveryTransaction    = 1
-	FlagProposeInheritanceTransaction = 2
-	FlagProposeSetInheritance         = 10
-	FlagProposeRemoveInheritance      = 11
+	FlagProposeNormalTransaction   = 0
+	FlagProposeRecoveryTransaction = 1
+	FlagProposeSetInheritance      = 2
+	FlagProposeRemoveInheritance   = 3
 )
 
 type Request struct {
