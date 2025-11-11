@@ -286,7 +286,7 @@ func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Sa
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var safes []*Safe
 	for rows.Next() {

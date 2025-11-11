@@ -76,7 +76,7 @@ func (s *SQLite3Store) ListAllSafes(ctx context.Context) ([]*Account, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var accounts []*Account
 	for rows.Next() {

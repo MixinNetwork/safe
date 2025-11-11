@@ -123,7 +123,7 @@ func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, h
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var txs []*Transaction
 	for rows.Next() {

@@ -234,7 +234,7 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	rm := make(map[int]*SignatureRequest)
 	for rows.Next() {

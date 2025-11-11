@@ -496,7 +496,7 @@ func (s *SQLite3Store) ReadBitcoinUTXOs(ctx context.Context, chain byte) ([]*Out
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var outputs []*Output
 	for rows.Next() {

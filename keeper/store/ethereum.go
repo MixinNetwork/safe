@@ -134,7 +134,7 @@ func (s *SQLite3Store) ReadAllEthereumTokenBalances(ctx context.Context, address
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var sbs []*SafeBalance
 	for rows.Next() {

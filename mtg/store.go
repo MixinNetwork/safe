@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var as []*Action
 	for rows.Next() {
@@ -236,7 +237,7 @@ func (s *SQLite3Store) listOutputs(ctx context.Context, ids []string) ([]*Unifie
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var os []*UnifiedOutput
 	for rows.Next() {
@@ -255,7 +256,7 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var os []*UnifiedOutput
 	for rows.Next() {
@@ -277,7 +278,7 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var os []*UnifiedOutput
 	for rows.Next() {
@@ -403,7 +404,7 @@ func (s *SQLite3Store) ListIterations(ctx context.Context) ([]*Iteration, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var irs []*Iteration
 	for rows.Next() {
@@ -492,7 +493,7 @@ func (s *SQLite3Store) transactionsFromQuery(ctx context.Context, query string, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var ts []*Transaction
 	for rows.Next() {
@@ -525,6 +526,13 @@ func rollBack(txn *sql.Tx) {
 	err := txn.Rollback()
 	const already = "transaction has already been committed or rolled back"
 	if err != nil && !strings.Contains(err.Error(), already) {
+		panic(err)
+	}
+}
+
+func closeOrPanic(c io.Closer) {
+	err := c.Close()
+	if err != nil {
 		panic(err)
 	}
 }

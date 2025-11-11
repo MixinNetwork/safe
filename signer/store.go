@@ -109,7 +109,7 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var keys []*Key
 	for rows.Next() {
@@ -308,7 +308,7 @@ func (s *SQLite3Store) ListSessionPreparedMembers(ctx context.Context, sessionId
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var signers []party.ID
 	for rows.Next() {
@@ -331,7 +331,7 @@ func (s *SQLite3Store) ListSessionSignerResults(ctx context.Context, sessionId s
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var signer, extra string
 	signers := make(map[string]string)
@@ -607,7 +607,7 @@ func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, stat
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var sessions []*Session
 	for rows.Next() {
@@ -688,7 +688,7 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	return rows.Next(), nil
 }
