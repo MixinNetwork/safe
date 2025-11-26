@@ -162,6 +162,12 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(reason)
 	}
 
+	_, err = tx.ExecContext(ctx, "DELETE FROM outputs WHERE request_id=? AND transaction_hash=? AND output_index=? AND asset_id=? AND amount=? AND state=?",
+		out.TransactionRequestId, out.TransactionHash, out.OutputIndex, out.AssetId, out.Amount.String(), SafeUtxoStateUnreceived)
+	if err != nil {
+		return err
+	}
+
 	out.updatedAt = time.Now().UTC()
 	err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)
 	if err != nil {
@@ -329,9 +335,7 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 			TransactionHash:      t.Hash.String(),
 			OutputIndex:          1,
 			AssetId:              t.AssetId,
-			KernelAssetId:        os[0].KernelAssetId,
 			Amount:               cmt,
-			Extra:                fmt.Sprintf("%s:change", t.TraceId),
 			State:                SafeUtxoStateUnreceived,
 		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)

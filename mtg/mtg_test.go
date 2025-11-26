@@ -337,7 +337,7 @@ func TestMTGWithdrawal(t *testing.T) {
 		RawTransaction:  raw,
 	}, change)
 	require.Nil(err)
-	require.Equal("0.0001", decimal.RequireFromString(change).String())
+	require.Equal("0.0001", change)
 
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)

@@ -573,7 +573,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	}
 	change := "0"
 	if len(tr) == 2 {
-		change = tr[1].Amount
+		change = strings.TrimRight(tr[1].Amount, "0")
 	}
 
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
