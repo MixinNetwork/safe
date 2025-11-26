@@ -323,7 +323,7 @@ func TestMTGWithdrawal(t *testing.T) {
 
 	outputs := node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	require.True(len(outputs) > 0)
-	ver, consumed, err := node.Group.buildRawTransaction(ctx, tx, outputs)
+	ver, consumed, change, err := node.Group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)
 	require.True(len(outputs) == len(consumed))
 	raw := hex.EncodeToString(ver.Marshal())
@@ -335,8 +335,9 @@ func TestMTGWithdrawal(t *testing.T) {
 		RequestID:       tx.RequestID(),
 		TransactionHash: "f45e51276a031a46d25998605324e8a3f1b720d33f66dc226018448f53bda4c4",
 		RawTransaction:  raw,
-	})
+	}, change)
 	require.Nil(err)
+	require.Equal("0.0001", decimal.RequireFromString(change).String())
 
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
@@ -387,9 +388,11 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 	require.True(tx.compaction)
 	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateAssigned, OutputsBatchSize)
 	require.Len(outputs, 36)
-	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
+	ver, consumed, change, err := group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)
+	require.Equal(change, "0")
 	require.Len(consumed, 36)
+	require.Len(ver.References, 1)
 	require.Len(ver.References, 1)
 	require.Equal(ver.References[0].String(), hash)
 
@@ -400,7 +403,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 		out.State = SafeUtxoStateSpent
 		out.SignedBy = tx.Hash.String()
 	}
-	err = group.store.UpdateTxWithOutputs(ctx, tx, consumed)
+	err = group.store.UpdateTxWithOutputs(ctx, tx, consumed, change)
 	require.Nil(err)
 
 	return testBuildActionFromTx(require, group, tx)
