@@ -446,7 +446,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 	return vn
 }
 
-func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest, change string) (*common.VersionedTransaction, error) {
+func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest, change common.Integer) (*common.VersionedTransaction, error) {
 	for _, out := range outputs {
 		out.TraceId = tx.TraceId
 		out.State = SafeUtxoStateSigned
@@ -566,14 +566,14 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 	}
 }
 
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) (*common.VersionedTransaction, []*UnifiedOutput, string, error) {
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) (*common.VersionedTransaction, []*UnifiedOutput, common.Integer, error) {
+	change := common.NewInteger(0)
 	inputs, tr, err := grp.getTransactionInputsAndRecipients(ctx, tx, outputs)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, change, err
 	}
-	change := "0"
 	if len(tr) == 2 {
-		change = strings.TrimRight(tr[1].Amount, "0")
+		change = common.NewIntegerFromString(tr[1].Amount)
 	}
 
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
@@ -587,7 +587,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 
 	keys, err := grp.createGhostKeysUntilSufficient(ctx, tx, tr)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, change, err
 	}
 	for i, r := range tr {
 		if r.Destination == "" && r.MixAddress == nil {
@@ -625,7 +625,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	}
 
 	if l := ver.AsVersioned().GetExtraLimit(); len(ver.Extra) >= l {
-		return nil, nil, "", fmt.Errorf("large extra %d > %d", len(ver.Extra), l)
+		return nil, nil, change, fmt.Errorf("large extra %d > %d", len(ver.Extra), l)
 	}
 	return ver.AsVersioned(), inputs, change, nil
 }

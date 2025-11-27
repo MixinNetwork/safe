@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
@@ -316,7 +317,7 @@ func (s *SQLite3Store) countUnreceivedOutputs(ctx context.Context, tx *sql.Tx) (
 	return count, err
 }
 
-func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change string) error {
+func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change common.Integer) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -345,21 +346,16 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 		}
 	}
 
-	cmt := decimal.RequireFromString(change)
-	if cmt.Sign() > 0 {
-		c, err := s.countUnreceivedOutputs(ctx, tx)
-		if err != nil {
-			return err
-		}
+	if change.Sign() > 0 {
 		out := &UnifiedOutput{
 			OutputId:             UniqueId(t.TraceId, "change"),
 			TransactionRequestId: t.TraceId,
 			TransactionHash:      t.Hash.String(),
 			OutputIndex:          1,
 			AssetId:              t.AssetId,
-			Amount:               cmt,
+			Amount:               decimal.RequireFromString(change.String()),
 			State:                SafeUtxoStateUnreceived,
-			Sequence:             uint64(c + 1),
+			Sequence:             uint64(time.Now().UnixMicro()),
 			AppId:                t.AppId,
 		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)

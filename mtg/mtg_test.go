@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/util"
@@ -337,7 +339,7 @@ func TestMTGWithdrawal(t *testing.T) {
 		RawTransaction:  raw,
 	}, change)
 	require.Nil(err)
-	require.Equal("0.0001", change)
+	require.Equal(common.NewIntegerFromString("0.0001"), change)
 
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
@@ -354,7 +356,7 @@ func TestMTGWithdrawal(t *testing.T) {
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateSnapshot, 0)
 	require.Nil(err)
 	require.Len(txs, 1)
-	os, err := node.Group.store.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateUnreceived, 0)
+	os, err := node.Group.store.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, math.MaxInt64, SafeUtxoStateUnreceived, 0)
 	require.Nil(err)
 	require.Len(os, 1)
 	cu := os[0]
@@ -413,7 +415,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 	require.Len(outputs, 36)
 	ver, consumed, change, err := group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)
-	require.Equal(change, "0")
+	require.Equal(common.NewInteger(0), change)
 	require.Len(consumed, 36)
 	require.Len(ver.References, 1)
 	require.Len(ver.References, 1)
