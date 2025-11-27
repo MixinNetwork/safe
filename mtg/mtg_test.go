@@ -354,6 +354,10 @@ func TestMTGWithdrawal(t *testing.T) {
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateSnapshot, 0)
 	require.Nil(err)
 	require.Len(txs, 1)
+	os, err := node.Group.store.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateUnreceived, 0)
+	require.Nil(err)
+	require.Len(os, 1)
+	cu := os[0]
 
 	tx = txs[0]
 	tx.consumed = node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
@@ -368,6 +372,25 @@ func TestMTGWithdrawal(t *testing.T) {
 	tx.Hash = crypto.Hash{}
 	tx.Raw = nil
 	require.True(txs[0].Equal(dtxs[0]))
+
+	out := &UnifiedOutput{
+		OutputId:             uuid.Must(uuid.NewV4()).String(),
+		TransactionRequestId: cu.TransactionRequestId,
+		TransactionHash:      cu.TransactionHash,
+		OutputIndex:          cu.OutputIndex,
+		AssetId:              cu.AssetId,
+		Amount:               cu.Amount,
+		State:                SafeUtxoStateUnspent,
+		AppId:                cu.AppId,
+	}
+	err = node.Group.store.WriteAction(ctx, out, ActionStateInitial)
+	require.Nil(err)
+	os, err = node.Group.store.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateUnreceived, 500)
+	require.Nil(err)
+	require.Len(os, 0)
+	o, err := node.Group.store.ReadOutputById(ctx, cu.OutputId)
+	require.Nil(err)
+	require.Nil(o)
 }
 
 func testGetTotalBalanceByAsset(ctx context.Context, group Group, appId, assetId string) ([]*UnifiedOutput, decimal.Decimal) {

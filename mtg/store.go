@@ -43,6 +43,12 @@ func (s *SQLite3Store) readOutput(ctx context.Context, tx *sql.Tx, id string) (*
 	return outputFromRow(row)
 }
 
+func (s *SQLite3Store) ReadOutputById(ctx context.Context, id string) (*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id=?", strings.Join(outputCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
+	return outputFromRow(row)
+}
+
 func (s *SQLite3Store) ReadOutputByHashAndIndex(ctx context.Context, hash string, index uint) (*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE transaction_hash=? AND output_index=?", strings.Join(outputCols, ","))
 	row := s.db.QueryRowContext(ctx, query, hash, index)
@@ -298,6 +304,18 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	return os, nil
 }
 
+func (s *SQLite3Store) countUnreceivedOutputs(ctx context.Context, tx *sql.Tx) (int, error) {
+	query := "SELECT COUNT(*) FROM outputs WHERE state=?"
+	row := tx.QueryRowContext(ctx, query, SafeUtxoStateUnreceived)
+
+	var count int
+	err := row.Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return count, err
+}
+
 func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -329,14 +347,20 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 
 	cmt := decimal.RequireFromString(change)
 	if cmt.Sign() > 0 {
+		c, err := s.countUnreceivedOutputs(ctx, tx)
+		if err != nil {
+			return err
+		}
 		out := &UnifiedOutput{
-			OutputId:             uuid.Must(uuid.NewV4()).String(),
+			OutputId:             UniqueId(t.TraceId, "change"),
 			TransactionRequestId: t.TraceId,
 			TransactionHash:      t.Hash.String(),
 			OutputIndex:          1,
 			AssetId:              t.AssetId,
 			Amount:               cmt,
 			State:                SafeUtxoStateUnreceived,
+			Sequence:             uint64(c + 1),
+			AppId:                t.AppId,
 		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)
 		if err != nil {
