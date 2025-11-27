@@ -305,18 +305,6 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	return os, nil
 }
 
-func (s *SQLite3Store) countUnreceivedOutputs(ctx context.Context, tx *sql.Tx) (int, error) {
-	query := "SELECT COUNT(*) FROM outputs WHERE state=?"
-	row := tx.QueryRowContext(ctx, query, SafeUtxoStateUnreceived)
-
-	var count int
-	err := row.Scan(&count)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return count, err
-}
-
 func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change common.Integer) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
