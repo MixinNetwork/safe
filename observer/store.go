@@ -235,7 +235,7 @@ func (s *SQLite3Store) CheckAccountProposed(ctx context.Context, addr string) (b
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	return rows.Next(), nil
 }
@@ -382,7 +382,7 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var accounts []*Account
 	for rows.Next() {
@@ -407,7 +407,7 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var deposits []*Deposit
 	for rows.Next() {
@@ -429,7 +429,7 @@ func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Con
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	return rows.Next(), nil
 }
@@ -561,7 +561,7 @@ func (s *SQLite3Store) ListFullySignedTransactionApprovals(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var approvals []*Transaction
 	for rows.Next() {
@@ -581,7 +581,7 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var approvals []*Transaction
 	for rows.Next() {
@@ -955,7 +955,7 @@ func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context, offset int64) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var recoveries []*Recovery
 	for rows.Next() {
@@ -1013,7 +1013,7 @@ func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeSt
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var nodes []*NodeStats
 	for rows.Next() {

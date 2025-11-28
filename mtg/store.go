@@ -5,12 +5,15 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit int) ([]*Action, error) {
@@ -22,7 +25,7 @@ func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var as []*Action
 	for rows.Next() {
@@ -38,6 +41,12 @@ func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit
 func (s *SQLite3Store) readOutput(ctx context.Context, tx *sql.Tx, id string) (*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id=?", strings.Join(outputCols, ","))
 	row := tx.QueryRowContext(ctx, query, id)
+	return outputFromRow(row)
+}
+
+func (s *SQLite3Store) ReadOutputById(ctx context.Context, id string) (*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id=?", strings.Join(outputCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
 	return outputFromRow(row)
 }
 
@@ -160,6 +169,12 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(reason)
 	}
 
+	_, err = tx.ExecContext(ctx, "DELETE FROM outputs WHERE request_id=? AND transaction_hash=? AND output_index=? AND asset_id=? AND amount=? AND state=?",
+		out.TransactionRequestId, out.TransactionHash, out.OutputIndex, out.AssetId, out.Amount.String(), SafeUtxoStateUnreceived)
+	if err != nil {
+		return err
+	}
+
 	out.updatedAt = time.Now().UTC()
 	err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)
 	if err != nil {
@@ -236,7 +251,7 @@ func (s *SQLite3Store) listOutputs(ctx context.Context, ids []string) ([]*Unifie
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var os []*UnifiedOutput
 	for rows.Next() {
@@ -255,7 +270,7 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var os []*UnifiedOutput
 	for rows.Next() {
@@ -277,7 +292,7 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var os []*UnifiedOutput
 	for rows.Next() {
@@ -290,7 +305,7 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	return os, nil
 }
 
-func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput) error {
+func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change common.Integer) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -316,6 +331,24 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, t.UpdatedAt, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
+		}
+	}
+
+	if change.Sign() > 0 {
+		out := &UnifiedOutput{
+			OutputId:             UniqueId(t.TraceId, "change"),
+			TransactionRequestId: t.TraceId,
+			TransactionHash:      t.Hash.String(),
+			OutputIndex:          1,
+			AssetId:              t.AssetId,
+			Amount:               decimal.RequireFromString(change.String()),
+			State:                SafeUtxoStateUnreceived,
+			Sequence:             uint64(time.Now().UnixMicro()),
+			AppId:                t.AppId,
+		}
+		err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)
+		if err != nil {
+			return fmt.Errorf("INSERT outputs %v", err)
 		}
 	}
 
@@ -403,7 +436,7 @@ func (s *SQLite3Store) ListIterations(ctx context.Context) ([]*Iteration, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var irs []*Iteration
 	for rows.Next() {
@@ -492,7 +525,7 @@ func (s *SQLite3Store) transactionsFromQuery(ctx context.Context, query string, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeOrPanic(rows)
 
 	var ts []*Transaction
 	for rows.Next() {
@@ -525,6 +558,13 @@ func rollBack(txn *sql.Tx) {
 	err := txn.Rollback()
 	const already = "transaction has already been committed or rolled back"
 	if err != nil && !strings.Contains(err.Error(), already) {
+		panic(err)
+	}
+}
+
+func closeOrPanic(c io.Closer) {
+	err := c.Close()
+	if err != nil {
 		panic(err)
 	}
 }

@@ -176,7 +176,7 @@ func (s *SQLite3Store) listOutputsByQuery(ctx context.Context, tx *sql.Tx, query
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer CloseOrPanic(rows)
 
 	var os []*Output
 	for rows.Next() {

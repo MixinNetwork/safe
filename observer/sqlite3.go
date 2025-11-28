@@ -63,7 +63,7 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	return rows.Next(), nil
 }

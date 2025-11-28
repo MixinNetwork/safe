@@ -119,7 +119,7 @@ func (s *SQLite3Store) ListItemsForNode(ctx context.Context, nodeId string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var items []*Item
 	for rows.Next() {

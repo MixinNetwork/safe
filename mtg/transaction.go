@@ -396,8 +396,8 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		panic(fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs)))
 	}
 
-	ver, consumed, err := grp.buildRawTransaction(ctx, tx, outputs)
-	logger.Verbosef("Group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(consumed), err)
+	ver, consumed, change, err := grp.buildRawTransaction(ctx, tx, outputs)
+	logger.Verbosef("Group.buildRawTransaction(%v) => %v %d %s %v\n", tx, ver, len(consumed), change, err)
 	if err != nil || len(outputs) != len(consumed) {
 		panic(err)
 	}
@@ -436,7 +436,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		}
 	}
 
-	vn, err := grp.updateTxWithOutputs(ctx, tx, consumed, req)
+	vn, err := grp.updateTxWithOutputs(ctx, tx, consumed, req, change)
 	if err != nil {
 		panic(err)
 	}
@@ -446,7 +446,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 	return vn
 }
 
-func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest) (*common.VersionedTransaction, error) {
+func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest, change common.Integer) (*common.VersionedTransaction, error) {
 	for _, out := range outputs {
 		out.TraceId = tx.TraceId
 		out.State = SafeUtxoStateSigned
@@ -474,7 +474,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 		}
 	}
 
-	err = grp.store.UpdateTxWithOutputs(ctx, tx, outputs)
+	err = grp.store.UpdateTxWithOutputs(ctx, tx, outputs, change)
 	if err != nil {
 		panic(err)
 	}
@@ -566,10 +566,14 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 	}
 }
 
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) (*common.VersionedTransaction, []*UnifiedOutput, error) {
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) (*common.VersionedTransaction, []*UnifiedOutput, common.Integer, error) {
+	change := common.NewInteger(0)
 	inputs, tr, err := grp.getTransactionInputsAndRecipients(ctx, tx, outputs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, change, err
+	}
+	if len(tr) == 2 {
+		change = common.NewIntegerFromString(tr[1].Amount)
 	}
 
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
@@ -583,7 +587,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 
 	keys, err := grp.createGhostKeysUntilSufficient(ctx, tx, tr)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, change, err
 	}
 	for i, r := range tr {
 		if r.Destination == "" && r.MixAddress == nil {
@@ -621,9 +625,9 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	}
 
 	if l := ver.AsVersioned().GetExtraLimit(); len(ver.Extra) >= l {
-		return nil, nil, fmt.Errorf("large extra %d > %d", len(ver.Extra), l)
+		return nil, nil, change, fmt.Errorf("large extra %d > %d", len(ver.Extra), l)
 	}
-	return ver.AsVersioned(), inputs, nil
+	return ver.AsVersioned(), inputs, change, nil
 }
 
 func (grp *Group) getCompactionTraceId(ctx context.Context, act *Action) string {

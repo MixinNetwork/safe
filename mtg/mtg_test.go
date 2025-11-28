@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/util"
@@ -323,7 +325,7 @@ func TestMTGWithdrawal(t *testing.T) {
 
 	outputs := node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	require.True(len(outputs) > 0)
-	ver, consumed, err := node.Group.buildRawTransaction(ctx, tx, outputs)
+	ver, consumed, change, err := node.Group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)
 	require.True(len(outputs) == len(consumed))
 	raw := hex.EncodeToString(ver.Marshal())
@@ -335,8 +337,9 @@ func TestMTGWithdrawal(t *testing.T) {
 		RequestID:       tx.RequestID(),
 		TransactionHash: "f45e51276a031a46d25998605324e8a3f1b720d33f66dc226018448f53bda4c4",
 		RawTransaction:  raw,
-	})
+	}, change)
 	require.Nil(err)
+	require.Equal(common.NewIntegerFromString("0.0001"), change)
 
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
@@ -353,6 +356,10 @@ func TestMTGWithdrawal(t *testing.T) {
 	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateSnapshot, 0)
 	require.Nil(err)
 	require.Len(txs, 1)
+	os, err := node.Group.store.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, math.MaxInt64, SafeUtxoStateUnreceived, 0)
+	require.Nil(err)
+	require.Len(os, 1)
+	cu := os[0]
 
 	tx = txs[0]
 	tx.consumed = node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
@@ -367,6 +374,25 @@ func TestMTGWithdrawal(t *testing.T) {
 	tx.Hash = crypto.Hash{}
 	tx.Raw = nil
 	require.True(txs[0].Equal(dtxs[0]))
+
+	out := &UnifiedOutput{
+		OutputId:             uuid.Must(uuid.NewV4()).String(),
+		TransactionRequestId: cu.TransactionRequestId,
+		TransactionHash:      cu.TransactionHash,
+		OutputIndex:          cu.OutputIndex,
+		AssetId:              cu.AssetId,
+		Amount:               cu.Amount,
+		State:                SafeUtxoStateUnspent,
+		AppId:                cu.AppId,
+	}
+	err = node.Group.store.WriteAction(ctx, out, ActionStateInitial)
+	require.Nil(err)
+	os, err = node.Group.store.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateUnreceived, 500)
+	require.Nil(err)
+	require.Len(os, 0)
+	o, err := node.Group.store.ReadOutputById(ctx, cu.OutputId)
+	require.Nil(err)
+	require.Nil(o)
 }
 
 func testGetTotalBalanceByAsset(ctx context.Context, group Group, appId, assetId string) ([]*UnifiedOutput, decimal.Decimal) {
@@ -387,9 +413,11 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 	require.True(tx.compaction)
 	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateAssigned, OutputsBatchSize)
 	require.Len(outputs, 36)
-	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
+	ver, consumed, change, err := group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)
+	require.Equal(common.NewInteger(0), change)
 	require.Len(consumed, 36)
+	require.Len(ver.References, 1)
 	require.Len(ver.References, 1)
 	require.Equal(ver.References[0].String(), hash)
 
@@ -400,7 +428,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 		out.State = SafeUtxoStateSpent
 		out.SignedBy = tx.Hash.String()
 	}
-	err = group.store.UpdateTxWithOutputs(ctx, tx, consumed)
+	err = group.store.UpdateTxWithOutputs(ctx, tx, consumed, change)
 	require.Nil(err)
 
 	return testBuildActionFromTx(require, group, tx)

@@ -123,7 +123,7 @@ func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiv
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.CloseOrPanic(rows)
 
 	var inputs []*bitcoin.Input
 	for rows.Next() {
