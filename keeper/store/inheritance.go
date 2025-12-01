@@ -39,11 +39,6 @@ func (s *SQLite3Store) processInheritanceLockOperation(ctx context.Context, tx *
 	return nil
 }
 
-func (s *SQLite3Store) ReadInheritanceLock(ctx context.Context, id string) (*InheritanceLock, error) {
-	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE lock_id=?", strings.Join(inheritanceLockCols, ","))
-	return s.readInheritanceLockByQuery(ctx, query, id)
-}
-
 func (s *SQLite3Store) ReadInheritanceLockByRequestId(ctx context.Context, id string) (*InheritanceLock, error) {
 	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE request_id=?", strings.Join(inheritanceLockCols, ","))
 	return s.readInheritanceLockByQuery(ctx, query, id)

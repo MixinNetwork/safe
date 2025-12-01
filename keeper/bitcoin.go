@@ -1012,8 +1012,8 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	}
 	txs = append(txs, t)
 
-	lock := node.checkPendingSafeInheritanceLock(ctx, tx)
-	logger.Printf("node.checkPendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
+	lock := node.finalizePendingSafeInheritanceLock(ctx, tx)
+	logger.Printf("node.finalizePendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
 	raw := hex.EncodeToString(spsbt.Marshal())
 	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v, %v) => %v", old.TransactionHash, raw, req, lock, err)
@@ -1079,12 +1079,12 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 	}
 	switch flag {
 	case common.FlagProposeRemoveInheritance:
-		if l == nil {
+		if l == nil || l.State != common.RequestStateDone {
 			return nil, nil, fmt.Errorf("invalid inheritance operation flag: %s %d", req.Id, flag)
 		}
 		return nil, extra, nil
 	case common.FlagProposeSetInheritance:
-		if l != nil && l.State != common.RequestStateDone {
+		if l != nil && l.State == common.RequestStateInitial {
 			return nil, nil, fmt.Errorf("invalid inheritance lock state to update or remove: %s %d", l.LockId, l.State)
 		}
 		hash := hex.EncodeToString(extra[:32])
@@ -1116,7 +1116,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 	}
 }
 
-func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
+func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
 	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
 	if err != nil {
 		panic(err)
@@ -1129,14 +1129,18 @@ func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store
 		if err != nil {
 			panic(err)
 		}
-		if lock == nil || lock.State != common.RequestStateInitial {
+		if lock.State != common.RequestStateInitial {
 			return nil
 		}
 		lock.State = common.RequestStateDone
 		return lock
 	case common.FlagProposeRemoveInheritance:
+		// FIXME this lock to be removed should be specified in the tx
 		lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, tx.Holder)
 		logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.Holder, lock, err)
+		if err != nil {
+			panic(err)
+		}
 		if lock.State != common.RequestStateDone {
 			return nil
 		}
