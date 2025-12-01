@@ -720,12 +720,11 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			}
 		}
 	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
-		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
+		lock, extra, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
 		if err != nil {
 			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
 			return node.failRequest(ctx, req, "")
 		}
-		extra = extra[34:]
 	default:
 		return node.failRequest(ctx, req, "")
 	}
@@ -1072,27 +1071,33 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
 }
 
-func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, error) {
-	hash := hex.EncodeToString(extra[:32])
-	dec := mc.NewDecoder(extra[32:])
-	hours, err := dec.ReadUint16()
-	if err != nil {
-		return nil, fmt.Errorf("invalid inheritance extra: %s %x", req.Id, extra)
-	}
-	inheritanceLock := time.Duration(hours) * time.Hour
-	if inheritanceLock-safe.Timelock < time.Hour*24*365 && !common.CheckTestEnvironment(ctx) {
-		return nil, fmt.Errorf("invalid inheritance duration: %s %d", req.Id, hours)
-	}
-
+func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, []byte, error) {
 	l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
 	if err != nil {
 		panic(err)
 	}
-	if l == nil {
-		if flag == common.FlagProposeRemoveInheritance {
-			return nil, fmt.Errorf("invalid inheritance operation flag: %s %d", req.Id, flag)
+	switch flag {
+	case common.FlagProposeRemoveInheritance:
+		if l == nil {
+			return nil, nil, fmt.Errorf("invalid inheritance operation flag: %s %d", req.Id, flag)
 		}
-		return &store.InheritanceLock{
+		return nil, extra, nil
+	case common.FlagProposeSetInheritance:
+		if l != nil && l.State != common.RequestStateDone {
+			return nil, nil, fmt.Errorf("invalid inheritance lock state to update or remove: %s %d", l.LockId, l.State)
+		}
+		hash := hex.EncodeToString(extra[:32])
+		dec := mc.NewDecoder(extra[32:])
+		hours, err := dec.ReadUint16()
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid inheritance extra: %s %x", req.Id, extra)
+		}
+		inheritanceLock := time.Duration(hours) * time.Hour
+		if inheritanceLock-safe.Timelock < time.Hour*24*365 && !common.CheckTestEnvironment(ctx) {
+			return nil, nil, fmt.Errorf("invalid inheritance duration: %s %d", req.Id, hours)
+		}
+
+		nl := &store.InheritanceLock{
 			LockId:    common.UniqueId(safe.Holder, fmt.Sprintf("%s:%s:%d", req.Id, hash, hours)),
 			RequestId: req.Id,
 			Hash:      hash,
@@ -1103,34 +1108,14 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 			State:     common.RequestStateInitial,
 			CreatedAt: req.CreatedAt,
 			UpdatedAt: req.CreatedAt,
-		}, nil
+		}
+		return nl, extra[34:], nil
+	default:
+		return nil, nil, fmt.Errorf("invalid inheritance flag: %d", flag)
 	}
-
-	if l.State != common.RequestStateDone {
-		return nil, fmt.Errorf("invalid inheritance lock state to update: %s %d", l.LockId, l.State)
-	}
-	switch flag {
-	case common.FlagProposeRemoveInheritance:
-	case common.FlagProposeSetInheritance:
-		l.Hash = hash
-		l.Duration = inheritanceLock
-		l.State = common.RequestStateInitial
-	}
-	l.RequestId = req.Id
-	l.UpdatedAt = req.CreatedAt
-	return l, nil
 }
 
 func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
-	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
-	logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err)
-	if err != nil {
-		panic(err)
-	}
-	if lock == nil {
-		return nil
-	}
-
 	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
 	if err != nil {
 		panic(err)
@@ -1138,17 +1123,25 @@ func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store
 	flag := txReq.ExtraBytes()[0]
 	switch flag {
 	case common.FlagProposeSetInheritance:
-		if lock.State != common.RequestStateInitial {
-			lock = nil
-		} else {
-			lock.State = common.RequestStateDone
+		lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+		logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err)
+		if err != nil {
+			panic(err)
 		}
+		if lock == nil || lock.State != common.RequestStateInitial {
+			return nil
+		}
+		lock.State = common.RequestStateDone
+		return lock
 	case common.FlagProposeRemoveInheritance:
+		lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, tx.Holder)
+		logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.Holder, lock, err)
 		if lock.State != common.RequestStateDone {
-			lock = nil
-		} else {
-			lock.State = common.RequestStateFailed
+			return nil
 		}
+		lock.State = common.RequestStateFailed
+		return lock
+	default:
+		return nil
 	}
-	return lock
 }

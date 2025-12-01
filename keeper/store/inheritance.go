@@ -27,22 +27,14 @@ var inheritanceLockCols = []string{"lock_id", "request_id", "hash", "holder", "a
 
 func (s *SQLite3Store) processInheritanceLockOperation(ctx context.Context, tx *sql.Tx, lock *InheritanceLock) error {
 	existed, err := s.checkExistence(ctx, tx, "SELECT lock_id FROM inheritance_locks WHERE lock_id=?", lock.LockId)
-	if err != nil {
+	if err != nil || existed {
 		return err
 	}
-	if !existed {
-		vals := []any{lock.LockId, lock.RequestId, lock.Hash, lock.Holder, lock.Address, lock.Chain, lock.Duration, lock.State, lock.CreatedAt, lock.UpdatedAt}
-		err := s.execOne(ctx, tx, buildInsertionSQL("inheritance_locks", inheritanceLockCols), vals...)
-		if err != nil {
-			return fmt.Errorf("INSERT inheritance_locks %v", err)
-		}
-		return nil
-	}
 
-	err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET request_id=?, hash=?, duration=?, state=?, updated_at=? WHERE lock_id=?",
-		lock.RequestId, lock.Hash, lock.Duration, lock.State, lock.UpdatedAt, lock.LockId)
+	vals := []any{lock.LockId, lock.RequestId, lock.Hash, lock.Holder, lock.Address, lock.Chain, lock.Duration, lock.State, lock.CreatedAt, lock.UpdatedAt}
+	err = s.execOne(ctx, tx, buildInsertionSQL("inheritance_locks", inheritanceLockCols), vals...)
 	if err != nil {
-		return fmt.Errorf("UPDATE inheritance_locks %v", err)
+		return fmt.Errorf("INSERT inheritance_locks %v", err)
 	}
 	return nil
 }

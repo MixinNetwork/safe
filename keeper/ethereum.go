@@ -731,7 +731,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	var lock *store.InheritanceLock
 	switch flag {
 	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
-		lock, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
+		lock, extra, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
 		if err != nil {
 			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
 			return node.failRequest(ctx, req, "")
