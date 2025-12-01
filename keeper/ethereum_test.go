@@ -360,6 +360,9 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(l.Duration, 10*time.Hour)
 	require.Equal(l.Hash, mc.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(10)}).String())
 	require.Equal(int(l.State), common.RequestStateDone)
+	ls, err := node.store.ListInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(ls, 1)
 
 	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59475", "d78266795f625c785433617c932ed7d2d9ffc0b6b1dc83582a0f9ece8afb7bef", "00000000000000890000000000000000004064373832363637393566363235633738353433333631376339333265643764326439666663306236623164633833353832613066396563653861666237626566002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a40000000000102002047a466f99f9e418aa3ea44259b13841354e0c7eed32e6ab33b7a1ac5d5abb1a700022c2c")
 	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
@@ -371,15 +374,27 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(l.Duration, 20*time.Hour)
 	require.Equal(l.Hash, mc.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(20)}).String())
 	require.Equal(int(l.State), common.RequestStateDone)
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
+	require.Nil(err)
+	require.Equal(int(l.State), common.RequestStateFailed)
+	ls, err = node.store.ListInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(ls, 2)
 
 	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, common.FlagProposeRemoveInheritance, 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59471", "d36c44b4ceebe792e05a385ee245d420c6082b5e4fb0c55f6d4b61e181c0e1ca", "00000000000000890000000000000000004064333663343462346365656265373932653035613338356565323435643432306336303832623565346662306335356636643462363165313831633065316361002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a4000000000010300209ff24b9847958aacac35ee9d7561734ba466c016795f247e64f933c396facdc400022c2c")
 	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
 	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
 	require.Nil(err)
-	require.Nil(l)
-	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "1924a324-dbcb-48db-b0ea-5d23ebe59471")
+	require.Equal(l.RequestId, "1924a324-dbcb-48db-b0ea-5d23ebe59475")
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "1924a324-dbcb-48db-b0ea-5d23ebe59475")
 	require.Nil(err)
 	require.Equal(int(l.State), common.RequestStateFailed)
+	ls, err = node.store.ListInheritanceLocksByHolder(ctx, holder)
+	require.Nil(err)
+	require.Len(ls, 2)
+	for _, l := range ls {
+		require.Equal(int(l.State), common.RequestStateFailed)
+	}
 }
 
 func TestEthereumKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) {
@@ -560,8 +575,10 @@ func testEthereumSafeSetInheritanceLock(ctx context.Context, require *require.As
 
 	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
 	extra := []byte{flag}
-	extra = append(extra, hash[:]...)
-	extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+	if flag != common.FlagProposeRemoveInheritance {
+		extra = append(extra, hash[:]...)
+		extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+	}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))

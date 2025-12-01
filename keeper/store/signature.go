@@ -234,13 +234,13 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 	}
 
 	if lock != nil {
-		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=?",
-			lock.State, req.CreatedAt, lock.LockId)
+		_, err = tx.ExecContext(ctx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE holder=?",
+			common.RequestStateFailed, req.CreatedAt, lock.Holder)
 		if err != nil {
 			return fmt.Errorf("UPDATE inheritance_locks %v", err)
 		}
-		_, err = tx.ExecContext(ctx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE holder=? AND created_at<?",
-			common.RequestStateFailed, req.CreatedAt, lock.LockId, lock.Holder, lock.CreatedAt)
+		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=?",
+			lock.State, req.CreatedAt, lock.LockId)
 		if err != nil {
 			return fmt.Errorf("UPDATE inheritance_locks %v", err)
 		}

@@ -297,6 +297,9 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(l.Duration, 10*time.Hour)
 	require.Equal(l.Hash, crypto.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(10)}).String())
 	require.Equal(int(l.State), common.RequestStateDone)
+	ls, err := node.store.ListInheritanceLocksByHolder(ctx, public)
+	require.Nil(err)
+	require.Len(ls, 1)
 
 	input = &bitcoin.Input{
 		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
@@ -319,6 +322,12 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(l.Duration, 20*time.Hour)
 	require.Equal(l.Hash, crypto.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(20)}).String())
 	require.Equal(int(l.State), common.RequestStateDone)
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
+	require.Nil(err)
+	require.Equal(int(l.State), common.RequestStateFailed)
+	ls, err = node.store.ListInheritanceLocksByHolder(ctx, public)
+	require.Nil(err)
+	require.Len(ls, 2)
 
 	input = &bitcoin.Input{
 		TransactionHash: "fcc2dc6e90d454ec76cc48925096281735ed85ccd93a73b87cd303be9f28478e",
@@ -335,10 +344,16 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	testSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
 	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, public)
 	require.Nil(err)
-	require.Equal(l.RequestId, "1924a324-dbcb-48db-b0ea-5d23ebe59471")
-	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "1924a324-dbcb-48db-b0ea-5d23ebe59471")
+	require.Equal(l.RequestId, "1924a324-dbcb-48db-b0ea-5d23ebe59475")
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "1924a324-dbcb-48db-b0ea-5d23ebe59475")
 	require.Nil(err)
 	require.Equal(int(l.State), common.RequestStateFailed)
+	ls, err = node.store.ListInheritanceLocksByHolder(ctx, public)
+	require.Nil(err)
+	require.Len(ls, 2)
+	for _, l := range ls {
+		require.Equal(int(l.State), common.RequestStateFailed)
+	}
 }
 
 func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) {
@@ -826,8 +841,10 @@ func testSafeSetInheritanceLock(ctx context.Context, require *require.Assertions
 
 	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	extra := []byte{flag}
-	extra = append(extra, hash[:]...)
-	extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+	if flag != common.FlagProposeRemoveInheritance {
+		extra = append(extra, hash[:]...)
+		extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+	}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
 	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))

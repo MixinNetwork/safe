@@ -50,8 +50,8 @@ func (s *SQLite3Store) ReadInheritanceLockByRequestId(ctx context.Context, id st
 }
 
 func (s *SQLite3Store) ReadLatestInheritanceLockByHolder(ctx context.Context, holder string) (*InheritanceLock, error) {
-	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE holder=? AND state!=? ORDER BY created_at DESC LIMIT 1", strings.Join(inheritanceLockCols, ","))
-	return s.readInheritanceLockByQuery(ctx, query, holder, common.RequestStateFailed)
+	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE holder=? ORDER BY created_at DESC LIMIT 1", strings.Join(inheritanceLockCols, ","))
+	return s.readInheritanceLockByQuery(ctx, query, holder)
 }
 
 func (s *SQLite3Store) readInheritanceLockByQuery(ctx context.Context, query string, params ...any) (*InheritanceLock, error) {
@@ -71,4 +71,30 @@ func (s *SQLite3Store) readInheritanceLockByQuery(ctx context.Context, query str
 		return nil, err
 	}
 	return &lock, nil
+}
+
+func (s *SQLite3Store) ListInheritanceLocksByHolder(ctx context.Context, holder string) ([]*InheritanceLock, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer common.Rollback(tx)
+
+	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE holder=?", strings.Join(inheritanceLockCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, holder)
+	if err != nil {
+		return nil, err
+	}
+	defer common.CloseOrPanic(rows)
+
+	var ls []*InheritanceLock
+	for rows.Next() {
+		var lock InheritanceLock
+		err = rows.Scan(&lock.LockId, &lock.RequestId, &lock.Hash, &lock.Holder, &lock.Address, &lock.Chain, &lock.Duration, &lock.State, &lock.CreatedAt, &lock.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		ls = append(ls, &lock)
+	}
+	return ls, nil
 }
