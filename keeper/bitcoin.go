@@ -1130,30 +1130,27 @@ func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store
 	if err != nil {
 		panic(err)
 	}
-	if lock != nil {
-		txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
-		if err != nil {
-			panic(err)
-		}
-		if txReq == nil {
-			logger.Printf("store.ReadRequest(%s) => %v", tx.RequestId, txReq)
+	if lock == nil {
+		return nil
+	}
+
+	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	flag := txReq.ExtraBytes()[0]
+	switch flag {
+	case common.FlagProposeSetInheritance:
+		if lock.State != common.RequestStateInitial {
 			lock.State = common.RequestStateFailed
-			return nil
+		} else {
+			lock.State = common.RequestStateDone
 		}
-		flag := txReq.ExtraBytes()[0]
-		switch flag {
-		case common.FlagProposeSetInheritance:
-			if lock.State != common.RequestStateInitial {
-				lock.State = common.RequestStateFailed
-			} else {
-				lock.State = common.RequestStateDone
-			}
-		case common.FlagProposeRemoveInheritance:
-			if lock.State != common.RequestStateDone {
-				lock = nil
-			} else {
-				lock.State = common.RequestStateFailed
-			}
+	case common.FlagProposeRemoveInheritance:
+		if lock.State != common.RequestStateDone {
+			lock = nil
+		} else {
+			lock.State = common.RequestStateFailed
 		}
 	}
 	return lock

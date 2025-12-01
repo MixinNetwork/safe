@@ -51,7 +51,7 @@ func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	if !existed || lock != nil {
+	if !existed {
 		err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStateDone)
 		if err != nil {
 			return err
