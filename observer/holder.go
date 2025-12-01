@@ -316,11 +316,10 @@ func (node *Node) httpCreateSafeInheritanceTransaction(ctx context.Context, safe
 	if count > 0 {
 		return nil, fmt.Errorf("unfinished tx existed: %s %d", safe.Holder, count)
 	}
-	ls, err := node.keeperStore.ListUnfailedInheritanceLocksByHolder(ctx, safe.Holder)
-	if err != nil || len(ls) != 1 {
-		return nil, fmt.Errorf("store.ListUnfailedInheritanceLocksByHolder(%s) => %d %v", safe.Holder, len(ls), err)
+	lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	if err != nil || lock == nil {
+		return nil, fmt.Errorf("store.ReadLatestInheritanceLockByHolder(%s) => %v %v", safe.Holder, lock, err)
 	}
-	lock := ls[0]
 	if lock.State != common.RequestStateDone {
 		return nil, fmt.Errorf("invalid inheritance lock state: %s %s %d", safe.Holder, lock.LockId, lock.State)
 	}

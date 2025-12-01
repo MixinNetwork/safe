@@ -84,14 +84,12 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	if info == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	ls, err := node.store.ListUnfailedInheritanceLocksByHolder(ctx, safe.Holder)
-	if err != nil || len(ls) != 1 {
-		logger.Printf("store.ListUnfailedInheritanceLocksByHolder(%s) => %v %v", safe.Holder, len(ls), err)
-		return node.failRequest(ctx, req, "")
+	lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	if err != nil {
+		panic(err)
 	}
-	lock := ls[0]
-	if lock.State != common.RequestStateDone {
-		logger.Printf("invalid lock state: %d", lock.State)
+	if lock == nil || lock.State != common.RequestStateDone {
+		logger.Printf("invalid lock to close account: %v", lock)
 		return node.failRequest(ctx, req, "")
 	}
 	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
