@@ -36,6 +36,7 @@ func (s *SQLite3Store) processInheritanceLockOperation(ctx context.Context, tx *
 		if err != nil {
 			return fmt.Errorf("INSERT inheritance_locks %v", err)
 		}
+		return nil
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET request_id=?, hash=?, duration=?, state=?, updated_at=? WHERE lock_id=?",

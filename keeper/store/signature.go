@@ -47,21 +47,9 @@ func (s *SQLite3Store) CloseAccountByInheritanceWithRequest(ctx context.Context,
 		return err
 	}
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT transaction_hash FROM transactions WHERE transaction_hash=?", trx.TransactionHash)
+	err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStateDone)
 	if err != nil {
 		return err
-	}
-	if !existed {
-		err = s.writeTransactionWithRequest(ctx, tx, trx, utxos, common.RequestStateDone)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-			common.RequestStateDone, time.Now().UTC(), trx.RequestId)
-		if err != nil {
-			return fmt.Errorf("UPDATE requests %v", err)
-		}
 	}
 
 	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)

@@ -1142,7 +1142,7 @@ func (node *Node) checkPendingSafeInheritanceLock(ctx context.Context, tx *store
 	switch flag {
 	case common.FlagProposeSetInheritance:
 		if lock.State != common.RequestStateInitial {
-			lock.State = common.RequestStateFailed
+			lock = nil
 		} else {
 			lock.State = common.RequestStateDone
 		}
