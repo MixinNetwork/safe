@@ -16,6 +16,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper/store"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 )
@@ -301,6 +302,35 @@ func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, has
 		return node.httpRevokeEthereumTransaction(ctx, hash, sig)
 	default:
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
+}
+
+func (node *Node) httpCreateSafeInheritanceTransaction(ctx context.Context, safe *store.Safe, hash, raw string) (*Transaction, error) {
+	if bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+		return nil, fmt.Errorf("invalid inheritance tx signer: holder")
+	}
+	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
+	if err != nil {
+		return nil, err
+	}
+	if count > 0 {
+		return nil, fmt.Errorf("unfinished tx existed: %s %d", safe.Holder, count)
+	}
+	lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	if err != nil || lock == nil {
+		return nil, fmt.Errorf("store.ReadLatestInheritanceLockByHolder(%s) => %v %v", safe.Holder, lock, err)
+	}
+	if lock.State != common.RequestStateDone {
+		return nil, fmt.Errorf("invalid inheritance lock state: %s %s %d", safe.Holder, lock.LockId, lock.State)
+	}
+
+	switch safe.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		return node.httpCreateBitcoinInheritanceTransaction(ctx, safe, lock, hash, raw)
+	case common.SafeChainPolygon, common.SafeChainEthereum:
+		return node.httpCreateEthereumInheritanceTransaction(ctx, safe, lock, hash, raw)
+	default:
+		return nil, fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 }
 

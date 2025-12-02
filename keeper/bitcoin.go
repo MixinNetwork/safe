@@ -3,6 +3,7 @@ package keeper
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,173 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
+
+func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
+	if req.Role != common.RequestRoleObserver {
+		panic(req.Role)
+	}
+	chain := common.SafeCurveChain(req.Curve)
+	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
+	}
+	if safe == nil || safe.Chain != chain {
+		return node.failRequest(ctx, req, "")
+	}
+	switch safe.State {
+	case SafeStateApproved, SafeStateClosed:
+	default:
+		return node.failRequest(ctx, req, "")
+	}
+
+	ref, err := crypto.HashFromString(req.ExtraHEX)
+	if err != nil {
+		logger.Printf("invalid extra: %s", req.ExtraHEX)
+		return node.failRequest(ctx, req, "")
+	}
+	raw := node.readStorageExtraFromObserver(ctx, ref)
+
+	opk, err := node.deriveBIP32WithPath(ctx, safe.Observer, common.DecodeHexOrPanic(safe.Path))
+	if err != nil {
+		panic(fmt.Errorf("bitcoin.DeriveBIP32(%s) => %v", safe.Observer, err))
+	}
+	signedByObserver := bitcoin.CheckTransactionPartiallySignedBy(hex.EncodeToString(raw), opk)
+	logger.Printf("bitcoin.CheckTransactionPartiallySignedBy(%x, %s) => %t", raw, opk, signedByObserver)
+	if !signedByObserver {
+		return node.failRequest(ctx, req, "")
+	}
+	opsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
+	if !opsbt.IsRecoveryTransaction() {
+		return node.failRequest(ctx, req, "")
+	}
+	msgTx := opsbt.UnsignedTx
+	txHash := msgTx.TxHash().String()
+
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	if receiver == safe.Address {
+		return node.failRequest(ctx, req, "")
+	}
+
+	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
+	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	if count > 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
+	logger.Printf("store.ListAllBitcoinUTXOsForHolder(%s) => %d %v", safe.Holder, len(mainInputs), err)
+	if err != nil {
+		panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
+	}
+	if len(mainInputs) == 0 {
+		return node.failRequest(ctx, req, "")
+	}
+	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil {
+		panic(err)
+	}
+	if info == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	if err != nil {
+		panic(err)
+	}
+	if lock == nil || lock.State != common.RequestStateDone {
+		logger.Printf("invalid lock to close account: %v", lock)
+		return node.failRequest(ctx, req, "")
+	}
+
+	var total int64
+	var requests []*store.SignatureRequest
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		required := node.checkBitcoinUTXOSignatureRequired(ctx, pop)
+		logger.Printf("node.checkBitcoinUTXOSignatureRequired(%s, %d) => %t", pop.Hash.String(), pop.Index, required)
+		if !required {
+			continue
+		}
+
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			panic(err)
+		}
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
+			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		}
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if duration <= lock.Duration {
+			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		}
+		total = total + bo.Satoshi
+
+		pending, err := node.checkTransactionIndexSignaturePending(ctx, txHash, idx, req)
+		logger.Printf("node.checkTransactionIndexSignaturePending(%s, %d) => %t %v", txHash, idx, pending, err)
+		if err != nil {
+			panic(err)
+		} else if pending {
+			continue
+		}
+
+		sr := &store.SignatureRequest{
+			TransactionHash: txHash,
+			InputIndex:      idx,
+			Signer:          safe.Signer,
+			Curve:           req.Curve,
+			Message:         hex.EncodeToString(opsbt.SigHash(idx)),
+			State:           common.RequestStateInitial,
+			CreatedAt:       req.CreatedAt,
+			UpdatedAt:       req.CreatedAt,
+		}
+		sr.RequestId = common.UniqueId(req.Id, sr.Message)
+		requests = append(requests, sr)
+	}
+	if total != msgTx.TxOut[0].Value {
+		return node.failRequest(ctx, req, "")
+	}
+
+	amt := decimal.New(msgTx.TxOut[0].Value, -bitcoin.ValuePrecision)
+	data := common.MarshalJSONOrPanic([]map[string]string{{
+		"receiver": receiver,
+		"amount":   amt.String(),
+	}})
+	tx := &store.Transaction{
+		TransactionHash: txHash,
+		RawTransaction:  hex.EncodeToString(raw),
+		Holder:          req.Holder,
+		Chain:           safe.Chain,
+		State:           common.RequestStateInitial,
+		Data:            string(data),
+		RequestId:       req.Id,
+		CreatedAt:       req.CreatedAt,
+		UpdatedAt:       req.CreatedAt,
+	}
+
+	txs := node.buildSignerSignRequests(ctx, req, requests, safe.Path)
+	if len(txs) == 0 {
+		return node.failRequest(ctx, req, "")
+	}
+
+	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, transacionInputs, requests, lock, txs)
+	if err != nil {
+		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", txHash, err))
+	}
+	return txs, ""
+}
 
 // This will close the account and move all funds to recovery address.
 // For Ethereum, the smart contract account should have a function to move
@@ -145,7 +313,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	if info == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var total int64
 	var requests []*store.SignatureRequest
@@ -162,7 +329,11 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if err != nil {
 			panic(err)
 		}
-		if bo.Height == 0 || bo.Height+sequence+100 > info.Height {
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
+			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		}
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if duration <= safe.Timelock {
 			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
 		}
 		total = total + bo.Satoshi
@@ -522,21 +693,47 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if len(extra) < 33 {
 		return node.failRequest(ctx, req, "")
 	}
+	flag, extra := extra[0], extra[1:]
 
 	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
 	if err != nil {
 		panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
 	}
-	switch extra[0] {
+
+	var lock *store.InheritanceLock
+	switch flag {
 	case common.FlagProposeNormalTransaction:
 	case common.FlagProposeRecoveryTransaction:
+		info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+		if err != nil || info == nil {
+			panic(fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err))
+		}
+		rpc, _ := node.bitcoinParams(safe.Chain)
+
 		for _, input := range mainInputs {
 			input.RouteBackup = true
+			_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, input.TransactionHash, int64(input.Index))
+			logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", input.TransactionHash, input.Index, bo, err)
+			if err != nil {
+				panic(err)
+			}
+			if bo.Height+100 >= info.Height || bo.Height <= 0 {
+				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+			}
+			duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+			if duration <= safe.Timelock {
+				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
+			}
+		}
+	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
+		lock, extra, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
+		if err != nil {
+			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
+			return node.failRequest(ctx, req, "")
 		}
 	default:
 		return node.failRequest(ctx, req, "")
 	}
-	extra = extra[1:]
 
 	iid, err := uuid.FromBytes(extra[:16])
 	if err != nil || iid.String() == uuid.Nil.String() {
@@ -642,7 +839,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		UpdatedAt:       req.CreatedAt,
 	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, txs, req)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, lock, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -821,9 +1018,11 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	}
 	txs = append(txs, t)
 
+	lock := node.finalizePendingSafeInheritanceLock(ctx, tx)
+	logger.Printf("node.finalizePendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
 	raw := hex.EncodeToString(spsbt.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, txs)
-	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
+	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v, %v) => %v", old.TransactionHash, raw, req, lock, err)
 	if err != nil {
 		panic(err)
 	}
@@ -877,4 +1076,98 @@ func (node *Node) checkTransactionIndexSignaturePending(ctx context.Context, has
 func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wire.OutPoint) bool {
 	utxo, _, _ := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
+}
+
+func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, []byte, error) {
+	switch flag {
+	case common.FlagProposeRemoveInheritance:
+		if len(extra) < 16 {
+			return nil, nil, fmt.Errorf("invalid lock extra to remove: %x", extra)
+		}
+		lid, err := uuid.FromBytes(extra[:16])
+		if err != nil || lid.IsNil() {
+			return nil, nil, fmt.Errorf("invalid lock id to remove: %v %v", lid, err)
+		}
+		l, err := node.store.ReadInheritanceLock(ctx, lid.String())
+		if err != nil {
+			panic(err)
+		}
+		if l == nil || l.State != common.RequestStateDone {
+			return nil, nil, fmt.Errorf("invalid lock to remove: %v", l)
+		}
+		return nil, extra[16:], nil
+	case common.FlagProposeSetInheritance:
+		if len(extra) < 34 {
+			return nil, nil, fmt.Errorf("invalid lock extra to update: %x", extra)
+		}
+		hash := hex.EncodeToString(extra[:32])
+		hours := binary.BigEndian.Uint16(extra[32:34])
+		inheritanceLock := time.Duration(hours) * time.Hour
+		if inheritanceLock-safe.Timelock < time.Hour*24*365 && !common.CheckTestEnvironment(ctx) {
+			return nil, nil, fmt.Errorf("invalid inheritance duration: %s %d", req.Id, hours)
+		}
+
+		l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+		if err != nil {
+			panic(err)
+		}
+		if l != nil && l.State == common.RequestStateInitial {
+			return nil, nil, fmt.Errorf("invalid inheritance lock state to update: %s %d", l.LockId, l.State)
+		}
+		nl := &store.InheritanceLock{
+			LockId:    common.UniqueId(safe.Holder, fmt.Sprintf("%s:%s:%d", req.Id, hash, hours)),
+			RequestId: req.Id,
+			Hash:      hash,
+			Holder:    safe.Holder,
+			Address:   safe.Address,
+			Chain:     safe.Chain,
+			Duration:  inheritanceLock,
+			State:     common.RequestStateInitial,
+			CreatedAt: req.CreatedAt,
+			UpdatedAt: req.CreatedAt,
+		}
+		return nl, extra[34:], nil
+	default:
+		return nil, nil, fmt.Errorf("invalid inheritance flag: %d", flag)
+	}
+}
+
+func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
+	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	extra := txReq.ExtraBytes()
+	flag := extra[0]
+	switch flag {
+	case common.FlagProposeSetInheritance:
+		lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+		logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err)
+		if err != nil {
+			panic(err)
+		}
+		if lock.State != common.RequestStateInitial {
+			return nil
+		}
+		lock.State = common.RequestStateDone
+		return lock
+	case common.FlagProposeRemoveInheritance:
+		lid, err := uuid.FromBytes(extra[1:17])
+		if err != nil || lid.IsNil() {
+			logger.Printf("invalid lock id to remove: %v %v", lid, err)
+			return nil
+		}
+		lock, err := node.store.ReadInheritanceLock(ctx, lid.String())
+		logger.Printf("store.ReadInheritanceLock(%s) => %v %v", lid.String(), lock, err)
+		if err != nil {
+			panic(err)
+		}
+		if lock.State != common.RequestStateDone {
+			return nil
+		}
+		lock.State = common.RequestStateFailed
+		return lock
+	default:
+		return nil
+	}
 }

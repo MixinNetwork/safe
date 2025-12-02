@@ -617,6 +617,17 @@ func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Conte
 }
 
 func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	r, err := node.store.ReadRecoveryByHash(ctx, approval.TransactionHash)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		panic(fmt.Errorf("sendToKeeperEthereumApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
+	}
+	if r.IsInheritance {
+		return node.sendToKeeperEthereumApproveInheritanceTransaction(ctx, approval)
+	}
+
 	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
 	st, err := ethereum.UnmarshalSafeTransaction(signedRaw)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%s) => %v %v", approval.RawTransaction, st, err)
@@ -662,6 +673,47 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 	id := common.UniqueId(safe.Address, st.Destination.Hex())
 	extra = append(extra, ref[:]...)
 	action := common.ActionEthereumSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperEthereumApproveInheritanceTransaction(ctx context.Context, approval *Transaction) error {
+	objectRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	ref, err := common.CreateObjectStorageUntilSufficient(ctx, node.wallet, node.mixin, nil, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.CreateObjectStorageUntilSufficient(%v) => %s %v", traceId, ref, err)
+	if err != nil {
+		return err
+	}
+
+	id := common.UniqueId(safe.Address, "inheritance")
+	extra := ref[:]
+	action := common.ActionEthereumSafeCloseAccountByInheritance
 	references := []crypto.Hash{ref}
 	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
@@ -1060,4 +1112,93 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 	err = node.store.RevokeTransactionApproval(ctx, txHash, sigHex+":"+approval.RawTransaction)
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
+}
+
+func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
+	logger.Printf("node.httpCreateEthereumInheritanceTransaction(%s)", raw)
+	rb := common.DecodeHexOrPanic(raw)
+	st, err := ethereum.UnmarshalSafeTransaction(rb)
+	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, st, err)
+	if err != nil {
+		return nil, err
+	}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
+	}
+	if st.TxHash != hash {
+		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", st.TxHash, hash)
+	}
+	if st.Destination.Hex() == safe.Address {
+		return nil, fmt.Errorf("invalid inheritance tx destination: %s", st.Destination.Hex())
+	}
+
+	approval, err := node.store.ReadTransactionApproval(ctx, hash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
+	if err != nil || approval != nil {
+		return nil, err
+	}
+
+	rpc, _ := node.ethereumParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	if err != nil || info == nil {
+		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	}
+	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
+	if err != nil {
+		return nil, err
+	}
+	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
+	if err != nil {
+		return nil, err
+	}
+	if latestTxTime.Add(lock.Duration + 1*time.Hour).After(latest.Time) {
+		return nil, fmt.Errorf("safe %s is locked", safe.Address)
+	}
+
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	if err != nil {
+		return nil, err
+	}
+	outputs := st.ExtractOutputs()
+	if len(outputs) != len(sbm) {
+		return nil, fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
+	}
+	for _, o := range outputs {
+		sbb := sbm[o.TokenAddress].BigBalance()
+		if sbb.Cmp(o.Amount) != 0 {
+			return nil, fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
+		}
+	}
+
+	approval = &Transaction{
+		TransactionHash: hash,
+		RawTransaction:  raw,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Signer:          safe.Signer,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
+	if err != nil {
+		return nil, err
+	}
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  raw,
+		TransactionHash: hash,
+		State:           common.RequestStateInitial,
+		IsInheritance:   true,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	return approval, node.store.WriteInitialRecovery(ctx, r)
 }

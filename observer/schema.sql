@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS recoveries (
   raw_transaction    VARCHAR NOT NULL,
   transaction_hash   VARCHAR NOT NULL,
   state              INTEGER NOT NULL,
+  inheritance        BOOLEAN NOT NULL,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('address', 'transaction_hash')

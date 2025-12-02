@@ -494,6 +494,17 @@ func (node *Node) sendToKeeperBitcoinApproveNormalTransaction(ctx context.Contex
 }
 
 func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Context, approval *Transaction) error {
+	r, err := node.store.ReadRecoveryByHash(ctx, approval.TransactionHash)
+	if err != nil {
+		return err
+	}
+	if r == nil {
+		panic(fmt.Errorf("sendToKeeperBitcoinApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
+	}
+	if r.IsInheritance {
+		return node.sendToKeeperBitcoinApproveInheritanceTransaction(ctx, approval)
+	}
+
 	signedRaw := common.DecodeHexOrPanic(approval.RawTransaction)
 	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
 	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
@@ -510,8 +521,8 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder)
 
+	signedByHolder := bitcoin.CheckTransactionPartiallySignedBy(approval.RawTransaction, approval.Holder)
 	var extra []byte
 	switch {
 	case signedByHolder:
@@ -544,6 +555,47 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	id := common.UniqueId(safe.Address, receiver)
 	extra = append(extra, ref[:]...)
 	action := common.ActionBitcoinSafeCloseAccount
+	references := []crypto.Hash{ref}
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
+	if err != nil {
+		return err
+	}
+
+	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+		return nil
+	}
+	id = common.UniqueId(id, approval.UpdatedAt.String())
+	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), approval.Chain, id, extra, references)
+	logger.Printf("node.sendKeeperResponseWithReferences(%s, %d, %s, %x, %s)", safe.Holder, action, id, extra, ref)
+	if err != nil {
+		return err
+	}
+	return node.store.UpdateTransactionApprovalRequestTime(ctx, approval.TransactionHash)
+}
+
+func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.Context, approval *Transaction) error {
+	objectRaw := common.DecodeHexOrPanic(approval.RawTransaction)
+	safe, err := node.keeperStore.ReadSafe(ctx, approval.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", approval.Holder, safe, err)
+	if err != nil {
+		return err
+	}
+
+	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
+	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
+	objectRaw = common.AESEncrypt(node.aesKey[:], objectRaw, rawId)
+	msg := base64.RawURLEncoding.EncodeToString(objectRaw)
+	traceId := common.UniqueId(msg, msg)
+	ref, err := common.CreateObjectStorageUntilSufficient(ctx, node.wallet, node.mixin, nil, objectRaw, traceId, node.safeUser())
+	logger.Printf("common.CreateObjectStorageUntilSufficient(%v) => %s %v", traceId, ref, err)
+	if err != nil {
+		return err
+	}
+
+	id := common.UniqueId(safe.Address, "inheritance")
+	extra := ref[:]
+	action := common.ActionBitcoinSafeCloseAccountByInheritance
 	references := []crypto.Hash{ref}
 	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
@@ -656,7 +708,6 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 	if err != nil || info == nil {
 		return err
 	}
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
 	for idx := range msgTx.TxIn {
@@ -666,10 +717,11 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		if err != nil {
 			return err
 		}
-		if bo.Height > info.Height || bo.Height == 0 {
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		if bo.Height+sequence+100 > info.Height {
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if duration <= safe.Timelock {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		balance = balance + bo.Satoshi
@@ -970,4 +1022,105 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 	err = node.store.RevokeTransactionApproval(ctx, txHash, sigBase64+":"+approval.RawTransaction)
 	logger.Printf("store.RevokeTransactionApproval(%s) => %v", txHash, err)
 	return err
+}
+
+func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
+	logger.Printf("node.httpCreateBitcoinInheritanceTransaction(%s)", raw)
+	rb := common.DecodeHexOrPanic(raw)
+	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+	if err != nil {
+		return nil, err
+	}
+	isRecoveryTx := psbt.IsRecoveryTransaction()
+	if !isRecoveryTx {
+		return nil, fmt.Errorf("invalid inheritance tx sequence")
+	}
+	txHash := psbt.Hash()
+	if txHash != hash {
+		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", txHash, hash)
+	}
+
+	opk, err := node.deriveBIP32WithKeeperPath(ctx, safe.Observer, safe.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !bitcoin.CheckTransactionPartiallySignedBy(raw, opk) {
+		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
+	}
+	msgTx := psbt.UnsignedTx
+
+	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
+	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
+	if err != nil {
+		return nil, err
+	}
+	if receiver == safe.Address {
+		return nil, fmt.Errorf("invalid inheritance tx destination: %s", receiver)
+	}
+
+	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
+	if err != nil || approval != nil {
+		return nil, err
+	}
+
+	rpc, _ := node.bitcoinParams(safe.Chain)
+	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
+	if err != nil || info == nil {
+		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
+	}
+
+	var balance int64
+	for idx := range msgTx.TxIn {
+		pop := msgTx.TxIn[idx].PreviousOutPoint
+		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
+		if err != nil {
+			return nil, err
+		}
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
+			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
+				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
+		}
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if duration <= lock.Duration {
+			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
+				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
+		}
+		balance = balance + bo.Satoshi
+	}
+	if msgTx.TxOut[0].Value != balance {
+		return nil, fmt.Errorf("invalid inheritance tx amount: %d %d", msgTx.TxOut[0].Value, balance)
+	}
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return nil, fmt.Errorf("invalid inheritance tx: %d %d", len(msgTx.TxOut), msgTx.TxOut[1].Value)
+	}
+
+	approval = &Transaction{
+		TransactionHash: txHash,
+		RawTransaction:  raw,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Signer:          safe.Signer,
+		State:           common.RequestStateInitial,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
+	if err != nil {
+		return nil, err
+	}
+	r := &Recovery{
+		Address:         safe.Address,
+		Chain:           safe.Chain,
+		Holder:          safe.Holder,
+		Observer:        safe.Observer,
+		RawTransaction:  raw,
+		TransactionHash: txHash,
+		State:           common.RequestStateInitial,
+		IsInheritance:   true,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	return approval, node.store.WriteInitialRecovery(ctx, r)
 }
