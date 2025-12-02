@@ -109,6 +109,7 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.GET("/recoveries/:id", node.httpGetRecovery)
 	router.POST("/recoveries/:id", node.httpSignRecovery)
 	router.GET("/accounts/:id", node.httpGetAccount)
+	router.GET("/accounts/:id/inheritances", node.httpListInheritances)
 	router.POST("/accounts/:id", node.httpApproveAccount)
 	router.GET("/transactions/:id", node.httpGetTransaction)
 	router.POST("/transactions/:id", node.httpApproveTransaction)
@@ -362,6 +363,65 @@ func (node *Node) httpGetAccount(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	node.renderAccount(r.Context(), w, r, safe)
+}
+
+func (node *Node) httpListInheritances(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	safe, req, err := node.readSafeProposalOrRequest(r.Context(), params["id"])
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if req != nil && req.State == common.RequestStateFailed {
+		common.RenderJSON(w, r, http.StatusOK, map[string]any{"error": "failed"})
+		return
+	}
+	if safe == nil {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "safe"})
+		return
+	}
+	proposed, err := node.store.CheckAccountProposed(r.Context(), safe.Address)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	if !proposed {
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "proposed"})
+		return
+	}
+
+	locks, err := node.keeperStore.ListInheritanceLocksByHolder(r.Context(), safe.Holder)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	var ls []map[string]any
+	for _, lock := range locks {
+		var status string
+		switch lock.State {
+		case common.RequestStateDone:
+			status = "done"
+		case common.RequestStateFailed:
+			status = "failed"
+		default:
+			status = "initial"
+		}
+		d := lock.Duration / time.Hour
+
+		l := map[string]any{
+			"lock_id":    lock.LockId,
+			"request_id": lock.RequestId,
+			"hash":       lock.Hash,
+			"holder":     lock.Holder,
+			"address":    lock.Address,
+			"chain":      lock.Chain,
+			"duration":   d,
+			"state":      status,
+			"created_at": lock.CreatedAt,
+			"updated_at": lock.UpdatedAt,
+		}
+		ls = append(ls, l)
+	}
+	common.RenderJSON(w, r, http.StatusOK, ls)
 }
 
 func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, params map[string]string) {
