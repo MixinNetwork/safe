@@ -372,7 +372,7 @@ func (node *Node) httpListInheritances(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if req != nil && req.State == common.RequestStateFailed {
-		common.RenderJSON(w, r, http.StatusOK, map[string]any{"error": "failed"})
+		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "failed"})
 		return
 	}
 	if safe == nil {
@@ -394,32 +394,31 @@ func (node *Node) httpListInheritances(w http.ResponseWriter, r *http.Request, p
 		common.RenderError(w, r, err)
 		return
 	}
-	var ls []map[string]any
-	for _, lock := range locks {
+	ls := make([]map[string]any, len(locks))
+	for i, lock := range locks {
 		var status string
 		switch lock.State {
 		case common.RequestStateDone:
-			status = "done"
+			status = "active"
 		case common.RequestStateFailed:
-			status = "failed"
-		default:
+			status = "revoked"
+		case common.RequestStateInitial:
 			status = "initial"
+		default:
+			panic(lock.LockId)
 		}
-		d := lock.Duration / time.Hour
-
-		l := map[string]any{
+		ls[i] = map[string]any{
 			"lock_id":    lock.LockId,
 			"request_id": lock.RequestId,
 			"hash":       lock.Hash,
 			"holder":     lock.Holder,
 			"address":    lock.Address,
 			"chain":      lock.Chain,
-			"duration":   d,
+			"duration":   lock.Duration / time.Hour,
 			"state":      status,
 			"created_at": lock.CreatedAt,
 			"updated_at": lock.UpdatedAt,
 		}
-		ls = append(ls, l)
 	}
 	common.RenderJSON(w, r, http.StatusOK, ls)
 }
