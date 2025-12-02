@@ -87,7 +87,7 @@ type Recovery struct {
 	RawTransaction  string
 	TransactionHash string
 	State           int
-	Inheritance     bool
+	IsInheritance   bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -132,7 +132,7 @@ func (o *Output) values() []any {
 var recoveryCols = []string{"address", "chain", "holder", "observer", "raw_transaction", "transaction_hash", "state", "inheritance", "created_at", "updated_at"}
 
 func (r *Recovery) values() []any {
-	return []any{r.Address, r.Chain, r.Holder, r.Observer, r.RawTransaction, r.TransactionHash, r.State, r.Inheritance, r.CreatedAt, r.UpdatedAt}
+	return []any{r.Address, r.Chain, r.Holder, r.Observer, r.RawTransaction, r.TransactionHash, r.State, r.IsInheritance, r.CreatedAt, r.UpdatedAt}
 }
 
 var nodeCols = []string{"app_id", "node_type", "stats", "updated_at"}
@@ -942,7 +942,7 @@ func (s *SQLite3Store) ReadRecoveryByHash(ctx context.Context, hash string) (*Re
 	row := s.db.QueryRowContext(ctx, query, hash)
 
 	var r Recovery
-	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.Inheritance, &r.CreatedAt, &r.UpdatedAt)
+	err := row.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.IsInheritance, &r.CreatedAt, &r.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -960,7 +960,7 @@ func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context, offset int64) 
 	var recoveries []*Recovery
 	for rows.Next() {
 		var r Recovery
-		err = rows.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.Inheritance, &r.CreatedAt, &r.UpdatedAt)
+		err = rows.Scan(&r.Address, &r.Chain, &r.Holder, &r.Observer, &r.RawTransaction, &r.TransactionHash, &r.State, &r.IsInheritance, &r.CreatedAt, &r.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

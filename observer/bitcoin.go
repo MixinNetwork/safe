@@ -501,7 +501,7 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	if r == nil {
 		panic(fmt.Errorf("sendToKeeperBitcoinApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
 	}
-	if r.Inheritance {
+	if r.IsInheritance {
 		return node.sendToKeeperBitcoinApproveInheritanceTransaction(ctx, approval)
 	}
 
@@ -1118,7 +1118,7 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		RawTransaction:  raw,
 		TransactionHash: txHash,
 		State:           common.RequestStateInitial,
-		Inheritance:     true,
+		IsInheritance:   true,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
