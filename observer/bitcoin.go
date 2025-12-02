@@ -708,7 +708,6 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 	if err != nil || info == nil {
 		return err
 	}
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var balance int64
 	for idx := range msgTx.TxIn {
@@ -721,7 +720,8 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		if bo.Height > info.Height || bo.Height == 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
-		if bo.Height+sequence+100 > info.Height {
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if duration <= safe.Timelock {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		balance = balance + bo.Satoshi
@@ -1069,7 +1069,6 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if err != nil || info == nil {
 		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	}
-	sequence := uint64(bitcoin.ParseSequence(lock.Duration, safe.Chain))
 
 	var balance int64
 	for idx := range msgTx.TxIn {
@@ -1079,7 +1078,8 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		if err != nil {
 			return nil, err
 		}
-		if bo.Height > info.Height || bo.Height == 0 || bo.Height+sequence+100 > info.Height {
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if bo.Height > info.Height || bo.Height == 0 || duration <= lock.Duration {
 			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
 				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
 		}

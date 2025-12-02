@@ -110,7 +110,6 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		logger.Printf("invalid lock to close account: %v", lock)
 		return node.failRequest(ctx, req, "")
 	}
-	sequence := uint64(bitcoin.ParseSequence(lock.Duration, safe.Chain))
 
 	var total int64
 	var requests []*store.SignatureRequest
@@ -127,7 +126,8 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		if err != nil {
 			panic(err)
 		}
-		if bo.Height == 0 || bo.Height+sequence+100 > info.Height {
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if bo.Height == 0 || duration <= lock.Duration {
 			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
 		}
 		total = total + bo.Satoshi
@@ -310,7 +310,6 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 	if info == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 	var total int64
 	var requests []*store.SignatureRequest
@@ -327,7 +326,8 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if err != nil {
 			panic(err)
 		}
-		if bo.Height == 0 || bo.Height+sequence+100 > info.Height {
+		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+		if bo.Height == 0 || duration <= safe.Timelock {
 			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
 		}
 		total = total + bo.Satoshi
@@ -703,7 +703,6 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			panic(fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err))
 		}
 		rpc, _ := node.bitcoinParams(safe.Chain)
-		sequence := uint64(bitcoin.ParseSequence(safe.Timelock, safe.Chain))
 
 		for _, input := range mainInputs {
 			input.RouteBackup = true
@@ -715,7 +714,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			if bo.Height > info.Height || bo.Height == 0 {
 				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 			}
-			if bo.Height+sequence+100 > info.Height {
+			duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
+			if duration <= safe.Timelock {
 				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 			}
 		}

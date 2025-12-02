@@ -90,6 +90,17 @@ func ParseSequence(lock time.Duration, chain byte) int64 {
 	return int64(lock)
 }
 
+func BlocksDuration(chain byte, count uint64) time.Duration {
+	blockDuration := 10 * time.Minute
+	switch chain {
+	case ChainBitcoin:
+	case ChainLitecoin:
+		blockDuration = 150 * time.Second
+	default:
+	}
+	return time.Duration(count) * blockDuration
+}
+
 func CheckFeeRange(fvb int64, chain byte) bool {
 	switch chain {
 	case ChainBitcoin:
