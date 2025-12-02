@@ -3,12 +3,12 @@ package keeper
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -126,8 +126,11 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		if err != nil {
 			panic(err)
 		}
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
+			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		}
 		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if bo.Height == 0 || duration <= lock.Duration {
+		if duration <= lock.Duration {
 			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
 		}
 		total = total + bo.Satoshi
@@ -326,8 +329,11 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if err != nil {
 			panic(err)
 		}
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
+			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		}
 		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if bo.Height == 0 || duration <= safe.Timelock {
+		if duration <= safe.Timelock {
 			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
 		}
 		total = total + bo.Satoshi
@@ -711,7 +717,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			if err != nil {
 				panic(err)
 			}
-			if bo.Height > info.Height || bo.Height == 0 {
+			if bo.Height+100 >= info.Height || bo.Height <= 0 {
 				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 			}
 			duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
@@ -1075,6 +1081,9 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, []byte, error) {
 	switch flag {
 	case common.FlagProposeRemoveInheritance:
+		if len(extra) < 16 {
+			return nil, nil, fmt.Errorf("invalid lock extra to remove: %x", extra)
+		}
 		lid, err := uuid.FromBytes(extra[:16])
 		if err != nil || lid.IsNil() {
 			return nil, nil, fmt.Errorf("invalid lock id to remove: %v %v", lid, err)
@@ -1088,24 +1097,23 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 		}
 		return nil, extra[16:], nil
 	case common.FlagProposeSetInheritance:
-		l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
-		if err != nil {
-			panic(err)
-		}
-		if l != nil && l.State == common.RequestStateInitial {
-			return nil, nil, fmt.Errorf("invalid inheritance lock state to update or remove: %s %d", l.LockId, l.State)
+		if len(extra) < 34 {
+			return nil, nil, fmt.Errorf("invalid lock extra to update: %x", extra)
 		}
 		hash := hex.EncodeToString(extra[:32])
-		dec := mc.NewDecoder(extra[32:])
-		hours, err := dec.ReadUint16()
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid inheritance extra: %s %x", req.Id, extra)
-		}
+		hours := binary.BigEndian.Uint16(extra[32:34])
 		inheritanceLock := time.Duration(hours) * time.Hour
 		if inheritanceLock-safe.Timelock < time.Hour*24*365 && !common.CheckTestEnvironment(ctx) {
 			return nil, nil, fmt.Errorf("invalid inheritance duration: %s %d", req.Id, hours)
 		}
 
+		l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+		if err != nil {
+			panic(err)
+		}
+		if l != nil && l.State == common.RequestStateInitial {
+			return nil, nil, fmt.Errorf("invalid inheritance lock state to update: %s %d", l.LockId, l.State)
+		}
 		nl := &store.InheritanceLock{
 			LockId:    common.UniqueId(safe.Holder, fmt.Sprintf("%s:%s:%d", req.Id, hash, hours)),
 			RequestId: req.Id,

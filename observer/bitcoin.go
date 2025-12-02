@@ -717,7 +717,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		if err != nil {
 			return err
 		}
-		if bo.Height > info.Height || bo.Height == 0 {
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
@@ -1078,8 +1078,12 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		if err != nil {
 			return nil, err
 		}
+		if bo.Height+100 >= info.Height || bo.Height <= 0 {
+			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
+				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
+		}
 		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if bo.Height > info.Height || bo.Height == 0 || duration <= lock.Duration {
+		if duration <= lock.Duration {
 			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
 				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
 		}

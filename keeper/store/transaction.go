@@ -192,7 +192,6 @@ func (s *SQLite3Store) WriteTransactionWithRequest(ctx context.Context, trx *Tra
 	if err != nil {
 		return err
 	}
-
 	if lock != nil {
 		err = s.processInheritanceLockOperation(ctx, tx, lock)
 		if err != nil {

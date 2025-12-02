@@ -83,6 +83,7 @@ func ParseSequence(lock time.Duration, chain byte) int64 {
 	case ChainLitecoin:
 		blockDuration = 150 * time.Second
 	default:
+		panic(chain)
 	}
 	// FIXME check litecoin timelock consensus as this may exceed 0xffff
 	lock = lock / blockDuration
@@ -97,6 +98,7 @@ func BlocksDuration(chain byte, count uint64) time.Duration {
 	case ChainLitecoin:
 		blockDuration = 150 * time.Second
 	default:
+		panic(chain)
 	}
 	return time.Duration(count) * blockDuration
 }
