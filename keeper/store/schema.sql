@@ -291,6 +291,9 @@ CREATE TABLE IF NOT EXISTS inheritance_locks (
   PRIMARY KEY ('lock_id')
 );
 
+CREATE INDEX IF NOT EXISTS inheritance_locks_by_request_id ON inheritance_locks(request_id);
+CREATE INDEX IF NOT EXISTS inheritance_locks_by_holder_created ON inheritance_locks(holder, created_at DESC);
+
 
 
 

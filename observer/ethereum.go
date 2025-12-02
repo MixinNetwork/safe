@@ -622,7 +622,7 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 		return err
 	}
 	if r == nil {
-		panic(fmt.Errorf("sendToKeeperBitcoinApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
+		panic(fmt.Errorf("sendToKeeperEthereumApproveRecoveryTransaction => recovery not exists %s", approval.TransactionHash))
 	}
 	if r.IsInheritance {
 		return node.sendToKeeperEthereumApproveInheritanceTransaction(ctx, approval)
