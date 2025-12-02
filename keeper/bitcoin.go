@@ -1073,17 +1073,25 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 }
 
 func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, []byte, error) {
-	l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
-	if err != nil {
-		panic(err)
-	}
 	switch flag {
 	case common.FlagProposeRemoveInheritance:
-		if l == nil || l.State != common.RequestStateDone {
-			return nil, nil, fmt.Errorf("invalid inheritance operation flag: %s %d", req.Id, flag)
+		lid, err := uuid.FromBytes(extra[:16])
+		if err != nil || lid.IsNil() {
+			return nil, nil, fmt.Errorf("invalid lock id to remove: %v %v", lid, err)
 		}
-		return nil, extra, nil
+		l, err := node.store.ReadInheritanceLock(ctx, lid.String())
+		if err != nil {
+			panic(err)
+		}
+		if l == nil || l.State != common.RequestStateDone {
+			return nil, nil, fmt.Errorf("invalid lock to remove: %v", l)
+		}
+		return nil, extra[16:], nil
 	case common.FlagProposeSetInheritance:
+		l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+		if err != nil {
+			panic(err)
+		}
 		if l != nil && l.State == common.RequestStateInitial {
 			return nil, nil, fmt.Errorf("invalid inheritance lock state to update or remove: %s %d", l.LockId, l.State)
 		}
@@ -1121,7 +1129,8 @@ func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *st
 	if err != nil {
 		panic(err)
 	}
-	flag := txReq.ExtraBytes()[0]
+	extra := txReq.ExtraBytes()
+	flag := extra[0]
 	switch flag {
 	case common.FlagProposeSetInheritance:
 		lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
@@ -1135,9 +1144,13 @@ func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *st
 		lock.State = common.RequestStateDone
 		return lock
 	case common.FlagProposeRemoveInheritance:
-		// FIXME this lock to be removed should be specified in the tx
-		lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, tx.Holder)
-		logger.Printf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.Holder, lock, err)
+		lid, err := uuid.FromBytes(extra[1:17])
+		if err != nil || lid.IsNil() {
+			logger.Printf("invalid lock id to remove: %v %v", lid, err)
+			return nil
+		}
+		lock, err := node.store.ReadInheritanceLock(ctx, lid.String())
+		logger.Printf("store.ReadInheritanceLock(%s) => %v %v", lid.String(), lock, err)
 		if err != nil {
 			panic(err)
 		}

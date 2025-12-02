@@ -281,7 +281,7 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	require.Nil(err)
 	require.Len(pendings, 0)
 
-	transactionHash := testSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 10, bondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5e892d381f9973190bc3cb63e53d9e15be7531c5b56ecec3a80e8ff687fa04f8", "70736274ff0100a402000000012704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490102b010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a10358c0e9e8d9c4e0facde8945a859763a000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	transactionHash := testSafeSetInheritanceLock(ctx, require, node, "", 10, bondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5e892d381f9973190bc3cb63e53d9e15be7531c5b56ecec3a80e8ff687fa04f8", "70736274ff0100a402000000012704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490102b010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a10358c0e9e8d9c4e0facde8945a859763a000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
 	outputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, public)
 	require.Nil(err)
 	require.Len(outputs, 0)
@@ -306,7 +306,7 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 		Index:           0, Satoshi: 100000,
 	}
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
-	transactionHash = testSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 20, bondId, "1924a324-dbcb-48db-b0ea-5d23ebe59475", "364fbbfef95bd12f31c8001d2613a799e1952e82d48f655dde14b75f61d10dd8", "70736274ff0100a402000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490905f010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a101924a324dbcb48dbb0ea5d23ebe59475000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	transactionHash = testSafeSetInheritanceLock(ctx, require, node, "", 20, bondId, "1924a324-dbcb-48db-b0ea-5d23ebe59475", "364fbbfef95bd12f31c8001d2613a799e1952e82d48f655dde14b75f61d10dd8", "70736274ff0100a402000000019451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490905f010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a101924a324dbcb48dbb0ea5d23ebe59475000000000001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
 	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, public)
 	require.Nil(err)
 	require.Len(outputs, 0)
@@ -314,6 +314,9 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	require.Nil(err)
 	require.Len(pendings, 1)
 	testSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
+	require.Nil(err)
+	require.Equal(int(l.State), common.RequestStateFailed)
 	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, public)
 	require.Nil(err)
 	require.Equal(l.RequestId, "1924a324-dbcb-48db-b0ea-5d23ebe59475")
@@ -322,9 +325,6 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(l.Duration, 20*time.Hour)
 	require.Equal(l.Hash, crypto.Sha256Hash([]byte{common.FlagProposeSetInheritance, byte(20)}).String())
 	require.Equal(int(l.State), common.RequestStateDone)
-	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
-	require.Nil(err)
-	require.Equal(int(l.State), common.RequestStateFailed)
 	ls, err = node.store.ListInheritanceLocksByHolder(ctx, public)
 	require.Nil(err)
 	require.Len(ls, 2)
@@ -334,7 +334,7 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 		Index:           1, Satoshi: 174260,
 	}
 	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
-	transactionHash = testSafeSetInheritanceLock(ctx, require, node, common.FlagProposeRemoveInheritance, 20, bondId, "1924a324-dbcb-48db-b0ea-5d23ebe59471", "b603498bab231a0e6842c9eddf4bd3069f9a70d241f5456cce5b331523333e60", "70736274ff0100a402000000018e47289fbe03d37cb8733ad9cc85ed35172896509248cc76ec54d4906edcc2fc0100000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490a481020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a101924a324dbcb48dbb0ea5d23ebe59471000000000001012bb4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	transactionHash = testSafeSetInheritanceLock(ctx, require, node, l.LockId, 20, bondId, "1924a324-dbcb-48db-b0ea-5d23ebe59471", "b603498bab231a0e6842c9eddf4bd3069f9a70d241f5456cce5b331523333e60", "70736274ff0100a402000000018e47289fbe03d37cb8733ad9cc85ed35172896509248cc76ec54d4906edcc2fc0100000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490a481020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a101924a324dbcb48dbb0ea5d23ebe59471000000000001012bb4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
 	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, public)
 	require.Nil(err)
 	require.Len(outputs, 0)
@@ -387,7 +387,7 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	require.Nil(err)
 	require.Len(pendings, 0)
 
-	transactionHash := testSafeSetInheritanceLock(ctx, require, node, common.FlagProposeSetInheritance, 10, bondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5e892d381f9973190bc3cb63e53d9e15be7531c5b56ecec3a80e8ff687fa04f8", "70736274ff0100a402000000012704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490102b010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a10358c0e9e8d9c4e0facde8945a859763a000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+	transactionHash := testSafeSetInheritanceLock(ctx, require, node, "", 10, bondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5e892d381f9973190bc3cb63e53d9e15be7531c5b56ecec3a80e8ff687fa04f8", "70736274ff0100a402000000012704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff031027000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490102b010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a10358c0e9e8d9c4e0facde8945a859763a000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
 	utxos, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, public)
 	require.Nil(err)
 	require.Len(utxos, 0)
@@ -835,13 +835,20 @@ func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.As
 	return stx.TransactionHash
 }
 
-func testSafeSetInheritanceLock(ctx context.Context, require *require.Assertions, node *Node, flag byte, lock int, bondId string, rid, rhash, rraw string) string {
+func testSafeSetInheritanceLock(ctx context.Context, require *require.Assertions, node *Node, removeId string, lock int, bondId string, rid, rhash, rraw string) string {
+	flag := byte(common.FlagProposeSetInheritance)
+	if removeId != "" {
+		flag = common.FlagProposeRemoveInheritance
+	}
+
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	hash := crypto.Sha256Hash([]byte{flag, byte(lock)})
 
 	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
 	extra := []byte{flag}
-	if flag != common.FlagProposeRemoveInheritance {
+	if flag == common.FlagProposeRemoveInheritance {
+		extra = append(extra, uuid.FromStringOrNil(removeId).Bytes()...)
+	} else {
 		extra = append(extra, hash[:]...)
 		extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
 	}
