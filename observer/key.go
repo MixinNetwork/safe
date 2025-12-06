@@ -78,7 +78,7 @@ func (node *Node) safeRequestSignerKeys(ctx context.Context, chain byte) error {
 		crv = common.CurveSecp256k1ECDSAEthereum
 	}
 	count, err := node.keeperStore.CountSpareKeys(ctx, crv, common.RequestFlagNone, common.RequestRoleSigner)
-	if err != nil || count > 1000 {
+	if err != nil || count >= int(node.conf.SignerKeyThreshold) {
 		return err
 	}
 	requested, err := node.readSignerKeygenRequestTime(ctx, chain)

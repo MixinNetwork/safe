@@ -136,6 +136,14 @@ polygon-observer-deposit-entry = "0x4A2eea63775F0407E1f0d147571a46959479dE12"
 polygon-keeper-deposit-entry = "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9"
 # evm private key to deploy contract on evm chains
 evm-key = ""
+# request to generate more signer keys if there is less than the
+# threshold of remaining signer keys, better always keep this 0,
+# and increase the number for some time, then when signer keys are
+# enough, change the number back to 0. the purpose of this setting
+# is to ensure all signers can be notified of new keygen, and
+# so they can back up the signer database in time, and there is
+# no unexpected new keygens.
+signer-key-threshold = 0
 
 [observer.app]
 app-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
