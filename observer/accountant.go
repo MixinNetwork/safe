@@ -619,7 +619,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 			return "", nil
 		}
 
-		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
+		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress)
 		if err != nil {
 			panic(err)
 		}

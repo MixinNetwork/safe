@@ -280,18 +280,14 @@ func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 	return &addr, nil
 }
 
-func FetchSafeNonce(ctx context.Context, rpc, address string, block int64) (int64, error) {
+func FetchSafeNonce(ctx context.Context, rpc, address string) (int64, error) {
 	conn, abi, err := safeInit(rpc, address)
 	if err != nil {
 		return 0, err
 	}
 	defer conn.Close()
 
-	c := &bind.CallOpts{}
-	if block > 0 {
-		c.BlockNumber = big.NewInt(block)
-	}
-	nonce, err := abi.Nonce(c)
+	nonce, err := abi.Nonce(nil)
 	if err != nil {
 		return 0, err
 	}
