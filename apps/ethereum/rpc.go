@@ -115,18 +115,15 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	return int64(height), err
 }
 
-func RPCGetBlockHash(rpc string, height int64) (string, error) {
+func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
 	h := fmt.Sprintf("0x%x", height)
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, false})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var b *RPCBlock
 	err = json.Unmarshal(res, &b)
-	if err != nil || b == nil {
-		return "", err
-	}
-	return b.Hash, err
+	return b, err
 }
 
 func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransactions, error) {

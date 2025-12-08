@@ -251,10 +251,10 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	}, nil
 }
 
-func (tx *SafeTransaction) ValidTransaction(rpc string, height int64) (bool, error) {
+func (tx *SafeTransaction) ValidTransaction(rpc string) error {
 	conn, abi, err := safeInit(rpc, tx.SafeAddress)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer conn.Close()
 
@@ -268,11 +268,11 @@ func (tx *SafeTransaction) ValidTransaction(rpc string, height int64) (bool, err
 		count += 1
 	}
 	if count < 2 {
-		return false, fmt.Errorf("SafeTransaction has insufficient signatures")
+		return fmt.Errorf("SafeTransaction has insufficient signatures")
 	}
 
-	return abi.ValidTransaction(
-		&bind.CallOpts{BlockNumber: big.NewInt(height)},
+	success, err := abi.ValidTransaction(
+		nil,
 		tx.Destination,
 		tx.Value,
 		tx.Data,
@@ -284,6 +284,10 @@ func (tx *SafeTransaction) ValidTransaction(rpc string, height int64) (bool, err
 		tx.RefundReceiver,
 		signature,
 	)
+	if !success || err != nil {
+		return fmt.Errorf("ValidTransaction(%s) => %t %v", tx.TxHash, success, err)
+	}
+	return nil
 }
 
 func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {

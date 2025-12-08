@@ -594,34 +594,27 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
 	rpc, _ := node.ethereumParams(tx.Chain)
-	height, err := ethereum.RPCGetBlockHeight(rpc)
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
 	if err != nil {
 		panic(err)
 	}
-	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, height)
-	if err != nil {
-		return "", fmt.Errorf("ethereum.FetchSafeNonce(%s) => %v", st.SafeAddress, err)
-	}
-	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
-	if err != nil {
-		panic(err)
-	}
-	// safe.Nonce has increased when processEthereumSafeSignatureResponse in keeper
-	if safe.Nonce == nonce {
+	if nonce == st.Nonce.Int64()+1 {
+		// FIXME spent hash
 		return "", nil
 	}
 
-	success, validErr := st.ValidTransaction(rpc, height)
-	if validErr != nil || !success {
-		return "", fmt.Errorf("ValidTransaction => %t %v", success, validErr)
+	err = st.ValidTransaction(rpc)
+	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
+	if err != nil {
+		if !strings.Contains(err.Error(), "GS") {
+			return "", err
+		}
+		// FIXME 4 checks
 	}
 
 	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)
-	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
-	if err != nil {
-		return "", err
-	}
-	return hash, nil
+	logger.Printf("ExecTransaction(%s) => %s %v", st.TxHash, hash, err)
+	return hash, err
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
