@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -1020,11 +1021,13 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 }
 
 func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
+	logger.Printf("processEthereumSafeRefundTransaction(%v)", req)
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
 	}
 	chain := common.SafeCurveChain(req.Curve)
 	safe, err := node.store.ReadSafe(ctx, req.Holder)
+	logger.Printf("store.ReadSafe(%s) => %v %v", req.Holder, safe, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
 	}
@@ -1033,14 +1036,15 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	}
 
 	extra := req.ExtraBytes()
-	if len(extra) != 16 {
+	if len(extra) <= 17 {
 		return node.failRequest(ctx, req, "")
 	}
-	rid, err := uuid.FromBytes(extra)
+	rid, err := uuid.FromBytes(extra[:16])
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
 	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
+	logger.Printf("store.ReadTransactionByRequestId(%s) => %v %v", rid.String(), tx, err)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err))
 	} else if tx == nil {
@@ -1048,6 +1052,22 @@ func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req 
 	} else if tx.Holder != req.Holder {
 		return node.failRequest(ctx, req, "")
 	} else if tx.State != common.RequestStateDone {
+		return node.failRequest(ctx, req, "")
+	} else if req.CreatedAt.Before(tx.UpdatedAt.Add(time.Minute * 30)) {
+		return node.failRequest(ctx, req, "")
+	}
+
+	height := new(big.Int).SetBytes(extra[16:])
+	rpc, _ := node.ethereumParams(safe.Chain)
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, safe.Address, height.Int64())
+	logger.Printf("ethereum.FetchSafeNonce(%s %d) => %d %d %v", safe.Address, height.Int64(), nonce, safe.Nonce, err)
+	if err != nil {
+		if strings.Contains(err.Error(), "no contract code at given address") {
+			return node.failRequest(ctx, req, "")
+		}
+		panic(err)
+	}
+	if safe.Nonce != nonce+1 {
 		return node.failRequest(ctx, req, "")
 	}
 

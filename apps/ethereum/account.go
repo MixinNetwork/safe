@@ -280,6 +280,24 @@ func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 	return &addr, nil
 }
 
+func FetchSafeNonce(ctx context.Context, rpc, address string, block int64) (int64, error) {
+	conn, abi, err := safeInit(rpc, address)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	c := &bind.CallOpts{}
+	if block > 0 {
+		c.BlockNumber = big.NewInt(block)
+	}
+	nonce, err := abi.Nonce(c)
+	if err != nil {
+		return 0, err
+	}
+	return nonce.Int64(), nil
+}
+
 func FetchBalanceFromKey(ctx context.Context, rpc, key string) (*big.Int, error) {
 	addr, err := PrivToAddress(key)
 	if err != nil {

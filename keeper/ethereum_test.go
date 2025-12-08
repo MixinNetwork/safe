@@ -834,15 +834,19 @@ func testEthereumRefundTransaction(ctx context.Context, require *require.Asserti
 	tx, _ := node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateDone, tx.State)
 	safe, _ := node.store.ReadSafe(ctx, tx.Holder)
-	oldNonce := safe.Nonce
+	require.Equal(int64(2), safe.Nonce)
+	rpc, _ := node.ethereumParams(safe.Chain)
+	height, err := ethereum.RPCGetBlockHeight(rpc)
+	require.Nil(err)
 
 	id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
+	extra = append(extra, big.NewInt(height).Bytes()...)
 	out := testBuildObserverRequest(node, id, testPublicKey(testEthereumKeyHolder), common.ActionEthereumSafeRefundTransaction, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
 	safe, _ = node.store.ReadSafe(ctx, tx.Holder)
-	require.Equal(oldNonce-1, safe.Nonce)
+	require.Equal(1, safe.Nonce)
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStateFailed, tx.State)
 }

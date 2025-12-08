@@ -251,7 +251,7 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	}, nil
 }
 
-func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
+func (tx *SafeTransaction) ValidTransaction(rpc string, height int64) (bool, error) {
 	conn, abi, err := safeInit(rpc, tx.SafeAddress)
 	if err != nil {
 		return false, err
@@ -272,6 +272,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 	}
 
 	return abi.ValidTransaction(
+		&bind.CallOpts{BlockNumber: big.NewInt(height)},
 		tx.Destination,
 		tx.Value,
 		tx.Data,

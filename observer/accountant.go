@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"slices"
 	"strings"
 	"time"
@@ -395,6 +396,9 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			if err != nil {
 				break
 			}
+			if spentHash == "" {
+				continue
+			}
 			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction)
 			if err != nil {
 				panic(err)
@@ -592,11 +596,27 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
 	rpc, _ := node.ethereumParams(tx.Chain)
-	success, validErr := st.ValidTransaction(rpc)
+	height, err := ethereum.RPCGetBlockHeight(rpc)
+	if err != nil {
+		panic(err)
+	}
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, height)
+	if err != nil {
+		return "", fmt.Errorf("ethereum.FetchSafeNonce(%s) => %v", st.SafeAddress, err)
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
+	if err != nil {
+		panic(err)
+	}
+	// safe.Nonce has increased when processEthereumSafeSignatureResponse in keeper
+	if safe.Nonce == nonce {
+		return "", nil
+	}
+
+	success, validErr := st.ValidTransaction(rpc, height)
 	if validErr != nil || !success {
-		err := node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
-		if err != nil {
-			return "", err
+		if time.Now().Before(tx.UpdatedAt.Add(time.Duration(30 * time.Minute))) {
+			return "", nil
 		}
 
 		t, err := node.keeperStore.ReadTransaction(ctx, tx.TransactionHash)
@@ -606,7 +626,12 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
 		id = common.UniqueId(id, "REFUNDINVALID")
 		extra := uuid.Must(uuid.FromString(t.RequestId)).Bytes()
+		extra = append(extra, big.NewInt(height).Bytes()...)
 		err = node.sendKeeperResponse(ctx, tx.Holder, byte(common.ActionEthereumSafeRefundTransaction), tx.Chain, id, extra)
+		if err != nil {
+			return "", err
+		}
+		err = node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
 		if err != nil {
 			return "", err
 		}
