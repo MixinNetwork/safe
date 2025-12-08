@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"slices"
 	"strings"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/gofrs/uuid/v5"
 )
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
@@ -615,26 +613,6 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 
 	success, validErr := st.ValidTransaction(rpc, height)
 	if validErr != nil || !success {
-		if time.Now().Before(tx.UpdatedAt.Add(time.Duration(30 * time.Minute))) {
-			return "", nil
-		}
-
-		t, err := node.keeperStore.ReadTransaction(ctx, tx.TransactionHash)
-		if err != nil {
-			return "", err
-		}
-		id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
-		id = common.UniqueId(id, "REFUNDINVALID")
-		extra := uuid.Must(uuid.FromString(t.RequestId)).Bytes()
-		extra = append(extra, big.NewInt(height).Bytes()...)
-		err = node.sendKeeperResponse(ctx, tx.Holder, byte(common.ActionEthereumSafeRefundTransaction), tx.Chain, id, extra)
-		if err != nil {
-			return "", err
-		}
-		err = node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
-		if err != nil {
-			return "", err
-		}
 		return "", fmt.Errorf("ValidTransaction => %t %v", success, validErr)
 	}
 

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -1018,105 +1017,6 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 		panic(err)
 	}
 	return txs, ""
-}
-
-func (node *Node) processEthereumSafeRefundTransaction(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
-	logger.Printf("processEthereumSafeRefundTransaction(%v)", req)
-	if req.Role != common.RequestRoleObserver {
-		panic(req.Role)
-	}
-	chain := common.SafeCurveChain(req.Curve)
-	safe, err := node.store.ReadSafe(ctx, req.Holder)
-	logger.Printf("store.ReadSafe(%s) => %v %v", req.Holder, safe, err)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadSafe(%s) => %v", req.Holder, err))
-	}
-	if safe == nil || safe.Chain != chain {
-		return node.failRequest(ctx, req, "")
-	}
-
-	extra := req.ExtraBytes()
-	if len(extra) <= 17 {
-		return node.failRequest(ctx, req, "")
-	}
-	rid, err := uuid.FromBytes(extra[:16])
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
-	logger.Printf("store.ReadTransactionByRequestId(%s) => %v %v", rid.String(), tx, err)
-	if err != nil {
-		panic(fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err))
-	} else if tx == nil {
-		return node.failRequest(ctx, req, "")
-	} else if tx.Holder != req.Holder {
-		return node.failRequest(ctx, req, "")
-	} else if tx.State != common.RequestStateDone {
-		return node.failRequest(ctx, req, "")
-	} else if req.CreatedAt.Before(tx.UpdatedAt.Add(time.Minute * 30)) {
-		return node.failRequest(ctx, req, "")
-	}
-
-	height := new(big.Int).SetBytes(extra[16:])
-	rpc, _ := node.ethereumParams(safe.Chain)
-	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, safe.Address, height.Int64())
-	logger.Printf("ethereum.FetchSafeNonce(%s %d) => %d %d %v", safe.Address, height.Int64(), nonce, safe.Nonce, err)
-	if err != nil {
-		if strings.Contains(err.Error(), "no contract code at given address") {
-			return node.failRequest(ctx, req, "")
-		}
-		panic(err)
-	}
-	if safe.Nonce != nonce+1 {
-		return node.failRequest(ctx, req, "")
-	}
-
-	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	st, err := ethereum.UnmarshalSafeTransaction(b)
-	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", b, st, err)
-	if err != nil {
-		panic(err)
-	}
-
-	sbm, err := node.store.ReadAllEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadAllEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
-	if err != nil {
-		panic(err)
-	}
-	outputs := st.ExtractOutputs()
-	for _, o := range outputs {
-		sbm[o.TokenAddress].UpdateBalance(o.Amount)
-	}
-
-	txRequest, err := node.store.ReadRequest(ctx, tx.RequestId)
-	logger.Printf("store.ReadRequest(%s) => %v %v", tx.RequestId, txRequest, err)
-	if err != nil {
-		panic(err)
-	}
-	meta, err := node.fetchAssetMeta(ctx, txRequest.AssetId)
-	logger.Printf("node.fetchAssetMeta(%s) => %v %v", req.AssetId, meta, err)
-	if err != nil {
-		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", req.AssetId, err))
-	}
-	if meta.Chain != common.SafeChainPolygon {
-		return node.failRequest(ctx, req, "")
-	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
-	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
-	if err != nil || deployed.Sign() <= 0 {
-		panic(fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err))
-	}
-	tt := node.buildTransaction(ctx, req.Output, node.conf.AppId, txRequest.AssetId, safe.Receivers, int(safe.Threshold), ethereum.ParseAmount(txRequest.Amount.String(), int32(meta.Decimals)).String(), []byte("refund"), req.Id)
-	if tt == nil {
-		return node.failRequest(ctx, req, txRequest.AssetId)
-	}
-
-	err = node.store.FailTransactionWithRequest(ctx, tx, safe, req, sbm, []*mtg.Transaction{tt})
-	logger.Printf("store.FailTransactionWithRequest(%v %v %v) => %v", tx, safe, req, err)
-	if err != nil {
-		panic(err)
-	}
-	return []*mtg.Transaction{tt}, ""
 }
 
 func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) ([]*mtg.Transaction, string) {
