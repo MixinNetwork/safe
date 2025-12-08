@@ -594,22 +594,47 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
 	rpc, _ := node.ethereumParams(tx.Chain)
-	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
-	if err != nil {
-		panic(err)
-	}
-	if nonce == st.Nonce.Int64()+1 {
-		// FIXME spent hash
-		return "", nil
-	}
-
-	err = st.ValidTransaction(rpc)
+	err := st.ValidTransaction(rpc)
 	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
 	if err != nil {
+		// retyr when error not from Gnosis Safe Contract
 		if !strings.Contains(err.Error(), "GS") {
 			return "", err
 		}
-		// FIXME 4 checks
+
+		height, err := ethereum.RPCGetBlockHeight(rpc)
+		if err != nil {
+			panic(err)
+		}
+		block, err := ethereum.RPCGetBlockByHeight(rpc, height)
+		if err != nil {
+			panic(err)
+		}
+		// retry when rpc not synced
+		if time.Until(block.Time).Abs().Microseconds() > time.Minute.Microseconds() {
+			return "", nil
+		}
+		// retry within 30mins
+		if time.Now().Before(tx.UpdatedAt.Add(30 * time.Minute)) {
+			return "", nil
+		}
+
+		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
+		if err != nil {
+			panic(err)
+		}
+		n := st.Nonce.Int64()
+		switch nonce {
+		case n + 1:
+			// already sent
+			// FIXME spent hash
+			return "", nil
+		case n:
+			// mark tx get stucked
+			return "", nil
+		default:
+			panic(fmt.Errorf("ethereum.FetchSafeNonce(%s) => %d %d", st.SafeAddress, n, nonce))
+		}
 	}
 
 	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)

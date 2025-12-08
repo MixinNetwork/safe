@@ -123,6 +123,15 @@ func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
 	}
 	var b *RPCBlock
 	err = json.Unmarshal(res, &b)
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := ethereumNumberToUint64(b.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	b.Time = time.Unix(int64(timestamp), 0)
 	return b, err
 }
 
