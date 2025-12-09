@@ -683,6 +683,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if safe.State != SafeStateApproved {
 		return node.failRequest(ctx, req, "")
 	}
+	rpc, _ := node.ethereumParams(safe.Chain)
 
 	pendings, err := node.store.ReadUnfinishedTransactionsByHolder(ctx, safe.Holder)
 	logger.Printf("store.ReadUnfinishedTransactionsByHolder(%s) => %v %v", safe.Holder, len(pendings), err)
@@ -729,6 +730,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	}
 	flag, extra := extra[0], extra[1:]
 	var lock *store.InheritanceLock
+	var ct *store.Transaction
 	switch flag {
 	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
 		lock, extra, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
@@ -736,6 +738,21 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			logger.Printf("node.processSafeInheritanceLock(%v, %d) => %s", req, flag, err)
 			return node.failRequest(ctx, req, "")
 		}
+	case common.FlagProposeCancelTransaction:
+		cid, err := uuid.FromBytes(extra[:16])
+		if err != nil || cid.String() == uuid.Nil.String() {
+			logger.Printf("valid cancel tx id: %x %v", extra[16:32], err)
+			return node.failRequest(ctx, req, "")
+		}
+		ct, err = node.store.ReadTransaction(ctx, cid.String())
+		logger.Printf("store.ReadCancelTransaction(%s) => %v %v", cid.String(), ct, err)
+		if err != nil {
+			panic(err)
+		}
+		if ct == nil || ct.State != common.RequestStateDone || req.CreatedAt.Before(ct.UpdatedAt.Add(time.Minute*30)) {
+			return node.failRequest(ctx, req, "")
+		}
+		extra = extra[16:]
 	}
 
 	iid, err := uuid.FromBytes(extra[:16])
@@ -830,14 +847,30 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	txType := ethereum.TypeETHTx
 	switch flag {
-	case common.FlagProposeNormalTransaction, common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
+	case common.FlagProposeNormalTransaction, common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance, common.FlagProposeCancelTransaction:
+		nonce := safe.Nonce
+		if flag == common.FlagProposeCancelTransaction {
+			cst, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))
+			if err != nil {
+				panic(err)
+			}
+			nonce, err = ethereum.FetchSafeNonce(ctx, rpc, safe.Address, int64(info.Height))
+			logger.Printf("ethereum.FetchSafeNonce(%s %d) => %d %d %d %v", safe.Address, info.Height, nonce, cst.Nonce, safe.Nonce, err)
+			if err != nil {
+				panic(err)
+			}
+			if nonce != cst.Nonce.Int64() || nonce != safe.Nonce-1 {
+				return node.failRequest(ctx, req, "")
+			}
+		}
+
 		switch {
 		case len(outputs) > 1:
 			txType = ethereum.TypeMultiSendTx
 		case balance.AssetAddress != ethereum.EthereumEmptyAddress:
 			txType = ethereum.TypeERC20Tx
 		}
-		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
+		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(nonce))
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
 			txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
 		if err != nil {
@@ -848,7 +881,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			logger.Printf("invalid recovery transaction outputs: %d", len(outputs))
 			return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 		}
-		rpc, _ := node.ethereumParams(safe.Chain)
 		latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
 		if err != nil {
 			panic(fmt.Errorf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err))
@@ -910,8 +942,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
-	extra = t.Marshal()
-	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(extra)))
+	raw := t.Marshal()
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(raw)))
 	if stx == nil {
 		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
@@ -928,7 +960,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
 		TransactionHash: t.TxHash,
-		RawTransaction:  hex.EncodeToString(t.Marshal()),
+		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
 		AssetId:         id.String(),
