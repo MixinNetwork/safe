@@ -594,11 +594,15 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"raw":             approval.RawTransaction,
 		"signers":         approval.Signers(r.Context(), node, safe),
 		"state":           common.StateName(tx.State),
+		"stuck":           false,
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String
 		data["raw"] = approval.SpentRaw.String
 		data["state"] = "spent"
+	}
+	if approval.Stuck.Valid {
+		data["stuck"] = approval.Stuck.Bool
 	}
 	common.RenderJSON(w, r, http.StatusOK, data)
 }

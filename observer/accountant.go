@@ -630,7 +630,10 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 			// FIXME spent hash
 			return "", nil
 		case n:
-			// mark tx get stucked
+			err = node.store.MarkTransactionStuck(ctx, tx.TransactionHash)
+			if err != nil {
+				panic(err)
+			}
 			return "", nil
 		default:
 			panic(fmt.Errorf("ethereum.FetchSafeNonce(%s) => %d %d", st.SafeAddress, n, nonce))
