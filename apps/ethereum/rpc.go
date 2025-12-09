@@ -56,7 +56,8 @@ type RPCTransaction struct {
 	Type             string `json:"type"`
 	Value            string `json:"value"`
 
-	BlockHeight uint64
+	BlockHeight  uint64
+	MatchedTrace int
 }
 
 type RPCBlockCallTrace struct {
