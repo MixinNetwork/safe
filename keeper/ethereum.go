@@ -787,6 +787,19 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 		decimals = int32(asset.Decimals)
 	}
+	if ct != nil {
+		cst, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))
+		if err != nil {
+			panic(err)
+		}
+		outputs := cst.ExtractOutputs()
+		for _, out := range outputs {
+			if out.TokenAddress != balance.AssetAddress {
+				continue
+			}
+			balance.UpdateBalance(out.Amount)
+		}
+	}
 
 	var outputs []*ethereum.Output
 	ver, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
@@ -840,6 +853,10 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		total = total.Add(amt)
 	}
 	if len(outputs) > 256 || !total.Equal(req.Amount) {
+		return node.failRequest(ctx, req, "")
+	}
+	ba := decimal.NewFromBigInt(balance.BigBalance(), decimals)
+	if total.Cmp(ba) < 0 {
 		return node.failRequest(ctx, req, "")
 	}
 
