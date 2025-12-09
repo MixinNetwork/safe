@@ -134,7 +134,14 @@ func HashMessageForSignature(msg string) []byte {
 
 // TODO cross-chain deposits might be lost, which are sended from emtpy address
 // and not included in the block traces in polygon pos
-// polygon 0x63df753b9987cd9bf12bb01c3e5c6ce5a0da923a3929639f8a6d149261a47633
+// polygon
+// 1
+// 0x63df753b9987cd9bf12bb01c3e5c6ce5a0da923a3929639f8a6d149261a47633
+// cannot skip block tx, which has empty from
+// 2
+// 0xe894fbb965aad350055c0516aa8f959f359c3685f588c8c9d78c80830dc23a5c
+// 0x7df50728f6861af7ae6558207ae0b8f04b35e548ef8053c95fb7c936a70f16b1
+// share the same basic info
 func LoopBlockTraces(chain byte, num int64, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
 	txs := []*RPCTransaction{}
 	for _, tx := range blockTxs {
