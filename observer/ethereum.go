@@ -176,7 +176,7 @@ func (node *Node) doProcessEthereumRPCBlock(ctx context.Context, num int64, chai
 	if err != nil {
 		return err
 	}
-	transfers := ethereum.LoopBlockTraces(chain, num, ethAssetId, blockTraces, block.Tx)
+	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block.Tx)
 	transfers = append(transfers, erc20Transfers...)
 
 	return node.ethereumProcessBlock(ctx, chain, block, transfers)

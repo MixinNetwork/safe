@@ -134,28 +134,22 @@ func HashMessageForSignature(msg string) []byte {
 
 // TODO cross-chain deposits might be lost, which are sended from emtpy address
 // and not included in the block traces in polygon pos
-func LoopBlockTraces(chain byte, num int64, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
-	txMap := make(map[string]*RPCTransaction)
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
+	txs := []*RPCTransaction{}
 	for _, tx := range blockTxs {
-		key := fmt.Sprintf("%s:%s:%s:%s:%s", tx.From, tx.To, tx.Value, tx.Gas, tx.Input)
-		tx.MatchedTrace = -1
-		txMap[key] = tx
+		if tx.From == EthereumEmptyAddress {
+			continue
+		}
+		txs = append(txs, tx)
+	}
+	if len(txs) != len(traces) {
+		panic(fmt.Errorf("%d %d %d", chain, len(txs), len(traces)))
 	}
 
 	var transfers []*Transfer
 	for i, t := range traces {
-		tr := t.Result
-		key := fmt.Sprintf("%s:%s:%s:%s:%s", tr.From, tr.To, tr.Value, tr.Gas, tr.Input)
-		tx := txMap[key]
-		if tx == nil {
-			continue
-		}
-		if tx.MatchedTrace >= 0 {
-			panic(fmt.Errorf("tx is matched: %d %d %s %d %d", chain, num, tx.Hash, tx.MatchedTrace, i))
-		}
-		tx.MatchedTrace = i
-
-		txTransfers, _ := LoopCalls(chain, chainId, tx.Hash, t.Result, 0)
+		hash := txs[i].Hash
+		txTransfers, _ := LoopCalls(chain, chainId, hash, t.Result, 0)
 		transfers = append(transfers, txTransfers...)
 	}
 	return transfers
