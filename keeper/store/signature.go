@@ -195,7 +195,7 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, transactionHash, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance, lock *InheritanceLock, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, trx *Transaction, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance, lock *InheritanceLock, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -206,20 +206,20 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 	defer common.Rollback(tx)
 
 	_, err = tx.ExecContext(ctx, "UPDATE signature_requests SET state=?, updated_at=? WHERE transaction_hash=?",
-		common.RequestStateDone, req.CreatedAt, transactionHash)
+		common.RequestStateDone, req.CreatedAt, trx.TransactionHash)
 	if err != nil {
 		return fmt.Errorf("UPDATE signature_requests %v", err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=?",
-		psbt, common.RequestStateDone, req.CreatedAt, transactionHash)
+		psbt, common.RequestStateDone, req.CreatedAt, trx.TransactionHash)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
 	if transactionHasOutputs(safe.Chain) {
 		update := "UPDATE bitcoin_outputs SET state=?, updated_at=? WHERE spent_by=?"
-		err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, transactionHash)
+		err = s.execMultiple(ctx, tx, num, update, common.RequestStateDone, req.CreatedAt, trx.TransactionHash)
 		if err != nil {
 			return fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 		}
@@ -233,10 +233,16 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		}
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=?",
-		safe.Nonce+1, time.Now().UTC(), safe.Holder, safe.Nonce)
+	txReq, err := s.readRequest(ctx, tx, trx.RequestId)
 	if err != nil {
-		return fmt.Errorf("UPDATE safes %v", err)
+		return err
+	}
+	if txReq.ExtraBytes()[0] != common.FlagProposeCancelTransaction {
+		err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=?",
+			safe.Nonce+1, time.Now().UTC(), safe.Holder, safe.Nonce)
+		if err != nil {
+			return fmt.Errorf("UPDATE safes %v", err)
+		}
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",

@@ -1178,7 +1178,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 
 	lock := node.finalizePendingSafeInheritanceLock(ctx, tx)
 	logger.Printf("node.finalizePendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, 0, safe, sbm, lock, txs)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, tx, raw, req, 0, safe, sbm, lock, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v) => %v", old.TransactionHash, raw, req, err)
 	if err != nil {
 		panic(err)

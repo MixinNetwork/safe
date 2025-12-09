@@ -1021,7 +1021,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	lock := node.finalizePendingSafeInheritanceLock(ctx, tx)
 	logger.Printf("node.finalizePendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
 	raw := hex.EncodeToString(spsbt.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, tx, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v, %v) => %v", old.TransactionHash, raw, req, lock, err)
 	if err != nil {
 		panic(err)
