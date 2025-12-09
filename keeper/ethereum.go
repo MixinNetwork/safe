@@ -1177,6 +1177,27 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 		sbm[o.TokenAddress].UpdateBalance(new(big.Int).Neg(o.Amount))
 	}
+	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	extra := txReq.ExtraBytes()
+	if extra[0] == common.FlagProposeCancelTransaction {
+		id := uuid.Must(uuid.FromBytes(extra[1:17])).String()
+		ct, err := node.store.ReadTransactionByRequestId(ctx, id)
+		if err != nil {
+			panic(err)
+		}
+		st, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))
+		if err != nil {
+			panic(err)
+		}
+		outputs := st.ExtractOutputs()
+		for _, out := range outputs {
+			sbm[out.TokenAddress].UpdateBalance(out.Amount)
+		}
+		tx.Cancel = true
+	}
 
 	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(t.Marshal())))
 	if stx == nil {

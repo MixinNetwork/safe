@@ -24,6 +24,8 @@ type Transaction struct {
 	RequestId       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+
+	Cancel bool
 }
 
 type TransactionInput struct {

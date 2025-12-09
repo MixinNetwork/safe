@@ -233,11 +233,7 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		}
 	}
 
-	txReq, err := s.readRequest(ctx, tx, trx.RequestId)
-	if err != nil {
-		return err
-	}
-	if txReq.ExtraBytes()[0] != common.FlagProposeCancelTransaction {
+	if !trx.Cancel {
 		err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=?",
 			safe.Nonce+1, time.Now().UTC(), safe.Holder, safe.Nonce)
 		if err != nil {
