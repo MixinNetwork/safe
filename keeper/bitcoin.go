@@ -1133,12 +1133,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 }
 
 func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
-	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
-	if err != nil {
-		panic(err)
-	}
-	extra := txReq.ExtraBytes()
-	flag := extra[0]
+	flag, extra := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
 	switch flag {
 	case common.FlagProposeSetInheritance:
 		lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
@@ -1152,7 +1147,7 @@ func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *st
 		lock.State = common.RequestStateDone
 		return lock
 	case common.FlagProposeRemoveInheritance:
-		lid, err := uuid.FromBytes(extra[1:17])
+		lid, err := uuid.FromBytes(extra[:16])
 		if err != nil || lid.IsNil() {
 			logger.Printf("invalid lock id to remove: %v %v", lid, err)
 			return nil
