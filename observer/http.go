@@ -601,8 +601,8 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		data["raw"] = approval.SpentRaw.String
 		data["state"] = "spent"
 	}
-	if approval.Stuck.Valid {
-		data["stuck"] = approval.Stuck.Bool
+	if approval.Stuck.Valid && approval.Stuck.Bool {
+		data["state"] = "stuck"
 	}
 	common.RenderJSON(w, r, http.StatusOK, data)
 }
