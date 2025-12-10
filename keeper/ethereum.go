@@ -855,8 +855,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if len(outputs) > 256 || !total.Equal(req.Amount) {
 		return node.failRequest(ctx, req, "")
 	}
-	ba := decimal.NewFromBigInt(balance.BigBalance(), decimals)
-	if total.Cmp(ba) < 0 {
+	ba := decimal.NewFromBigInt(balance.BigBalance(), -decimals)
+	if total.Cmp(ba) > 0 {
+		logger.Printf("invalid tx amount: %s, %s", total.String(), ba.String())
 		return node.failRequest(ctx, req, "")
 	}
 
