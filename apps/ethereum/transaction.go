@@ -274,7 +274,6 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) error {
 	}
 
 	success, err := abi.ValidTransaction(
-		nil,
 		tx.Destination,
 		tx.Value,
 		tx.Data,

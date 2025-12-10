@@ -741,7 +741,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	case common.FlagProposeCancelTransaction:
 		cid, err := uuid.FromBytes(extra[:16])
 		if err != nil || cid.String() == uuid.Nil.String() {
-			logger.Printf("valid cancel tx id: %x %v", extra[16:32], err)
+			logger.Printf("valid cancel tx id: %x %v", extra[:16], err)
 			return node.failRequest(ctx, req, "")
 		}
 		ct, err = node.store.ReadTransactionByRequestId(ctx, cid.String())

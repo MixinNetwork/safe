@@ -594,7 +594,6 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"raw":             approval.RawTransaction,
 		"signers":         approval.Signers(r.Context(), node, safe),
 		"state":           common.StateName(tx.State),
-		"stuck":           false,
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String
