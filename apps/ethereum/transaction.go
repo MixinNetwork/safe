@@ -13,7 +13,9 @@ import (
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -288,6 +290,47 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) error {
 		return fmt.Errorf("ValidTransaction(%s) => %t %v", tx.TxHash, success, err)
 	}
 	return nil
+}
+
+func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string) (*ethclient.Client, *types.Transaction, error) {
+	conn, safeAbi, err := safeInit(rpc, tx.SafeAddress)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer conn.Close()
+	signer := SignerInit(ctx, conn, key, tx.ChainID)
+
+	var signature []byte
+	count := 0
+	for _, sig := range tx.Signatures {
+		if sig == nil {
+			continue
+		}
+		signature = append(signature, sig...)
+		count += 1
+	}
+	if count < 2 {
+		return nil, nil, fmt.Errorf("SafeTransaction has insufficient signatures")
+	}
+
+	signer.NoSend = true
+	t, err := safeAbi.ExecTransaction(
+		signer,
+		tx.Destination,
+		tx.Value,
+		tx.Data,
+		tx.Operation,
+		tx.SafeTxGas,
+		tx.BaseGas,
+		tx.GasPrice,
+		tx.GasToken,
+		tx.RefundReceiver,
+		signature,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, t, nil
 }
 
 func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {

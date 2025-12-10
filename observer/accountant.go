@@ -595,10 +595,12 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
 	rpc, _ := node.ethereumParams(tx.Chain)
+	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
+
 	err := st.ValidTransaction(rpc)
 	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
 	if err != nil {
-		// retyr when error not from Gnosis Safe Contract
+		// retry when error not from Gnosis Safe Contract
 		if !strings.Contains(err.Error(), "GS") {
 			return "", err
 		}
@@ -626,10 +628,13 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		}
 		n := st.Nonce.Int64()
 		switch nonce {
+		// already sent
 		case n + 1:
-			// already sent
-			// FIXME spent hash
-			return "", nil
+			hash, err := node.store.ReadProperty(ctx, key)
+			if err != nil || hash == "" {
+				panic(fmt.Errorf("store.ReadProperty(%s) => %s %v", key, hash, err))
+			}
+			return hash, nil
 		case n:
 			err = node.store.MarkTransactionStuck(ctx, tx.TransactionHash)
 			if err != nil {
@@ -641,9 +646,22 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		}
 	}
 
-	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)
-	logger.Printf("ExecTransaction(%s) => %s %v", st.TxHash, hash, err)
-	return hash, err
+	conn, etx, err := st.BuildTransaction(ctx, rpc, node.conf.EVMKey)
+	logger.Printf("BuildTransaction(%s) => %s %v", st.TxHash, etx.Hash().Hex(), err)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteProperty(ctx, key, etx.Hash().Hex())
+	if err != nil {
+		panic(err)
+	}
+	timeout := time.Duration(time.Minute * 5)
+	receipt, err := conn.SendTransactionSync(ctx, etx, &timeout)
+	logger.Printf("SendTransactionSync(%s) => %v %v", st.TxHash, receipt, err)
+	if err != nil || receipt.TxHash.Hex() != etx.Hash().Hex() {
+		panic(err)
+	}
+	return receipt.TxHash.Hex(), err
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
