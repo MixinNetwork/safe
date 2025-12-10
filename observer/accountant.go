@@ -192,7 +192,7 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 			}
 			spentHash := msgTx.TxHash().String()
 			spentRaw := hex.EncodeToString(signedBuffer)
-			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw)
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw, "")
 			if err != nil {
 				panic(err)
 			}
@@ -397,7 +397,8 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			if spentHash == "" {
 				continue
 			}
-			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction)
+			cancelHash := node.getStuckTxHash(ctx, tx.TransactionHash)
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction, cancelHash)
 			if err != nil {
 				panic(err)
 			}

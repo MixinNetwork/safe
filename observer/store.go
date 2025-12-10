@@ -518,7 +518,7 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context, hash, spentHash, spentRaw string) error {
+func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context, hash, spentHash, spentRaw, cancelHash string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -528,10 +528,20 @@ func (s *SQLite3Store) ConfirmFullySignedTransactionApproval(ctx context.Context
 	}
 	defer common.Rollback(tx)
 
+	now := time.Now().UTC()
+
 	query := "UPDATE transactions SET spent_hash=?, spent_raw=?, updated_at=? WHERE transaction_hash=? AND state=? AND spent_hash IS NULL"
-	err = s.execOne(ctx, tx, query, spentHash, spentRaw, time.Now().UTC(), hash, common.RequestStateDone)
+	err = s.execOne(ctx, tx, query, spentHash, spentRaw, now, hash, common.RequestStateDone)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	if cancelHash != "" {
+		query := "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=? AND stuck=?"
+		err = s.execOne(ctx, tx, query, common.RequestStateFailed, now, cancelHash, common.RequestStateDone, true)
+		if err != nil {
+			return fmt.Errorf("UPDATE transactions %v", err)
+		}
 	}
 
 	return tx.Commit()

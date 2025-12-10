@@ -531,6 +531,31 @@ func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset ui
 	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
 }
 
+func (node *Node) getStuckTxHash(ctx context.Context, hash string) string {
+	tx, err := node.keeperStore.ReadTransaction(ctx, hash)
+	if err != nil {
+		panic(err)
+	}
+	txReq, err := node.keeperStore.ReadRequest(ctx, tx.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	extra := txReq.ExtraBytes()
+	flag, extra := extra[0], extra[1:]
+	if flag != common.FlagProposeCancelTransaction {
+		return ""
+	}
+	tx, err = node.keeperStore.ReadTransactionByRequestId(ctx, uuid.Must(uuid.FromBytes(extra[:16])).String())
+	if err != nil {
+		panic(err)
+	}
+	approval, err := node.store.ReadTransactionApproval(ctx, tx.TransactionHash)
+	if err != nil || approval == nil || !approval.Stuck.Bool {
+		panic(fmt.Errorf("store.ReadTransactionApproval(%s) => %v %v", tx.TransactionHash, approval, err))
+	}
+	return approval.TransactionHash
+}
+
 func (node *Node) GetKeepers() []string {
 	ms := make([]string, len(node.keeper.Genesis.Members))
 	copy(ms, node.keeper.Genesis.Members)
