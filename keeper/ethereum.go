@@ -744,12 +744,15 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			logger.Printf("valid cancel tx id: %x %v", extra[16:32], err)
 			return node.failRequest(ctx, req, "")
 		}
-		ct, err = node.store.ReadTransaction(ctx, cid.String())
+		ct, err = node.store.ReadTransactionByRequestId(ctx, cid.String())
 		logger.Printf("store.ReadCancelTransaction(%s) => %v %v", cid.String(), ct, err)
 		if err != nil {
 			panic(err)
 		}
-		if ct == nil || ct.State != common.RequestStateDone || req.CreatedAt.Before(ct.UpdatedAt.Add(time.Minute*30)) {
+		if ct == nil || ct.State != common.RequestStateDone {
+			return node.failRequest(ctx, req, "")
+		}
+		if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(time.Minute*30)) {
 			return node.failRequest(ctx, req, "")
 		}
 		extra = extra[16:]

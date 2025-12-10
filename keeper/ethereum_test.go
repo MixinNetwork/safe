@@ -99,6 +99,71 @@ func TestEthereumKeeper(t *testing.T) {
 	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
 	txHash = testEthereumProposeTransaction(ctx, require, node, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
 	testEthereumApproveTransaction(ctx, require, node, txHash, assetId, signers)
+
+	for range 10 {
+		testEthereumUpdateNetworkStatus(ctx, require, node, 80093737, "8c2120770291ddd4f5b632b429f1defa2745d5eb90e6e7d3bf2f6ce92e121559")
+	}
+	tx, err := node.store.ReadTransaction(ctx, txHash)
+	require.Nil(err)
+	safe, err := node.store.ReadSafe(ctx, tx.Holder)
+	require.Nil(err)
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	rpc, _ := node.ethereumParams(safe.Chain)
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, safe.Address, 80093737)
+	require.Nil(err)
+	require.Equal(int64(1), nonce)
+	require.Equal(int64(2), safe.Nonce)
+
+	rid := uuid.Must(uuid.NewV4()).String()
+	holder := testPublicKey(testEthereumKeyHolder)
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	require.Nil(err)
+	extra := []byte{common.FlagProposeCancelTransaction}
+	extra = append(extra, uuid.Must(uuid.FromString(tx.RequestId)).Bytes()...)
+	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
+	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
+	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, testEthereumBondAssetId, extra, decimal.NewFromFloat(0.0001))
+	testStep(ctx, require, node, out)
+	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeProposeTransaction)
+	st, err := ethereum.UnmarshalSafeTransaction(b)
+	require.Nil(err)
+	stx, err := node.store.ReadTransaction(ctx, st.TxHash)
+	require.Nil(err)
+	require.Equal(hex.EncodeToString(st.Marshal()), stx.RawTransaction)
+	require.Equal(common.RequestStateInitial, stx.State)
+
+	id := uuid.Must(uuid.NewV4()).String()
+	require.Nil(err)
+	for i, pub := range pubs {
+		if pub == holder {
+			sig := testEthereumSignMessage(require, testEthereumKeyHolder, st.Message)
+			st.Signatures[i] = sig
+		}
+	}
+
+	b = st.Marshal()
+	ref := mc.Sha256Hash(b)
+	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(b))
+	require.Nil(err)
+	extra = uuid.Must(uuid.FromString(stx.RequestId)).Bytes()
+	extra = append(extra, ref[:]...)
+	id = uuid.Must(uuid.NewV4()).String()
+	out = testBuildObserverRequest(node, id, testPublicKey(testEthereumKeyHolder), common.ActionEthereumSafeApproveTransaction, extra, common.CurveSecp256k1ECDSAPolygon)
+	testStep(ctx, require, node, out)
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, stx.TransactionHash, common.RequestStateInitial)
+	require.Nil(err)
+	require.Len(requests, 1)
+	tx, _ = node.store.ReadTransaction(ctx, stx.TransactionHash)
+	require.Equal(common.RequestStatePending, tx.State)
+	msg, _ := hex.DecodeString(requests[0].Message)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
+	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
+	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
+	testStep(ctx, require, node, out)
+
+	safe, err = node.store.ReadSafe(ctx, tx.Holder)
+	require.Nil(err)
+	require.Equal(int64(2), safe.Nonce)
 }
 
 func TestEthereumKeeperERC20(t *testing.T) {
