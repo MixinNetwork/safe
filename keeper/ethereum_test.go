@@ -94,11 +94,18 @@ func TestEthereumKeeper(t *testing.T) {
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
 
+	balance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, common.SafePolygonChainId, testEthereumBondAssetId)
+	require.Nil(err)
+	require.Equal("0.0001", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
+
 	_, assetId := node.ethereumParams(common.SafeChainPolygon)
 	txHash := testEthereumProposeTransaction(ctx, require, node, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
 	testEthereumRevokeTransaction(ctx, require, node, txHash, false)
 	txHash = testEthereumProposeTransaction(ctx, require, node, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c7441")
 	testEthereumApproveTransaction(ctx, require, node, txHash, assetId, signers)
+	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, common.SafePolygonChainId, testEthereumBondAssetId)
+	require.Nil(err)
+	require.Equal("0", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
 
 	for range 10 {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 80093737, "8c2120770291ddd4f5b632b429f1defa2745d5eb90e6e7d3bf2f6ce92e121559")
@@ -164,6 +171,9 @@ func TestEthereumKeeper(t *testing.T) {
 	safe, err = node.store.ReadSafe(ctx, tx.Holder)
 	require.Nil(err)
 	require.Equal(int64(2), safe.Nonce)
+	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, common.SafePolygonChainId, testEthereumBondAssetId)
+	require.Nil(err)
+	require.Equal("0", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
 }
 
 func TestEthereumKeeperERC20(t *testing.T) {
