@@ -790,19 +790,6 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 		decimals = int32(asset.Decimals)
 	}
-	if ct != nil {
-		cst, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))
-		if err != nil {
-			panic(err)
-		}
-		outputs := cst.ExtractOutputs()
-		for _, out := range outputs {
-			if out.TokenAddress != balance.AssetAddress {
-				continue
-			}
-			balance.UpdateBalance(out.Amount)
-		}
-	}
 
 	var outputs []*ethereum.Output
 	ver, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
