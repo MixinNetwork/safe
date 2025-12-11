@@ -93,10 +93,24 @@ func TestEthereumKeeper(t *testing.T) {
 	}
 	node.ProcessOutput(ctx, action)
 	testEthereumObserverHolderDeposit(ctx, require, node, "ca6324635b0c87409e9d8488e7f6bcc1fd8224c276a3788b1a8c56ddb4e20f07", common.SafePolygonChainId, ethereum.EthereumEmptyAddress, "100000000000000")
+	cnbAssetId := ethereum.GenerateAssetId(common.SafeChainPolygon, testEthereumUSDTAddress)
+	require.Equal(testEthereumUSDTAssetId, cnbAssetId)
+	cnbBondId := testDeployBondContract(ctx, require, node, testEthereumSafeAddress, cnbAssetId)
+	require.Equal(testEthereumUSDTBondAssetId, cnbBondId)
+	output, err = testWriteOutput(ctx, db, node.conf.AppId, testEthereumUSDTBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(100000000000000))
+	require.Nil(err)
+	action = &mtg.Action{
+		UnifiedOutput: *output,
+	}
+	node.ProcessOutput(ctx, action)
+	testEthereumObserverHolderDeposit(ctx, require, node, "55523d5ca29884f93dfa1c982177555ac5e13be49df10017054cb71aaba96595", cnbAssetId, testEthereumUSDTAddress, "100")
 
 	balance, err := node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, common.SafePolygonChainId, testEthereumBondAssetId)
 	require.Nil(err)
 	require.Equal("0.0001", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
+	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, testEthereumUSDTAssetId, testEthereumUSDTBondAssetId)
+	require.Nil(err)
+	require.Equal("0.0001", decimal.NewFromBigInt(balance.BigBalance(), -6).String())
 
 	_, assetId := node.ethereumParams(common.SafeChainPolygon)
 	txHash := testEthereumProposeTransaction(ctx, require, node, testEthereumBondAssetId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e")
@@ -106,6 +120,9 @@ func TestEthereumKeeper(t *testing.T) {
 	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, common.SafePolygonChainId, testEthereumBondAssetId)
 	require.Nil(err)
 	require.Equal("0", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
+	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, testEthereumUSDTAssetId, testEthereumUSDTBondAssetId)
+	require.Nil(err)
+	require.Equal("0.0001", decimal.NewFromBigInt(balance.BigBalance(), -6).String())
 
 	for range 10 {
 		testEthereumUpdateNetworkStatus(ctx, require, node, 80093737, "8c2120770291ddd4f5b632b429f1defa2745d5eb90e6e7d3bf2f6ce92e121559")
@@ -129,7 +146,7 @@ func TestEthereumKeeper(t *testing.T) {
 	extra = append(extra, uuid.Must(uuid.FromString(tx.RequestId)).Bytes()...)
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)
-	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, testEthereumBondAssetId, extra, decimal.NewFromFloat(0.0001))
+	out := testBuildHolderRequest(node, rid, holder, common.ActionEthereumSafeProposeTransaction, testEthereumUSDTBondAssetId, extra, decimal.NewFromFloat(0.0001))
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeProposeTransaction)
 	st, err := ethereum.UnmarshalSafeTransaction(b)
@@ -173,7 +190,10 @@ func TestEthereumKeeper(t *testing.T) {
 	require.Equal(int64(2), safe.Nonce)
 	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, common.SafePolygonChainId, testEthereumBondAssetId)
 	require.Nil(err)
-	require.Equal("0", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
+	require.Equal("0.0001", decimal.NewFromBigInt(balance.BigBalance(), -ethereum.ValuePrecision).String())
+	balance, err = node.store.ReadEthereumBalance(ctx, testEthereumSafeAddress, testEthereumUSDTAssetId, testEthereumUSDTBondAssetId)
+	require.Nil(err)
+	require.Equal("0", decimal.NewFromBigInt(balance.BigBalance(), -6).String())
 }
 
 func TestEthereumKeeperERC20(t *testing.T) {
