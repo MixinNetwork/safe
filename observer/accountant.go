@@ -597,7 +597,19 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	rpc, _ := node.ethereumParams(tx.Chain)
 	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
-	err := st.ValidTransaction(rpc)
+	c, err := node.store.CountStuckTransactionApprovalsForHolder(ctx, tx.Holder)
+	if err != nil {
+		panic(err)
+	}
+	if c == 0 {
+		err = node.store.MarkTransactionStuck(ctx, tx.TransactionHash)
+		if err != nil {
+			panic(err)
+		}
+		return "", nil
+	}
+
+	err = st.ValidTransaction(rpc)
 	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
 	if err != nil {
 		// retry when error not from Gnosis Safe Contract
