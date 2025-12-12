@@ -384,13 +384,13 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
 			if err != nil || b.Cmp(min) <= 0 {
 				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
-				logger.Verbosef("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
+				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
 				time.Sleep(3 * time.Second)
 				continue
 			}
 
 			spentHash, err := node.ethereumSpendFullySignedTransaction(ctx, tx)
-			logger.Verbosef("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
+			logger.Printf("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
 			if err != nil {
 				break
 			}
@@ -398,6 +398,7 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 				continue
 			}
 			cancelHash := node.getStuckTxHash(ctx, tx.TransactionHash)
+			logger.Printf("node.getStuckTxHash(%s) => %s", tx.TransactionHash, cancelHash)
 			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction, cancelHash)
 			if err != nil {
 				panic(err)

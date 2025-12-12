@@ -599,7 +599,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		data["hash"] = approval.SpentHash.String
 		data["raw"] = approval.SpentRaw.String
 		data["state"] = "spent"
-	} else if approval.Stuck.Valid && approval.Stuck.Bool && tx.State == common.RequestStateDone {
+	} else if approval.Stuck.Valid && approval.Stuck.Bool && approval.State == common.RequestStateDone {
 		data["state"] = "stuck"
 	}
 	common.RenderJSON(w, r, http.StatusOK, data)
