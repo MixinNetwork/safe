@@ -144,11 +144,18 @@ func HashMessageForSignature(msg string) []byte {
 // share the same basic info
 func LoopBlockTraces(chain byte, num int64, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
 	txs := []*RPCTransaction{}
-	for _, tx := range blockTxs {
-		txs = append(txs, tx)
-	}
-	if len(txs) != len(traces) {
-		panic(fmt.Errorf("%d %d %d %d", chain, num, len(txs), len(traces)))
+	lt := len(traces)
+	for i, tx := range blockTxs {
+		if i < lt {
+			txs = append(txs, tx)
+			continue
+		}
+
+		switch chain {
+		case ChainPolygon:
+		default:
+			panic(fmt.Errorf("%d %d %d %d", chain, num, len(txs), len(traces)))
+		}
 	}
 
 	var transfers []*Transfer
