@@ -26,7 +26,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	}
 
 	query := "ALTER TABLE transactions ADD COLUMN stuck BOOLEAN;\n"
-	query += "UPDATE transactions set state=?, stuck=?, updated_at=? WHERE transaction_hash=?"
+	query += "UPDATE transactions SET state=?, stuck=?, updated_at=? WHERE transaction_hash=?;\n"
 	_, err = tx.ExecContext(ctx, query,
 		common.RequestStateDone, true, time.Now().UTC(), "6a5ccb71871db47550acd5429764d724c0e26e9ef63e214954edce2ee80a7e90")
 	if err != nil {
