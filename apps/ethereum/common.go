@@ -134,7 +134,7 @@ func HashMessageForSignature(msg string) []byte {
 
 // TODO cross-chain deposits might be lost, which are sended from emtpy address
 // and not included in the block traces in polygon pos
-func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
+func LoopBlockTraces(chain byte, num int64, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
 	txs := []*RPCTransaction{}
 	for _, tx := range blockTxs {
 		if tx.From == EthereumEmptyAddress {
@@ -143,7 +143,7 @@ func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, bl
 		txs = append(txs, tx)
 	}
 	if len(txs) != len(traces) {
-		panic(fmt.Errorf("%d %d %d", chain, len(txs), len(traces)))
+		panic(fmt.Errorf("%d %d %d %d", num, chain, len(txs), len(traces)))
 	}
 
 	var transfers []*Transfer
