@@ -142,6 +142,9 @@ func HashMessageForSignature(msg string) []byte {
 // 0xe894fbb965aad350055c0516aa8f959f359c3685f588c8c9d78c80830dc23a5c
 // 0x7df50728f6861af7ae6558207ae0b8f04b35e548ef8053c95fb7c936a70f16b1
 // share the same basic info
+// 3
+// 0xa6ffb450b2d0cc6e51b5eefe2025f619d953d36531298235684b273572453c37
+// cross-chain deposit
 func LoopBlockTraces(chain byte, num int64, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
 	txs := []*RPCTransaction{}
 	lt := len(traces)
