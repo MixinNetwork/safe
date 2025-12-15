@@ -70,7 +70,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	defer kd.Close()
 
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
-	keeper.Boot(ctx)
+	keeper.Boot(ctx, mc.Dev.Network == config.MainNetworkName)
 
 	if mc.Keeper.MonitorConversaionId != "" {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, version)
