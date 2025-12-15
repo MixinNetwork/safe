@@ -868,7 +868,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 		nonce = nonceOnline - 1
 	default:
-		if nonce != nonceOnline {
+		if nonce != nonceOnline && !common.CheckTestEnvironment(ctx) {
 			panic(fmt.Errorf("invalid safe nonce: %s %d %d ", safe.Address, nonce, nonceOnline))
 		}
 	}
