@@ -136,12 +136,12 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 	return out.DepositHash.Valid
 }
 
-func (node *Node) getTransactionFlagAndExtra(ctx context.Context, id string) (byte, []byte, *common.Request) {
+func (node *Node) getTransactionFlagAndExtra(ctx context.Context, id string) (byte, []byte) {
 	txReq, err := node.store.ReadRequest(ctx, id)
 	if err != nil {
 		panic(err)
 	}
 	extra := txReq.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
-	return flag, extra, txReq
+	return flag, extra
 }

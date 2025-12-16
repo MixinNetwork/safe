@@ -1190,10 +1190,17 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	}
 	txs = append(txs, tt)
 
-	flag, extra, txReq := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
+	flag, extra := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
+	logger.Printf("node.getTransactionFlagAndExtra(%s) => %v %v", tx.RequestId, sbm, err)
 	if flag == common.FlagProposeCancelTransaction {
 		id := uuid.Must(uuid.FromBytes(extra[:16])).String()
 		ct, err := node.store.ReadTransactionByRequestId(ctx, id)
+		logger.Printf("store.ReadCancelTransaction(%s) => %v %v", id, ct, err)
+		if err != nil {
+			panic(err)
+		}
+		txReq, err := node.store.ReadRequest(ctx, ct.RequestId)
+		logger.Printf("store.ReadRequest(%s) => %v %v", ct.RequestId, txReq, err)
 		if err != nil {
 			panic(err)
 		}
@@ -1208,6 +1215,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		tx.Cancel = true
 
 		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, txReq.AssetId, safe.Receivers, int(safe.Threshold), txReq.Amount.String(), []byte("refund"), req.Id)
+		logger.Printf("node.buildTransaction() => %v", t)
 		if t == nil {
 			panic(fmt.Errorf("node.buildTransaction(%v) => nil", req))
 		}
