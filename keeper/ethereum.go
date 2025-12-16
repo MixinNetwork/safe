@@ -1191,7 +1191,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	txs = append(txs, tt)
 
 	flag, extra := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
-	logger.Printf("node.getTransactionFlagAndExtra(%s) => %v %v", tx.RequestId, sbm, err)
+	logger.Printf("node.getTransactionFlagAndExtra(%s) => %v %v", tx.RequestId, flag, err)
 	if flag == common.FlagProposeCancelTransaction {
 		id := uuid.Must(uuid.FromBytes(extra[:16])).String()
 		ct, err := node.store.ReadTransactionByRequestId(ctx, id)
@@ -1214,7 +1214,9 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 		tx.Cancel = true
 
-		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, txReq.AssetId, safe.Receivers, int(safe.Threshold), txReq.Amount.String(), []byte("refund"), req.Id)
+		id = common.UniqueId(tx.RequestId, txReq.Id)
+		id = common.UniqueId(id, "refund cancel tx")
+		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, txReq.AssetId, safe.Receivers, int(safe.Threshold), txReq.Amount.String(), []byte("refund"), id)
 		logger.Printf("node.buildTransaction() => %v", t)
 		if t == nil {
 			panic(fmt.Errorf("node.buildTransaction(%v) => nil", req))
