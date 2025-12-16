@@ -151,6 +151,7 @@ func TestEthereumKeeper(t *testing.T) {
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeProposeTransaction)
 	st, err := ethereum.UnmarshalSafeTransaction(b)
 	require.Nil(err)
+	require.Equal(int64(1), st.Nonce.Int64())
 	stx, err := node.store.ReadTransaction(ctx, st.TxHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(st.Marshal()), stx.RawTransaction)
