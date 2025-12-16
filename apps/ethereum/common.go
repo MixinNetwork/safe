@@ -132,23 +132,31 @@ func HashMessageForSignature(msg string) []byte {
 	return hash.Bytes()
 }
 
-// TODO cross-chain deposits might be lost, which are sended from emtpy address
+// TODO cross-chain deposits might be lost, which are sent from emtpy address
 // and not included in the block traces in polygon pos
-func LoopBlockTraces(chain byte, num int64, chainId string, traces []*RPCBlockCallTrace, blockTxs []*RPCTransaction) []*Transfer {
-	txs := []*RPCTransaction{}
-	for _, tx := range blockTxs {
-		if tx.From == EthereumEmptyAddress {
-			continue
-		}
-		txs = append(txs, tx)
+//
+// 1. in trace, which has empty from
+// 0x63df753b9987cd9bf12bb01c3e5c6ce5a0da923a3929639f8a6d149261a47633
+// 0xe894fbb965aad350055c0516aa8f959f359c3685f588c8c9d78c80830dc23a5c
+// 0x7df50728f6861af7ae6558207ae0b8f04b35e548ef8053c95fb7c936a70f16b1
+//
+// 2. not in trace, empty from, cross-chain deposit
+// 0xa6ffb450b2d0cc6e51b5eefe2025f619d953d36531298235684b273572453c37
+func LoopBlockTraces(chain byte, chainId string, traces []*RPCBlockCallTrace, block *RPCBlockWithTransactions) []*Transfer {
+	if len(block.Tx) < len(traces) {
+		panic(fmt.Errorf("%d %d %d %d", chain, block.Height, len(block.Tx), len(traces)))
 	}
-	if len(txs) != len(traces) {
-		panic(fmt.Errorf("%d %d %d %d", num, chain, len(txs), len(traces)))
+	if len(block.Tx) > len(traces) {
+		switch chain {
+		case ChainPolygon:
+		default:
+			panic(fmt.Errorf("%d %d %d %d", chain, block.Height, len(block.Tx), len(traces)))
+		}
 	}
 
 	var transfers []*Transfer
 	for i, t := range traces {
-		hash := txs[i].Hash
+		hash := block.Tx[i].Hash
 		txTransfers, _ := LoopCalls(chain, chainId, hash, t.Result, 0)
 		transfers = append(transfers, txTransfers...)
 	}

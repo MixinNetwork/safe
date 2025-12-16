@@ -30,6 +30,7 @@ type Configuration struct {
 	PolygonObserverDepositEntry string `toml:"polygon-observer-deposit-entry"`
 	PolygonKeeperDepositEntry   string `toml:"polygon-keeper-deposit-entry"`
 	EVMKey                      string `toml:"evm-key"`
+	SignerKeyThreshold          int64  `toml:"signer-key-threshold"`
 	App                         struct {
 		AppId               string `toml:"app-id"`
 		SessionId           string `toml:"session-id"`

@@ -157,7 +157,7 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 		}
 	}
 	if sigs < 2 {
-		return fmt.Errorf("Ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
+		return fmt.Errorf("ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
 	}
 
 	err = node.store.UpdateRecoveryState(ctx, safe.Address, st.TxHash, raw, common.RequestStateDone)

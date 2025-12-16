@@ -23,6 +23,11 @@ import (
 // https://github.com/safe-global/safe-core-sdk/blob/main/guides/integrating-the-safe-core-sdk.md
 // execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)
 
+const (
+	functionGuardSafe     = "59335aa2"
+	functionERC20Transfer = "a9059cbb"
+)
+
 type SafeTransaction struct {
 	TxHash         string
 	ChainID        int64
@@ -390,7 +395,7 @@ func (tx *SafeTransaction) ExtractOutputs() []*Output {
 		}}
 	default:
 		method := hex.EncodeToString(tx.Data[0:4])
-		if method != "a9059cbb" || len(tx.Data) != 68 {
+		if method != functionERC20Transfer || len(tx.Data) != 68 {
 			panic("invalid safe transaction data")
 		}
 		destination := tx.Data[4:36]
@@ -432,12 +437,7 @@ func (tx *SafeTransaction) parseMultiSendData() ([]*Output, error) {
 	multiSendData := args[0].([]byte)
 
 	var os []*Output
-	offset := 0
-	for {
-		if offset == len(multiSendData) {
-			break
-		}
-
+	for offset := 0; offset < len(multiSendData); {
 		offset += 1
 		bytesTo := multiSendData[offset : offset+20]
 		to := common.BytesToAddress(bytesTo)
@@ -461,9 +461,9 @@ func (tx *SafeTransaction) parseMultiSendData() ([]*Output, error) {
 			strData := hex.EncodeToString(metaData)
 			method := strData[0:8]
 			switch method {
-			case "59335aa2": // guardSafe
+			case functionGuardSafe:
 				offset += int(dataLen)
-			case "a9059cbb": // erc20 transfer
+			case functionERC20Transfer:
 				bytesTo := metaData[4:36]
 				bytesAmount := metaData[36:68]
 				o.TokenAddress = o.Destination
