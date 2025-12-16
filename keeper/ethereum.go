@@ -749,7 +749,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if err != nil {
 			panic(err)
 		}
-		if ct == nil || ct.State != common.RequestStateDone {
+		if ct == nil || ct.Holder != safe.Holder || ct.State != common.RequestStateDone {
 			return node.failRequest(ctx, req, "")
 		}
 		// FIXME
@@ -1175,7 +1175,14 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 		sbm[o.TokenAddress].UpdateBalance(new(big.Int).Neg(o.Amount))
 	}
-	flag, extra := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
+
+	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(t.Marshal())))
+	if stx == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	txs := []*mtg.Transaction{stx}
+
+	flag, extra, txReq := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
 	if flag == common.FlagProposeCancelTransaction {
 		id := uuid.Must(uuid.FromBytes(extra[:16])).String()
 		ct, err := node.store.ReadTransactionByRequestId(ctx, id)
@@ -1191,13 +1198,12 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 			sbm[out.TokenAddress].UpdateBalance(out.Amount)
 		}
 		tx.Cancel = true
-	}
 
-	stx := node.buildStorageTransaction(ctx, req, []byte(common.Base91Encode(t.Marshal())))
-	if stx == nil {
-		return node.failRequest(ctx, req, "")
+		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, txReq.AssetId, safe.Receivers, int(safe.Threshold), txReq.Amount.String(), []byte("refund"), req.Id)
+		if t == nil {
+			panic(fmt.Errorf("node.buildTransaction(%v) => nil", req))
+		}
 	}
-	txs := []*mtg.Transaction{stx}
 
 	id := common.UniqueId(old.TransactionHash, stx.TraceId)
 	typ := byte(common.ActionEthereumSafeApproveTransaction)

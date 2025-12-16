@@ -1133,7 +1133,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 }
 
 func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
-	flag, extra := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
+	flag, extra, _ := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
 	switch flag {
 	case common.FlagProposeSetInheritance:
 		lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
