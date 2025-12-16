@@ -56,6 +56,11 @@ var (
 func TestCMPEthereumERC20Transaction(t *testing.T) {
 	ctx := context.Background()
 	require := require.New(t)
+
+	if polygonRpc := os.Getenv("POLYGONRPC"); polygonRpc != "" {
+		rpc = polygonRpc
+	}
+
 	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 52874396)
 	require.NotNil(err)
 	require.True(strings.Contains(err.Error(), "no contract code at given address"))
