@@ -598,6 +598,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	rpc, _ := node.ethereumParams(tx.Chain)
 	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
+	// FIXME
 	c, err := node.store.CountStuckTransactionApprovalsForHolder(ctx, tx.Holder)
 	if err != nil {
 		panic(err)
