@@ -1181,6 +1181,14 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		return node.failRequest(ctx, req, "")
 	}
 	txs := []*mtg.Transaction{stx}
+	id := common.UniqueId(old.TransactionHash, stx.TraceId)
+	typ := byte(common.ActionEthereumSafeApproveTransaction)
+	crv := common.SafeChainCurve(safe.Chain)
+	tt := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Output, typ, crv, stx.TraceId)
+	if tt == nil {
+		return node.failRequest(ctx, req, "")
+	}
+	txs = append(txs, tt)
 
 	flag, extra, txReq := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
 	if flag == common.FlagProposeCancelTransaction {
@@ -1203,16 +1211,8 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if t == nil {
 			panic(fmt.Errorf("node.buildTransaction(%v) => nil", req))
 		}
+		txs = append(txs, t)
 	}
-
-	id := common.UniqueId(old.TransactionHash, stx.TraceId)
-	typ := byte(common.ActionEthereumSafeApproveTransaction)
-	crv := common.SafeChainCurve(safe.Chain)
-	tt := node.buildObserverResponseWithStorageTraceId(ctx, id, req.Output, typ, crv, stx.TraceId)
-	if tt == nil {
-		return node.failRequest(ctx, req, "")
-	}
-	txs = append(txs, tt)
 
 	lock := node.finalizePendingSafeInheritanceLock(ctx, tx)
 	logger.Printf("node.finalizePendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
