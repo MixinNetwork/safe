@@ -669,13 +669,27 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	if err != nil {
 		panic(err)
 	}
-	timeout := time.Duration(time.Minute * 5)
-	receipt, err := conn.SendTransactionSync(ctx, etx, &timeout)
-	logger.Printf("SendTransactionSync(%s) => %v %v", st.TxHash, receipt, err)
-	if err != nil || receipt.TxHash.Hex() != etx.Hash().Hex() {
+	err = conn.SendTransaction(ctx, etx)
+	logger.Printf("SendTransaction(%s) => %v", st.TxHash, err)
+	if err != nil {
 		panic(err)
 	}
-	return receipt.TxHash.Hex(), err
+	time.Sleep(time.Second * 30)
+	count := 0
+	for {
+		if count == 10 {
+			panic(fmt.Errorf("failed to send evm tx: %s", tx.TransactionHash))
+		}
+		txx, err := ethereum.RPCGetTransactionByHash(rpc, etx.Hash().Hex())
+		if err != nil {
+			panic(err)
+		}
+		if txx.Hash == etx.Hash().Hex() {
+			return txx.Hash, nil
+		}
+		count += 1
+		time.Sleep(time.Second * 5)
+	}
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
