@@ -678,7 +678,11 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	count := 0
 	for {
 		if count == 10 {
-			panic(fmt.Errorf("failed to send evm tx: %s", tx.TransactionHash))
+			raw, err := etx.MarshalBinary()
+			if err != nil {
+				panic(err)
+			}
+			panic(fmt.Errorf("failed to send evm tx: %s, %s", tx.TransactionHash, raw))
 		}
 		txx, err := ethereum.RPCGetTransactionByHash(rpc, etx.Hash().Hex())
 		if err != nil {
