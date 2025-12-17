@@ -599,18 +599,6 @@ func (s *SQLite3Store) CountUnfinishedTransactionApprovalsForHolder(ctx context.
 	return count, err
 }
 
-func (s *SQLite3Store) CountStuckTransactionApprovalsForHolder(ctx context.Context, holder string) (int, error) {
-	query := "SELECT COUNT(*) FROM transactions WHERE holder=? AND state=? AND stuck=?"
-	row := s.db.QueryRowContext(ctx, query, holder, common.RequestStateDone, true)
-
-	var count int
-	err := row.Scan(&count)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return count, err
-}
-
 func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, approval *Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

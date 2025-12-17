@@ -752,10 +752,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if ct == nil || ct.Holder != safe.Holder || ct.State != common.RequestStateDone {
 			return node.failRequest(ctx, req, "")
 		}
-		// FIXME
-		// if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(time.Minute*30)) {
-		// 	return node.failRequest(ctx, req, "")
-		// }
+		if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(time.Minute*30)) {
+			return node.failRequest(ctx, req, "")
+		}
 		extra = extra[16:]
 	}
 
