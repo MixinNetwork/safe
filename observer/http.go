@@ -105,6 +105,7 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.GET("/signers", node.httpListSigners)
 	router.GET("/keepers", node.httpListKeepers)
 	router.GET("/deposits", node.httpListDeposits)
+	router.GET("/pending_deposits", node.httpListPendingDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/recoveries/:id", node.httpGetRecovery)
 	router.POST("/recoveries/:id", node.httpSignRecovery)
@@ -276,6 +277,19 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 	}
 
 	common.RenderJSON(w, r, http.StatusOK, node.viewDeposits(r.Context(), deposits, sent))
+}
+
+func (node *Node) httpListPendingDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	holder := r.URL.Query().Get("holder")
+	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 32)
+	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
+	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateInitial, offset)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+
+	common.RenderJSON(w, r, http.StatusOK, node.viewDeposits(r.Context(), deposits, nil))
 }
 
 func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, params map[string]string) {
