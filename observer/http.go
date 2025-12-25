@@ -851,7 +851,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
 			"change":           false,
-			"pending":          state,
+			"state":            state,
 			"updated_at":       d.UpdatedAt,
 			"created_at":       d.CreatedAt,
 		}
