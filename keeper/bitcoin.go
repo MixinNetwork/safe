@@ -944,6 +944,9 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 }
 
 func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) ([]*mtg.Transaction, string) {
+	if tx.TransactionHash != old.TransactionHash {
+		panic(old.TransactionHash)
+	}
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
 	}

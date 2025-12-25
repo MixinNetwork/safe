@@ -233,7 +233,7 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		}
 	}
 
-	if !trx.Cancel {
+	if trx.CancelPrevious == nil {
 		err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=?",
 			safe.Nonce+1, time.Now().UTC(), safe.Holder, safe.Nonce)
 		if err != nil {

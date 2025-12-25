@@ -25,7 +25,7 @@ type Transaction struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 
-	Cancel bool
+	CancelPrevious *Transaction
 }
 
 type TransactionInput struct {

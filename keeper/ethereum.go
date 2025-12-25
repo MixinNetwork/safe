@@ -1198,8 +1198,9 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			panic(err)
 		}
-		txReq, err := node.store.ReadRequest(ctx, ct.RequestId)
-		logger.Printf("store.ReadRequest(%s) => %v %v", ct.RequestId, txReq, err)
+		tx.CancelPrevious = ct
+		ctReq, err := node.store.ReadRequest(ctx, ct.RequestId)
+		logger.Printf("store.ReadRequest(%s) => %v %v", ct.RequestId, ctReq, err)
 		if err != nil {
 			panic(err)
 		}
@@ -1211,11 +1212,10 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		for _, out := range outputs {
 			sbm[out.TokenAddress].UpdateBalance(out.Amount)
 		}
-		tx.Cancel = true
 
-		id = common.UniqueId(tx.RequestId, txReq.Id)
+		id = common.UniqueId(tx.RequestId, ctReq.Id)
 		id = common.UniqueId(id, "refund cancel tx")
-		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, txReq.AssetId, safe.Receivers, int(safe.Threshold), txReq.Amount.String(), []byte("refund"), id)
+		t := node.buildTransaction(ctx, req.Output, node.conf.AppId, ctReq.AssetId, safe.Receivers, int(safe.Threshold), ctReq.Amount.String(), []byte("cancelled"), id)
 		logger.Printf("node.buildTransaction() => %v", t)
 		if t == nil {
 			panic(fmt.Errorf("node.buildTransaction(%v) => nil", req))
