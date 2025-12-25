@@ -837,6 +837,10 @@ func (node *Node) listPendingBitcoinUTXOsForHolder(ctx context.Context, holder s
 func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent map[string]string) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, d := range deposits {
+		state := "done"
+		if d.State == common.RequestStateInitial {
+			state = "pending"
+		}
 		dm := map[string]any{
 			"transaction_hash": d.TransactionHash,
 			"output_index":     d.OutputIndex,
@@ -847,6 +851,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
 			"change":           false,
+			"pending":          state,
 			"updated_at":       d.UpdatedAt,
 			"created_at":       d.CreatedAt,
 		}
