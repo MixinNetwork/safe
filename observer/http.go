@@ -264,7 +264,7 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 	holder := r.URL.Query().Get("holder")
 	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 32)
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
-	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateDone, offset)
+	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, 0, offset)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -837,6 +837,10 @@ func (node *Node) listPendingBitcoinUTXOsForHolder(ctx context.Context, holder s
 func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent map[string]string) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, d := range deposits {
+		state := "done"
+		if d.State == common.RequestStateInitial {
+			state = "pending"
+		}
 		dm := map[string]any{
 			"transaction_hash": d.TransactionHash,
 			"output_index":     d.OutputIndex,
@@ -847,6 +851,7 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
 			"change":           false,
+			"state":            state,
 			"updated_at":       d.UpdatedAt,
 			"created_at":       d.CreatedAt,
 		}
