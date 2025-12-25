@@ -198,7 +198,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 	logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", receiver, safe, err)
 	if err != nil {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", receiver, err)
-	} else if safe == nil {
+	} else if safe == nil || safe.State != common.RequestStateDone {
 		return nil
 	}
 
