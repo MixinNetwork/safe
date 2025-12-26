@@ -20,7 +20,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
@@ -657,35 +656,12 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	if err != nil {
 		panic(err)
 	}
-	conn, err := ethclient.Dial(rpc)
+	err = ethereum.SendAndWaitMined(ctx, rpc, etx)
+	logger.Printf("SendAndWaitMined(%s) => %v", st.TxHash, err)
 	if err != nil {
 		panic(err)
 	}
-	err = conn.SendTransaction(ctx, etx)
-	logger.Printf("SendTransaction(%s) => %v", st.TxHash, err)
-	if err != nil {
-		panic(err)
-	}
-	time.Sleep(time.Second * 30)
-	count := 0
-	for {
-		if count == 10 {
-			raw, err := etx.MarshalBinary()
-			if err != nil {
-				panic(err)
-			}
-			panic(fmt.Errorf("failed to send evm tx: %s, %s", tx.TransactionHash, raw))
-		}
-		txx, err := ethereum.RPCGetTransactionByHash(rpc, etx.Hash().Hex())
-		if err != nil {
-			panic(err)
-		}
-		if txx != nil {
-			return txx.Hash, nil
-		}
-		count += 1
-		time.Sleep(time.Second * 5)
-	}
+	return etx.Hash().Hex(), nil
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {

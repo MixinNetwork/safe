@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -334,6 +335,19 @@ func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string
 		return nil, err
 	}
 	return t, nil
+}
+
+func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) error {
+	conn, err := ethclient.Dial(rpc)
+	if err != nil {
+		return err
+	}
+	err = conn.SendTransaction(ctx, t)
+	if err != nil {
+		return err
+	}
+	_, err = bind.WaitMined(ctx, conn, t)
+	return err
 }
 
 func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
