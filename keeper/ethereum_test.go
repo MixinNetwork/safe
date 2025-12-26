@@ -157,8 +157,6 @@ func TestEthereumKeeper(t *testing.T) {
 	require.Equal(hex.EncodeToString(st.Marshal()), stx.RawTransaction)
 	require.Equal(common.RequestStateInitial, stx.State)
 
-	id := uuid.Must(uuid.NewV4()).String()
-	require.Nil(err)
 	for i, pub := range pubs {
 		if pub == holder {
 			sig := testEthereumSignMessage(require, testEthereumKeyHolder, st.Message)
@@ -172,7 +170,7 @@ func TestEthereumKeeper(t *testing.T) {
 	require.Nil(err)
 	extra = uuid.Must(uuid.FromString(stx.RequestId)).Bytes()
 	extra = append(extra, ref[:]...)
-	id = uuid.Must(uuid.NewV4()).String()
+	id := uuid.Must(uuid.NewV4()).String()
 	out = testBuildObserverRequest(node, id, testPublicKey(testEthereumKeyHolder), common.ActionEthereumSafeApproveTransaction, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, stx.TransactionHash, common.RequestStateInitial)

@@ -882,7 +882,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		}
 		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(nonce))
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
-			txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
+			txType, chainId, req.Id, safe.Address, outputs, nonce, t, err)
 		if err != nil {
 			panic(err)
 		}
@@ -941,9 +941,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				txType = ethereum.TypeERC20Tx
 			}
 		}
-		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(safe.Nonce))
+		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(nonce))
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
-			txType, chainId, req.Id, safe.Address, outputs, safe.Nonce, t, err)
+			txType, chainId, req.Id, safe.Address, outputs, nonce, t, err)
 		if err != nil {
 			panic(err)
 		}
