@@ -122,8 +122,6 @@ func (node *Node) getActionRole(act byte) byte {
 		common.ActionEthereumSafeCloseAccount,
 		common.ActionEthereumSafeCloseAccountByInheritance:
 		return common.RequestRoleObserver
-	case common.ActionEthereumSafeRefundTransaction:
-		return common.RequestRoleObserver
 	default:
 		return 0
 	}
@@ -220,8 +218,6 @@ func (node *Node) processRequest(ctx context.Context, req *common.Request) ([]*m
 		return node.processEthereumSafeApproveTransaction(ctx, req)
 	case common.ActionEthereumSafeCloseAccount:
 		return node.processEthereumSafeCloseAccount(ctx, req)
-	case common.ActionEthereumSafeRefundTransaction:
-		return node.processEthereumSafeRefundTransaction(ctx, req)
 	case common.ActionEthereumSafeCloseAccountByInheritance:
 		return node.processEthereumSafeCloseAccountByInheritance(ctx, req)
 	default:

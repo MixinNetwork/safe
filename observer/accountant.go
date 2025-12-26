@@ -14,14 +14,16 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/gofrs/uuid/v5"
 )
+
+const ethereumTransactionStuckTime = keeper.EthereumTransactionStuckTime + time.Hour
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
 	logger.Printf("node.keeperCombineBitcoinTransactionSignatures(%x)", extra)
@@ -193,7 +195,7 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 			}
 			spentHash := msgTx.TxHash().String()
 			spentRaw := hex.EncodeToString(signedBuffer)
-			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw)
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, spentRaw, "")
 			if err != nil {
 				panic(err)
 			}
@@ -385,17 +387,19 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
 			if err != nil || b.Cmp(min) <= 0 {
 				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
-				logger.Verbosef("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
+				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
 				time.Sleep(3 * time.Second)
 				continue
 			}
 
 			spentHash, err := node.ethereumSpendFullySignedTransaction(ctx, tx)
-			logger.Verbosef("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
-			if err != nil {
-				break
+			logger.Printf("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
+			if err != nil || spentHash == "" {
+				continue
 			}
-			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction)
+			cancelHash := node.getStuckTxHash(ctx, tx.TransactionHash)
+			logger.Printf("node.getStuckTxHash(%s) => %s", tx.TransactionHash, cancelHash)
+			err = node.store.ConfirmFullySignedTransactionApproval(ctx, tx.TransactionHash, spentHash, tx.RawTransaction, cancelHash)
 			if err != nil {
 				panic(err)
 			}
@@ -592,33 +596,82 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
 	rpc, _ := node.ethereumParams(tx.Chain)
-	success, validErr := st.ValidTransaction(rpc)
-	if validErr != nil || !success {
-		err := node.store.RefundFullySignedTransactionApproval(ctx, tx.TransactionHash)
-		if err != nil {
-			return "", err
-		}
+	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
-		t, err := node.keeperStore.ReadTransaction(ctx, tx.TransactionHash)
-		if err != nil {
-			return "", err
-		}
-		id := common.UniqueId(tx.TransactionHash, tx.RawTransaction)
-		id = common.UniqueId(id, "REFUNDINVALID")
-		extra := uuid.Must(uuid.FromString(t.RequestId)).Bytes()
-		err = node.sendKeeperResponse(ctx, tx.Holder, byte(common.ActionEthereumSafeRefundTransaction), tx.Chain, id, extra)
-		if err != nil {
-			return "", err
-		}
-		return "", fmt.Errorf("ValidTransaction => %t %v", success, validErr)
-	}
-
-	hash, err := st.ExecTransaction(ctx, rpc, node.conf.EVMKey)
-	logger.Printf("ExecTransaction(%v, %v) => %s %v", st, rpc, hash, err)
+	err := st.ValidTransaction(rpc)
+	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
 	if err != nil {
-		return "", err
+		// retry when error not from Gnosis Safe Contract
+		if !strings.Contains(err.Error(), "GS") {
+			return "", err
+		}
+		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
+		if err != nil {
+			panic(err)
+		}
+		// already sent
+		if nonce == st.Nonce.Int64()+1 {
+			hash, err := node.store.ReadProperty(ctx, key)
+			if err != nil || hash == "" {
+				panic(fmt.Errorf("store.ReadProperty(%s) => %s %v", key, hash, err))
+			}
+			return hash, nil
+		}
 	}
-	return hash, nil
+
+	etx, err := st.BuildTransaction(ctx, rpc, node.conf.EVMKey)
+	logger.Printf("BuildTransaction(%s) => %s %v", st.TxHash, etx.Hash().Hex(), err)
+	if err != nil {
+		panic(err)
+	}
+	err = node.store.WriteProperty(ctx, key, etx.Hash().Hex())
+	if err != nil {
+		panic(err)
+	}
+	err = ethereum.SendAndWaitMined(ctx, rpc, etx)
+	logger.Printf("SendAndWaitMined(%s) => %v", st.TxHash, err)
+	if err != nil {
+		panic(err)
+	}
+	return etx.Hash().Hex(), nil
+}
+
+func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
+	switch tx.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		return false
+	}
+	if tx.State != common.RequestStateDone || tx.SpentHash.String != "" {
+		return false
+	}
+	// check within ethereumTransactionStuckTime
+	if time.Since(tx.UpdatedAt) < ethereumTransactionStuckTime {
+		return false
+	}
+
+	rpc, _ := node.ethereumParams(tx.Chain)
+	height, err := ethereum.RPCGetBlockHeight(rpc)
+	if err != nil {
+		panic(err)
+	}
+	block, err := ethereum.RPCGetBlockByHeight(rpc, height)
+	if err != nil {
+		panic(err)
+	}
+	// check rpc is synced
+	if time.Until(block.Time).Abs() <= time.Minute {
+		return false
+	}
+	st, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
+	if err != nil {
+		panic(err)
+	}
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, height)
+	if err != nil {
+		panic(err)
+	}
+	// check nonce
+	return nonce == st.Nonce.Int64()
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {

@@ -120,12 +120,12 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("ethereum.RPCGetGasPrice(%d) => %v", chain, err)
 			continue
 		}
-		blockHash, err := ethereum.RPCGetBlockHash(rpc, height)
-		if err != nil || blockHash == "" {
-			logger.Printf("ethereum.RPCGetBlockHash(%d, %d) => %v", chain, height, err)
+		block, err := ethereum.RPCGetBlockByHeight(rpc, height)
+		if err != nil || block == nil {
+			logger.Printf("ethereum.RPCGetBlockHash(%d, %d) => %v %v", chain, height, block, err)
 			continue
 		}
-		hash, err := crypto.HashFromString(blockHash[2:])
+		hash, err := crypto.HashFromString(block.Hash[2:])
 		if err != nil {
 			panic(err)
 		}
@@ -133,9 +133,9 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 		extra = binary.BigEndian.AppendUint64(extra, gasPrice.Uint64())
 		extra = binary.BigEndian.AppendUint64(extra, uint64(height))
 		extra = append(extra, hash[:]...)
-		id := common.UniqueId(assetId, fmt.Sprintf("%s:%d", blockHash, height))
+		id := common.UniqueId(assetId, fmt.Sprintf("%s:%d", block.Hash, height))
 		id = common.UniqueId(id, fmt.Sprintf("%d:%d", time.Now().UnixNano(), gasPrice.Uint64()))
-		logger.Printf("node.ethereumNetworkInfoLoop(%d) => %d %d %s %s", chain, height, gasPrice.Uint64(), blockHash, id)
+		logger.Printf("node.ethereumNetworkInfoLoop(%d) => %d %d %s %s", chain, height, gasPrice.Uint64(), block.Hash, id)
 
 		dummy := node.bitcoinDummyHolder()
 		action := common.ActionObserverUpdateNetworkStatus

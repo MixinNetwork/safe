@@ -24,6 +24,8 @@ type Transaction struct {
 	RequestId       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+
+	CancelPrevious *Transaction
 }
 
 type TransactionInput struct {
@@ -279,49 +281,6 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) FailTransactionWithRequest(ctx context.Context, trx *Transaction, safe *Safe, req *common.Request, bm map[string]*SafeBalance, txs []*mtg.Transaction) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
-		common.RequestStateFailed, req.CreatedAt, trx.TransactionHash, common.RequestStateDone)
-	if err != nil {
-		return fmt.Errorf("UPDATE transactions %v", err)
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE safes SET nonce=?, updated_at=? WHERE holder=? AND nonce=? AND state=?",
-		safe.Nonce-1, time.Now().UTC(), safe.Holder, safe.Nonce, common.RequestStateDone)
-	if err != nil {
-		return fmt.Errorf("UPDATE safes %v", err)
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
-		common.RequestStateDone, time.Now().UTC(), req.Id)
-	if err != nil {
-		return fmt.Errorf("UPDATE requests %v", err)
-	}
-
-	for _, sb := range bm {
-		err = s.createOrUpdateEthereumBalance(ctx, tx, sb)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = s.writeActionResult(ctx, tx, req.Output.OutputId, "", txs, req.Id)
-	if err != nil {
-		return err
-	}
-
 	return tx.Commit()
 }
 

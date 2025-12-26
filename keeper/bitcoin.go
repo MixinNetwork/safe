@@ -944,6 +944,9 @@ func (node *Node) processBitcoinSafeApproveTransaction(ctx context.Context, req 
 }
 
 func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *common.Request, safe *store.Safe, tx *store.Transaction, old *store.SignatureRequest) ([]*mtg.Transaction, string) {
+	if tx.TransactionHash != old.TransactionHash {
+		panic(old.TransactionHash)
+	}
 	if req.Role != common.RequestRoleSigner {
 		panic(req.Role)
 	}
@@ -1021,7 +1024,7 @@ func (node *Node) processBitcoinSafeSignatureResponse(ctx context.Context, req *
 	lock := node.finalizePendingSafeInheritanceLock(ctx, tx)
 	logger.Printf("node.finalizePendingSafeInheritanceLock(%s) => %v", tx.RequestId, lock)
 	raw := hex.EncodeToString(spsbt.Marshal())
-	err = node.store.FinishTransactionSignaturesWithRequest(ctx, old.TransactionHash, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
+	err = node.store.FinishTransactionSignaturesWithRequest(ctx, tx, raw, req, int64(len(msgTx.TxIn)), safe, nil, lock, txs)
 	logger.Printf("store.FinishTransactionSignaturesWithRequest(%s, %s, %v, %v) => %v", old.TransactionHash, raw, req, lock, err)
 	if err != nil {
 		panic(err)
@@ -1133,12 +1136,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 }
 
 func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *store.Transaction) *store.InheritanceLock {
-	txReq, err := node.store.ReadRequest(ctx, tx.RequestId)
-	if err != nil {
-		panic(err)
-	}
-	extra := txReq.ExtraBytes()
-	flag := extra[0]
+	flag, extra := node.getTransactionFlagAndExtra(ctx, tx.RequestId)
 	switch flag {
 	case common.FlagProposeSetInheritance:
 		lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
@@ -1152,7 +1150,7 @@ func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *st
 		lock.State = common.RequestStateDone
 		return lock
 	case common.FlagProposeRemoveInheritance:
-		lid, err := uuid.FromBytes(extra[1:17])
+		lid, err := uuid.FromBytes(extra[:16])
 		if err != nil || lid.IsNil() {
 			logger.Printf("invalid lock id to remove: %v %v", lid, err)
 			return nil

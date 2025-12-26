@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -55,8 +56,31 @@ var (
 func TestCMPEthereumERC20Transaction(t *testing.T) {
 	ctx := context.Background()
 	require := require.New(t)
-	accountAddress := testPrepareEthereumAccount(ctx, require)
 
+	if polygonRpc := os.Getenv("POLYGONRPC"); polygonRpc != "" {
+		rpc = polygonRpc
+	}
+
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 52874396)
+	require.NotNil(err)
+	require.True(strings.Contains(err.Error(), "no contract code at given address"))
+	nonce, err = ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 52874399)
+	require.Nil(err)
+	require.Equal(int64(1), nonce)
+	nonce, err = ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 53028021)
+	require.Nil(err)
+	require.Equal(int64(2), nonce)
+	nonce, err = ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 53030541)
+	require.Nil(err)
+	require.Equal(int64(3), nonce)
+	nonce, err = ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 58425175)
+	require.Nil(err)
+	require.Equal(int64(4), nonce)
+	nonce, err = ethereum.FetchSafeNonce(ctx, rpc, "0x930A085bd78D2F1D225f2AA06dBfbF525CEe85cC", 0)
+	require.Nil(err)
+	require.Equal(int64(4), nonce)
+
+	accountAddress := testPrepareEthereumAccount(ctx, require)
 	assetAddress := "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
 	destination := "0xA03A8590BB3A2cA5c747c8b99C63DA399424a055"
 	value := "100"

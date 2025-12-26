@@ -123,7 +123,11 @@ func GetOrDeploySafeAccount(ctx context.Context, rpc, key string, chainId int64,
 		}
 	}
 	if !isGuarded {
-		_, err := tx.ExecTransaction(ctx, rpc, key)
+		etx, err := tx.BuildTransaction(ctx, rpc, key)
+		if err != nil {
+			return nil, err
+		}
+		err = SendAndWaitMined(ctx, rpc, etx)
 		if err != nil {
 			return nil, err
 		}
@@ -278,6 +282,24 @@ func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 
 	addr := crypto.PubkeyToAddress(*publicKey)
 	return &addr, nil
+}
+
+func FetchSafeNonce(ctx context.Context, rpc, address string, height int64) (int64, error) {
+	conn, abi, err := safeInit(rpc, address)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	opt := &bind.CallOpts{}
+	if height > 0 {
+		opt.BlockNumber = big.NewInt(height)
+	}
+	nonce, err := abi.Nonce(opt)
+	if err != nil {
+		return 0, err
+	}
+	return nonce.Int64(), nil
 }
 
 func FetchBalanceFromKey(ctx context.Context, rpc, key string) (*big.Int, error) {

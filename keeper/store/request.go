@@ -53,11 +53,20 @@ func (s *SQLite3Store) WriteRequestIfNotExist(ctx context.Context, req *common.R
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*common.Request, error) {
+func (s *SQLite3Store) readRequest(ctx context.Context, tx *sql.Tx, id string) (*common.Request, error) {
 	query := fmt.Sprintf("SELECT %s FROM requests WHERE request_id=?", strings.Join(requestCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
-
+	row := tx.QueryRowContext(ctx, query, id)
 	return requestFromRow(row)
+}
+
+func (s *SQLite3Store) ReadRequest(ctx context.Context, id string) (*common.Request, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer common.Rollback(tx)
+
+	return s.readRequest(ctx, tx, id)
 }
 
 func (s *SQLite3Store) FailRequest(ctx context.Context, req *common.Request, compaction string, txs []*mtg.Transaction) error {

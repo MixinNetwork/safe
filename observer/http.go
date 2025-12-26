@@ -584,6 +584,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "proposal"})
 		return
 	}
+	stuck := node.isTxStuck(r.Context(), approval)
 
 	data := map[string]any{
 		"account_id":      proposal.RequestId,
@@ -599,6 +600,8 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		data["hash"] = approval.SpentHash.String
 		data["raw"] = approval.SpentRaw.String
 		data["state"] = "spent"
+	} else if stuck {
+		data["state"] = "stuck"
 	}
 	common.RenderJSON(w, r, http.StatusOK, data)
 }

@@ -13,7 +13,9 @@ import (
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -256,10 +258,10 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	}, nil
 }
 
-func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
+func (tx *SafeTransaction) ValidTransaction(rpc string) error {
 	conn, abi, err := safeInit(rpc, tx.SafeAddress)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer conn.Close()
 
@@ -273,10 +275,10 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 		count += 1
 	}
 	if count < 2 {
-		return false, fmt.Errorf("SafeTransaction has insufficient signatures")
+		return fmt.Errorf("SafeTransaction has insufficient signatures")
 	}
 
-	return abi.ValidTransaction(
+	success, err := abi.ValidTransaction(
 		tx.Destination,
 		tx.Value,
 		tx.Data,
@@ -288,12 +290,16 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) (bool, error) {
 		tx.RefundReceiver,
 		signature,
 	)
+	if !success || err != nil {
+		return fmt.Errorf("ValidTransaction(%s) => %t %v", tx.TxHash, success, err)
+	}
+	return nil
 }
 
-func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
+func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string) (*types.Transaction, error) {
 	conn, safeAbi, err := safeInit(rpc, tx.SafeAddress)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer conn.Close()
 	signer := SignerInit(ctx, conn, key, tx.ChainID)
@@ -308,9 +314,10 @@ func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string)
 		count += 1
 	}
 	if count < 2 {
-		return "", fmt.Errorf("SafeTransaction has insufficient signatures")
+		return nil, fmt.Errorf("SafeTransaction has insufficient signatures")
 	}
 
+	signer.NoSend = true
 	t, err := safeAbi.ExecTransaction(
 		signer,
 		tx.Destination,
@@ -325,13 +332,24 @@ func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string)
 		signature,
 	)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	return t, nil
+}
+
+func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) error {
+	conn, err := ethclient.Dial(rpc)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	err = conn.SendTransaction(ctx, t)
+	if err != nil {
+		return err
 	}
 	_, err = bind.WaitMined(ctx, conn, t)
-	if err != nil {
-		return "", err
-	}
-	return t.Hash().Hex(), nil
+	return err
 }
 
 func (tx *SafeTransaction) ExtractOutputs() []*Output {

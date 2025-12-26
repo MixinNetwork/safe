@@ -45,6 +45,10 @@ func (node *Node) Boot(ctx context.Context) {
 	if err != nil || terminated {
 		panic(err)
 	}
+	err = node.store.Migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (node *Node) Terminate(ctx context.Context) ([]*mtg.Transaction, string) {
@@ -127,4 +131,14 @@ func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) 
 		return false
 	}
 	return out.DepositHash.Valid
+}
+
+func (node *Node) getTransactionFlagAndExtra(ctx context.Context, id string) (byte, []byte) {
+	txReq, err := node.store.ReadRequest(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	extra := txReq.ExtraBytes()
+	flag, extra := extra[0], extra[1:]
+	return flag, extra
 }
