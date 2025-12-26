@@ -724,13 +724,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		panic(req.AssetId)
 	}
 
+	nonce := safe.Nonce
 	extra := req.ExtraBytes()
 	if len(extra) < 33 {
 		return node.failRequest(ctx, req, "")
 	}
 	flag, extra := extra[0], extra[1:]
 	var lock *store.InheritanceLock
-	var ct *store.Transaction
 	switch flag {
 	case common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance:
 		lock, extra, err = node.processSafeInheritanceLock(ctx, req, safe, flag, extra)
@@ -744,7 +744,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			logger.Printf("valid cancel tx id: %x %v", extra[:16], err)
 			return node.failRequest(ctx, req, "")
 		}
-		ct, err = node.store.ReadTransactionByRequestId(ctx, cid.String())
+		ct, err := node.store.ReadTransactionByRequestId(ctx, cid.String())
 		logger.Printf("store.ReadCancelTransaction(%s) => %v %v", cid.String(), ct, err)
 		if err != nil {
 			panic(err)
@@ -755,6 +755,14 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(time.Minute*30)) {
 			return node.failRequest(ctx, req, "")
 		}
+		cst, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))
+		if err != nil {
+			panic(err)
+		}
+		if cst.Nonce.Int64() != nonce-1 {
+			return node.failRequest(ctx, req, "")
+		}
+		nonce = nonce - 1
 		extra = extra[16:]
 	}
 
@@ -770,6 +778,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if info == nil || info.Chain != safe.Chain {
 		return node.failRequest(ctx, req, "")
 	}
+
 	balance, err := node.store.ReadEthereumBalance(ctx, safe.Address, id.String(), safeAssetId)
 	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, id.String(), balance, err)
 	if err != nil {
@@ -851,26 +860,13 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
-	nonce := safe.Nonce
 	nonceOnline, err := ethereum.FetchSafeNonce(ctx, rpc, safe.Address, int64(info.Height))
 	logger.Printf("ethereum.FetchSafeNonce(%s %d) => %d %v", safe.Address, info.Height, nonceOnline, err)
 	if err != nil {
 		panic(err)
 	}
-	switch flag {
-	case common.FlagProposeCancelTransaction:
-		cst, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))
-		if err != nil {
-			panic(err)
-		}
-		if nonceOnline != cst.Nonce.Int64() || nonceOnline != nonce-1 {
-			return node.failRequest(ctx, req, "")
-		}
-		nonce = nonceOnline
-	default:
-		if nonce != nonceOnline && !common.CheckTestEnvironment(ctx) {
-			panic(fmt.Errorf("invalid safe nonce: %s %d %d ", safe.Address, nonce, nonceOnline))
-		}
+	if nonce != nonceOnline && !common.CheckTestEnvironment(ctx) {
+		panic(fmt.Errorf("invalid safe nonce: %s %d %d ", safe.Address, nonce, nonceOnline))
 	}
 
 	var t *ethereum.SafeTransaction
