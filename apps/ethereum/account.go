@@ -123,7 +123,11 @@ func GetOrDeploySafeAccount(ctx context.Context, rpc, key string, chainId int64,
 		}
 	}
 	if !isGuarded {
-		_, err := tx.ExecTransaction(ctx, rpc, key)
+		etx, err := tx.BuildTransaction(ctx, rpc, key)
+		if err != nil {
+			return nil, err
+		}
+		err = SendAndWaitMined(ctx, rpc, etx)
 		if err != nil {
 			return nil, err
 		}

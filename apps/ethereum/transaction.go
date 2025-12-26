@@ -350,50 +350,6 @@ func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) err
 	return err
 }
 
-func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
-	conn, safeAbi, err := safeInit(rpc, tx.SafeAddress)
-	if err != nil {
-		return "", err
-	}
-	defer conn.Close()
-	signer := SignerInit(ctx, conn, key, tx.ChainID)
-
-	var signature []byte
-	count := 0
-	for _, sig := range tx.Signatures {
-		if sig == nil {
-			continue
-		}
-		signature = append(signature, sig...)
-		count += 1
-	}
-	if count < 2 {
-		return "", fmt.Errorf("SafeTransaction has insufficient signatures")
-	}
-
-	t, err := safeAbi.ExecTransaction(
-		signer,
-		tx.Destination,
-		tx.Value,
-		tx.Data,
-		tx.Operation,
-		tx.SafeTxGas,
-		tx.BaseGas,
-		tx.GasPrice,
-		tx.GasToken,
-		tx.RefundReceiver,
-		signature,
-	)
-	if err != nil {
-		return "", err
-	}
-	_, err = bind.WaitMined(ctx, conn, t)
-	if err != nil {
-		return "", err
-	}
-	return t.Hash().Hex(), nil
-}
-
 func (tx *SafeTransaction) ExtractOutputs() []*Output {
 	outputs, err := tx.parseMultiSendData()
 	if err == nil {
