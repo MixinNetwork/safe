@@ -45,7 +45,7 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	}
 
 	query := query1 + query2 + query3
-	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)", key, query, now, now)
+	_, err = tx.ExecContext(ctx, "INSERT INTO properties (key, value, created_at) VALUES (?, ?, ?)", key, query, now)
 	if err != nil {
 		return err
 	}
