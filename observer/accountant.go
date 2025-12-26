@@ -22,6 +22,8 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+const ethereumTransactionStuckTime = time.Hour * 24
+
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
 	logger.Printf("node.keeperCombineBitcoinTransactionSignatures(%x)", extra)
 	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
@@ -391,10 +393,7 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 
 			spentHash, err := node.ethereumSpendFullySignedTransaction(ctx, tx)
 			logger.Printf("node.ethereumSpendFullySignedTransaction(%v) => %v %v", tx, spentHash, err)
-			if err != nil {
-				break
-			}
-			if spentHash == "" {
+			if err != nil || spentHash == "" {
 				continue
 			}
 			cancelHash := node.getStuckTxHash(ctx, tx.TransactionHash)
@@ -605,45 +604,17 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		if !strings.Contains(err.Error(), "GS") {
 			return "", err
 		}
-
-		height, err := ethereum.RPCGetBlockHeight(rpc)
+		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
 		if err != nil {
 			panic(err)
 		}
-		block, err := ethereum.RPCGetBlockByHeight(rpc, height)
-		if err != nil {
-			panic(err)
-		}
-		// retry when rpc not synced
-		if time.Until(block.Time).Abs() > time.Minute {
-			return "", nil
-		}
-		// retry within 30mins
-		if time.Now().Before(tx.UpdatedAt.Add(30 * time.Minute)) {
-			return "", nil
-		}
-
-		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, int64(block.Height))
-		if err != nil {
-			panic(err)
-		}
-		n := st.Nonce.Int64()
-		switch nonce {
 		// already sent
-		case n + 1:
+		if nonce == st.Nonce.Int64()+1 {
 			hash, err := node.store.ReadProperty(ctx, key)
 			if err != nil || hash == "" {
 				panic(fmt.Errorf("store.ReadProperty(%s) => %s %v", key, hash, err))
 			}
 			return hash, nil
-		case n:
-			err = node.store.MarkTransactionStuck(ctx, tx.TransactionHash)
-			if err != nil {
-				panic(err)
-			}
-			return "", nil
-		default:
-			panic(fmt.Errorf("ethereum.FetchSafeNonce(%s) => %d %d", st.SafeAddress, n, nonce))
 		}
 	}
 
@@ -662,6 +633,44 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		panic(err)
 	}
 	return etx.Hash().Hex(), nil
+}
+
+func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
+	switch tx.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		return false
+	}
+	if tx.State != common.RequestStateDone || tx.SpentHash.String != "" {
+		return false
+	}
+	// check within ethereumTransactionStuckTime
+	if time.Now().Before(tx.UpdatedAt.Add(ethereumTransactionStuckTime)) {
+		return false
+	}
+
+	rpc, _ := node.ethereumParams(tx.Chain)
+	height, err := ethereum.RPCGetBlockHeight(rpc)
+	if err != nil {
+		panic(err)
+	}
+	block, err := ethereum.RPCGetBlockByHeight(rpc, height)
+	if err != nil {
+		panic(err)
+	}
+	// check rpc is synced
+	if time.Until(block.Time).Abs() <= time.Minute {
+		return false
+	}
+	st, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(tx.RawTransaction))
+	if err != nil {
+		panic(err)
+	}
+	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, height)
+	if err != nil {
+		panic(err)
+	}
+	// check nonce
+	return nonce == st.Nonce.Int64()
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {

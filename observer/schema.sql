@@ -96,7 +96,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   state              INTEGER NOT NULL,
   spent_hash         VARCHAR,
   spent_raw          VARCHAR,
-  stuck              BOOLEAN,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash')

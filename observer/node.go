@@ -550,7 +550,7 @@ func (node *Node) getStuckTxHash(ctx context.Context, hash string) string {
 		panic(err)
 	}
 	approval, err := node.store.ReadTransactionApproval(ctx, tx.TransactionHash)
-	if err != nil || approval == nil || !approval.Stuck.Bool {
+	if err != nil || approval == nil || !node.isTxStuck(ctx, approval) {
 		panic(fmt.Errorf("store.ReadTransactionApproval(%s) => %v %v", tx.TransactionHash, approval, err))
 	}
 	return approval.TransactionHash
