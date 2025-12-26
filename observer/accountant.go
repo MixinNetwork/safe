@@ -20,6 +20,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
@@ -615,7 +616,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 			panic(err)
 		}
 		// retry when rpc not synced
-		if time.Until(block.Time).Abs().Microseconds() > time.Minute.Microseconds() {
+		if time.Until(block.Time).Abs() > time.Minute {
 			return "", nil
 		}
 		// retry within 30mins
@@ -647,12 +648,16 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		}
 	}
 
-	conn, etx, err := st.BuildTransaction(ctx, rpc, node.conf.EVMKey)
+	etx, err := st.BuildTransaction(ctx, rpc, node.conf.EVMKey)
 	logger.Printf("BuildTransaction(%s) => %s %v", st.TxHash, etx.Hash().Hex(), err)
 	if err != nil {
 		panic(err)
 	}
 	err = node.store.WriteProperty(ctx, key, etx.Hash().Hex())
+	if err != nil {
+		panic(err)
+	}
+	conn, err := ethclient.Dial(rpc)
 	if err != nil {
 		panic(err)
 	}
@@ -675,7 +680,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		if err != nil {
 			panic(err)
 		}
-		if txx.Hash == etx.Hash().Hex() {
+		if txx != nil {
 			return txx.Hash, nil
 		}
 		count += 1

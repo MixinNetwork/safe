@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -296,10 +295,10 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) error {
 	return nil
 }
 
-func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string) (*ethclient.Client, *types.Transaction, error) {
+func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string) (*types.Transaction, error) {
 	conn, safeAbi, err := safeInit(rpc, tx.SafeAddress)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer conn.Close()
 	signer := SignerInit(ctx, conn, key, tx.ChainID)
@@ -314,7 +313,7 @@ func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string
 		count += 1
 	}
 	if count < 2 {
-		return nil, nil, fmt.Errorf("SafeTransaction has insufficient signatures")
+		return nil, fmt.Errorf("SafeTransaction has insufficient signatures")
 	}
 
 	signer.NoSend = true
@@ -332,9 +331,9 @@ func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string
 		signature,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return conn, t, nil
+	return t, nil
 }
 
 func (tx *SafeTransaction) ExecTransaction(ctx context.Context, rpc, key string) (string, error) {
