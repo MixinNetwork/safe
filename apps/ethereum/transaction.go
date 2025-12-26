@@ -342,6 +342,8 @@ func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) err
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
+
 	err = conn.SendTransaction(ctx, t)
 	if err != nil {
 		return err
