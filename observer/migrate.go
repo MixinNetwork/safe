@@ -26,9 +26,9 @@ func (s *SQLite3Store) Migrate(ctx context.Context) error {
 	}
 	now := time.Now().UTC()
 
-	query := "UPDATE transactions SET state=?, spent_hash=?, updated_at=? WHERE transaction_hash=?;\n"
+	query := "UPDATE transactions SET state=?, spent_hash=?, updated_at=? WHERE transaction_hash=? AND state=?;\n"
 	err = s.execOne(ctx, tx, query,
-		common.RequestStateDone, "0x4a58ca86cf5731b1d505c96757546b564a7c88f33539f7d9b23c6dce6f53b343", now, "6a5ccb71871db47550acd5429764d724c0e26e9ef63e214954edce2ee80a7e90")
+		common.RequestStateDone, "0x4a58ca86cf5731b1d505c96757546b564a7c88f33539f7d9b23c6dce6f53b343", now, "6a5ccb71871db47550acd5429764d724c0e26e9ef63e214954edce2ee80a7e90", common.RequestStateFailed)
 	if err != nil {
 		return err
 	}

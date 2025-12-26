@@ -20,7 +20,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const ethereumTransactionStuckTime = time.Hour * 24
+const EthereumTransactionStuckTime = time.Hour * 24
 
 func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	if req.Role != common.RequestRoleObserver {
@@ -754,7 +754,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if ct == nil || ct.Holder != safe.Holder || ct.State != common.RequestStateDone {
 			return node.failRequest(ctx, req, "")
 		}
-		if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(ethereumTransactionStuckTime)) {
+		if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(EthereumTransactionStuckTime)) {
 			return node.failRequest(ctx, req, "")
 		}
 		cst, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(ct.RawTransaction))

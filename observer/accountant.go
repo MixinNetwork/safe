@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/keeper"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
@@ -22,7 +23,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
-const ethereumTransactionStuckTime = time.Hour * 24
+const ethereumTransactionStuckTime = keeper.EthereumTransactionStuckTime + time.Hour
 
 func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context, extra []byte) error {
 	logger.Printf("node.keeperCombineBitcoinTransactionSignatures(%x)", extra)
@@ -644,7 +645,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 		return false
 	}
 	// check within ethereumTransactionStuckTime
-	if time.Now().Before(tx.UpdatedAt.Add(ethereumTransactionStuckTime)) {
+	if time.Since(tx.UpdatedAt) < ethereumTransactionStuckTime {
 		return false
 	}
 
