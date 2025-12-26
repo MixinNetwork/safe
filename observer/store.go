@@ -398,12 +398,17 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 }
 
 func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder string, state int, offset int64) ([]*Deposit, error) {
-	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? AND updated_at>=? ORDER BY updated_at ASC LIMIT 100", strings.Join(depositsCols, ","))
-	params := []any{chain, state, time.Unix(0, offset)}
-	if holder != "" {
-		query = fmt.Sprintf("SELECT %s FROM deposits WHERE holder=? AND chain=? AND state=? AND updated_at>=? ORDER BY updated_at ASC LIMIT 100", strings.Join(depositsCols, ","))
-		params = []any{holder, chain, state, time.Unix(0, offset)}
+	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND updated_at>=?", strings.Join(depositsCols, ","))
+	params := []any{chain, time.Unix(0, offset)}
+	if state > 0 {
+		query += " AND state=?"
+		params = append(params, state)
 	}
+	if holder != "" {
+		query += " AND holder=?"
+		params = append(params, holder)
+	}
+	query += " ORDER BY updated_at ASC LIMIT 100"
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err

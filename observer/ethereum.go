@@ -516,7 +516,7 @@ func (node *Node) parseEthereumBlockBalanceChanges(ctx context.Context, chain by
 		logger.Verbosef("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
 		if err != nil {
 			return nil, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", t.Receiver, safe, err)
-		} else if safe == nil || safe.Chain != chain {
+		} else if safe == nil || safe.Chain != chain || safe.State != common.RequestStateDone {
 			continue
 		}
 		old, err := node.keeperStore.ReadDeposit(ctx, t.Hash, t.Index)
