@@ -8,8 +8,8 @@ github.com/MixinNetwork/bot-api-go-client/v3 v3.18.0 h1:ILAqkkotmhCkgpT8mAWFhb3f
 github.com/MixinNetwork/bot-api-go-client/v3 v3.18.0/go.mod h1:WYra6ReDcAZu9XXf6gzHejDvMDyaTuRFYNFdBPe2D04=
 github.com/MixinNetwork/go-number v0.2.0 h1:1TJtC3LuKeBqrlVQ5KymNy1gc6O9i1UgY0/8wH20p/M=
 github.com/MixinNetwork/go-number v0.2.0/go.mod h1:xn7WHrhI1Ra8irldx2YQVmL8SerzJZNHX92AWyI3Ars=
-github.com/MixinNetwork/mixin v0.18.28 h1:/U4s2OOJZzpMxWu009FrGP+ozqVzXb+0ARXFQQvAtBA=
-github.com/MixinNetwork/mixin v0.18.28/go.mod h1:AtEkQl0QZ1S3VVY92Hnn1dDLoX679I8Xad8hVzVXVQo=
+github.com/MixinNetwork/mixin v0.18.29 h1:LyYMCcFwaHj4KO0U+LfDN7jAfRRaIBTJ3RSYYujjY2M=
+github.com/MixinNetwork/mixin v0.18.29/go.mod h1:cKgRAeA/SKNwFJ622LRe8ORM7d9sPJS42DCjsRLP1CA=
 github.com/MixinNetwork/multi-party-sig v0.5.0 h1:gFuySuMnHw/c/oNOXc23KQICzgN3KDx7x4ee1tB3H+8=
 github.com/MixinNetwork/multi-party-sig v0.5.0/go.mod h1:4M031s/hX1oeFb8nI/s3WRyrezdi8pVAv4DabYC4UMk=
 github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20251225023818-8886bb81c549 h1:NERDcANvDCnspxdMEMLXOMnuITWIWrTQvvhEA8ewBBM=
