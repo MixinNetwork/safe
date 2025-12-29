@@ -816,7 +816,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	latestTxTime, err := ethereum.GetSafeLastTxTime(ctx, st.ChainID, rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
 	if err != nil {
 		return err
@@ -914,7 +914,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	latestTxTime, err := ethereum.GetSafeLastTxTime(ctx, st.ChainID, rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
 	if err != nil {
 		return err
@@ -1149,7 +1149,7 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	latestTxTime, err := ethereum.GetSafeLastTxTime(ctx, st.ChainID, rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err)
 	if err != nil {
 		return nil, err

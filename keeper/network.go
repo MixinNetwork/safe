@@ -236,7 +236,7 @@ func (node *Node) fetchMixinAsset(_ context.Context, id string) (*store.Asset, e
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer common.CloseOrPanic(resp.Body)
 
 	var body struct {
 		Data *struct {

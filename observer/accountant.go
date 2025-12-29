@@ -598,14 +598,14 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	rpc, _ := node.ethereumParams(tx.Chain)
 	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
-	err := st.ValidTransaction(rpc)
+	err := st.ValidTransaction(ctx, rpc)
 	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
 	if err != nil {
 		// retry when error not from Gnosis Safe Contract
 		if !strings.Contains(err.Error(), "GS") {
 			return "", err
 		}
-		nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, 0)
+		nonce, err := ethereum.FetchSafeNonce(ctx, st.ChainID, rpc, st.SafeAddress, 0)
 		if err != nil {
 			panic(err)
 		}
@@ -666,7 +666,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 	if err != nil {
 		panic(err)
 	}
-	nonce, err := ethereum.FetchSafeNonce(ctx, rpc, st.SafeAddress, height)
+	nonce, err := ethereum.FetchSafeNonce(ctx, st.ChainID, rpc, st.SafeAddress, height)
 	if err != nil {
 		panic(err)
 	}

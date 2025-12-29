@@ -559,10 +559,17 @@ func suggestMaxPriorityFeePerGas(ctx context.Context, conn *ethclient.Client) *b
 	return gasPrice
 }
 
-func safeInit(rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {
+func safeInit(ctx context.Context, chainId int64, rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {
 	conn, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, nil, err
+	}
+	id, err := conn.ChainID(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if id.Int64() != chainId {
+		return nil, nil, fmt.Errorf("safeInit(%d, %s) => %d", chainId, rpc, id.Int64())
 	}
 
 	abi, err := abi.NewGnosisSafe(common.HexToAddress(address), conn)

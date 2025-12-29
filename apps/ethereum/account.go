@@ -112,7 +112,7 @@ func GetSortedSafeOwners(holder, signer, observer string) ([]string, []string) {
 func GetOrDeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owners []string, threshold int64, timelock, observerIndex int64, tx *SafeTransaction) (*common.Address, error) {
 	addr := GetSafeAccountAddress(owners, threshold)
 
-	isGuarded, isDeployed, err := CheckSafeAccountDeployed(rpc, addr.String())
+	isGuarded, isDeployed, err := CheckSafeAccountDeployed(ctx, chainId, rpc, addr.String())
 	if err != nil {
 		return nil, err
 	}
@@ -135,8 +135,8 @@ func GetOrDeploySafeAccount(ctx context.Context, rpc, key string, chainId int64,
 	return &addr, nil
 }
 
-func GetSafeAccountGuard(rpc, address string) (string, error) {
-	conn, abi, err := safeInit(rpc, address)
+func GetSafeAccountGuard(ctx context.Context, chainId int64, rpc, address string) (string, error) {
+	conn, abi, err := safeInit(ctx, chainId, rpc, address)
 	if err != nil {
 		return "", err
 	}
@@ -157,8 +157,8 @@ func GetSafeAccountGuard(rpc, address string) (string, error) {
 	return guardAddress.Hex(), nil
 }
 
-func CheckSafeAccountDeployed(rpc, address string) (bool, bool, error) {
-	guardAddress, err := GetSafeAccountGuard(rpc, address)
+func CheckSafeAccountDeployed(ctx context.Context, chainId int64, rpc, address string) (bool, bool, error) {
+	guardAddress, err := GetSafeAccountGuard(ctx, chainId, rpc, address)
 	if err != nil {
 		return false, false, err
 	}
@@ -222,8 +222,8 @@ func DeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owne
 	return err
 }
 
-func GetSafeLastTxTime(rpc, address string) (time.Time, error) {
-	guardAddress, err := GetSafeAccountGuard(rpc, address)
+func GetSafeLastTxTime(ctx context.Context, chainId int64, rpc, address string) (time.Time, error) {
+	guardAddress, err := GetSafeAccountGuard(ctx, chainId, rpc, address)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -284,12 +284,20 @@ func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 	return &addr, nil
 }
 
-func FetchSafeNonce(ctx context.Context, rpc, address string, height int64) (int64, error) {
-	conn, abi, err := safeInit(rpc, address)
+func FetchSafeNonce(ctx context.Context, chainId int64, rpc, address string, height int64) (int64, error) {
+	conn, abi, err := safeInit(ctx, chainId, rpc, address)
 	if err != nil {
 		return 0, err
 	}
 	defer conn.Close()
+
+	now, err := conn.BlockNumber(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if now < uint64(height) {
+		panic(now)
+	}
 
 	opt := &bind.CallOpts{}
 	if height > 0 {

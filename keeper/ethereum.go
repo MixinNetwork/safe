@@ -73,7 +73,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	}
 
 	rpc, _ := node.ethereumParams(safe.Chain)
-	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	latestTxTime, err := ethereum.GetSafeLastTxTime(ctx, t.ChainID, rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s) => %v %v", safe.Address, latestTxTime, err)
 	if err != nil {
 		panic(err)
@@ -206,7 +206,8 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 
 	rpc, _ := node.ethereumParams(safe.Chain)
-	latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
+	latestTxTime, err := ethereum.GetSafeLastTxTime(ctx, chainId, rpc, safe.Address)
 	logger.Printf("ethereum.GetSafeLastTxTime(%s) => %v %v", safe.Address, latestTxTime, err)
 	if err != nil {
 		panic(err)
@@ -701,6 +702,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if meta.Chain != common.SafeChainPolygon {
 		return node.failRequest(ctx, req, "")
 	}
+	// FIXME no info height used yet
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
@@ -862,17 +864,18 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 
-	nonceOnline, err := ethereum.FetchSafeNonce(ctx, rpc, safe.Address, int64(info.Height))
-	logger.Printf("ethereum.FetchSafeNonce(%s %d) => %d %v", safe.Address, info.Height, nonceOnline, err)
+	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
+	nonceOnline, err := ethereum.FetchSafeNonce(ctx, chainId, rpc, safe.Address, int64(info.Height))
+	logger.Printf("ethereum.FetchSafeNonce(%s, %d) => %d %v", safe.Address, info.Height, nonceOnline, err)
 	if err != nil {
 		panic(err)
 	}
 	if nonce != nonceOnline && !common.CheckTestEnvironment(ctx) {
-		panic(fmt.Errorf("invalid safe nonce: %s %d %d ", safe.Address, nonce, nonceOnline))
+		logger.Printf("invalid safe nonce: %s %d %d %d", safe.Address, nonce, nonceOnline, info.Height)
+		return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 	}
 
 	var t *ethereum.SafeTransaction
-	chainId := ethereum.GetEvmChainID(int64(safe.Chain))
 	txType := ethereum.TypeETHTx
 	switch flag {
 	case common.FlagProposeNormalTransaction, common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance, common.FlagProposeCancelTransaction:
@@ -897,7 +900,8 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if err != nil {
 			panic(fmt.Errorf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err))
 		}
-		latestTxTime, err := ethereum.GetSafeLastTxTime(rpc, safe.Address)
+		// FIXME no info height used yet
+		latestTxTime, err := ethereum.GetSafeLastTxTime(ctx, chainId, rpc, safe.Address)
 		if err != nil {
 			panic(fmt.Errorf("ethereum.GetSafeLastTxTime(%s %s) => %v %v", rpc, safe.Address, latestTxTime, err))
 		}

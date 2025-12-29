@@ -258,8 +258,8 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	}, nil
 }
 
-func (tx *SafeTransaction) ValidTransaction(rpc string) error {
-	conn, abi, err := safeInit(rpc, tx.SafeAddress)
+func (tx *SafeTransaction) ValidTransaction(ctx context.Context, rpc string) error {
+	conn, abi, err := safeInit(ctx, tx.ChainID, rpc, tx.SafeAddress)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (tx *SafeTransaction) ValidTransaction(rpc string) error {
 }
 
 func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string) (*types.Transaction, error) {
-	conn, safeAbi, err := safeInit(rpc, tx.SafeAddress)
+	conn, safeAbi, err := safeInit(ctx, tx.ChainID, rpc, tx.SafeAddress)
 	if err != nil {
 		return nil, err
 	}
