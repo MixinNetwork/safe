@@ -18,7 +18,7 @@ require (
 	github.com/fox-one/mixin-sdk-go/v2 v2.1.1
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/gofrs/uuid/v5 v5.4.0
-	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0
@@ -30,7 +30,7 @@ require (
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
-	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20251225023818-8886bb81c549 // indirect
+	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260104020744-7268a54d0358 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
@@ -73,7 +73,7 @@ require (
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

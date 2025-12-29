@@ -1045,15 +1045,15 @@ func (node *Node) renderAccount(ctx context.Context, w http.ResponseWriter, r *h
 			return
 		}
 		common.RenderJSON(w, r, http.StatusOK, map[string]any{
-			"chain":          sp.Chain,
-			"id":             sp.RequestId,
-			"address":        sp.Address,
-			"balances":       bs,
-			"pendingbalance": ps,
-			"nonce":          nonce,
-			"keys":           node.viewSafeXPubs(r.Context(), sp),
-			"safe_asset_id":  safeAssetId,
-			"state":          status,
+			"chain":            sp.Chain,
+			"id":               sp.RequestId,
+			"address":          sp.Address,
+			"balances":         bs,
+			"pending_balances": ps,
+			"nonce":            nonce,
+			"keys":             node.viewSafeXPubs(r.Context(), sp),
+			"safe_asset_id":    safeAssetId,
+			"state":            status,
 		})
 	default:
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "chain"})
