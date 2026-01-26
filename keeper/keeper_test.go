@@ -850,7 +850,7 @@ func testSafeSetInheritanceLock(ctx context.Context, require *require.Assertions
 		extra = append(extra, uuid.FromStringOrNil(removeId).Bytes()...)
 	} else {
 		extra = append(extra, hash[:]...)
-		extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+		extra = append(extra, binary.BigEndian.AppendUint64(nil, uint64(lock))...)
 	}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
@@ -1436,7 +1436,7 @@ func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, appId, assetId, 
 }
 
 func testRecipient() []byte {
-	extra := binary.BigEndian.AppendUint16(nil, uint16(testTimelockDuration/time.Hour))
+	extra := binary.BigEndian.AppendUint64(nil, uint64(testTimelockDuration/time.Hour))
 	extra = append(extra, 1, 1)
 	id := uuid.FromStringOrNil(testSafeBondReceiverId)
 	return append(extra, id.Bytes()...)

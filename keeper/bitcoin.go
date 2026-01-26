@@ -1104,7 +1104,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 			return nil, nil, fmt.Errorf("invalid lock extra to update: %x", extra)
 		}
 		hash := hex.EncodeToString(extra[:32])
-		hours := binary.BigEndian.Uint16(extra[32:34])
+		hours := binary.BigEndian.Uint64(extra[32:40])
 		inheritanceLock := time.Duration(hours) * time.Hour
 		if inheritanceLock-safe.Timelock < time.Hour*24*365 && !common.CheckTestEnvironment(ctx) {
 			return nil, nil, fmt.Errorf("invalid inheritance duration: %s %d", req.Id, hours)
@@ -1129,7 +1129,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 			CreatedAt: req.CreatedAt,
 			UpdatedAt: req.CreatedAt,
 		}
-		return nl, extra[34:], nil
+		return nl, extra[40:], nil
 	default:
 		return nil, nil, fmt.Errorf("invalid inheritance flag: %d", flag)
 	}

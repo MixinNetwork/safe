@@ -678,7 +678,7 @@ func testEthereumSafeSetInheritanceLock(ctx context.Context, require *require.As
 		extra = append(extra, uuid.FromStringOrNil(removeId).Bytes()...)
 	} else {
 		extra = append(extra, hash[:]...)
-		extra = append(extra, binary.BigEndian.AppendUint16(nil, uint16(lock))...)
+		extra = append(extra, binary.BigEndian.AppendUint64(nil, uint64(lock))...)
 	}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testEthereumTransactionReceiver)...)

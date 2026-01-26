@@ -153,7 +153,7 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 	}
 
 	dec := common.NewDecoder(extra)
-	hours, err := dec.ReadUint16()
+	hours, err := dec.ReadUint64()
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		Receivers: receivers,
 		Threshold: threshold,
 	}
-	offset := 2 + 1 + 1 + int(total)*16
+	offset := 8 + 1 + 1 + int(total)*16
 	if offset == len(extra) {
 		return arp, nil
 	}
