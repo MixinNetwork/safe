@@ -313,25 +313,6 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	return os, nil
 }
 
-func (s *SQLite3Store) ListOutputs(ctx context.Context) ([]*UnifiedOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
-	rows, err := s.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer closeOrPanic(rows)
-
-	var os []*UnifiedOutput
-	for rows.Next() {
-		o, err := outputFromRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		os = append(os, o)
-	}
-	return os, nil
-}
-
 func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change common.Integer) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
