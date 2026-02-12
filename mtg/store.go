@@ -152,6 +152,14 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(out.AppId)
 	}
 
+	invalid, err := outputFromRow(tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM outputs WHERE sequence>?", strings.Join(outputCols, ",")), out.Sequence))
+	if err != nil {
+		return err
+	}
+	if invalid != nil {
+		panic(fmt.Errorf("invalid output to write: %v %v", out, invalid))
+	}
+
 	oldAct, err := s.readAction(ctx, tx, out.OutputId)
 	if err != nil {
 		return err
@@ -289,6 +297,25 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
 	rows, err := s.db.QueryContext(ctx, query, appId, assetId, state, consumedUntil, sequence)
+	if err != nil {
+		return nil, err
+	}
+	defer closeOrPanic(rows)
+
+	var os []*UnifiedOutput
+	for rows.Next() {
+		o, err := outputFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		os = append(os, o)
+	}
+	return os, nil
+}
+
+func (s *SQLite3Store) ListOutputs(ctx context.Context) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
