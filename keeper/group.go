@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/gofrs/uuid/v5"
 )
@@ -350,6 +351,15 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.failRequest(ctx, req, "")
 	}
 
+	flag := txRequest.ExtraBytes()[0]
+	var lock *store.InheritanceLock
+	if flag == common.FlagProposeSetInheritance {
+		lock, err = node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+		if err != nil || lock == nil {
+			panic(fmt.Errorf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err))
+		}
+	}
+
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
 	logger.Printf("holder: node.verifySafeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
@@ -370,7 +380,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.failRequest(ctx, req, bond.AssetId)
 	}
 
-	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req, []*mtg.Transaction{t})
+	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req, lock, []*mtg.Transaction{t})
 	if err != nil {
 		panic(err)
 	}

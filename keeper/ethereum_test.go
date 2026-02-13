@@ -444,9 +444,23 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 		}
 	}
 
-	transactionHash := testEthereumSafeSetInheritanceLock(ctx, require, node, "", 10, cnbBondId, "358c0e9e-8d9c-4e0f-acde-8945a859763a", "5137b99216af5c2c42438dfba493eab4b28c73decdc140068a5a8f136c8c0c08", "00000000000000890000000000000000004035313337623939323136616635633263343234333864666261343933656162346232386337336465636463313430303638613561386631333663386330633038002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014c2132d05d31c914a87c6611c10748aeb04b58e8f00000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a0550000000000000000000000000000000000000000000000000000000000000064000101002045fca74a7dc95b2b94e78e39477dc900f6b4d10fcbca5e45d49ee85fdb5ab2df00022c2c")
-	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	// create but revoke
+	rid := "358c0e9e-8d9c-4e0f-acde-8945a859763b"
+	transactionHash := testEthereumSafeSetInheritanceLock(ctx, require, node, "", 10, cnbBondId, rid, "a80ccea20369f978cac1d7a5f610c5e5fc643989a90be484c625b53c767857bf", "00000000000000890000000000000000004061383063636561323033363966393738636163316437613566363130633565356663363433393839613930626534383463363235623533633736373835376266002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014c2132d05d31c914a87c6611c10748aeb04b58e8f00000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a0550000000000000000000000000000000000000000000000000000000000000064000101002045fca74a7dc95b2b94e78e39477dc900f6b4d10fcbca5e45d49ee85fdb5ab2df00022c2c")
 	l, err := node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(l.RequestId, rid)
+	require.Equal(l.State, byte(common.RequestStateInitial))
+	testEthereumRevokeTransaction(ctx, require, node, transactionHash, false)
+	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(l.State, byte(common.RequestStateFailed))
+
+	// create
+	rid = "358c0e9e-8d9c-4e0f-acde-8945a859763a"
+	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, "", 10, cnbBondId, rid, "5137b99216af5c2c42438dfba493eab4b28c73decdc140068a5a8f136c8c0c08", "00000000000000890000000000000000004035313337623939323136616635633263343234333864666261343933656162346232386337336465636463313430303638613561386631333663386330633038002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014c2132d05d31c914a87c6611c10748aeb04b58e8f00000044a9059cbb000000000000000000000000a03a8590bb3a2ca5c747c8b99c63da399424a0550000000000000000000000000000000000000000000000000000000000000064000101002045fca74a7dc95b2b94e78e39477dc900f6b4d10fcbca5e45d49ee85fdb5ab2df00022c2c")
+	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
+	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
 	require.Nil(err)
 	require.Equal(l.RequestId, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
 	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
@@ -456,9 +470,23 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(int(l.State), common.RequestStateDone)
 	ls, err := node.store.ListInheritanceLocksByHolder(ctx, holder)
 	require.Nil(err)
-	require.Len(ls, 1)
+	require.Len(ls, 2)
 
-	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, "", 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59475", "d78266795f625c785433617c932ed7d2d9ffc0b6b1dc83582a0f9ece8afb7bef", "00000000000000890000000000000000004064373832363637393566363235633738353433333631376339333265643764326439666663306236623164633833353832613066396563653861666237626566002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a40000000000102002047a466f99f9e418aa3ea44259b13841354e0c7eed32e6ab33b7a1ac5d5abb1a700022c2c")
+	// update but revoke
+	rid = "1924a324-dbcb-48db-b0ea-5d23ebe59474"
+	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, "", 20, testEthereumBondAssetId, rid, "016b8f8e219d3c38bcc1582ab18e6403df1509c9afb0c838829f3585d3281681", "00000000000000890000000000000000004030313662386638653231396433633338626363313538326162313865363430336466313530396339616662306338333838323966333538356433323831363831002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a40000000000102002047a466f99f9e418aa3ea44259b13841354e0c7eed32e6ab33b7a1ac5d5abb1a700022c2c")
+	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(l.RequestId, rid)
+	require.Equal(l.State, byte(common.RequestStateInitial))
+	testEthereumRevokeTransaction(ctx, require, node, transactionHash, false)
+	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(l.State, byte(common.RequestStateFailed))
+
+	// update
+	rid = "1924a324-dbcb-48db-b0ea-5d23ebe59475"
+	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, "", 20, testEthereumBondAssetId, rid, "d78266795f625c785433617c932ed7d2d9ffc0b6b1dc83582a0f9ece8afb7bef", "00000000000000890000000000000000004064373832363637393566363235633738353433333631376339333265643764326439666663306236623164633833353832613066396563653861666237626566002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a40000000000102002047a466f99f9e418aa3ea44259b13841354e0c7eed32e6ab33b7a1ac5d5abb1a700022c2c")
 	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
 	l, err = node.store.ReadInheritanceLockByRequestId(ctx, "358c0e9e-8d9c-4e0f-acde-8945a859763a")
 	require.Nil(err)
@@ -473,8 +501,20 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(int(l.State), common.RequestStateDone)
 	ls, err = node.store.ListInheritanceLocksByHolder(ctx, holder)
 	require.Nil(err)
-	require.Len(ls, 2)
+	require.Len(ls, 4)
 
+	// remove but revoke
+	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, l.LockId, 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59470", "d8ab2dfda43659a75a5456e7332dbf58ff1e9677702d8c3094f46e5cef6ee2fe", "00000000000000890000000000000000004064386162326466646134333635396137356135343536653733333264626635386666316539363737373032643863333039346634366535636566366565326665002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a4000000000010300209ff24b9847958aacac35ee9d7561734ba466c016795f247e64f933c396facdc400022c2c")
+	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(l.RequestId, rid)
+	require.Equal(l.State, byte(common.RequestStateDone))
+	testEthereumRevokeTransaction(ctx, require, node, transactionHash, false)
+	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
+	require.Nil(err)
+	require.Equal(l.State, byte(common.RequestStateDone))
+
+	// remove
 	transactionHash = testEthereumSafeSetInheritanceLock(ctx, require, node, l.LockId, 20, testEthereumBondAssetId, "1924a324-dbcb-48db-b0ea-5d23ebe59471", "d36c44b4ceebe792e05a385ee245d420c6082b5e4fb0c55f6d4b61e181c0e1ca", "00000000000000890000000000000000004064333663343462346365656265373932653035613338356565323435643432306336303832623565346662306335356636643462363165313831633065316361002a3078333436363037656231353832314134453139343632383434344633373035633236433845366542650014a03a8590bb3a2ca5c747c8b99c63da399424a05500065af3107a4000000000010300209ff24b9847958aacac35ee9d7561734ba466c016795f247e64f933c396facdc400022c2c")
 	testEthereumSafeApproveLockTransaction(ctx, require, node, transactionHash, signers)
 	l, err = node.store.ReadLatestInheritanceLockByHolder(ctx, holder)
@@ -485,7 +525,7 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 	require.Equal(int(l.State), common.RequestStateFailed)
 	ls, err = node.store.ListInheritanceLocksByHolder(ctx, holder)
 	require.Nil(err)
-	require.Len(ls, 2)
+	require.Len(ls, 4)
 	for _, l := range ls {
 		require.Equal(int(l.State), common.RequestStateFailed)
 	}
