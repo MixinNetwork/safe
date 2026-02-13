@@ -349,6 +349,10 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil || txRequest == nil {
 		return node.failRequest(ctx, req, "")
 	}
+	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+	if err != nil {
+		panic(err)
+	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
 	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
@@ -370,7 +374,7 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 		return node.failRequest(ctx, req, bond.AssetId)
 	}
 
-	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req, []*mtg.Transaction{t})
+	err = node.store.RevokeTransactionWithRequest(ctx, tx, safe, req, lock, []*mtg.Transaction{t})
 	if err != nil {
 		panic(err)
 	}

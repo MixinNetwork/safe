@@ -233,7 +233,7 @@ func (s *SQLite3Store) writeTransactionWithRequest(ctx context.Context, tx *sql.
 	return nil
 }
 
-func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Transaction, safe *Safe, req *common.Request, txs []*mtg.Transaction) error {
+func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Transaction, safe *Safe, req *common.Request, lock *InheritanceLock, txs []*mtg.Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -262,6 +262,14 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 			if receiver != safe.Address {
 				panic(trx.TransactionHash)
 			}
+		}
+	}
+
+	if lock != nil {
+		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=? AND status=?",
+			lock.State, req.CreatedAt, lock.LockId, lock.State)
+		if err != nil {
+			return fmt.Errorf("UPDATE inheritance_locks %v", err)
 		}
 	}
 
