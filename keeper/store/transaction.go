@@ -266,8 +266,9 @@ func (s *SQLite3Store) RevokeTransactionWithRequest(ctx context.Context, trx *Tr
 	}
 
 	if lock != nil {
-		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=? AND status=?",
-			lock.State, req.CreatedAt, lock.LockId, lock.State)
+		fmt.Println("++++++++update")
+		err = s.execOne(ctx, tx, "UPDATE inheritance_locks SET state=?, updated_at=? WHERE lock_id=? AND state=?",
+			common.RequestStateFailed, req.CreatedAt, lock.LockId, common.RequestStateInitial)
 		if err != nil {
 			return fmt.Errorf("UPDATE inheritance_locks %v", err)
 		}

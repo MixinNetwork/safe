@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/gofrs/uuid/v5"
 )
@@ -349,9 +350,14 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	if err != nil || txRequest == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	lock, err := node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
-	if err != nil {
-		panic(err)
+
+	flag := txRequest.ExtraBytes()[0]
+	var lock *store.InheritanceLock
+	if flag == common.FlagProposeSetInheritance {
+		lock, err = node.store.ReadInheritanceLockByRequestId(ctx, tx.RequestId)
+		if err != nil || lock == nil {
+			panic(fmt.Errorf("store.ReadInheritanceLockByRequestId(%s) => %v %v", tx.RequestId, lock, err))
+		}
 	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
