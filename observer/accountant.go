@@ -287,7 +287,7 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 	receiver, total := utxos[0].Address, uint64(0)
 	script, err := bitcoin.ParseAddress(receiver, tx.Chain)
 	if err != nil {
-		return nil, err
+		panic(receiver)
 	}
 
 	msgTx := wire.NewMsgTx(2)
@@ -295,8 +295,9 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 		total = total + uint64(utxo.Satoshi)
 		hash, err := chainhash.NewHashFromStr(utxo.TransactionHash)
 		if err != nil {
-			return nil, err
+			panic(utxo.TransactionHash)
 		}
+		node.bitcoinEnsureFeeOutputValid(utxo, tx.Chain)
 		txIn := &wire.TxIn{
 			PreviousOutPoint: wire.OutPoint{
 				Hash:  *hash,
@@ -672,6 +673,28 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 	}
 	// check nonce
 	return nonce == st.Nonce.Int64()
+}
+
+func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
+	rpc, _ := node.bitcoinParams(chain)
+	for {
+		_, ro, err := bitcoin.RPCGetTransactionOutput(chain, rpc, utxo.TransactionHash, int64(utxo.Index))
+		if err != nil {
+			panic(err)
+		}
+		if ro != nil {
+			if ro.Satoshi != utxo.Satoshi {
+				panic(utxo.TransactionHash)
+			}
+			break
+		}
+		rb, _ := hex.DecodeString(utxo.RawTransaction.String)
+		err = node.bitcoinBroadcastTransaction(utxo.TransactionHash, rb, chain)
+		if err != nil {
+			panic(err)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
