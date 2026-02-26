@@ -1,9 +1,13 @@
 package common
 
 import (
+	"context"
 	"encoding/hex"
 	"testing"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/safe/util"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,4 +60,23 @@ func TestOperation(t *testing.T) {
 	require.Equal("", hex.EncodeToString(op.Extra))
 
 	require.Equal("feL`4xL1,UGP^(,bIw]q$AAAA", Base91Encode(op.Encode()))
+}
+
+func Test404(t *testing.T) {
+	require := require.New(t)
+	ctx := context.Background()
+
+	asset, err := SafeReadAssetUntilSufficient(ctx, "c94ac88f-4671-3976-b60a-09064f1811e8")
+	require.Nil(err)
+	require.NotNil(asset)
+
+	asset, err = bot.ReadAsset(ctx, "c94ac88f-4671-3976-b60a-09064f1811e9")
+	require.Nil(asset)
+	require.NotNil(err)
+	require.True(util.IsErrorCodes(err, 404))
+
+	a, err := mixin.ReadNetworkAsset(ctx, "c94ac88f-4671-3976-b60a-09064f1811e9")
+	require.Nil(a)
+	require.NotNil(err)
+	require.True(util.IsErrorCodes(err, 404))
 }

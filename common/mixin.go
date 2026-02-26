@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
@@ -192,7 +193,7 @@ func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixi
 func readTransaction(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeTransactionRequest, error) {
 	req, err := client.SafeReadTransactionRequest(ctx, id)
 	logger.Verbosef("common.mixin.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
-	if err == nil || mixin.IsErrorCodes(err, 404) {
+	if err == nil || util.IsErrorCodes(err, 404) {
 		return req, nil
 	}
 	return nil, err
@@ -202,7 +203,7 @@ func SafeReadAssetUntilSufficient(ctx context.Context, id string) (*bot.AssetNet
 	for {
 		asset, err := bot.ReadAsset(ctx, id)
 		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)
-		if err == nil || mixin.IsErrorCodes(err, 404) {
+		if err == nil || util.IsErrorCodes(err, 404) {
 			return asset, nil
 		}
 		if CheckRetryableError(err) {
@@ -244,7 +245,7 @@ func SafeReadWithdrawalFeeUntilSufficient(ctx context.Context, su *bot.SafeUser,
 			time.Sleep(time.Second)
 			continue
 		}
-		if mixin.IsErrorCodes(err, 404) {
+		if util.IsErrorCodes(err, 404) {
 			return nil, nil
 		}
 		return nil, err
@@ -272,7 +273,7 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 			time.Sleep(time.Second)
 			continue
 		}
-		if mixin.IsErrorCodes(err, 404) {
+		if util.IsErrorCodes(err, 404) {
 			return "", nil
 		}
 		return "", err
