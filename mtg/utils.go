@@ -29,16 +29,17 @@ func CheckRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	es := err.Error()
+	es := strings.ToLower(err.Error())
 	switch {
-	case strings.Contains(es, "EOF"):
+	case strings.Contains(es, "eof"):
+	case strings.Contains(es, "timeout"):
+	case strings.Contains(es, "timed out"):
+	case strings.Contains(es, "handshake"):
 	case strings.Contains(es, "context deadline exceeded"):
 	case strings.Contains(es, "connection reset by peer"):
-	case strings.Contains(es, "Client.Timeout exceeded"):
-	case strings.Contains(es, "Bad Gateway"):
-	case strings.Contains(es, "Internal Server Error"):
+	case strings.Contains(es, "bad gateway"):
+	case strings.Contains(es, "internal server error"):
 	case strings.Contains(es, "invalid character '<' looking for beginning of value"):
-	case strings.Contains(es, "TLS handshake timeout"):
 	default:
 		return false
 	}

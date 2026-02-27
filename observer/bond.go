@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/mtg"
 )
 
 type MixinNetworkAsset struct {
@@ -173,15 +174,11 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 			}
 			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		default:
-			return nil, err
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(2 * time.Second)
+			continue
 		}
-		time.Sleep(2 * time.Second)
+		return nil, err
 	}
 }
 
