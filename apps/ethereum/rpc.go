@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -285,22 +286,14 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 }
 
 func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
-	client, err := ethclient.Dial(rpc)
-	if err != nil {
-		return nil, err
-	}
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(height),
-		ToBlock:   big.NewInt(height),
-	}
 	contractAbi, err := ga.JSON(strings.NewReader(abi.AssetABI))
 	if err != nil {
 		log.Fatal(err)
 	}
-	logs, err := client.FilterLogs(ctx, query)
-	if err != nil {
-		return nil, err
-	}
+	logs, err := filterLogsUntilSufficient(ctx, rpc, ethereum.FilterQuery{
+		FromBlock: big.NewInt(height),
+		ToBlock:   big.NewInt(height),
+	})
 	logTransferSig := []byte("Transfer(address,address,uint256)")
 	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 
@@ -343,6 +336,21 @@ func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, e
 			continue
 		}
 		return res, err
+	}
+}
+
+func filterLogsUntilSufficient(ctx context.Context, rpc string, query ethereum.FilterQuery) ([]types.Log, error) {
+	client, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		logs, err := client.FilterLogs(ctx, query)
+		if mtg.CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		return logs, err
 	}
 }
 
