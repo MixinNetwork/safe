@@ -2,9 +2,7 @@ package observer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -127,32 +125,19 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchMixinAsset(_ context.Context, id string) (*Asset, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
-	resp, err := client.Get(path)
-	if err != nil {
+func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error) {
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, id)
+	if err != nil || asset == nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	var body struct {
-		Data *MixinNetworkAsset `json:"data"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&body)
-	if err != nil || body.Data == nil {
-		return nil, err
-	}
-	asset := body.Data
-
 	return &Asset{
-		AssetId:   asset.AssetId,
-		MixinId:   asset.MixinId.String(),
+		AssetId:   asset.AssetID,
+		MixinId:   asset.KernelAssetID,
 		AssetKey:  asset.AssetKey,
 		Symbol:    asset.Symbol,
 		Name:      asset.Name,
-		Decimals:  asset.Precision,
-		Chain:     common.SafeAssetIdChainNoPanic(asset.ChainId),
+		Decimals:  uint32(asset.Precision),
+		Chain:     common.SafeAssetIdChainNoPanic(asset.ChainID),
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }

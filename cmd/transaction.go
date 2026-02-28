@@ -1,13 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
@@ -22,6 +20,7 @@ import (
 )
 
 func GenerateTestTransactionProposal(c *cli.Context) error {
+	ctx := context.Background()
 	chain := c.Int("chain")
 	switch chain {
 	case common.SafeChainBitcoin:
@@ -43,7 +42,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 
 	addr := abi.GetFactoryAssetAddress("0x11EC02748116A983deeD59235302C3139D6e8cdD", common.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
-	bondId := fetchAssetId(ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
+	bondId := fetchAssetId(ctx, ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
 
 	extra := []byte(receiver)
 	sid := uuid.Must(uuid.NewV4()).String()
@@ -94,24 +93,13 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 	return nil
 }
 
-func fetchAssetId(mixinId string) string {
-	client := &http.Client{Timeout: 10 * time.Second}
-	path := "https://api.mixin.one/network/assets/" + mixinId
-	resp, err := client.Get(path)
+func fetchAssetId(ctx context.Context, mixinId string) string {
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, mixinId)
 	if err != nil {
 		panic(mixinId)
 	}
-	defer resp.Body.Close()
-
-	var body struct {
-		Data struct {
-			AssetId string `json:"asset_id"`
-			MixinId string `json:"mixin_id"`
-		} `json:"data"`
-	}
-	json.NewDecoder(resp.Body).Decode(&body)
-	if body.Data.MixinId != mixinId {
+	if asset.KernelAssetID != mixinId {
 		panic(mixinId)
 	}
-	return body.Data.AssetId
+	return asset.AssetID
 }
