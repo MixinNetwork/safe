@@ -23,6 +23,7 @@ func CheckRetryableError(err error) bool {
 	case strings.Contains(es, "bad gateway"):
 	case strings.Contains(es, "internal server error"):
 	case strings.Contains(es, "invalid character '<' looking for beginning of value"):
+	case strings.Contains(es, "unexpected end of json input"):
 	default:
 		return false
 	}
