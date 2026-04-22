@@ -148,11 +148,7 @@ func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransac
 	if err != nil {
 		return nil, err
 	}
-	blockHeight, err := ethereumNumberToUint64(b.Number)
-	if err != nil {
-		return nil, err
-	}
-	b.Height = blockHeight
+	b.Height = uint64(height)
 	for _, tx := range b.Tx {
 		tx.BlockHash = b.Hash
 	}
