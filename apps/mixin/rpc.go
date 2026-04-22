@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type WithdrawalData struct {
@@ -69,7 +69,7 @@ func callMixinRPCUntilSufficient(rpc, method string, params []any) ([]byte, erro
 			return res, nil
 		}
 		logger.Printf("callMixinRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		if mtg.CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
 		}

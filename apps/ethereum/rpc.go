@@ -16,7 +16,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
-	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -331,7 +331,7 @@ func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, e
 			return res, nil
 		}
 		logger.Printf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		if mtg.CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
 		}
@@ -346,7 +346,7 @@ func filterLogsUntilSufficient(ctx context.Context, rpc string, query ethereum.F
 	}
 	for {
 		logs, err := client.FilterLogs(ctx, query)
-		if mtg.CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue
 		}

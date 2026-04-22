@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -254,7 +255,7 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 		if err == nil {
 			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
-		if mtg.CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(2 * time.Second)
 			continue
 		}

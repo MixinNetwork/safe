@@ -95,7 +95,7 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 
 func fetchAssetId(ctx context.Context, mixinId string) string {
 	asset, err := common.SafeReadAssetUntilSufficient(ctx, mixinId)
-	if err != nil {
+	if err != nil || asset == nil {
 		panic(mixinId)
 	}
 	if asset.KernelAssetID != mixinId {

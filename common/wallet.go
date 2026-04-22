@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/shopspring/decimal"
@@ -37,7 +36,7 @@ func (mw *MixinWallet) drainOutputsFromNetwork(ctx context.Context) {
 		}
 		members := []string{mw.client.ClientID}
 		utxos, err := listUnspentUTXOsUntilSufficient(ctx, mw.client, members, 1, "", checkpoint)
-		if mtg.CheckRetryableError(err) {
+		if CheckRetryableError(err) {
 			continue
 		}
 		if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
-	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type MixinNetworkAsset struct {
@@ -159,7 +159,7 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 			}
 			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
-		if mtg.CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(2 * time.Second)
 			continue
 		}

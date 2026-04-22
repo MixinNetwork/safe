@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type DepositEntry struct {
@@ -61,7 +62,7 @@ func (grp *Group) readOutputDepositUntilSufficientImpl(ctx context.Context, id s
 		var deposit *SafeDepositView
 		err := grp.mixin.Get(ctx, fmt.Sprintf("/safe/outputs/%s/deposit", id), nil, &deposit)
 		logger.Verbosef("Group.readOutputDeposit(%s) => %v %v\n", id, deposit, err)
-		if CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
