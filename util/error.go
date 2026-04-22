@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
@@ -22,7 +23,7 @@ func CheckRetryableError(err error) bool {
 	case strings.Contains(es, "connection reset by peer"):
 	case strings.Contains(es, "bad gateway"):
 	case strings.Contains(es, "internal server error"):
-	case strings.Contains(es, "invalid character '<' looking for beginning of value"):
+	case strings.Contains(es, "invalid character"):
 	case strings.Contains(es, "unexpected end of json input"):
 	default:
 		return false
@@ -36,12 +37,8 @@ func IsErrorCodes(err error, codes ...int) bool {
 	}
 
 	e := &bot.Error{}
-	if errors.As(err, e) {
-		for _, code := range codes {
-			if e.Code == code {
-				return true
-			}
-		}
+	if errors.As(err, e) && slices.Contains(codes, e.Code) {
+		return true
 	}
 	return false
 }
