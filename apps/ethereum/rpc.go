@@ -294,6 +294,9 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 		FromBlock: big.NewInt(height),
 		ToBlock:   big.NewInt(height),
 	})
+	if err != nil {
+		return nil, err
+	}
 	logTransferSig := []byte("Transfer(address,address,uint256)")
 	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 
@@ -344,8 +347,13 @@ func filterLogsUntilSufficient(ctx context.Context, rpc string, query ethereum.F
 	if err != nil {
 		return nil, err
 	}
+	defer client.Close()
+
 	for {
 		logs, err := client.FilterLogs(ctx, query)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		if util.CheckRetryableError(err) {
 			time.Sleep(7 * time.Second)
 			continue

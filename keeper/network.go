@@ -253,6 +253,9 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
 		if err == nil {
+			if meta == nil {
+				return nil, fmt.Errorf("fetchAssetMeta(%s) => nil", id)
+			}
 			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
 		if util.CheckRetryableError(err) {
