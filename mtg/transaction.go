@@ -188,7 +188,7 @@ func (act *Action) BuildStorageTransaction(ctx context.Context, extra []byte) *T
 
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = UniqueId(sTraceId, sTraceId)
-	addr := common.NewAddressFromSeed(make([]byte, 64))
+	addr := common.NewAddressFromSeedInternalVanish(make([]byte, 64))
 	receivers := []string{addr.String()}
 	amount := getStorageTransactionAmount(extra)
 	t := act.BuildTransaction(ctx, sTraceId, act.group.GroupId, StorageAssetId, amount.String(), string(extra), receivers, 64)
