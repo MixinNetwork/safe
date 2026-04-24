@@ -31,7 +31,7 @@ func (node *Node) parseRequest(out *mtg.Action) (*common.Request, error) {
 }
 
 func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error) {
-	if len(out.Senders) != 1 && out.Senders[0] != node.conf.ObserverUserId {
+	if len(out.Senders) != 1 || out.Senders[0] != node.conf.ObserverUserId {
 		return nil, fmt.Errorf("parseObserverRequest(%v) %s", out, node.conf.ObserverUserId)
 	}
 	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
