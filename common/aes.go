@@ -3,6 +3,8 @@ package common
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
+	"io"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/gofrs/uuid/v5"
@@ -54,7 +56,12 @@ func AESEncrypt(secret, b []byte, sid string) []byte {
 	if err != nil {
 		panic(err)
 	}
-	nonce := b[:aead.NonceSize()]
+	// The nonce must be unique for all time, for a given key
+	nonce := make([]byte, aead.NonceSize())
+	_, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		panic(err)
+	}
 	cipher := aead.Seal(nil, nonce, b[aead.NonceSize():], nil)
 	return append(nonce, cipher...)
 }
