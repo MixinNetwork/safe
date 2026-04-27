@@ -984,6 +984,9 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 	if err != nil {
 		return err
 	}
+	if tx == nil || tx.State != common.RequestStateInitial {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 
 	sig, err := base64.RawURLEncoding.DecodeString(sigBase64)
 	if err != nil {

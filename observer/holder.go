@@ -179,15 +179,7 @@ func (node *Node) httpCreateSafeAccountRecoveryRequest(ctx context.Context, addr
 	if hash == "" || raw == "" {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
-	proposed, err := node.store.CheckAccountProposed(ctx, addr)
-	if err != nil || !proposed {
-		return err
-	}
-	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
-	if err != nil {
-		return err
-	}
-	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -207,15 +199,7 @@ func (node *Node) httpCreateSafeAccountRecoveryRequest(ctx context.Context, addr
 
 func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw, hash string) error {
 	logger.Printf("node.httpSignAccountRecoveryRequest(%s, %s, %s)", addr, raw, hash)
-	proposed, err := node.store.CheckAccountProposed(ctx, addr)
-	if err != nil || !proposed {
-		return err
-	}
-	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
-	if err != nil {
-		return err
-	}
-	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -246,15 +230,7 @@ func (node *Node) httpSignAccountRecoveryRequest(ctx context.Context, addr, raw,
 
 func (node *Node) httpCloseAccountRecoveryRequest(ctx context.Context, addr, id, sig, hash string) error {
 	logger.Printf("node.httpCloseAccountRecoveryRequest(%s, %s, %v)", addr, sig, hash)
-	proposed, err := node.store.CheckAccountProposed(ctx, addr)
-	if err != nil || !proposed {
-		return err
-	}
-	sp, err := node.keeperStore.ReadSafeProposalByAddress(ctx, addr)
-	if err != nil {
-		return err
-	}
-	safe, err := node.keeperStore.ReadSafe(ctx, sp.Holder)
+	safe, err := node.keeperStore.ReadSafeByAddress(ctx, addr)
 	if err != nil {
 		return err
 	}

@@ -1079,6 +1079,9 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 	if err != nil {
 		return err
 	}
+	if tx == nil || tx.State != common.RequestStateInitial {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 
 	sig, err := hex.DecodeString(sigHex)
 	if err != nil {
