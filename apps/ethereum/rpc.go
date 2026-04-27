@@ -143,16 +143,20 @@ func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransac
 	if err != nil {
 		return nil, err
 	}
-	var b RPCBlockWithTransactions
+	var b *RPCBlockWithTransactions
 	err = json.Unmarshal(res, &b)
+	if err != nil || b == nil {
+		return nil, fmt.Errorf("RPCGetBlockWithTransactions(%d) => Unmarshal() => %v, %v", height, err, b)
+	}
+	blockHeight, err := ethereumNumberToUint64(b.Number)
 	if err != nil {
 		return nil, err
 	}
-	b.Height = uint64(height)
+	b.Height = blockHeight
 	for _, tx := range b.Tx {
 		tx.BlockHash = b.Hash
 	}
-	return &b, err
+	return b, err
 }
 
 func RPCGetGasPrice(rpc string) (*big.Int, error) {

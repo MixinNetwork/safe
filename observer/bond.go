@@ -150,20 +150,20 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
-		if err == nil {
-			if meta == nil {
-				return nil, nil
-			}
-			if meta.Chain == 0 {
-				panic(id)
-			}
-			return meta, node.store.WriteAssetMeta(ctx, meta)
-		}
 		if util.CheckRetryableError(err) {
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		if meta == nil {
+			return nil, nil
+		}
+		if meta.Chain == 0 {
+			panic(id)
+		}
+		return meta, node.store.WriteAssetMeta(ctx, meta)
 	}
 }
 
