@@ -38,7 +38,7 @@ func AESDecrypt(secret, b []byte) []byte {
 	if err != nil {
 		panic(err)
 	}
-	return append(nonce, d...)
+	return d
 }
 
 func AESEncrypt(secret, b []byte, sid string) []byte {
@@ -62,6 +62,6 @@ func AESEncrypt(secret, b []byte, sid string) []byte {
 	if err != nil {
 		panic(err)
 	}
-	cipher := aead.Seal(nil, nonce, b[aead.NonceSize():], nil)
+	cipher := aead.Seal(nil, nonce, b, nil)
 	return append(nonce, cipher...)
 }
