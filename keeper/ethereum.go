@@ -436,9 +436,15 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 		panic(req.Curve)
 	}
 	rce := req.ExtraBytes()
-	ver, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	if err != nil {
+		panic(err)
+	}
 	if len(rce) == 32 && len(ver.References) == 1 && bytes.Equal(ver.References[0][:], rce) {
-		stx, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, ver.References[0].String())
+		stx, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ver.References[0].String())
+		if err != nil {
+			panic(err)
+		}
 		rce = stx.Extra
 	}
 	arp, err := req.ParseMixinRecipient(ctx, node.mixin, rce)
