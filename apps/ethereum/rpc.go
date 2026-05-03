@@ -288,9 +288,14 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 	if err != nil {
 		return nil, err
 	}
+	defer client.Close()
+
+	logTransferSig := []byte("Transfer(address,address,uint256)")
+	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 	query := ethereum.FilterQuery{
 		FromBlock: big.NewInt(height),
 		ToBlock:   big.NewInt(height),
+		Topics:    [][]common.Hash{{logTransferSigHash}},
 	}
 	contractAbi, err := ga.JSON(strings.NewReader(abi.AssetABI))
 	if err != nil {
@@ -300,8 +305,6 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 	if err != nil {
 		return nil, err
 	}
-	logTransferSig := []byte("Transfer(address,address,uint256)")
-	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 
 	ts := []*Transfer{}
 	for _, vLog := range logs {
