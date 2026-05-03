@@ -14,7 +14,7 @@ import (
 
 type SQLite3Store struct {
 	db    *sql.DB
-	mutex *sync.Mutex
+	mutex *sync.RWMutex
 }
 
 type Row interface {
@@ -82,6 +82,9 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
 	row := s.db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
 	var value string
 	err := row.Scan(&value)
@@ -92,6 +95,9 @@ func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, erro
 }
 
 func (s *SQLite3Store) WriteOrUpdateProperty(ctx context.Context, k, v string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
