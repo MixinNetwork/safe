@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -14,11 +15,9 @@ func IsErrorCodes(err error, codes ...int) bool {
 
 	e := &bot.Error{}
 	if errors.As(err, e) {
-		for _, code := range codes {
-			if e.Code == code {
-				return true
-			}
-		}
+		return slices.ContainsFunc(codes, func(c int) bool {
+			return c == e.Code
+		})
 	}
 	return false
 }
