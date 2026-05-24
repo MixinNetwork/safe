@@ -73,16 +73,16 @@ func TestSSID(t *testing.T) {
 
 	_, nodes, _ := TestPrepare(require)
 	node := nodes[0]
-	sessionId := []byte("test-session-id")
+	sessionId := []byte("test-session-id-at-least-16")
 
 	start, _ := cmp.Keygen(curve.Secp256k1{}, node.id, node.GetPartySlice(), node.threshold, nil)(sessionId)
-	require.Equal("35a2625ae67f86f4f3f19ba3435aa98c3ead92afaa4b6833bb64bd47d3cc2aa0008ee5336c54fec31142a338ae53a60201d21d1b3990c8035e6dffceaa24ed99", hex.EncodeToString(start.SSID()))
+	require.Equal("4e441fd5d64acc76457116bcf8427f57c8eb2ef764a930d040c5dfec66039763937ecaf3ebe67745cb96be9b4702c0688c8aeafd0d4ca270cd75e4ec47548967", hex.EncodeToString(start.SSID()))
 
 	start, _ = frost.Keygen(curve.Secp256k1{}, node.id, node.GetPartySlice(), node.threshold)(sessionId)
-	require.Equal("25d9a0d35e78928505dfea12864f1ca9a068896fc4a5990db2b35e31c50ab7f12b4ef2c8cc715fe688534deb592fbe38ce7aad7dc2625cf3f95496a739f16c1f", hex.EncodeToString(start.SSID()))
+	require.Equal("b095f76bd2754ffb1e86399750ab259f0e901a33ca6080a13a6b4fddea5b3e6548e2ec3a64b0fa77aea9c0b9d6de4ed14226682dc203fb70b7a3d16e235e4dc3", hex.EncodeToString(start.SSID()))
 
 	start, _ = frost.KeygenTaproot(node.id, node.GetPartySlice(), node.threshold)(sessionId)
-	require.Equal("b4ee4f1ad7294abdb0d09699e420c085c377580f0397c0daa0dae5b272c75e495bdb77146775ddd347050d0093459204189b75bbe5c5cc534817fce62d25df1d", hex.EncodeToString(start.SSID()))
+	require.Equal("03a5b88cbe29aae28015d6028a600b3406bd52cc3b3f2cefd28c6580a638a980c1b68503dddb54b221fcc205bdafcf4565eb7e0f81e2c4bd4291e32991ff7850", hex.EncodeToString(start.SSID()))
 }
 
 func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*Node, crv byte) (string, []byte) {
