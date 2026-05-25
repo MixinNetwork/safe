@@ -30,8 +30,14 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	spsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(extra)
 
 	tx, err := node.store.ReadTransactionApproval(ctx, spsbt.Hash())
-	if err != nil || tx.State >= common.RequestStateDone {
+	if err != nil {
 		return err
+	}
+	if tx == nil {
+		panic(spsbt.Hash())
+	}
+	if tx.State >= common.RequestStateDone {
+		return nil
 	}
 	switch tx.Chain {
 	case common.SafeChainBitcoin:
@@ -138,8 +144,14 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	raw := hex.EncodeToString(st.Marshal())
 
 	tx, err := node.store.ReadTransactionApproval(ctx, st.TxHash)
-	if err != nil || tx.State >= common.RequestStateDone {
+	if err != nil {
 		return err
+	}
+	if tx == nil {
+		panic(st.TxHash)
+	}
+	if tx.State >= common.RequestStateDone {
+		return nil
 	}
 	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
 	if err != nil {
