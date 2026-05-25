@@ -47,8 +47,10 @@ func IsErrorCodes(err error, codes ...int) bool {
 	}
 
 	e := &bot.Error{}
-	if errors.As(err, e) && slices.Contains(codes, e.Code) {
-		return true
+	if errors.As(err, e) {
+		return slices.ContainsFunc(codes, func(c int) bool {
+			return c == e.Code
+		})
 	}
 	return false
 }

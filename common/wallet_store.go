@@ -30,7 +30,7 @@ func OpenWalletSQLite3Store(path string) (*SQLite3Store, error) {
 	}
 	return &SQLite3Store{
 		db:    db,
-		mutex: new(sync.Mutex),
+		mutex: new(sync.RWMutex),
 	}, nil
 }
 
@@ -67,6 +67,9 @@ func outputFromRow(row Row) (*Output, error) {
 }
 
 func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*mixin.SafeUtxo) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -150,8 +153,8 @@ func (s *SQLite3Store) LockUTXOs(ctx context.Context, trace, asset string, amoun
 }
 
 func (s *SQLite3Store) ListUnspentUTXOsByAsset(ctx context.Context, asset string) ([]*Output, decimal.Decimal, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	total := decimal.Zero
 	tx, err := s.db.BeginTx(ctx, nil)

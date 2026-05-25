@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -129,6 +130,12 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 }
 
 func (node *Node) verifyBitcoinNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
+	var badLitecoinForks = []string{
+		"579ae05733b2ce28843a75ca39e6d5c6b5e95e7366f927381871fd34e36fb088",
+	}
+	if slices.Contains(badLitecoinForks, info.Hash) {
+		return true, nil
+	}
 	if len(info.Hash) != 64 {
 		return false, nil
 	}
