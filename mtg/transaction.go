@@ -505,7 +505,7 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 			RawTransaction: raw,
 		})
 		logger.Verbosef("Group.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
-		if err != nil && CheckRetryableError(err) {
+		if err != nil && util.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -558,7 +558,7 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 			RawTransaction: signedRaw,
 		})
 		logger.Verbosef("Group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
-		if err != nil && CheckRetryableError(err) {
+		if err != nil && util.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}

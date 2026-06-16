@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type WithdrawalData struct {
@@ -69,16 +69,11 @@ func callMixinRPCUntilSufficient(rpc, method string, params []any) ([]byte, erro
 			return res, nil
 		}
 		logger.Printf("callMixinRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		case strings.Contains(reason, "invalid character"):
-		default:
-			return res, err
+		if util.CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
 		}
-		time.Sleep(7 * time.Second)
+		return res, err
 	}
 }
 

@@ -319,6 +319,7 @@ func FetchBalanceFromKey(ctx context.Context, rpc, key string) (*big.Int, error)
 	if err != nil {
 		return nil, err
 	}
+	defer client.Close()
 
 	balance, err := client.BalanceAt(ctx, *addr, nil)
 	if err != nil {

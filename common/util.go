@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
@@ -79,7 +78,7 @@ func ExpandTilde(path string) string {
 }
 
 func CheckRetryableError(err error) bool {
-	return mtg.CheckRetryableError(err) || CheckTransactionLockedError(err)
+	return util.CheckRetryableError(err) || CheckTransactionLockedError(err)
 }
 
 func CheckTransactionLockedError(err error) bool {

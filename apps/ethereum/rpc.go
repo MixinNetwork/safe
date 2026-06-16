@@ -16,9 +16,11 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -141,10 +143,10 @@ func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransac
 	if err != nil {
 		return nil, err
 	}
-	var b RPCBlockWithTransactions
+	var b *RPCBlockWithTransactions
 	err = json.Unmarshal(res, &b)
-	if err != nil {
-		return nil, err
+	if err != nil || b == nil {
+		return nil, fmt.Errorf("RPCGetBlockWithTransactions(%d) => Unmarshal() => %v, %v", height, err, b)
 	}
 	blockHeight, err := ethereumNumberToUint64(b.Number)
 	if err != nil {
@@ -154,7 +156,7 @@ func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransac
 	for _, tx := range b.Tx {
 		tx.BlockHash = b.Hash
 	}
-	return &b, err
+	return b, err
 }
 
 func RPCGetGasPrice(rpc string) (*big.Int, error) {
@@ -284,12 +286,6 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 }
 
 func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
-	client, err := ethclient.Dial(rpc)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
 	logTransferSig := []byte("Transfer(address,address,uint256)")
 	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 	query := ethereum.FilterQuery{
@@ -301,7 +297,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 	if err != nil {
 		log.Fatal(err)
 	}
-	logs, err := client.FilterLogs(ctx, query)
+	logs, err := filterLogsUntilSufficient(ctx, rpc, query)
 	if err != nil {
 		return nil, err
 	}
@@ -340,15 +336,31 @@ func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, e
 			return res, nil
 		}
 		logger.Printf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		default:
-			return res, err
+		if util.CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
 		}
-		time.Sleep(7 * time.Second)
+		return res, err
+	}
+}
+
+func filterLogsUntilSufficient(ctx context.Context, rpc string, query ethereum.FilterQuery) ([]types.Log, error) {
+	client, err := ethclient.Dial(rpc)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	for {
+		logs, err := client.FilterLogs(ctx, query)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if util.CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		return logs, err
 	}
 }
 

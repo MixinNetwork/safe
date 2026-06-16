@@ -25,26 +25,6 @@ func UniqueId(a, b string) string {
 	return util.UniqueId(a, b)
 }
 
-func CheckRetryableError(err error) bool {
-	if err == nil {
-		return false
-	}
-	es := err.Error()
-	switch {
-	case strings.Contains(es, "EOF"):
-	case strings.Contains(es, "context deadline exceeded"):
-	case strings.Contains(es, "connection reset by peer"):
-	case strings.Contains(es, "Client.Timeout exceeded"):
-	case strings.Contains(es, "Bad Gateway"):
-	case strings.Contains(es, "Internal Server Error"):
-	case strings.Contains(es, "invalid character '<' looking for beginning of value"):
-	case strings.Contains(es, "TLS handshake timeout"):
-	default:
-		return false
-	}
-	return true
-}
-
 func NewMixAddress(ctx context.Context, members []string, threshold byte) (*mixin.MixAddress, bool, error) {
 	if len(members) == 0 || threshold == 0 {
 		panic(len(members))
@@ -104,7 +84,7 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 	for {
 		me, err := grp.mixin.UserMe(ctx)
 		logger.Verbosef("Group.UserMe() => %v\n", err)
-		if CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -160,7 +140,7 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 	}
 	for {
 		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
-		if CheckRetryableError(err) || snapshot == "" {
+		if util.CheckRetryableError(err) || snapshot == "" {
 			time.Sleep(time.Second)
 			continue
 		}
@@ -254,7 +234,7 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 		if err == nil {
 			return &req, nil
 		}
-		if CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
 		}
@@ -388,7 +368,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	for {
 		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.GetMembers()...)
 		logger.Verbosef("Group.SafeCreateGhostKeys(%s) => %v %v\n", tx.TraceId, keys, err)
-		if CheckRetryableError(err) {
+		if util.CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}

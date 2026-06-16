@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"net/http"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -19,6 +16,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -240,40 +238,19 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchMixinAsset(_ context.Context, id string) (*store.Asset, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
-	resp, err := client.Get(path)
-	if err != nil {
+func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*store.Asset, error) {
+	asset, err := common.SafeReadAssetUntilSufficient(ctx, id)
+	if err != nil || asset == nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(resp.Body)
-
-	var body struct {
-		Data *struct {
-			AssetId   string      `json:"asset_id"`
-			MixinId   crypto.Hash `json:"mixin_id"`
-			AssetKey  string      `json:"asset_key"`
-			Symbol    string      `json:"symbol"`
-			Name      string      `json:"name"`
-			Precision uint32      `json:"precision"`
-			ChainId   string      `json:"chain_id"`
-		} `json:"data"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&body)
-	if err != nil {
-		return nil, err
-	}
-	asset := body.Data
-
 	return &store.Asset{
-		AssetId:   asset.AssetId,
-		MixinId:   asset.MixinId.String(),
+		AssetId:   asset.AssetID,
+		MixinId:   asset.KernelAssetID,
 		AssetKey:  asset.AssetKey,
 		Symbol:    asset.Symbol,
 		Name:      asset.Name,
-		Decimals:  asset.Precision,
-		Chain:     common.SafeAssetIdChain(asset.ChainId),
+		Decimals:  uint32(asset.Precision),
+		Chain:     common.SafeAssetIdChainNoPanic(asset.ChainID),
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }
@@ -287,16 +264,15 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
 		if err == nil {
+			if meta == nil {
+				return nil, fmt.Errorf("fetchAssetMeta(%s) => nil", id)
+			}
 			return meta, node.store.WriteAssetMeta(ctx, meta)
 		}
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		default:
-			return nil, err
+		if util.CheckRetryableError(err) {
+			time.Sleep(2 * time.Second)
+			continue
 		}
-		time.Sleep(2 * time.Second)
+		return nil, err
 	}
 }

@@ -9,10 +9,10 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/shopspring/decimal"
@@ -367,15 +367,11 @@ func callBitcoinRPCUntilSufficient(rpc, method string, params []any) ([]byte, er
 			return res, nil
 		}
 		logger.Printf("callBitcoinRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		default:
-			return res, err
+		if util.CheckRetryableError(err) {
+			time.Sleep(7 * time.Second)
+			continue
 		}
-		time.Sleep(7 * time.Second)
+		return res, err
 	}
 }
 
