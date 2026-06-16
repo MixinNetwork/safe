@@ -286,19 +286,21 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 }
 
 func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
+	logTransferSig := []byte("Transfer(address,address,uint256)")
+	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
+	query := ethereum.FilterQuery{
+		FromBlock: big.NewInt(height),
+		ToBlock:   big.NewInt(height),
+		Topics:    [][]common.Hash{{logTransferSigHash}},
+	}
 	contractAbi, err := ga.JSON(strings.NewReader(abi.AssetABI))
 	if err != nil {
 		log.Fatal(err)
 	}
-	logs, err := filterLogsUntilSufficient(ctx, rpc, ethereum.FilterQuery{
-		FromBlock: big.NewInt(height),
-		ToBlock:   big.NewInt(height),
-	})
+	logs, err := filterLogsUntilSufficient(ctx, rpc, query)
 	if err != nil {
 		return nil, err
 	}
-	logTransferSig := []byte("Transfer(address,address,uint256)")
-	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 
 	ts := []*Transfer{}
 	for _, vLog := range logs {

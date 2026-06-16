@@ -132,6 +132,10 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 func (node *Node) verifyBitcoinNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
 	var badLitecoinForks = []string{
 		"579ae05733b2ce28843a75ca39e6d5c6b5e95e7366f927381871fd34e36fb088",
+		"52a268e68fc0d7599c48d0e7ab6863036d1e33520cbf70c54b3d1a16c51c9182",
+		"01b4b389969117bba8c12f59d82294699b25ff8e1a4d230dbe5ee8077ffbaf24",
+		"f85d7390fe91c6770b77e689b2462e4c0316d844d790c4ad6116e7b2ad1d7171",
+		"90b816b803c1d0923732e29108f19a87cc0d9a4fa458b4149bf7b72432f4f1be",
 	}
 	if slices.Contains(badLitecoinForks, info.Hash) {
 		return true, nil

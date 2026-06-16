@@ -216,6 +216,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				panic(err)
 			}
 		}
+		time.Sleep(5 * time.Second)
 	}
 }
 

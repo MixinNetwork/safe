@@ -91,7 +91,7 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	output := &Output{
 		Address:  out.ScriptPubKey.Address,
 		Satoshi:  satoshi.IntPart(),
-		Coinbase: len(tx.Vin) == 0 && tx.Vin[0].Coinbase != "",
+		Coinbase: len(tx.Vin) > 0 && tx.Vin[0].Coinbase != "",
 	}
 
 	if tx.BlockHash == "" { // mempool

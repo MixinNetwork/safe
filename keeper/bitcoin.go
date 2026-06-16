@@ -438,9 +438,15 @@ func (node *Node) processBitcoinSafeProposeAccount(ctx context.Context, req *com
 		panic(req.Role)
 	}
 	rce := req.ExtraBytes()
-	ver, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	ver, err := node.group.ReadKernelTransactionUntilSufficient(ctx, req.MixinHash.String())
+	if err != nil {
+		panic(err)
+	}
 	if len(rce) == 32 && len(ver.References) == 1 && ver.References[0].String() == req.ExtraHEX {
-		stx, _ := node.group.ReadKernelTransactionUntilSufficient(ctx, ver.References[0].String())
+		stx, err := node.group.ReadKernelTransactionUntilSufficient(ctx, ver.References[0].String())
+		if err != nil {
+			panic(err)
+		}
 		rce = stx.Extra
 	}
 	arp, err := req.ParseMixinRecipient(ctx, node.mixin, rce)
