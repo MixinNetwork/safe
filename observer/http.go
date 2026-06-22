@@ -598,7 +598,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"hash":            tx.TransactionHash,
 		"raw":             approval.RawTransaction,
 		"signers":         approval.Signers(r.Context(), node, safe),
-		"state":           common.StateName(tx.State),
+		"state":           common.StateName(int(approval.State)),
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String
@@ -679,7 +679,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 		"hash":    tx.TransactionHash,
 		"raw":     approval.RawTransaction,
 		"signers": approval.Signers(r.Context(), node, safe),
-		"state":   common.StateName(tx.State),
+		"state":   common.StateName(int(approval.State)),
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String
