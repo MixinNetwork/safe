@@ -762,6 +762,10 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if ct == nil || ct.Holder != safe.Holder || ct.State != common.RequestStateDone {
 			return node.failRequest(ctx, req, "")
 		}
+		flag, _ := node.getTransactionFlagAndExtra(ctx, ct.RequestId)
+		if flag != common.FlagProposeNormalTransaction {
+			return node.failRequest(ctx, req, "")
+		}
 		if !common.CheckTestEnvironment(ctx) && req.CreatedAt.Before(ct.UpdatedAt.Add(EthereumTransactionStuckTime)) {
 			return node.failRequest(ctx, req, "")
 		}
