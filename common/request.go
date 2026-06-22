@@ -178,14 +178,28 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		}
 		receivers = append(receivers, uid)
 	}
-	if byte(len(receivers)) != total || total < threshold {
+	if byte(len(receivers)) != total || total < threshold || threshold == 0 {
 		return nil, fmt.Errorf("%d/%d", threshold, total)
 	}
+
 	arp := &AccountProposal{
 		Timelock:  timelock,
 		Receivers: receivers,
 		Threshold: threshold,
 	}
+	us, err := ReadUsers(ctx, client, arp.Receivers)
+	if err != nil {
+		return nil, fmt.Errorf("store.ReadUsers(%s) => %v", strings.Join(arp.Receivers, ","), err)
+	}
+	if len(us) != len(arp.Receivers) {
+		return nil, fmt.Errorf("invalid receivers: %s", strings.Join(arp.Receivers, ","))
+	}
+	for _, user := range us {
+		if !user.HasSafe {
+			return nil, fmt.Errorf("receiver %s of holder %s does not has safe", user.UserID, req.Holder)
+		}
+	}
+
 	offset := 2 + 1 + 1 + int(total)*16
 	if offset == len(extra) {
 		return arp, nil
@@ -205,18 +219,6 @@ func (req *Request) ParseMixinRecipient(ctx context.Context, client *mixin.Clien
 		return nil, fmt.Errorf("request observer %s %v", arp.Observer, err)
 	}
 
-	us, err := ReadUsers(ctx, client, arp.Receivers)
-	if err != nil {
-		return nil, fmt.Errorf("store.ReadUsers(%s) => %v", strings.Join(arp.Receivers, ","), err)
-	}
-	if len(us) != len(arp.Receivers) {
-		return nil, fmt.Errorf("invalid receivers: %s", strings.Join(arp.Receivers, ","))
-	}
-	for _, user := range us {
-		if !user.HasSafe {
-			return nil, fmt.Errorf("receiver %s of holder %s does not has safe", user.UserID, req.Holder)
-		}
-	}
 	return arp, nil
 }
 
