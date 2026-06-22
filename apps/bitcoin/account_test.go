@@ -9,9 +9,9 @@ import (
 
 	"github.com/MixinNetwork/multi-party-sig/pkg/ecdsa"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +54,7 @@ func TestBitcoinCLI(t *testing.T) {
 	extPub, err := extPriv.Neuter()
 	require.Nil(err)
 	ecPub, _ := extPub.ECPubKey()
-	parentFP := btcutil.Hash160(ecPub.SerializeCompressed())[:4]
+	parentFP := address.Hash160(ecPub.SerializeCompressed())[:4]
 	require.Equal(uint32(0x1987f5fc), binary.BigEndian.Uint32(parentFP))
 
 	extPriv, _ = extPriv.Derive(0x80000000)

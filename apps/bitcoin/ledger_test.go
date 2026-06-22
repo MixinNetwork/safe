@@ -8,8 +8,8 @@ import (
 
 	"github.com/MixinNetwork/multi-party-sig/pkg/ecdsa"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
+	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +37,7 @@ func TestLedgerBitcoin(t *testing.T) {
 	require.Nil(err)
 	ecPub, err := xPub.ECPubKey()
 	require.Nil(err)
-	finger := btcutil.Hash160(ecPub.SerializeCompressed())[:4]
+	finger := address.Hash160(ecPub.SerializeCompressed())[:4]
 	require.Equal(masterFinger, hex.EncodeToString(finger))
 
 	xPub, _ = hdkeychain.NewKeyFromString(hardenXPub)
@@ -65,7 +65,7 @@ func TestLedgerBitcoin(t *testing.T) {
 	require.Equal("xpub661MyMwAqRbcGz6ujRJnzrBvWrkz2NdNzYc3ZGBMVPmPBTHomqTiX5RrcTZVYZR2jM75oBU1UFssyMFqHV6GDsreibF2tPMbCcSPnTfqwhM", signerXPub)
 	require.Equal("02bf0a7fa4b7905a0de5ab60a5322529e1a591ddd1ee53df82e751e8adb4bed08c", signerPub)
 	pub, _ := hex.DecodeString(signerPub)
-	finger = btcutil.Hash160(pub)[:4]
+	finger = address.Hash160(pub)[:4]
 	require.Equal(signerFinger, hex.EncodeToString(finger))
 	signerDeriveXPub, signerDerivePub, _ := DeriveBIP32(signerPub, chainCode, 0, 0)
 	require.Equal("xpub6B7hvMJYkHi2QSUjkitqK3u9Ep1ikfD31LhpqN8kZQpRpKEe1MEucK8TeEQcSHtBRCrfMiTjtYTqHDBxoGidWbLsUqMfZ1WDSm6uczM7TaY", signerDeriveXPub)
@@ -80,7 +80,7 @@ func TestLedgerBitcoin(t *testing.T) {
 	require.Equal("xpub661MyMwAqRbcGxD8XPvZ3fQy7WqAJBvdrEH1kwg1SGDAQprmpGvHsz5rVytTrfFmLTzRiSAMo43R7DhzjR3ucQH5UxBvFB9YDUZVQFiyDKG", observerXPub)
 	require.Equal("02442850035ee4d6f322e58e6e0ddc25b81d5fa3ca693000f992bb198c967d4a5b", observerPub)
 	pub, _ = hex.DecodeString(observerPub)
-	finger = btcutil.Hash160(pub)[:4]
+	finger = address.Hash160(pub)[:4]
 	require.Equal(observerFinger, hex.EncodeToString(finger))
 	observerDeriveXPub, observerDerivePub, _ := DeriveBIP32(observerPub, chainCode, 0, 0)
 	require.Equal("xpub6B7tgSvpJBiU2quZk3DuNt5N7DiqeDfxGc7hQPnxie48GHdDmBG1CHn2L3BWBUqvCfS3V9z8CTDuLrxRQ9xQuB5jzMUYPJprwbEvftt6TBt", observerDeriveXPub)

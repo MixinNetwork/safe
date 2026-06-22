@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg/v2"
+	"github.com/btcsuite/btcd/chainhash/v2"
+	"github.com/btcsuite/btcd/txscript/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 	"github.com/shopspring/decimal"
 )
 
@@ -59,9 +59,9 @@ func ParseAddress(addr string, chain byte) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("ParseAddress(%s, %d)", addr, chain)
 	}
-	bda, err := btcutil.DecodeAddress(addr, NetConfig(chain))
+	bda, err := address.DecodeAddress(addr, NetConfig(chain))
 	if err != nil {
-		return nil, fmt.Errorf("btcutil.DecodeAddress(%s, %d) => %v", addr, chain, err)
+		return nil, fmt.Errorf("address.DecodeAddress(%s, %d) => %v", addr, chain, err)
 	}
 	if !bda.IsForNet(NetConfig(chain)) {
 		return nil, fmt.Errorf("btcutil.IsForNet(%s, %d)", addr, chain)

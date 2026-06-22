@@ -15,12 +15,12 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/chainhash/v2"
+	"github.com/btcsuite/btcd/txscript/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 const ethereumTransactionStuckTime = keeper.EthereumTransactionStuckTime + time.Hour
@@ -347,7 +347,7 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 		privateKey, publicKey := btcec.PrivKeyFromBytes(b)
 
 		script := publicKey.SerializeCompressed()
-		script = btcutil.Hash160(script)
+		script = address.Hash160(script)
 		builder := txscript.NewScriptBuilder()
 		builder.AddOp(txscript.OP_0)
 		builder.AddData(script)

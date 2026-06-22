@@ -21,12 +21,12 @@ import (
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	"github.com/btcsuite/btcd/txscript/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 	gc "github.com/ethereum/go-ethereum/crypto"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
@@ -51,18 +51,18 @@ func ObserverBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer common.CloseOrPanic(db)
 	wd, err := common.OpenWalletSQLite3Store(mc.Observer.StoreDir + "/wallet.sqlite3")
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer common.CloseOrPanic(wd)
 
 	kd, err := keeper.OpenSQLite3ReadOnlyStore(mc.Observer.KeeperStoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err
 	}
-	defer kd.Close()
+	defer common.CloseOrPanic(kd)
 
 	mixin, err := mixin.NewFromKeystore(&mixin.Keystore{
 		AppID:             mc.Observer.App.AppId,
@@ -129,7 +129,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer common.CloseOrPanic(db)
 
 	input := util.SplitIds(c.String("input"), ":")[0]
 	index, _ := strconv.ParseUint(util.SplitIds(c.String("input"), ":")[1], 10, 32)
@@ -203,7 +203,7 @@ func ObserverImportKeys(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer common.CloseOrPanic(db)
 
 	chain := c.Int("chain")
 	publics, err := scanKeyList(c.String("list"), chain)
@@ -218,7 +218,7 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer common.CloseOrPanic(f)
 	scanner := bufio.NewScanner(f)
 	scanner.Split(bufio.ScanLines)
 
@@ -257,7 +257,7 @@ func generateAccountantKey(chain byte) (*btcec.PrivateKey, string, error) {
 		return nil, "", err
 	}
 	pub := priv.PubKey().SerializeCompressed()
-	awpkh, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub), bitcoin.NetConfig(chain))
+	awpkh, err := address.NewAddressWitnessPubKeyHash(address.Hash160(pub), bitcoin.NetConfig(chain))
 	if err != nil {
 		return nil, "", err
 	}
@@ -277,7 +277,7 @@ func GenerateObserverKeys(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer pubF.Close()
+	defer common.CloseOrPanic(pubF)
 
 	const harden = uint(0x80000000)
 	seed := c.String("seed")
@@ -362,7 +362,7 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 
 	priv := crypto.Sha256Hash(ilr[:len(ilr)/2])
 	chainCode := crypto.Blake3Hash(ilr[len(ilr)/2:])
-	finger := btcutil.Hash160([]byte(masterSeed))[:4]
+	finger := address.Hash160([]byte(masterSeed))[:4]
 	finger = binary.BigEndian.AppendUint32(finger, account)
 	res := &Account{
 		Private:     priv[:],

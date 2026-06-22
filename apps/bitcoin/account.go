@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/chaincfg/v2"
+	"github.com/btcsuite/btcd/txscript/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 type WitnessScriptAccount struct {
@@ -65,7 +65,7 @@ func EncodeAddress(script []byte, chain byte) (string, error) {
 	switch typ {
 	case InputTypeP2WSHMultisigHolderSigner:
 		msh := sha256.Sum256(script)
-		mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
+		mwsh, err := address.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
 		if err != nil {
 			return "", err
 		}
@@ -112,7 +112,7 @@ func VerifySignatureDER(public string, msg, sig []byte) error {
 // OP_ENDIF
 // OP_ADD 2 OP_EQUAL
 func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Duration, chain byte) (*WitnessScriptAccount, error) {
-	var pubKeys []*btcutil.AddressPubKey
+	var pubKeys []*address.AddressPubKey
 	for _, public := range []string{holder, signer, observer} {
 		pub, err := parseBitcoinCompressedPublicKey(public)
 		if err != nil {
@@ -152,9 +152,9 @@ func BuildWitnessScriptAccount(holder, signer, observer string, lock time.Durati
 		return nil, fmt.Errorf("build.Script() => %v", err)
 	}
 	msh := sha256.Sum256(script)
-	mwsh, err := btcutil.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
+	mwsh, err := address.NewAddressWitnessScriptHash(msh[:], NetConfig(chain))
 	if err != nil {
-		return nil, fmt.Errorf("btcutil.NewAddressWitnessScriptHash(%x) => %v", msh[:], err)
+		return nil, fmt.Errorf("address.NewAddressWitnessScriptHash(%x) => %v", msh[:], err)
 	}
 
 	return &WitnessScriptAccount{
@@ -168,12 +168,12 @@ func CheckMultisigHolderSignerScript(script []byte) bool {
 	return checkScriptType(script) == InputTypeP2WSHMultisigHolderSigner
 }
 
-func parseBitcoinCompressedPublicKey(public string) (*btcutil.AddressPubKey, error) {
+func parseBitcoinCompressedPublicKey(public string) (*address.AddressPubKey, error) {
 	pub, err := hex.DecodeString(public)
 	if err != nil {
 		return nil, err
 	}
-	return btcutil.NewAddressPubKey(pub, NetConfig(ChainBitcoin))
+	return address.NewAddressPubKey(pub, NetConfig(ChainBitcoin))
 }
 
 func ValueDust(chain byte) int64 {

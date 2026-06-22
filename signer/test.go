@@ -21,7 +21,7 @@ import (
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/saver"
 	"github.com/MixinNetwork/safe/util"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"

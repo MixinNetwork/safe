@@ -20,7 +20,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
-	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/dimfeld/httptreemux/v5"
 )
 
@@ -777,7 +777,7 @@ func (node *Node) viewSafeXPubs(ctx context.Context, safe *store.SafeProposal) [
 		if err != nil || pub != key.Public {
 			panic(k)
 		}
-		finger := btcutil.Hash160(common.DecodeHexOrPanic(key.Public))[:4]
+		finger := address.Hash160(common.DecodeHexOrPanic(key.Public))[:4]
 		pubs[i] = fmt.Sprintf("[%x]%s", finger, xpub)
 	}
 	return pubs

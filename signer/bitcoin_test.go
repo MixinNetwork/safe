@@ -9,12 +9,13 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/btcutil/v2"
+	"github.com/btcsuite/btcd/chaincfg/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,7 +123,7 @@ func bitcoinBuildTransactionObserverSigner(ctx context.Context, require *require
 		der, err = ecdsa.ParseDERSignature(sig[:len(sig)-1])
 		require.Nil(err)
 		pub, _ := hex.DecodeString(mpc)
-		signer, _ := btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
+		signer, _ := address.NewAddressPubKey(pub, &chaincfg.MainNetParams)
 		require.True(der.Verify(hash, signer.PubKey()))
 
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, sig)
@@ -197,7 +198,7 @@ func bitcoinBuildTransactionHolderSigner(ctx context.Context, require *require.A
 		der, err := ecdsa.ParseDERSignature(sig[:len(sig)-1])
 		require.Nil(err)
 		pub, _ := hex.DecodeString(mpc)
-		signer, _ := btcutil.NewAddressPubKey(pub, &chaincfg.MainNetParams)
+		signer, _ := address.NewAddressPubKey(pub, &chaincfg.MainNetParams)
 		require.True(der.Verify(hash, signer.PubKey()))
 
 		tx.TxIn[idx].Witness = append(tx.TxIn[idx].Witness, []byte{})

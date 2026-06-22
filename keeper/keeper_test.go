@@ -22,14 +22,14 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/signer"
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/btcsuite/btcd/btcutil/psbt"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg/v2"
+	"github.com/btcsuite/btcd/psbt/v2"
+	"github.com/btcsuite/btcd/txscript/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
@@ -962,7 +962,7 @@ func (node *Node) testSignerHolderApproveTransaction(ctx context.Context, requir
 		msig = append(msig, byte(bitcoin.SigHashType))
 		der, _ := ecdsa.ParseDERSignature(msig[:len(msig)-1])
 		pub, _ := node.deriveBIP32WithPath(ctx, signer, common.DecodeHexOrPanic(path))
-		signer, _ := btcutil.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
+		signer, _ := address.NewAddressPubKey(common.DecodeHexOrPanic(pub), &chaincfg.MainNetParams)
 		require.True(der.Verify(hash, signer.PubKey()))
 
 		msgTx.TxIn[idx].Witness = append(msgTx.TxIn[idx].Witness, []byte{})
