@@ -1233,7 +1233,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 		outputs, err := st.ExtractOutputs()
 		if err != nil {
-			panic(err)
+			return node.failRequest(ctx, req, "")
 		}
 		for _, out := range outputs {
 			sbm[out.TokenAddress].UpdateBalance(out.Amount)
