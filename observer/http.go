@@ -598,7 +598,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"hash":            tx.TransactionHash,
 		"raw":             approval.RawTransaction,
 		"signers":         approval.Signers(r.Context(), node, safe),
-		"state":           common.StateName(int(approval.State)),
+		"state":           common.StateName(int(approval.State)), // tx could be stuck of failed in observer, but be done in keeper
 	}
 	if approval.SpentRaw.Valid {
 		data["hash"] = approval.SpentHash.String
