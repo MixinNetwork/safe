@@ -1,6 +1,7 @@
 package observer
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -893,10 +894,18 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, safe.Observer)
 	}
 
-	rb := common.DecodeHexOrPanic(raw)
+	rb := common.DecodeHexOrPanic(approval.RawTransaction)
+	old, err := ethereum.UnmarshalSafeTransaction(rb)
+	if err != nil {
+		return err
+	}
+	rb = common.DecodeHexOrPanic(raw)
 	st, err := ethereum.UnmarshalSafeTransaction(rb)
 	if err != nil {
 		return err
+	}
+	if !bytes.Equal(old.Message, st.Message) {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	if st.Destination.Hex() == safe.Address {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)

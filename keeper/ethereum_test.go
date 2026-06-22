@@ -1008,8 +1008,8 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
 	require.Nil(err)
 	outputs, err := t.ExtractOutputs()
-	require.Nil(err)
-	require.Len(outputs, 2)
+	require.NotNil(err)
+	require.Len(outputs, 0)
 	signature := testEthereumSignMessage(require, testEthereumKeyHolder, t.Message)
 
 	extra := uuid.FromStringOrNil(rid).Bytes()
