@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -154,6 +155,10 @@ func CreateEnableGuardTransaction(ctx context.Context, chainID int64, id, safeAd
 }
 
 func (tx *SafeTransaction) Hash(id string) string {
+	msg := tx.GetTransactionHash()
+	if !bytes.Equal(msg, tx.Message) {
+		panic(id)
+	}
 	var txData []byte
 	txData = append(txData, []byte(id)...)
 	txData = append(txData, tx.Message...)

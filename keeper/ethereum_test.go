@@ -196,6 +196,97 @@ func TestEthereumKeeper(t *testing.T) {
 	require.Equal("0", decimal.NewFromBigInt(balance.BigBalance(), -6).String())
 }
 
+func TestEthereumKeeperRejectsMismatchedApproval(t *testing.T) {
+	require := require.New(t)
+	logger.SetLevel(logger.INFO)
+	ctx := common.EnableTestEnvironment(context.Background())
+
+	root, err := os.MkdirTemp("", "safe-keeper-test-")
+	require.Nil(err)
+	node, _ := testBuildNode(ctx, require, root)
+
+	holder := testPublicKey(testEthereumKeyHolder)
+	signerPublic := testEthereumPublicKey(testEthereumKeyDummyHolder)
+	observerPublic := testEthereumPublicKey(testEthereumKeyObserver)
+
+	safeReq := testEthereumStoreRequest(node, uuid.Must(uuid.NewV4()).String(), common.RequestRoleHolder, common.ActionEthereumSafeApproveAccount, holder, nil)
+	err = node.store.WriteRequestIfNotExist(ctx, safeReq)
+	require.Nil(err)
+	safe := &store.Safe{
+		Holder:      holder,
+		Chain:       common.SafeChainPolygon,
+		Signer:      signerPublic,
+		Observer:    observerPublic,
+		Timelock:    testTimelockDuration,
+		Path:        hex.EncodeToString(ethereumDefaultDerivationPath()),
+		Address:     testEthereumSafeAddress,
+		Extra:       []byte{},
+		Receivers:   []string{testSafeBondReceiverId},
+		Threshold:   1,
+		RequestId:   safeReq.Id,
+		Nonce:       1,
+		State:       common.RequestStateDone,
+		SafeAssetId: testEthereumBondAssetId,
+		CreatedAt:   safeReq.CreatedAt,
+		UpdatedAt:   safeReq.CreatedAt,
+	}
+	err = node.store.WriteSafeWithRequest(ctx, safe, nil, safeReq)
+	require.Nil(err)
+
+	txReqId := uuid.Must(uuid.NewV4()).String()
+	chainId := ethereum.GetEvmChainID(common.SafeChainPolygon)
+	proposed, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, txReqId, safe.Address, testEthereumTransactionReceiver, ethereum.EthereumEmptyAddress, "100000000000000", big.NewInt(safe.Nonce))
+	require.Nil(err)
+	txReq := testEthereumStoreRequest(node, txReqId, common.RequestRoleHolder, common.ActionEthereumSafeProposeTransaction, holder, nil)
+	err = node.store.WriteRequestIfNotExist(ctx, txReq)
+	require.Nil(err)
+	tx := &store.Transaction{
+		TransactionHash: proposed.TxHash,
+		RawTransaction:  hex.EncodeToString(proposed.Marshal()),
+		Holder:          holder,
+		Chain:           common.SafeChainPolygon,
+		AssetId:         testEthereumBondAssetId,
+		State:           common.RequestStateInitial,
+		Data:            `[{"amount":"0.0001","receiver":"` + testEthereumTransactionReceiver + `"}]`,
+		RequestId:       txReq.Id,
+		CreatedAt:       txReq.CreatedAt,
+		UpdatedAt:       txReq.CreatedAt,
+	}
+	err = node.store.WriteTransactionWithRequest(ctx, tx, nil, nil, nil, txReq)
+	require.Nil(err)
+
+	forged, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, txReqId, safe.Address, "0xF222222222222222222222222222222222222222", ethereum.EthereumEmptyAddress, proposed.Value.String(), new(big.Int).Set(proposed.Nonce))
+	require.Nil(err)
+	forged.TxHash = proposed.TxHash
+	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
+	for i, pub := range pubs {
+		if pub == holder {
+			forged.Signatures[i] = testEthereumSignMessage(require, testEthereumKeyHolder, forged.Message)
+		}
+	}
+
+	raw := forged.Marshal()
+	ref := mc.Sha256Hash(raw)
+	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
+	require.Nil(err)
+	extra := uuid.Must(uuid.FromString(txReq.Id)).Bytes()
+	extra = append(extra, ref[:]...)
+	approveReqId := uuid.Must(uuid.NewV4()).String()
+	out := testBuildObserverRequest(node, approveReqId, holder, common.ActionEthereumSafeApproveTransaction, extra, common.CurveSecp256k1ECDSAPolygon)
+	testStep(ctx, require, node, out)
+
+	req, err := node.store.ReadRequest(ctx, approveReqId)
+	require.Nil(err)
+	require.Equal(uint8(common.RequestStateFailed), req.State)
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, proposed.TxHash, common.RequestStateInitial)
+	require.Nil(err)
+	require.Len(requests, 0)
+	stored, err := node.store.ReadTransaction(ctx, proposed.TxHash)
+	require.Nil(err)
+	require.Equal(common.RequestStateInitial, stored.State)
+	require.Equal(hex.EncodeToString(proposed.Marshal()), stored.RawTransaction)
+}
+
 func TestEthereumKeeperERC20(t *testing.T) {
 	require := require.New(t)
 	ctx, node, db, _, signers := testEthereumPrepare(require)
@@ -1180,6 +1271,36 @@ func testEthereumSignMessage(require *require.Assertions, priv string, message [
 		signature[64] += 4
 	}
 	return signature
+}
+
+func testEthereumStoreRequest(node *Node, id string, role, action byte, holder string, extra []byte) *common.Request {
+	sequence += 10
+	now := time.Now().UTC()
+	amount := decimal.NewFromInt(1)
+	return &common.Request{
+		Id:         id,
+		MixinHash:  mc.Sha256Hash([]byte(id)),
+		MixinIndex: int(sequence),
+		AssetId:    node.conf.ObserverAssetId,
+		Amount:     amount,
+		Role:       role,
+		Action:     action,
+		Curve:      common.CurveSecp256k1ECDSAPolygon,
+		Holder:     holder,
+		ExtraHEX:   hex.EncodeToString(extra),
+		State:      common.RequestStateInitial,
+		CreatedAt:  now,
+		Sequence:   sequence,
+		Output: &mtg.Action{UnifiedOutput: mtg.UnifiedOutput{
+			OutputId:           common.UniqueId(id, "output"),
+			TransactionHash:    mc.Sha256Hash([]byte(id + ":output")).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            node.conf.ObserverAssetId,
+			Amount:             amount,
+			SequencerCreatedAt: now,
+			Sequence:           sequence,
+		}},
+	}
 }
 
 func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
