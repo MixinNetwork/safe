@@ -830,7 +830,10 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	outputs := st.ExtractOutputs()
+	outputs, err := st.ExtractOutputs()
+	if err != nil {
+		return err
+	}
 	if len(outputs) != len(sbm) {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
@@ -928,7 +931,10 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	outputs := st.ExtractOutputs()
+	outputs, err := st.ExtractOutputs()
+	if err != nil {
+		return err
+	}
 	if len(outputs) != len(sbm) {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
@@ -1166,7 +1172,10 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	outputs := st.ExtractOutputs()
+	outputs, err := st.ExtractOutputs()
+	if err != nil {
+		return nil, err
+	}
 	if len(outputs) != len(sbm) {
 		return nil, fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
