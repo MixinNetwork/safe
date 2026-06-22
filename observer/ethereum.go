@@ -1,6 +1,7 @@
 package observer
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -830,7 +831,10 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	outputs := st.ExtractOutputs()
+	outputs, err := st.ExtractOutputs()
+	if err != nil {
+		return err
+	}
 	if len(outputs) != len(sbm) {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
@@ -890,10 +894,18 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 		return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, safe.Observer)
 	}
 
-	rb := common.DecodeHexOrPanic(raw)
+	rb := common.DecodeHexOrPanic(approval.RawTransaction)
+	old, err := ethereum.UnmarshalSafeTransaction(rb)
+	if err != nil {
+		return err
+	}
+	rb = common.DecodeHexOrPanic(raw)
 	st, err := ethereum.UnmarshalSafeTransaction(rb)
 	if err != nil {
 		return err
+	}
+	if !bytes.Equal(old.Message, st.Message) {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	if st.Destination.Hex() == safe.Address {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -928,7 +940,10 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	outputs := st.ExtractOutputs()
+	outputs, err := st.ExtractOutputs()
+	if err != nil {
+		return err
+	}
 	if len(outputs) != len(sbm) {
 		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}
@@ -1054,6 +1069,9 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string
 	if err != nil || tx == nil {
 		return err
 	}
+	if st.Hash(tx.RequestId) != tx.TransactionHash {
+		return fmt.Errorf("invalid transaction hash: %s %s", st.Hash(tx.RequestId), tx.TransactionHash)
+	}
 
 	err = node.store.AddTransactionPartials(ctx, st.TxHash, raw)
 	logger.Printf("store.AddTransactionPartials(%s) => %v", st.TxHash, err)
@@ -1166,7 +1184,10 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	outputs := st.ExtractOutputs()
+	outputs, err := st.ExtractOutputs()
+	if err != nil {
+		return nil, err
+	}
 	if len(outputs) != len(sbm) {
 		return nil, fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 	}

@@ -949,7 +949,7 @@ func viewPendingBalances(txs []*store.Transaction) map[string]*AssetBalance {
 		st, _ := ethereum.UnmarshalSafeTransaction(raw)
 		chainAssetId := ethereum.GetMixinChainID(int64(tx.Chain))
 
-		outputs := st.ExtractOutputs()
+		outputs, _ := st.ExtractOutputs()
 		for _, out := range outputs {
 			assetId := chainAssetId
 			if out.TokenAddress != ethereum.EthereumEmptyAddress {

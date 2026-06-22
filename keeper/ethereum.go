@@ -108,7 +108,10 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	if err != nil {
 		panic(err)
 	}
-	outputs := t.ExtractOutputs()
+	outputs, err := t.ExtractOutputs()
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	if len(outputs) != len(sbm) {
 		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 		return node.failRequest(ctx, req, "")
@@ -258,7 +261,10 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if err != nil {
 		panic(err)
 	}
-	outputs := t.ExtractOutputs()
+	outputs, err := t.ExtractOutputs()
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	if len(outputs) != len(sbm) {
 		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 		return node.failRequest(ctx, req, "")
@@ -364,7 +370,10 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		return node.failRequest(ctx, req, "")
 	}
 
-	outputs := t.ExtractOutputs()
+	outputs, err := t.ExtractOutputs()
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)
@@ -614,6 +623,10 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", rawB, t, err)
 	if err != nil {
 		panic(err)
+	}
+	if t.Hash(sp.RequestId) != tx.TransactionHash {
+		logger.Printf("inconsistent safe tx hash: %s, %s", t.Hash(sp.RequestId), tx.TransactionHash)
+		return node.failRequest(ctx, req, "")
 	}
 
 	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:])
@@ -1043,6 +1056,9 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	if err != nil {
 		panic(err)
 	}
+	if t.Hash(tx.RequestId) != tx.TransactionHash {
+		return node.failRequest(ctx, req, "")
+	}
 
 	signed, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
 	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Holder, signed, err)
@@ -1177,7 +1193,10 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 	if err != nil {
 		panic(err)
 	}
-	outputs := t.ExtractOutputs()
+	outputs, err := t.ExtractOutputs()
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	for _, o := range outputs {
 		closeBalance := big.NewInt(0).Sub(sbm[o.TokenAddress].BigBalance(), o.Amount)
 		if closeBalance.Cmp(big.NewInt(0)) < 0 {
@@ -1220,7 +1239,10 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		if err != nil {
 			panic(err)
 		}
-		outputs := st.ExtractOutputs()
+		outputs, err := st.ExtractOutputs()
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
 		for _, out := range outputs {
 			sbm[out.TokenAddress].UpdateBalance(out.Amount)
 		}
