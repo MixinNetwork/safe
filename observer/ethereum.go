@@ -1060,6 +1060,9 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string
 	if err != nil || tx == nil {
 		return err
 	}
+	if st.Hash(tx.RequestId) != tx.TransactionHash {
+		return fmt.Errorf("invalid transaction hash: %s %s", st.Hash(tx.RequestId), tx.TransactionHash)
+	}
 
 	err = node.store.AddTransactionPartials(ctx, st.TxHash, raw)
 	logger.Printf("store.AddTransactionPartials(%s) => %v", st.TxHash, err)

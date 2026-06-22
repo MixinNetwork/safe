@@ -1048,6 +1048,9 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	if err != nil {
 		panic(err)
 	}
+	if t.Hash(tx.RequestId) != tx.TransactionHash {
+		return node.failRequest(ctx, req, "")
+	}
 
 	signed, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
 	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Holder, signed, err)
