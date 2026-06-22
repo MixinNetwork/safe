@@ -624,6 +624,10 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	if err != nil {
 		panic(err)
 	}
+	if t.Hash(sp.RequestId) != tx.TransactionHash {
+		logger.Printf("inconsistent safe tx hash: %s, %s", t.Hash(sp.RequestId), tx.TransactionHash)
+		return node.failRequest(ctx, req, "")
+	}
 
 	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:])
 	logger.Printf("ethereum.VerifyMessageSignature(%v) => %v", req, err)
