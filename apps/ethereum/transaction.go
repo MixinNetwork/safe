@@ -428,27 +428,20 @@ func (tx *SafeTransaction) parseMultiSendData() ([]*Output, error) {
 		switch int(dataLen) {
 		// tranfer ETH
 		case 0:
-		// setGuard(address)
-		case 36:
-			offset += int(dataLen)
 		// transfer(address,uint256) or guardSafe(address,uint256)
 		case 68:
 			metaData := multiSendData[offset : offset+int(dataLen)]
 			strData := hex.EncodeToString(metaData)
 			method := strData[0:8]
-			switch method {
-			case functionGuardSafe:
-				offset += int(dataLen)
-			case functionERC20Transfer:
-				bytesTo := metaData[4:36]
-				bytesAmount := metaData[36:68]
-				o.TokenAddress = o.Destination
-				o.Destination = common.BytesToAddress(bytesTo).Hex()
-				o.Amount = new(big.Int).SetBytes(bytesAmount)
-				offset += int(dataLen)
-			default:
+			if method != functionERC20Transfer {
 				return nil, fmt.Errorf("invalid meta tx data: %x", metaData)
 			}
+			bytesTo := metaData[4:36]
+			bytesAmount := metaData[36:68]
+			o.TokenAddress = o.Destination
+			o.Destination = common.BytesToAddress(bytesTo).Hex()
+			o.Amount = new(big.Int).SetBytes(bytesAmount)
+			offset += int(dataLen)
 		default:
 			return nil, fmt.Errorf("invalid multiSend data length: %d", dataLen)
 		}
