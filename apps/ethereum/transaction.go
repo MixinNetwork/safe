@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	mc "github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
@@ -353,8 +354,38 @@ func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) err
 	if err != nil {
 		return err
 	}
-	_, err = bind.WaitMined(ctx, conn, t)
-	return err
+
+	return WaitMinedWithTimeout(conn, rpc, t, time.Minute*10)
+}
+
+func WaitMinedWithTimeout(client *ethclient.Client, rpc string, tx *types.Transaction, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	receiptCh := make(chan *types.Receipt, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		receipt, err := bind.WaitMined(ctx, client, tx)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		receiptCh <- receipt
+	}()
+
+	select {
+	case <-ctx.Done():
+		etx, err := RPCGetTransactionByHash(rpc, tx.Hash().Hex())
+		if err != nil || etx == nil {
+			return fmt.Errorf("WaitMinedAfterTimeout(%s) => %v %v", tx.Hash().Hex(), etx, err)
+		}
+		return nil
+	case err := <-errCh:
+		return fmt.Errorf("WaitMinedWithTimeout(%s) => %v", tx.Hash().Hex(), err)
+	case _ = <-receiptCh:
+		return nil
+	}
 }
 
 func (tx *SafeTransaction) ExtractOutputs() ([]*Output, error) {
