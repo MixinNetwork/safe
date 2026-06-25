@@ -56,16 +56,6 @@ func buildInsertionSQL(table string, cols []string) string {
 	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, strings.Join(cols, ","), vals[:len(vals)-2])
 }
 
-func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql string, params ...any) (bool, error) {
-	rows, err := tx.QueryContext(ctx, sql, params...)
-	if err != nil {
-		return false, err
-	}
-	defer common.CloseOrPanic(rows)
-
-	return rows.Next(), nil
-}
-
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {
 	row := s.db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
 	var value string

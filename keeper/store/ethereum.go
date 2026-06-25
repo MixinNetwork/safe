@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type SafeBalance struct {
@@ -134,7 +135,7 @@ func (s *SQLite3Store) ReadAllEthereumTokenBalances(ctx context.Context, address
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	var sbs []*SafeBalance
 	for rows.Next() {

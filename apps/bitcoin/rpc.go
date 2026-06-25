@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/btcutil/v2"
 	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/shopspring/decimal"
@@ -403,7 +404,7 @@ func callBitcoinRPC(rpc, method string, params []any) ([]byte, error) {
 	if err != nil {
 		return nil, buildRPCError(rpc, method, params, err)
 	}
-	defer resp.Body.Close()
+	defer util.CloseOrPanic(resp.Body)
 
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {

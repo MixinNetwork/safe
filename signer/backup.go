@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -39,7 +40,7 @@ func (node *Node) sendKeygenBackup(_ context.Context, op *common.Operation, shar
 	if err != nil || resp.StatusCode != 200 {
 		return false, fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.SaverAPI, op, resp, err)
 	}
-	defer resp.Body.Close()
+	defer util.CloseOrPanic(resp.Body)
 
 	var body struct {
 		Id   string `json:"id"`

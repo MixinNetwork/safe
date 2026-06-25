@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/util"
 )
 
 //go:embed schema.sql
@@ -74,7 +75,7 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	if err != nil {
 		return false, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	return rows.Next(), nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
@@ -513,7 +514,7 @@ func (s *SQLite3Store) ReadBitcoinUTXOs(ctx context.Context, chain byte) ([]*Out
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	var outputs []*Output
 	for rows.Next() {

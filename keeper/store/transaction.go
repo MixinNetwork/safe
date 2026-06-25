@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type Transaction struct {
@@ -125,7 +126,7 @@ func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, h
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	var txs []*Transaction
 	for rows.Next() {

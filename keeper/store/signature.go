@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type SignatureRequest struct {
@@ -296,7 +297,7 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	rm := make(map[int]*SignatureRequest)
 	for rows.Next() {

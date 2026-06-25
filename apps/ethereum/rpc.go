@@ -16,6 +16,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -376,7 +377,7 @@ func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
 	if err != nil {
 		return nil, buildRPCError(rpc, method, params, err)
 	}
-	defer resp.Body.Close()
+	defer util.CloseOrPanic(resp.Body)
 
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -247,7 +248,7 @@ func (node *Node) fetchMixinAsset(_ context.Context, id string) (*store.Asset, e
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(resp.Body)
+	defer util.CloseOrPanic(resp.Body)
 
 	var body struct {
 		Data *struct {

@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/safe/messenger"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/signer"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -41,7 +42,7 @@ func SignerBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer util.CloseOrPanic(db)
 
 	group, err := mtg.BuildGroup(ctx, db, mc.Signer.MTG)
 	if err != nil {
@@ -59,12 +60,13 @@ func SignerBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer kd.Close()
+	defer util.CloseOrPanic(kd)
+
 	wd, err := common.OpenWalletSQLite3Store(mc.Signer.StoreDir + "/wallet.sqlite3")
 	if err != nil {
 		return err
 	}
-	defer kd.Close()
+	defer util.CloseOrPanic(wd)
 
 	s := &mixin.Keystore{
 		ClientID:          mc.Signer.MTG.App.AppId,
@@ -175,8 +177,7 @@ func makeSignerPaymentRequest(conf *signer.Configuration, op *common.Operation, 
 	case common.CurveEdwards25519Default:
 	case common.CurveEdwards25519Mixin:
 	default:
-		return fmt.Errorf("CurveSecp256k1ECDSABitcoin:\t\t%d\nCurveSecp256k1SchnorrBitcoin:\t\t%d\nCurveEdwards25519Default:\t%d\nCurveEdwards25519Mixin:\t\t%d\n",
-			common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1SchnorrBitcoin, common.CurveEdwards25519Default, common.CurveEdwards25519Mixin)
+		panic(op.Curve)
 	}
 
 	extra := common.AESEncrypt(aesKey[:], op.Encode(), op.Id)

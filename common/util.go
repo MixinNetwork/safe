@@ -7,7 +7,6 @@ import (
 	"encoding"
 	"encoding/hex"
 	"encoding/json"
-	"io"
 	"os"
 	"strings"
 
@@ -103,13 +102,6 @@ func Rollback(txn *sql.Tx) {
 	err := txn.Rollback()
 	const already = "transaction has already been committed or rolled back"
 	if err != nil && !strings.Contains(err.Error(), already) {
-		panic(err)
-	}
-}
-
-func CloseOrPanic(c io.Closer) {
-	err := c.Close()
-	if err != nil {
 		panic(err)
 	}
 }

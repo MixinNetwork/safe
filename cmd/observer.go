@@ -51,18 +51,18 @@ func ObserverBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer common.CloseOrPanic(db)
+	defer util.CloseOrPanic(db)
 	wd, err := common.OpenWalletSQLite3Store(mc.Observer.StoreDir + "/wallet.sqlite3")
 	if err != nil {
 		return err
 	}
-	defer common.CloseOrPanic(wd)
+	defer util.CloseOrPanic(wd)
 
 	kd, err := keeper.OpenSQLite3ReadOnlyStore(mc.Observer.KeeperStoreDir + "/safe.sqlite3")
 	if err != nil {
 		return err
 	}
-	defer common.CloseOrPanic(kd)
+	defer util.CloseOrPanic(kd)
 
 	mixin, err := mixin.NewFromKeystore(&mixin.Keystore{
 		AppID:             mc.Observer.App.AppId,
@@ -129,7 +129,7 @@ func ObserverFillAccountants(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer common.CloseOrPanic(db)
+	defer util.CloseOrPanic(db)
 
 	input := util.SplitIds(c.String("input"), ":")[0]
 	index, _ := strconv.ParseUint(util.SplitIds(c.String("input"), ":")[1], 10, 32)
@@ -203,7 +203,7 @@ func ObserverImportKeys(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer common.CloseOrPanic(db)
+	defer util.CloseOrPanic(db)
 
 	chain := c.Int("chain")
 	publics, err := scanKeyList(c.String("list"), chain)
@@ -218,7 +218,7 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(f)
+	defer util.CloseOrPanic(f)
 	scanner := bufio.NewScanner(f)
 	scanner.Split(bufio.ScanLines)
 
@@ -277,7 +277,7 @@ func GenerateObserverKeys(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer common.CloseOrPanic(pubF)
+	defer util.CloseOrPanic(pubF)
 
 	const harden = uint(0x80000000)
 	seed := c.String("seed")

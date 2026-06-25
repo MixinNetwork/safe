@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/psbt/v2"
@@ -101,7 +102,7 @@ func fetchAssetId(mixinId string) string {
 	if err != nil {
 		panic(mixinId)
 	}
-	defer resp.Body.Close()
+	defer util.CloseOrPanic(resp.Body)
 
 	var body struct {
 		Data struct {
@@ -109,7 +110,10 @@ func fetchAssetId(mixinId string) string {
 			MixinId string `json:"mixin_id"`
 		} `json:"data"`
 	}
-	json.NewDecoder(resp.Body).Decode(&body)
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		panic(err)
+	}
 	if body.Data.MixinId != mixinId {
 		panic(mixinId)
 	}

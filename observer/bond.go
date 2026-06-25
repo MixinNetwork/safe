@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type MixinNetworkAsset struct {
@@ -126,14 +127,18 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	return asset, node.store.WriteAssetMeta(ctx, asset)
 }
 
-func (node *Node) fetchMixinAsset(_ context.Context, id string) (*Asset, error) {
+func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	path := node.conf.MixinMessengerAPI + "/network/assets/" + id
-	resp, err := client.Get(path)
+	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(resp.Body)
 
 	var body struct {
 		Data *MixinNetworkAsset `json:"data"`

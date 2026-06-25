@@ -25,7 +25,6 @@ import (
 // execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)
 
 const (
-	functionGuardSafe     = "59335aa2"
 	functionERC20Transfer = "a9059cbb"
 )
 

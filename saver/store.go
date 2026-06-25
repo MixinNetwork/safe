@@ -10,6 +10,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/util"
 )
 
 //go:embed schema.sql
@@ -119,7 +120,7 @@ func (s *SQLite3Store) ListItemsForNode(ctx context.Context, nodeId string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	var items []*Item
 	for rows.Next() {

@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -34,7 +35,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer util.CloseOrPanic(db)
 
 	group, err := mtg.BuildGroup(ctx, db, mc.Keeper.MTG)
 	if err != nil {
@@ -67,7 +68,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer kd.Close()
+	defer util.CloseOrPanic(kd)
 
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)

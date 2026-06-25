@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 )
 
 func (s *SQLite3Store) WriteBitcoinOutputFromRequest(ctx context.Context, safe *Safe, utxo *bitcoin.Input, req *common.Request, assetId, sender string, txs []*mtg.Transaction) error {
@@ -123,7 +124,7 @@ func (s *SQLite3Store) listAllBitcoinUTXOsForAddress(ctx context.Context, receiv
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	var inputs []*bitcoin.Input
 	for rows.Next() {

@@ -28,7 +28,6 @@ const (
 	testMVMFactoryAddress       = "0x39490616B61302B7d0Af8993cB694a54064EBA17"
 	testChainMVM                = 4
 	testBitcoinKeyHolderPrivate = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
-	testSafeAddress             = "bc1qm7qaucdjwzpapugfvmzp2xduzs7p0jd3zq7yxpvuf9dp5nml3pesx57a9x"
 	testMVMBondAssetId          = "8e85c732-3bc6-3f50-939a-be89a67a6db6"
 	testPolygonBondAssetId      = "728ed44b-a751-3b49-81e0-003815c8184c"
 	testReceiverAddress         = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
@@ -268,7 +267,7 @@ func testBuildNode(_ context.Context, require *require.Assertions, root string) 
 	}
 
 	conf.Keeper.StoreDir = root
-	if !(strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") || strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders")) {
+	if !strings.HasPrefix(conf.Keeper.StoreDir, "/tmp/") && !strings.HasPrefix(conf.Keeper.StoreDir, "/var/folders") {
 		panic(root)
 	}
 	err = os.MkdirAll(conf.Keeper.StoreDir, os.ModePerm)
@@ -283,7 +282,7 @@ func testBuildNode(_ context.Context, require *require.Assertions, root string) 
 	require.Nil(err)
 
 	conf.Observer.StoreDir = root
-	if !(strings.HasPrefix(conf.Observer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Observer.StoreDir, "/var/folders")) {
+	if !strings.HasPrefix(conf.Observer.StoreDir, "/tmp/") && !strings.HasPrefix(conf.Observer.StoreDir, "/var/folders") {
 		panic(root)
 	}
 	db, err := OpenSQLite3Store(conf.Observer.StoreDir + "/observer.sqlite3")

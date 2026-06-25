@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/safe/common"
+	"github.com/MixinNetwork/safe/util"
 )
 
 type InheritanceLock struct {
@@ -85,7 +86,7 @@ func (s *SQLite3Store) ListInheritanceLocksByHolder(ctx context.Context, holder 
 	if err != nil {
 		return nil, err
 	}
-	defer common.CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	var ls []*InheritanceLock
 	for rows.Next() {

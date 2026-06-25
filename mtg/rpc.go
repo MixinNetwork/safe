@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/safe/util"
 )
 
 func GetKernelTransaction(rpc, hash string) (*common.VersionedTransaction, string, error) {
@@ -56,7 +57,7 @@ func callMixinRPC(node, method string, params []any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer util.CloseOrPanic(resp.Body)
 
 	var result struct {
 		Data  any `json:"data"`

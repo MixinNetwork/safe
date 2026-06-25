@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -76,7 +77,7 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	if err != nil {
 		return false, err
 	}
-	defer CloseOrPanic(rows)
+	defer util.CloseOrPanic(rows)
 
 	return rows.Next(), nil
 }

@@ -238,7 +238,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	err = saverStore.WriteNodePublicKey(ctx, conf.Signer.MTG.App.AppId, priv.Public().String())
 	require.Nil(err)
 
-	if !(strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") || strings.HasPrefix(conf.Signer.StoreDir, "/var/folders")) {
+	if !strings.HasPrefix(conf.Signer.StoreDir, "/tmp/") && !strings.HasPrefix(conf.Signer.StoreDir, "/var/folders") {
 		panic(root)
 	}
 	kd, err := OpenSQLite3Store(conf.Signer.StoreDir + "/mpc.sqlite3")
@@ -284,7 +284,8 @@ func getFreePort() int {
 	if err != nil {
 		panic(err)
 	}
-	defer l.Close()
+	defer util.CloseOrPanic(l)
+
 	return l.Addr().(*net.TCPAddr).Port
 }
 
