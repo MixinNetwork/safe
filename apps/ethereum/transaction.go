@@ -69,7 +69,7 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 		return nil, fmt.Errorf("invalid ethereum transaction nonce or token address %s %s", nonce, tokenAddress)
 	}
 	value, ok := new(big.Int).SetString(amount, 10)
-	if !ok {
+	if !ok || value.Sign() <= 0 {
 		return nil, fmt.Errorf("invalid ethereum amount %s", amount)
 	}
 	tx := &SafeTransaction{
@@ -500,6 +500,9 @@ func (tx *SafeTransaction) buildEnableGuradData(observer string, timelock *big.I
 }
 
 func buildERC20TxData(receiver string, amount *big.Int) []byte {
+	if amount.Sign() <= 0 {
+		panic(amount.String())
+	}
 	transferFnSignature := []byte("transfer(address,uint256)")
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(transferFnSignature)
@@ -518,6 +521,9 @@ func buildERC20TxData(receiver string, amount *big.Int) []byte {
 func buildMultiSendData(outputs []*Output) []byte {
 	metaTxsData := []byte{}
 	for _, o := range outputs {
+		if o.Amount.Sign() <= 0 {
+			panic(o.Amount.String())
+		}
 		destination, amount, data := o.Destination, o.Amount, []byte{}
 		tokenAddress := NormalizeAddress(o.TokenAddress)
 		if tokenAddress != EthereumEmptyAddress {
@@ -544,6 +550,9 @@ func buildMultiSendData(outputs []*Output) []byte {
 }
 
 func buildMetaTxData(to common.Address, amount *big.Int, data []byte) []byte {
+	if amount.Sign() < 0 {
+		panic(amount.String())
+	}
 	dataLen := big.NewInt(int64(len(data)))
 
 	var meta []byte
