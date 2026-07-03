@@ -30,7 +30,7 @@ import (
 	"github.com/btcsuite/btcd/psbt/v2"
 	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/btcsuite/btcd/wire/v2"
-	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"

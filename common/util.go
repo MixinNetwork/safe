@@ -13,7 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/util"
-	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 )
 
 func MarshalPanic(m encoding.BinaryMarshaler) []byte {

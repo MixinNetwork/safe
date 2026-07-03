@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client/v3"
-	"github.com/fox-one/mixin-sdk-go/v2"
-	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/fox-one/mixin-sdk-go/v3"
+	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 	"github.com/shopspring/decimal"
 )
 

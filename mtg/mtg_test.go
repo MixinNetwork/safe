@@ -14,7 +14,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/util"
-	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"

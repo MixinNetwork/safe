@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/signer/protocol"
-	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )

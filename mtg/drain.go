@@ -11,7 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 )
 
 const (

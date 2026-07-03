@@ -17,8 +17,7 @@ import (
 	kstore "github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/signer"
-	"github.com/fox-one/mixin-sdk-go/v2"
-	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 )
 
 type UserStore interface {
@@ -74,7 +73,7 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 	}
 	state = state + fmt.Sprintf("🫰 Snapshot Transactions: %d\n", len(tl))
 
-	ol, err := mdb.ListOutputsForAsset(ctx, conf.AppId, conf.KeeperAssetId, 0, math.MaxInt64, mixin.UTXOStateUnspent, 10)
+	ol, err := mdb.ListOutputsForAsset(ctx, conf.AppId, conf.KeeperAssetId, 0, math.MaxInt64, mtg.SafeUtxoStateUnspent, 10)
 	if err != nil {
 		return "", err
 	}
@@ -168,12 +167,12 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	}
 	state = state + fmt.Sprintf("🫰 Snapshot Transactions: %d\n", len(tl))
 
-	ol, err := mdb.ListOutputsForAsset(ctx, conf.AppId, mtg.StorageAssetId, 0, math.MaxInt64, mixin.UTXOStateUnspent, 10)
+	ol, err := mdb.ListOutputsForAsset(ctx, conf.AppId, mtg.StorageAssetId, 0, math.MaxInt64, mtg.SafeUtxoStateUnspent, 10)
 	if err != nil {
 		return "", err
 	}
 	state = state + fmt.Sprintf("💍 XIN Outputs: %d\n", len(ol))
-	ol, err = mdb.ListOutputsForAsset(ctx, conf.AppId, conf.AssetId, 0, math.MaxInt64, mixin.UTXOStateUnspent, 10)
+	ol, err = mdb.ListOutputsForAsset(ctx, conf.AppId, conf.AssetId, 0, math.MaxInt64, mtg.SafeUtxoStateUnspent, 10)
 	if err != nil {
 		return "", err
 	}

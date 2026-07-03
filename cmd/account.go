@@ -13,7 +13,7 @@ import (
 	"github.com/MixinNetwork/safe/config"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/gofrs/uuid/v5"
 	"github.com/mdp/qrterminal"
 	"github.com/shopspring/decimal"
