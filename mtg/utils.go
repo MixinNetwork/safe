@@ -224,8 +224,6 @@ type SafeTransactionRequest struct {
 	SendersHash      string                     `json:"senders_hash"`
 	SendersThreshold uint8                      `json:"senders_threshold"`
 	Signers          []string                   `json:"signers"`
-	SnapshotHash     string                     `json:"snapshot_hash"`
-	SnapshotAt       *time.Time                 `json:"snapshot_at"`
 	State            SafeUtxoState              `json:"state"`
 	RawTransaction   string                     `json:"raw_transaction"`
 	Views            []mixinnet.Key             `json:"views"`
