@@ -244,6 +244,12 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 }
 
 func (s *SQLite3Store) listOutputs(ctx context.Context, ids []string) ([]*UnifiedOutput, error) {
+	for _, id := range ids {
+		uid, err := uuid.FromString(id)
+		if err != nil || uid.String() != id {
+			return nil, fmt.Errorf("invalid output id %s", id)
+		}
+	}
 	cols := strings.Join(outputCols, ",")
 	sets := "'" + strings.Join(ids, "','") + "'"
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id IN (%s) ORDER BY sequence ASC", cols, sets)
@@ -483,8 +489,8 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 }
 
 func (s *SQLite3Store) ListPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<=? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
-	return s.transactionsFromQuery(ctx, query, asset, sequence, TransactionStateInitial)
+	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
+	return s.transactionsFromQuery(ctx, query, asset, TransactionStateInitial, sequence)
 }
 
 func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {

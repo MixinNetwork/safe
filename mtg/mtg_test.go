@@ -507,7 +507,7 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	root, err := os.MkdirTemp("", "mtg-test")
 	require.Nil(err)
 	conf.StoreDir = root
-	if !(strings.HasPrefix(conf.StoreDir, "/tmp") || strings.HasPrefix(conf.StoreDir, "/var/folders")) {
+	if !strings.HasPrefix(conf.StoreDir, "/tmp") && !strings.HasPrefix(conf.StoreDir, "/var/folders") {
 		panic(root)
 	}
 	store, err := OpenSQLite3Store(conf.StoreDir + "/mtg.sqlite3")
