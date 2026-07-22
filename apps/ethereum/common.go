@@ -215,12 +215,24 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Verbosef("transfer %d: %v", i, t)
-		tv := NormallizeAmount(t.Value, precision)
-		if t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(tv) == 0 {
+		if matchDepositTransfer(t, hash, assetAddress, destination, index, amount, precision) {
 			return t, etx, nil
 		}
 	}
 	return nil, nil, nil
+}
+
+// matchDepositTransfer reports whether the transfer is the claimed
+// deposit. The ERC20 transfers are collected from the entire block of
+// the claimed transaction, so a transfer must be bound to the claimed
+// transaction hash, otherwise the same transfer could be credited
+// multiple times under different transaction hashes of the block.
+func matchDepositTransfer(t *Transfer, hash, assetAddress, destination string, index int64, amount *big.Int, precision int32) bool {
+	if !strings.EqualFold(t.Hash, hash) {
+		return false
+	}
+	tv := NormallizeAmount(t.Value, precision)
+	return t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(tv) == 0
 }
 
 func CheckFinalization(num uint64, chain byte) bool {

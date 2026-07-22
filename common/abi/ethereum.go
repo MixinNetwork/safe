@@ -9,7 +9,6 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -59,7 +58,7 @@ func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symb
 	}
 	logger.Printf("abi.Deploy(%s, %s, %s, %s, %s) => %s %x %d %d %s %s", receiver,
 		id, holder, symbol, name, t.Hash().Hex(), rb, t.Nonce(), t.Gas(), t.GasFeeCap(), t.GasTipCap())
-	_, err = bind.WaitMined(ctx, conn, t)
+	_, err = ethereum.WaitMinedSuccess(ctx, conn, t)
 	logger.Printf("abi.WaitMined(%v) => %v", t, err)
 	return err
 }

@@ -634,10 +634,10 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	}
 
 	etx, err := st.BuildTransaction(ctx, rpc, node.conf.EVMKey)
-	logger.Printf("BuildTransaction(%s) => %s %v", st.TxHash, etx.Hash().Hex(), err)
 	if err != nil {
 		panic(err)
 	}
+	logger.Printf("BuildTransaction(%s) => %s", st.TxHash, etx.Hash().Hex())
 	err = node.store.WriteProperty(ctx, key, etx.Hash().Hex())
 	if err != nil {
 		panic(err)

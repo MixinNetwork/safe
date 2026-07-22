@@ -341,6 +341,21 @@ func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string
 	return t, nil
 }
 
+// WaitMinedSuccess waits until the transaction is mined and requires it
+// to have executed successfully. bind.WaitMined alone does not fail for
+// reverted transactions, and treating a reverted transaction as a success
+// corrupts the accounting of the safe balances.
+func WaitMinedSuccess(ctx context.Context, conn *ethclient.Client, t *types.Transaction) (*types.Receipt, error) {
+	receipt, err := bind.WaitMined(ctx, conn, t)
+	if err != nil {
+		return nil, err
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return receipt, fmt.Errorf("transaction %s reverted", t.Hash().Hex())
+	}
+	return receipt, nil
+}
+
 func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) error {
 	conn, err := ethclient.Dial(rpc)
 	if err != nil {
@@ -352,7 +367,7 @@ func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) err
 	if err != nil {
 		return err
 	}
-	_, err = bind.WaitMined(ctx, conn, t)
+	_, err = WaitMinedSuccess(ctx, conn, t)
 	return err
 }
 

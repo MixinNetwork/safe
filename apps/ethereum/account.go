@@ -218,7 +218,7 @@ func DeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owne
 	if err != nil {
 		return err
 	}
-	_, err = bind.WaitMined(ctx, conn, t)
+	_, err = WaitMinedSuccess(ctx, conn, t)
 	return err
 }
 
