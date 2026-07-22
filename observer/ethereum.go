@@ -424,7 +424,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			checkpoint = ckpt
 			go func(current int64) {
 				defer wg.Done()
-				err = node.processEthereumRPCBlock(ctx, current, chain)
+				err := node.processEthereumRPCBlock(ctx, current, chain)
 				logger.Printf("node.processEthereumRPCBlock(%d, %d) => %v", chain, current, err)
 				if err != nil {
 					panic(err)

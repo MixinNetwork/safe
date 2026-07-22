@@ -36,7 +36,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 		return node.failRequest(ctx, req, "")
 	}
 
-	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	id := uuid.Must(uuid.FromBytes(deployed.FillBytes(make([]byte, 16))))
 	_, err = node.fetchAssetMeta(ctx, id.String())
 	if err != nil {
 		panic(fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err))

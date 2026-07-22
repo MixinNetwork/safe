@@ -727,7 +727,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	if err != nil || deployed.Sign() <= 0 {
 		panic(fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err))
 	}
-	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	id := uuid.Must(uuid.FromBytes(deployed.FillBytes(make([]byte, 16))))
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, safe.Chain, req.CreatedAt)
 	logger.Printf("store.ReadLatestOperationParams(%d) => %v %v", safe.Chain, plan, err)

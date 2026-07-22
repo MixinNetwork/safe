@@ -149,7 +149,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 		return false, nil
 	}
 
-	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
+	id := uuid.Must(uuid.FromBytes(deployed.FillBytes(make([]byte, 16))))
 	_, err = node.fetchAssetMeta(ctx, id.String())
 	if err != nil {
 		return false, fmt.Errorf("node.fetchAssetMeta(%s) => %v", id, err)
