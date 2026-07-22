@@ -209,6 +209,38 @@ func TestMTGCompaction(t *testing.T) {
 	require.Equal("0.0036", b.String())
 }
 
+func TestCheckMultisigRequestRawTransaction(t *testing.T) {
+	require := require.New(t)
+
+	build := func(extra string) *common.VersionedTransaction {
+		tx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
+		tx.AddInput(crypto.Sha256Hash([]byte("output")), 0)
+		tx.Extra = []byte(extra)
+		return tx.AsVersioned()
+	}
+
+	ver := build("honest")
+	req := &mixin.SafeMultisigRequest{
+		RequestID:      uuid.Must(uuid.NewV4()).String(),
+		RawTransaction: hex.EncodeToString(ver.Marshal()),
+	}
+	rver, err := CheckMultisigRequestRawTransaction(req, ver)
+	require.Nil(err)
+	require.Equal(ver.PayloadHash(), rver.PayloadHash())
+
+	// a squatted request with a different raw transaction must be rejected
+	other := build("theft")
+	req.RawTransaction = hex.EncodeToString(other.Marshal())
+	_, err = CheckMultisigRequestRawTransaction(req, ver)
+	require.NotNil(err)
+	require.True(strings.Contains(err.Error(), "raw transaction mismatch"))
+
+	// malformed raw transactions must be rejected
+	req.RawTransaction = "ff"
+	_, err = CheckMultisigRequestRawTransaction(req, ver)
+	require.NotNil(err)
+}
+
 func TestMTGCheckTxs(t *testing.T) {
 	require := require.New(t)
 	ctx, node := testBuildGroup(require)

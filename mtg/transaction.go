@@ -410,28 +410,25 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 	if err != nil {
 		panic(err)
 	}
+	// A multisig request id is public and deterministic, so anyone may
+	// have created the request beforehand with a different raw transaction.
+	// Never sign nor accept a raw transaction the group did not build.
+	rver, err := CheckMultisigRequestRawTransaction(req, ver)
+	if err != nil {
+		panic(err)
+	}
 	if len(req.Signers) < int(req.SendersThreshold) && len(req.Views) > 0 {
 		req, err = grp.signMultisigUntilSufficient(ctx, req)
 		if err != nil {
 			panic(err)
 		}
-	} else {
-		rb, err := hex.DecodeString(req.RawTransaction)
-		if err != nil {
-			panic(err)
+	} else if !util.CheckTestEnvironment(ctx) {
+		if len(rver.SignaturesMap) != len(rver.Inputs) {
+			panic(tx.TraceId)
 		}
-		ver, err := common.UnmarshalVersionedTransaction(rb)
-		if err != nil {
-			panic(err)
-		}
-		if !util.CheckTestEnvironment(ctx) {
-			if len(ver.SignaturesMap) != len(ver.Inputs) {
-				panic(tx.TraceId)
-			}
-			for _, signatureMap := range ver.SignaturesMap {
-				if len(signatureMap) < int(req.SendersThreshold) {
-					panic(fmt.Errorf("invalid multisigs raw transaction: %s", req.RequestID))
-				}
+		for _, signatureMap := range rver.SignaturesMap {
+			if len(signatureMap) < int(req.SendersThreshold) {
+				panic(fmt.Errorf("invalid multisigs raw transaction: %s", req.RequestID))
 			}
 		}
 	}
@@ -518,6 +515,28 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 		}
 		return req, nil
 	}
+}
+
+// CheckMultisigRequestRawTransaction verifies that a multisig request
+// carries the same transaction payload as the locally built ver. The
+// request may have been created beforehand by anyone, because multisig
+// request ids are public and deterministic, and creating a request with
+// an existing id returns the previous one. Signing or accepting such a
+// foreign raw transaction would spend the group outputs to arbitrary
+// recipients, so it must be rejected before any signature is made.
+func CheckMultisigRequestRawTransaction(req *mixin.SafeMultisigRequest, ver *common.VersionedTransaction) (*common.VersionedTransaction, error) {
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	rver, err := common.UnmarshalVersionedTransaction(rb)
+	if err != nil {
+		return nil, err
+	}
+	if rver.PayloadHash() != ver.PayloadHash() {
+		return nil, fmt.Errorf("multisig request %s raw transaction mismatch %s %s", req.RequestID, rver.PayloadHash(), ver.PayloadHash())
+	}
+	return rver, nil
 }
 
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeMultisigRequest) (*mixin.SafeMultisigRequest, error) {

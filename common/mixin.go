@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -124,7 +125,38 @@ func sendTransaction(ctx context.Context, mw *MixinWallet, client *mixin.Client,
 	if err != nil {
 		return nil, err
 	}
+	// A transaction request id is public, so anyone may have created the
+	// request beforehand with a different raw transaction, and creating a
+	// request with an existing id returns the previous one. Never sign a
+	// raw transaction different from the locally built one.
+	err = checkTransactionRequestRaw(req, raw)
+	if err != nil {
+		return nil, err
+	}
 	return signTransaction(ctx, client, req.RequestID, req.RawTransaction, req.Views, spendPrivateKey)
+}
+
+func checkTransactionRequestRaw(req *mixin.SafeTransactionRequest, raw string) error {
+	lb, err := hex.DecodeString(raw)
+	if err != nil {
+		return err
+	}
+	ver, err := common.UnmarshalVersionedTransaction(lb)
+	if err != nil {
+		return err
+	}
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return err
+	}
+	rver, err := common.UnmarshalVersionedTransaction(rb)
+	if err != nil {
+		return err
+	}
+	if rver.PayloadHash() != ver.PayloadHash() {
+		return fmt.Errorf("transaction request %s raw transaction mismatch %s %s", req.RequestID, rver.PayloadHash(), ver.PayloadHash())
+	}
+	return nil
 }
 
 func listUnspentUTXOsUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold uint8, assetId string, offset uint64) ([]*mixin.SafeUtxo, error) {
