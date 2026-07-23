@@ -62,7 +62,7 @@ func (grp *Group) readOutputDepositUntilSufficientImpl(ctx context.Context, id s
 		err := grp.mixin.Get(ctx, fmt.Sprintf("/safe/outputs/%s/deposit", id), nil, &deposit)
 		logger.Verbosef("Group.readOutputDeposit(%s) => %v %v\n", id, deposit, err)
 		if CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 		if err != nil && strings.Contains(err.Error(), "not found") {

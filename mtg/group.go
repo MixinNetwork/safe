@@ -39,12 +39,11 @@ type Worker interface {
 }
 
 type Group struct {
-	mixin        *mixin.Client
-	store        *SQLite3Store
-	workers      map[string]Worker
-	entries      map[string]string
-	groupSize    int
-	waitDuration time.Duration
+	mixin     *mixin.Client
+	store     *SQLite3Store
+	workers   map[string]Worker
+	entries   map[string]string
+	groupSize int
 
 	id              string
 	GroupId         string
@@ -89,14 +88,10 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		id:              id,
 		GroupId:         UniqueId(id, conf.Project),
 		groupSize:       conf.GroupSize,
-		waitDuration:    time.Duration(conf.LoopWaitDuration),
 		workers:         make(map[string]Worker),
 		entries:         make(map[string]string),
 		kernelRPC:       defaultKernelRPC,
 		index:           -1,
-	}
-	if grp.waitDuration <= 0 {
-		grp.waitDuration = time.Second
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -220,7 +215,7 @@ func (grp *Group) Run(ctx context.Context) {
 	logger.Printf("Group(%s, %d).Run(%s)\n", mixinnet.HashMembers(grp.GetMembers()), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
-		time.Sleep(grp.waitDuration)
+		time.Sleep(time.Millisecond * 500)
 		// drain all the utxos in the order of sequence
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500)

@@ -4,18 +4,18 @@ go 1.26.5
 
 require (
 	filippo.io/edwards25519 v1.2.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.24.4
-	github.com/MixinNetwork/mixin v0.19.0
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.24.5
+	github.com/MixinNetwork/mixin v0.19.2
 	github.com/MixinNetwork/multi-party-sig v0.6.0
 	github.com/btcsuite/btcd v0.26.0
 	github.com/btcsuite/btcd/address/v2 v2.0.0
 	github.com/btcsuite/btcd/btcec/v2 v2.5.0
-	github.com/btcsuite/btcd/btcutil/v2 v2.0.0
+	github.com/btcsuite/btcd/btcutil/v2 v2.0.1
 	github.com/btcsuite/btcd/chaincfg/v2 v2.0.0
 	github.com/btcsuite/btcd/chainhash/v2 v2.0.0
 	github.com/btcsuite/btcd/psbt/v2 v2.0.0
 	github.com/btcsuite/btcd/txscript/v2 v2.0.0
-	github.com/btcsuite/btcd/wire/v2 v2.0.0
+	github.com/btcsuite/btcd/wire/v2 v2.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/dimfeld/httptreemux/v5 v5.5.0
 	github.com/ethereum/go-ethereum v1.17.4
@@ -50,7 +50,7 @@ require (
 	github.com/ethereum/c-kzg-4844/v2 v2.1.8 // indirect
 	github.com/fjl/jsonw v0.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-resty/resty/v2 v2.17.2 // indirect

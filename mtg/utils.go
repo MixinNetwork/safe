@@ -105,7 +105,7 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 		me, err := grp.mixin.UserMe(ctx)
 		logger.Verbosef("Group.UserMe() => %v\n", err)
 		if CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 		return me.SpendPublicKey, err
@@ -161,7 +161,7 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 	for {
 		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
 		if CheckRetryableError(err) || snapshot == "" {
-			time.Sleep(time.Second)
+			time.Sleep(time.Millisecond * 500)
 			continue
 		}
 		return ver, err
@@ -253,7 +253,7 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 			return &req, nil
 		}
 		if CheckRetryableError(err) {
-			time.Sleep(time.Second)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 		if strings.Contains(err.Error(), "not found") {
@@ -387,7 +387,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.GetMembers()...)
 		logger.Verbosef("Group.SafeCreateGhostKeys(%s) => %v %v\n", tx.TraceId, keys, err)
 		if CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 		for i, g := range keys {

@@ -257,7 +257,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 
 func testWaitOperation(ctx context.Context, node *Node, sessionId string) *common.Operation {
 	timeout := time.Now().Add(time.Minute * 4)
-	for ; time.Now().Before(timeout); time.Sleep(3 * time.Second) {
+	for ; time.Now().Before(timeout); time.Sleep(time.Second) {
 		val, err := node.store.ReadProperty(ctx, "KEEPER:"+sessionId)
 		if err != nil {
 			panic(err)
