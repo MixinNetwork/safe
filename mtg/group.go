@@ -302,10 +302,10 @@ func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) deci
 
 func (grp *Group) ReadFinishedTxHashByTraceId(ctx context.Context, id string) string {
 	tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
-	if err != nil || tx == nil {
+	if err != nil {
 		panic(fmt.Errorf("store.ReadTransactionByTraceId(%s) => %v %v", id, tx, err))
 	}
-	if tx.State != TransactionStateSnapshot {
+	if tx == nil || tx.State != TransactionStateSnapshot {
 		return ""
 	}
 	return tx.Hash.String()
