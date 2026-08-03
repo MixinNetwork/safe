@@ -5,9 +5,9 @@ go 1.26.5
 require (
 	filippo.io/edwards25519 v1.2.0
 	github.com/MixinNetwork/bot-api-go-client/v3 v3.24.5
-	github.com/MixinNetwork/mixin v0.19.2
+	github.com/MixinNetwork/mixin v0.19.4
 	github.com/MixinNetwork/multi-party-sig v0.6.0
-	github.com/btcsuite/btcd v0.26.0
+	github.com/btcsuite/btcd v0.26.2
 	github.com/btcsuite/btcd/address/v2 v2.0.0
 	github.com/btcsuite/btcd/btcec/v2 v2.5.0
 	github.com/btcsuite/btcd/btcutil/v2 v2.0.1
@@ -18,11 +18,11 @@ require (
 	github.com/btcsuite/btcd/wire/v2 v2.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/dimfeld/httptreemux/v5 v5.5.0
-	github.com/ethereum/go-ethereum v1.17.4
+	github.com/ethereum/go-ethereum v1.17.5
 	github.com/fox-one/mixin-sdk-go/v3 v3.0.0
 	github.com/fxamacker/cbor/v2 v2.9.2
-	github.com/gofrs/uuid/v5 v5.4.0
-	github.com/mattn/go-sqlite3 v1.14.48
+	github.com/gofrs/uuid/v5 v5.5.0
+	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.4.0
@@ -67,7 +67,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/supranational/blst v0.3.16 // indirect
+	github.com/supranational/blst v0.3.17 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

@@ -160,6 +160,7 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 	}
 	for {
 		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
+		logger.Printf("GetKernelTransaction(%s, %s) => %s %v\n", grp.kernelRPC, txHash, snapshot, err)
 		if CheckRetryableError(err) || snapshot == "" {
 			time.Sleep(time.Millisecond * 500)
 			continue
