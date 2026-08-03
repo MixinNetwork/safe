@@ -280,10 +280,13 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 	for {
 		time.Sleep(time.Second)
 		checkpoint, err := node.readMixinWithdrawalsCheckpoint(ctx)
+		logger.Verbosef("node.readMixinWithdrawalsCheckpoint() => %d %v", checkpoint, err)
 		if err != nil {
 			panic(err)
 		}
 		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinRPC, checkpoint, 100)
+		logger.Verbosef("RPCListSnapshots(%s, %d) => %d %v",
+			node.conf.MixinRPC, checkpoint, len(snapshots), err)
 		if err != nil {
 			continue
 		}
@@ -292,7 +295,7 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 			s := &snapshots[i]
 			checkpoint = s.Topology
 			err := node.processMixinWithdrawalSnapshot(ctx, s)
-			logger.Printf("node.processMixinWithdrawalSnapshot(%v) => %v", s, err)
+			logger.Verbosef("node.processMixinWithdrawalSnapshot(%v) => %v", s, err)
 			if err != nil {
 				panic(err)
 			}
