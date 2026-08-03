@@ -346,10 +346,11 @@ func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, e
 		case strings.Contains(reason, "timeout"):
 		case strings.Contains(reason, "eof"):
 		case strings.Contains(reason, "handshake"):
+		case strings.Contains(reason, "invalid character"):
 		default:
 			return res, err
 		}
-		time.Sleep(7 * time.Second)
+		time.Sleep(time.Second)
 	}
 }
 

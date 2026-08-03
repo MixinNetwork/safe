@@ -278,7 +278,6 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) err
 
 func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 	for {
-		time.Sleep(time.Second)
 		checkpoint, err := node.readMixinWithdrawalsCheckpoint(ctx)
 		logger.Verbosef("node.readMixinWithdrawalsCheckpoint() => %d %v", checkpoint, err)
 		if err != nil {
@@ -293,9 +292,12 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 
 		for i := range snapshots {
 			s := &snapshots[i]
-			checkpoint = s.Topology
 			err := node.processMixinWithdrawalSnapshot(ctx, s)
 			logger.Verbosef("node.processMixinWithdrawalSnapshot(%v) => %v", s, err)
+			if err != nil {
+				panic(err)
+			}
+			err = node.writeMixinWithdrawalsCheckpoint(ctx, checkpoint)
 			if err != nil {
 				panic(err)
 			}
@@ -303,17 +305,11 @@ func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
 		if len(snapshots) < 100 {
 			time.Sleep(time.Second)
 		}
-
-		err = node.writeMixinWithdrawalsCheckpoint(ctx, checkpoint)
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
 func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSnapshot) error {
-	for i := range s.Transaction {
-		t := &s.Transaction[i]
+	for _, t := range s.Transactions {
 		if len(t.Output) == 0 {
 			continue
 		}
@@ -339,6 +335,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSn
 		switch asset.Chain {
 		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			rpc, _ := node.bitcoinParams(asset.Chain)
+			logger.Printf("processMixinWithdrawalSnapshot(%v) => %s %s", s, hash, rpc)
 			btx, err := bitcoin.RPCGetTransaction(asset.Chain, rpc, hash)
 			if err != nil {
 				return err
@@ -346,6 +343,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSn
 			return node.bitcoinProcessTransaction(ctx, btx, asset.Chain)
 		case common.SafeChainEthereum, common.SafeChainPolygon:
 			rpc, _ := node.ethereumParams(asset.Chain)
+			logger.Printf("processMixinWithdrawalSnapshot(%v) => %s %s", s, hash, rpc)
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 			if err != nil {
 				return err
@@ -521,7 +519,7 @@ func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64,
 func (node *Node) readMixinWithdrawalsCheckpoint(ctx context.Context) (uint64, error) {
 	val, err := node.store.ReadProperty(ctx, mixinWithdrawalsCheckpointKey)
 	if err != nil || val == "" {
-		return 4655227, err
+		return 77_000_000, err
 	}
 	return strconv.ParseUint(val, 10, 64)
 }

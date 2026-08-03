@@ -26,18 +26,18 @@ type Output struct {
 }
 
 type RPCTransaction struct {
-	Asset      string   `json:"asset"`
-	Extra      string   `json:"extra"`
-	Hash       string   `json:"hash"`
-	Output     []Output `json:"outputs"`
-	References []string `json:"references"`
+	Asset      string    `json:"asset"`
+	Extra      string    `json:"extra"`
+	Hash       string    `json:"hash"`
+	Output     []*Output `json:"outputs"`
+	References []string  `json:"references"`
 }
 
 type RPCSnapshot struct {
-	Hash        string           `json:"hash"`
-	Hex         string           `json:"hex"`
-	Transaction []RPCTransaction `json:"transactions"`
-	Topology    uint64           `json:"topology"`
+	Hash         string            `json:"hash"`
+	Hex          string            `json:"hex"`
+	Transactions []*RPCTransaction `json:"transactions"`
+	Topology     uint64            `json:"topology"`
 }
 
 func RPCGetTransaction(ctx context.Context, rpc, hash string) (*RPCTransaction, error) {
@@ -79,7 +79,7 @@ func callMixinRPCUntilSufficient(rpc, method string, params []any) ([]byte, erro
 		default:
 			return res, err
 		}
-		time.Sleep(7 * time.Second)
+		time.Sleep(time.Second)
 	}
 }
 
