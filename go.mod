@@ -21,7 +21,7 @@ require (
 	github.com/ethereum/go-ethereum v1.17.5
 	github.com/fox-one/mixin-sdk-go/v3 v3.0.0
 	github.com/fxamacker/cbor/v2 v2.9.2
-	github.com/gofrs/uuid/v5 v5.5.0
+	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
@@ -76,9 +76,9 @@ require (
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.mongodb.org/mongo-driver v1.17.9 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel v1.45.0 // indirect
+	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
