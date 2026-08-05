@@ -16,7 +16,22 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/shopspring/decimal"
 )
+
+const (
+	DefaultIconUrl = "https://images.mixin.one/yH_I5b0GiV2zDmvrXRyr3bK5xusjfy5q7FX3lw3mM2Ryx4Dfuj6Xcw8SHNRnDKm7ZVE3_LvpKlLdcLrlFQUBhds=s128"
+)
+
+var minimumMixinAssetPriceUSD = decimal.RequireFromString("0.1")
+
+func validMixinNetworkAsset(asset *MixinNetworkAsset) bool {
+	if asset == nil || strings.TrimSpace(asset.IconURL) == "" || asset.IconURL == DefaultIconUrl {
+		return false
+	}
+	price, err := decimal.NewFromString(asset.PriceUSD)
+	return err == nil && price.Cmp(minimumMixinAssetPriceUSD) >= 0
+}
 
 type MixinNetworkAsset struct {
 	AssetId   string      `json:"asset_id"`
@@ -24,6 +39,8 @@ type MixinNetworkAsset struct {
 	AssetKey  string      `json:"asset_key"`
 	Symbol    string      `json:"symbol"`
 	Name      string      `json:"name"`
+	IconURL   string      `json:"icon_url"`
+	PriceUSD  string      `json:"price_usd"`
 	Precision uint32      `json:"precision"`
 	ChainId   string      `json:"chain_id"`
 }
@@ -149,12 +166,18 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 	}
 	asset := body.Data
 
+	if !validMixinNetworkAsset(asset) {
+		return nil, nil
+	}
+
 	return &Asset{
 		AssetId:   asset.AssetId,
 		MixinId:   asset.MixinId.String(),
 		AssetKey:  asset.AssetKey,
 		Symbol:    asset.Symbol,
 		Name:      asset.Name,
+		IconURL:   asset.IconURL,
+		PriceUSD:  asset.PriceUSD,
 		Decimals:  asset.Precision,
 		Chain:     common.SafeAssetIdChainNoPanic(asset.ChainId),
 		CreatedAt: time.Now().UTC(),

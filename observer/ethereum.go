@@ -204,6 +204,16 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	if err != nil || asset == nil {
 		return err
 	}
+	// Historical assets only cache stable metadata, without IconURL or PriceUSD.
+	// Refresh them from Messenger so fetchMixinAsset can apply the current
+	// deposit eligibility requirements.
+	if asset.IconURL == "" && asset.PriceUSD == "" {
+		asset, err = node.fetchMixinAsset(ctx, transfer.AssetId)
+		logger.Printf("node.fetchMixinAsset(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
+		if err != nil || asset == nil {
+			return err
+		}
+	}
 
 	var amount decimal.Decimal
 	rpc, chainAssetId := node.ethereumParams(chain)
