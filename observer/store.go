@@ -32,6 +32,8 @@ type Asset struct {
 	AssetKey  string
 	Symbol    string
 	Name      string
+	IconURL   string
+	PriceUSD  string
 	Decimals  uint32
 	Chain     byte
 	CreatedAt time.Time
