@@ -23,14 +23,12 @@ const (
 	DefaultIconUrl = "https://images.mixin.one/yH_I5b0GiV2zDmvrXRyr3bK5xusjfy5q7FX3lw3mM2Ryx4Dfuj6Xcw8SHNRnDKm7ZVE3_LvpKlLdcLrlFQUBhds=s128"
 )
 
-var minimumMixinAssetPriceUSD = decimal.RequireFromString("0.1")
-
 func validMixinNetworkAsset(asset *MixinNetworkAsset) bool {
 	if asset == nil || strings.TrimSpace(asset.IconURL) == "" || asset.IconURL == DefaultIconUrl {
 		return false
 	}
 	price, err := decimal.NewFromString(asset.PriceUSD)
-	return err == nil && price.Cmp(minimumMixinAssetPriceUSD) >= 0
+	return err == nil && price.IsPositive()
 }
 
 type MixinNetworkAsset struct {

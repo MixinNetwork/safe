@@ -28,6 +28,8 @@ const (
 	ethereumKeygenRequestTimeKey = "ethereum-keygen-request-time"
 )
 
+var minimumEthereumDepositValueUSD = decimal.RequireFromString("0.1")
+
 func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployEthereumGnosisSafeAccount(%x)", data)
 	gs, err := ethereum.UnmarshalGnosisSafe(data)
@@ -205,8 +207,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return err
 	}
 	// Historical assets only cache stable metadata, without IconURL or PriceUSD.
-	// Refresh them from Messenger so fetchMixinAsset can apply the current
-	// deposit eligibility requirements.
+	// Refresh them from api before evaluating the current deposit value.
 	if asset.IconURL == "" && asset.PriceUSD == "" {
 		asset, err = node.fetchMixinAsset(ctx, transfer.AssetId)
 		logger.Printf("node.fetchMixinAsset(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
@@ -231,6 +232,10 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	amount = amount.RoundFloor(8)
 	min := decimal.RequireFromString("0.00000001")
 	if amount.Cmp(min) < 0 {
+		return nil
+	}
+	priceUSD := decimal.RequireFromString(asset.PriceUSD)
+	if amount.Mul(priceUSD).Cmp(minimumEthereumDepositValueUSD) < 0 {
 		return nil
 	}
 
