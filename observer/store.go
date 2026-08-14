@@ -350,35 +350,6 @@ func (s *SQLite3Store) MarkAccountDeployed(ctx context.Context, addr string) err
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) MarkAccountMigrated(ctx context.Context, addr string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.Rollback(tx)
-
-	old, err := s.readAccount(ctx, tx, addr)
-	if err != nil {
-		return err
-	}
-	if old == nil {
-		return fmt.Errorf("account not exists: %s", addr)
-	}
-	if old.MigratedAt.Valid {
-		return nil
-	}
-
-	err = s.execOne(ctx, tx, "UPDATE accounts SET migrated_at=? WHERE address=?", time.Now().UTC(), addr)
-	if err != nil {
-		return fmt.Errorf("UPDATE accounts %v", err)
-	}
-
-	return tx.Commit()
-}
-
 func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Account, error) {
 	query := fmt.Sprintf("SELECT %s FROM accounts WHERE deployed_at IS NULL AND signature IS NOT NULL ORDER BY created_at ASC LIMIT 100", strings.Join(accountCols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
@@ -1039,7 +1010,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration)
 	} else if err != nil {
 		return "", err
 	}
-	if createdAt.Add(d).Before(time.Now()) {
+	if time.Since(createdAt) > d {
 		return "", nil
 	}
 	return value, nil

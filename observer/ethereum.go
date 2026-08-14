@@ -614,7 +614,7 @@ func (node *Node) sendToKeeperEthereumApproveNormalTransaction(ctx context.Conte
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+	if time.Since(approval.UpdatedAt) < keeper.SafeSignatureTimeout {
 		return nil
 	}
 	id = common.UniqueId(id, approval.UpdatedAt.String())
@@ -690,7 +690,7 @@ func (node *Node) sendToKeeperEthereumApproveRecoveryTransaction(ctx context.Con
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+	if time.Since(approval.UpdatedAt) < keeper.SafeSignatureTimeout {
 		return nil
 	}
 	id = common.UniqueId(id, approval.UpdatedAt.String())
@@ -731,7 +731,7 @@ func (node *Node) sendToKeeperEthereumApproveInheritanceTransaction(ctx context.
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+	if time.Since(approval.UpdatedAt) < keeper.SafeSignatureTimeout {
 		return nil
 	}
 	id = common.UniqueId(id, approval.UpdatedAt.String())

@@ -22,7 +22,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) 
 	} else if err != nil {
 		return "", err
 	}
-	if createdAt.Add(cacheTTL).Before(time.Now()) {
+	if time.Since(createdAt) > cacheTTL {
 		return "", nil
 	}
 	return value, nil

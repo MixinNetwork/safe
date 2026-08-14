@@ -151,7 +151,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			panic(err)
 		}
 		for _, account := range as {
-			if account.ApprovedAt.Valid && time.Now().Before(account.ApprovedAt.Time.Add(time.Minute*30)) {
+			if time.Since(account.ApprovedAt.Time) < 30*time.Minute {
 				continue
 			}
 

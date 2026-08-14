@@ -481,7 +481,7 @@ func (node *Node) sendToKeeperBitcoinApproveNormalTransaction(ctx context.Contex
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+	if time.Since(approval.UpdatedAt) < keeper.SafeSignatureTimeout {
 		return nil
 	}
 	id = common.UniqueId(id, approval.UpdatedAt.String())
@@ -562,7 +562,7 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+	if time.Since(approval.UpdatedAt) < keeper.SafeSignatureTimeout {
 		return nil
 	}
 	id = common.UniqueId(id, approval.UpdatedAt.String())
@@ -603,7 +603,7 @@ func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.C
 		return err
 	}
 
-	if approval.UpdatedAt.Add(keeper.SafeSignatureTimeout).After(time.Now()) {
+	if time.Since(approval.UpdatedAt) < keeper.SafeSignatureTimeout {
 		return nil
 	}
 	id = common.UniqueId(id, approval.UpdatedAt.String())

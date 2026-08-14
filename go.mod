@@ -4,8 +4,8 @@ go 1.26.5
 
 require (
 	filippo.io/edwards25519 v1.2.0
-	github.com/MixinNetwork/bot-api-go-client/v3 v3.24.5
-	github.com/MixinNetwork/mixin v0.19.4
+	github.com/MixinNetwork/bot-api-go-client/v3 v3.24.8
+	github.com/MixinNetwork/mixin v0.19.6
 	github.com/MixinNetwork/multi-party-sig v0.6.0
 	github.com/btcsuite/btcd v0.26.2
 	github.com/btcsuite/btcd/address/v2 v2.0.0
@@ -28,19 +28,19 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.55.0
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
-	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260713035539-e6945a76b084 // indirect
+	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260814054414-7dc2037c6ef9 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.24.6 // indirect
+	github.com/bits-and-blooms/bitset v1.25.0 // indirect
 	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/consensys/gnark-crypto v0.20.1 // indirect
+	github.com/consensys/gnark-crypto v0.21.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.5.0 // indirect
 	github.com/cronokirby/saferith v0.33.0 // indirect
@@ -79,7 +79,7 @@ require (
 	go.opentelemetry.io/otel v1.45.0 // indirect
 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

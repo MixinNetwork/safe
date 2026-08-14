@@ -82,7 +82,7 @@ func (node *Node) safeRequestSignerKeys(ctx context.Context, chain byte) error {
 		return err
 	}
 	requested, err := node.readSignerKeygenRequestTime(ctx, chain)
-	if err != nil || requested.Add(60*time.Minute).After(time.Now()) {
+	if err != nil || time.Since(requested) < 60*time.Minute {
 		return err
 	}
 	dummy := node.bitcoinDummyHolder()

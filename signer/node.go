@@ -189,7 +189,7 @@ func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
 		panic(err)
 	}
 	for _, s := range prepared {
-		if s.CreatedAt.Add(SessionTimeout).Before(time.Now()) {
+		if time.Since(s.CreatedAt) > SessionTimeout {
 			err = node.store.FailSession(ctx, s.Id)
 			logger.Printf("store.FailSession(%s, listPreparedSessions) => %v", s.Id, err)
 			if err != nil {
