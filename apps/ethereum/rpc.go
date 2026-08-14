@@ -277,6 +277,9 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 
 	height := new(big.Int).SetUint64(blockNumber)
 	response, err := conn.CallContract(context.Background(), callMsg, height)
+	if err != nil && strings.Contains(err.Error(), "execution reverted") {
+		return big.NewInt(0), nil
+	}
 	if err != nil {
 		return nil, err
 	}
