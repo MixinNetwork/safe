@@ -201,19 +201,13 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return nil
 	}
 
-	asset, err := node.fetchAssetMeta(ctx, transfer.AssetId)
-	logger.Printf("node.fetchAssetMeta(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
+	asset, err := node.fetchMixinAsset(ctx, transfer.AssetId)
+	logger.Printf("node.fetchMixinAsset(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
 	if err != nil || asset == nil {
 		return err
 	}
-	// Historical assets only cache stable metadata, without IconURL or PriceUSD.
-	// Refresh them from api before evaluating the current deposit value.
-	if asset.IconURL == "" && asset.PriceUSD == "" {
-		asset, err = node.fetchMixinAsset(ctx, transfer.AssetId)
-		logger.Printf("node.fetchMixinAsset(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
-		if err != nil || asset == nil {
-			return err
-		}
+	if !checkGoodAsset(asset) {
+		return nil
 	}
 
 	var amount decimal.Decimal

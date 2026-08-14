@@ -23,7 +23,7 @@ const (
 	DefaultIconUrl = "https://images.mixin.one/yH_I5b0GiV2zDmvrXRyr3bK5xusjfy5q7FX3lw3mM2Ryx4Dfuj6Xcw8SHNRnDKm7ZVE3_LvpKlLdcLrlFQUBhds=s128"
 )
 
-func validMixinNetworkAsset(asset *MixinNetworkAsset) bool {
+func checkGoodAsset(asset *Asset) bool {
 	if asset == nil || strings.TrimSpace(asset.IconURL) == "" || asset.IconURL == DefaultIconUrl {
 		return false
 	}
@@ -101,14 +101,14 @@ func (node *Node) fetchBondAsset(ctx context.Context, chain byte, assetId, asset
 
 	addr := abi.GetFactoryAssetAddress(entry, assetId, asset.Symbol, asset.Name, holder)
 	assetKey := strings.ToLower(addr.String())
-	logger.Printf("GetFactoryAssetAddress(%s %s %s %s %s) => %s", entry, assetId, asset.Symbol, asset.Name, holder, assetKey)
+	logger.Printf("abi.GetFactoryAssetAddress(%s %s %s %s %s) => %s", entry, assetId, asset.Symbol, asset.Name, holder, assetKey)
 	err = ethereum.VerifyAssetKey(assetKey)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("mvm.VerifyAssetKey(%s) => %v", assetKey, err)
 	}
 
 	bondId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
-	logger.Printf("GenerateAssetId() => %s", bondId)
+	logger.Printf("ethereum.GenerateAssetId(%s, %s) => %s", holder, assetKey, bondId)
 	bond, err := node.fetchAssetMeta(ctx, bondId)
 	return asset, bond, bondId, err
 }
@@ -164,10 +164,6 @@ func (node *Node) fetchMixinAsset(ctx context.Context, id string) (*Asset, error
 	}
 	asset := body.Data
 
-	if !validMixinNetworkAsset(asset) {
-		return nil, nil
-	}
-
 	return &Asset{
 		AssetId:   asset.AssetId,
 		MixinId:   asset.MixinId.String(),
@@ -190,24 +186,14 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 
 	for {
 		meta, err = node.fetchMixinAsset(ctx, id)
-		if err == nil {
-			if meta == nil {
-				return nil, nil
-			}
-			if meta.Chain == 0 {
-				panic(id)
-			}
-			return meta, node.store.WriteAssetMeta(ctx, meta)
+		if common.CheckRetryableError(err) {
+			time.Sleep(2 * time.Second)
+			continue
 		}
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		default:
+		if err != nil || meta == nil {
 			return nil, err
 		}
-		time.Sleep(2 * time.Second)
+		return meta, node.store.WriteAssetMeta(ctx, meta)
 	}
 }
 
