@@ -24,7 +24,7 @@ var SCHEMA string
 
 type SQLite3Store struct {
 	db    *sql.DB
-	mutex *sync.Mutex
+	mutex *sync.RWMutex
 }
 
 func OpenSQLite3Store(path string) (*SQLite3Store, error) {
@@ -34,7 +34,7 @@ func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 	}
 	return &SQLite3Store{
 		db:    db,
-		mutex: new(sync.Mutex),
+		mutex: new(sync.RWMutex),
 	}, nil
 }
 
@@ -101,8 +101,8 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 }
 
 func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([]*Key, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at", "backed_up_at"}
 	query := fmt.Sprintf("SELECT %s FROM keys WHERE backed_up_at IS NULL ORDER BY created_at ASC LIMIT %d", strings.Join(cols, ","), threshold)
@@ -144,8 +144,8 @@ func (s *SQLite3Store) MarkKeyBackuped(ctx context.Context, public string) error
 }
 
 func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (string, uint8, []byte, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var curve uint8
 	var public, share string
@@ -161,8 +161,8 @@ func (s *SQLite3Store) ReadKeyByFingerprint(ctx context.Context, sum string) (st
 }
 
 func (s *SQLite3Store) ReadSession(ctx context.Context, sessionId string) (*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var r Session
 	query := "SELECT session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at, prepared_at FROM sessions WHERE session_id=?"
@@ -301,8 +301,8 @@ func (s *SQLite3Store) UpdateSessionSigner(ctx context.Context, sessionId, signe
 }
 
 func (s *SQLite3Store) ListSessionPreparedMembers(ctx context.Context, sessionId string, threshold int) ([]party.ID, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	query := fmt.Sprintf("SELECT signer_id FROM session_signers WHERE session_id=? ORDER BY created_at ASC LIMIT %d", threshold)
 	rows, err := s.db.QueryContext(ctx, query, sessionId)
@@ -324,8 +324,8 @@ func (s *SQLite3Store) ListSessionPreparedMembers(ctx context.Context, sessionId
 }
 
 func (s *SQLite3Store) ListSessionSignerResults(ctx context.Context, sessionId string) (map[string]string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	query := "SELECT signer_id, extra FROM session_signers WHERE session_id=?"
 	rows, err := s.db.QueryContext(ctx, query, sessionId)
@@ -507,8 +507,8 @@ func (s *SQLite3Store) WriteActionResults(ctx context.Context, outputId string, 
 }
 
 func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessionId string) bool {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -542,12 +542,15 @@ func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessio
 			return true
 		}
 	}
+	if err := rows.Err(); err != nil {
+		panic(err)
+	}
 	return false
 }
 
 func (s *SQLite3Store) ReadActionResults(ctx context.Context, outputId string) ([]*mtg.Transaction, string, bool) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -577,8 +580,8 @@ func (s *SQLite3Store) ReadActionResults(ctx context.Context, outputId string) (
 }
 
 func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NULL AND prepared_at IS NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
@@ -586,8 +589,8 @@ func (s *SQLite3Store) ListInitialSessions(ctx context.Context, limit int) ([]*S
 }
 
 func (s *SQLite3Store) ListPreparedSessions(ctx context.Context, limit int) ([]*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? AND committed_at IS NOT NULL AND prepared_at IS NOT NULL ORDER BY operation DESC, created_at ASC, session_id ASC LIMIT %d", cols, limit)
@@ -595,8 +598,8 @@ func (s *SQLite3Store) ListPreparedSessions(ctx context.Context, limit int) ([]*
 }
 
 func (s *SQLite3Store) ListPendingSessions(ctx context.Context, limit int) ([]*Session, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	cols := "session_id, mixin_hash, mixin_index, operation, curve, public, extra, state, created_at"
 	sql := fmt.Sprintf("SELECT %s FROM sessions WHERE state=? ORDER BY created_at ASC, session_id ASC LIMIT %d", cols, limit)
@@ -630,8 +633,8 @@ type State struct {
 }
 
 func (s *SQLite3Store) SessionsState(ctx context.Context) (*State, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -695,8 +698,8 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	row := s.db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
 	err := row.Scan(&k)
