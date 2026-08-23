@@ -69,7 +69,7 @@ func (a *Action) TestAttachActionToGroup(g *Group) {
 	a.consumed = make(map[string]uint64)
 }
 
-func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
+func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 	if asset1 != asset2 {
 		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset1, asset2)
 		panic(err)
@@ -164,7 +164,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		if grp.debug {
 			a.consumed = make(map[string]uint64)
 			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
-			ReplayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
+			replayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
 		}
 
 		state := ActionStateDone
