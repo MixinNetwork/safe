@@ -671,8 +671,9 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 	}
 
 	amount := decimal.NewFromInt(1)
+	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	if !common.CheckTestEnvironment(ctx) {
-		balance := act.CheckAssetBalanceAt(ctx, node.conf.KeeperAssetId)
+		balance := act.CheckAssetBalanceAt(ctx, node.conf.KeeperAssetId, traceId)
 		if balance.Cmp(amount) < 0 {
 			return nil, node.conf.KeeperAssetId
 		}
@@ -680,7 +681,6 @@ func (node *Node) buildKeeperTransaction(ctx context.Context, op *common.Operati
 
 	members := node.GetKeepers()
 	threshold := node.keeper.Genesis.Threshold
-	traceId := common.UniqueId(node.group.GenesisId(), op.Id)
 	tx := act.BuildTransaction(ctx, traceId, node.conf.KeeperAppId, node.conf.KeeperAssetId, amount.String(), string(extra), members, threshold)
 	logger.Printf("node.buildKeeperTransaction(%v) => %s %x %x", op, traceId, extra, tx.Serialize())
 	return tx, ""

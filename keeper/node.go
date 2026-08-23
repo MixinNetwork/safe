@@ -100,6 +100,7 @@ func (node *Node) buildTransactionWithStorageTraceId(ctx context.Context, act *m
 }
 
 func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId string, receivers []string, threshold int, amount string, memo []byte, traceId string) string {
+	nextId := common.UniqueId(node.group.GenesisId(), traceId)
 	if common.CheckTestEnvironment(ctx) {
 		v := common.MarshalJSONOrPanic(map[string]any{
 			"asset_id":  assetId,
@@ -113,15 +114,14 @@ func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId
 			panic(err)
 		}
 	} else {
-		balance := act.CheckAssetBalanceAt(ctx, assetId)
-		logger.Printf("group.CheckAssetBalanceAt(%s, %d) => %s %s %s", assetId, act.Sequence, traceId, amount, balance)
+		balance := act.CheckAssetBalanceAt(ctx, assetId, nextId)
+		logger.Printf("group.CheckAssetBalanceAt(%s, %d) => %s %s %s", assetId, act.Sequence, nextId, amount, balance)
 		amt := decimal.RequireFromString(amount)
 		if balance.Cmp(amt) < 0 {
 			return ""
 		}
 	}
 
-	nextId := common.UniqueId(node.group.GenesisId(), traceId)
 	logger.Printf("node.checkTransaction(%s) => %s", traceId, nextId)
 	return nextId
 }

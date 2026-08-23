@@ -291,8 +291,11 @@ func (grp *Group) TestUpdateOutputsState(ctx context.Context, os []*UnifiedOutpu
 }
 
 // this function or rpc should be used only in ProcessOutput
-func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
-	os := act.group.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId, traceId string) decimal.Decimal {
+	os, ok := act.consumedOutputs[traceId]
+	if !ok {
+		os = act.group.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	}
 	total := decimal.NewFromInt(0)
 	for _, o := range os {
 		total = total.Add(o.Amount)
@@ -317,7 +320,9 @@ func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, extra []by
 	}
 
 	amount := getStorageTransactionAmount(extra)
-	total := act.CheckAssetBalanceAt(ctx, StorageAssetId)
+	traceId := crypto.Blake3Hash(extra).String()
+	traceId = UniqueId(traceId, traceId)
+	total := act.CheckAssetBalanceAt(ctx, StorageAssetId, traceId)
 	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0
 }
 

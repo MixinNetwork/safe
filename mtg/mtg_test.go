@@ -80,13 +80,13 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			txs = append(txs, t)
 		default:
 			amt := decimal.RequireFromString(tx)
-			balance := a.CheckAssetBalanceAt(ctx, a.AssetId)
+			amount := amt.String()
+			id := UniqueId(amount, testSender)
+			balance := a.CheckAssetBalanceAt(ctx, a.AssetId, id)
 			if balance.Cmp(amt) < 0 {
 				return nil, USDTAssetId
 			}
 
-			amount := amt.String()
-			id := UniqueId(amount, testSender)
 			var t *Transaction
 			if storageTraceId != "" {
 				t = a.BuildTransactionWithStorageTraceId(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
@@ -135,6 +135,8 @@ func TestFillInputsCachesOutputsByTrace(t *testing.T) {
 
 	traceId := uuid.Must(uuid.NewV4()).String()
 	opponentId := uuid.Must(uuid.NewV4()).String()
+	balance := action.CheckAssetBalanceAt(ctx, USDTAssetId, traceId)
+	require.Equal("1", balance.String())
 	tx1 := action.BuildTransaction(ctx, traceId, opponentId, USDTAssetId, "0.5", "", node.Group.GetMembers(), node.Group.GetThreshold())
 	cached, ok := action.consumedOutputs[traceId]
 	require.True(ok)
@@ -143,6 +145,8 @@ func TestFillInputsCachesOutputsByTrace(t *testing.T) {
 	// The cursor can advance between replays. The same trace must still use
 	// the exact output set selected during its first execution.
 	action.consumed[USDTAssetId] = action.Sequence
+	balance = action.CheckAssetBalanceAt(ctx, USDTAssetId, traceId)
+	require.Equal("1", balance.String())
 	tx2 := action.BuildTransaction(ctx, traceId, opponentId, USDTAssetId, "0.5", "", node.Group.GetMembers(), node.Group.GetThreshold())
 	require.Equal(tx1.consumedIds, tx2.consumedIds)
 }
