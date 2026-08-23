@@ -25,8 +25,9 @@ type Action struct {
 	restoreSequence uint64
 
 	UnifiedOutput
-	group    *Group
-	consumed map[string]uint64
+	group           *Group
+	consumed        map[string]uint64
+	consumedOutputs map[string][]*UnifiedOutput
 }
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
@@ -67,6 +68,7 @@ func actionJoinFromRow(row Row) (*Action, error) {
 func (a *Action) TestAttachActionToGroup(g *Group) {
 	a.group = g
 	a.consumed = make(map[string]uint64)
+	a.consumedOutputs = make(map[string][]*UnifiedOutput)
 }
 
 func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
@@ -160,6 +162,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		}
 		a.group = grp
 		a.consumed = make(map[string]uint64)
+		a.consumedOutputs = make(map[string][]*UnifiedOutput)
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
 			a.consumed = make(map[string]uint64)

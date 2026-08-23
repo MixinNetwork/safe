@@ -217,16 +217,20 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 }
 
 func (tx *Transaction) fillInputs(ctx context.Context, act *Action) {
-	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[tx.AssetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	outputs, ok := act.consumedOutputs[tx.TraceId]
+	if !ok {
+		outputs = act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[tx.AssetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+		if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
+			hack, err := act.group.store.listOutputs(ctx, ids)
+			if err != nil {
+				panic(err)
+			}
+			outputs = hack
+		}
+		act.consumedOutputs[tx.TraceId] = outputs
+	}
 	if len(outputs) == 0 {
 		panic(tx.TraceId)
-	}
-	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
-		hack, err := act.group.store.listOutputs(ctx, ids)
-		if err != nil {
-			panic(err)
-		}
-		outputs = hack
 	}
 	inputs, _, err := act.group.getTransactionInputsAndRecipients(ctx, tx, outputs)
 	if err != nil {

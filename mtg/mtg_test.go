@@ -116,6 +116,37 @@ func TestMTGExtra(t *testing.T) {
 	require.Equal(memo, string(m))
 }
 
+func TestFillInputsCachesOutputsByTrace(t *testing.T) {
+	require := require.New(t)
+	ctx, node := testBuildGroup(require)
+	require.NotNil(node)
+	defer teardownTestDatabase(node.Group.store)
+
+	out := testBuildOutput(node.Group, require, USDTAssetId, "1", "", SafeUtxoStateUnspent, 4655228, "")
+	err := node.Group.store.WriteAction(ctx, out, ActionStateDone)
+	require.Nil(err)
+
+	action := &Action{UnifiedOutput: UnifiedOutput{
+		OutputId: uuid.Must(uuid.NewV4()).String(),
+		AppId:    node.Group.GroupId,
+		Sequence: out.Sequence + 1,
+	}}
+	action.TestAttachActionToGroup(node.Group)
+
+	traceId := uuid.Must(uuid.NewV4()).String()
+	opponentId := uuid.Must(uuid.NewV4()).String()
+	tx1 := action.BuildTransaction(ctx, traceId, opponentId, USDTAssetId, "0.5", "", node.Group.GetMembers(), node.Group.GetThreshold())
+	cached, ok := action.consumedOutputs[traceId]
+	require.True(ok)
+	require.NotEmpty(cached)
+
+	// The cursor can advance between replays. The same trace must still use
+	// the exact output set selected during its first execution.
+	action.consumed[USDTAssetId] = action.Sequence
+	tx2 := action.BuildTransaction(ctx, traceId, opponentId, USDTAssetId, "0.5", "", node.Group.GetMembers(), node.Group.GetThreshold())
+	require.Equal(tx1.consumedIds, tx2.consumedIds)
+}
+
 func TestMTGCompaction(t *testing.T) {
 	require := require.New(t)
 	ctx, node := testBuildGroup(require)
