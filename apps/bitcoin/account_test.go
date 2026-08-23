@@ -27,9 +27,11 @@ func TestBitcoinCLI(t *testing.T) {
 
 	s, err := base64.StdEncoding.DecodeString(sig)
 	require.Nil(err)
+	s, err = CanonicalCompactSignature(s)
+	require.Nil(err)
+	require.Equal(byte(0x02), s[0])
 	es, err := ecdsa.ParseSignature(curve.Secp256k1{}, s)
 	require.Nil(err)
-
 	s = es.SerializeDER()
 
 	messageHash := HashMessageForSignature(msg, ChainBitcoin)
@@ -129,4 +131,42 @@ func TestBitcoinSignature(t *testing.T) {
 	sig, err = CanonicalSignatureDER(sig)
 	require.NotNil(err)
 	require.Nil(sig)
+}
+
+func TestBitcoinCompactSignatureValidation(t *testing.T) {
+	valid, err := base64.StdEncoding.DecodeString("H3RKBE7bK/BoKoupbB7BC8fKeesHst3tLhfhNSkAPZ8XZuB3nE8YJRPx/6ZPI7PN9fsq2PrnfpETCEoLA8PHAfY=")
+	require.NoError(t, err)
+
+	clone := func() []byte {
+		return append([]byte(nil), valid...)
+	}
+	invalidCode := clone()
+	invalidCode[0] = 26
+	zeroR := clone()
+	clear(zeroR[1:33])
+	overflowR := clone()
+	for i := 1; i < 33; i++ {
+		overflowR[i] = 0xff
+	}
+	zeroS := clone()
+	clear(zeroS[33:])
+	overflowS := clone()
+	for i := 33; i < 65; i++ {
+		overflowS[i] = 0xff
+	}
+
+	for name, sig := range map[string][]byte{
+		"wrong length":          valid[:64],
+		"invalid recovery code": invalidCode,
+		"zero R":                zeroR,
+		"overflowing R":         overflowR,
+		"zero S":                zeroS,
+		"overflowing S":         overflowS,
+	} {
+		t.Run(name, func(t *testing.T) {
+			canonical, err := CanonicalCompactSignature(sig)
+			require.Error(t, err)
+			require.Nil(t, canonical)
+		})
+	}
 }

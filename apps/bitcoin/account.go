@@ -4,10 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/chaincfg/v2"
 	"github.com/btcsuite/btcd/txscript/v2"
@@ -86,6 +88,55 @@ func CanonicalSignatureDER(sig []byte) ([]byte, error) {
 		return nil, err
 	}
 	return der.Serialize(), nil
+}
+
+// CanonicalCompactSignature converts a Bitcoin compact signature from its
+// recovery-code || R.x || S representation to the compressed-R || S
+// representation used by multi-party-sig.
+func CanonicalCompactSignature(sig []byte) ([]byte, error) {
+	const (
+		compactSignatureSize    = 65
+		compactSignatureMinCode = 27
+		compactSignatureMaxCode = 34
+	)
+	if len(sig) != compactSignatureSize {
+		return nil, fmt.Errorf("invalid compact signature length %d", len(sig))
+	}
+	if sig[0] < compactSignatureMinCode || sig[0] > compactSignatureMaxCode {
+		return nil, fmt.Errorf("invalid compact signature recovery code %d", sig[0])
+	}
+
+	var r, s btcec.ModNScalar
+	if overflow := r.SetByteSlice(sig[1:33]); overflow {
+		return nil, fmt.Errorf("invalid compact signature R: value exceeds curve order")
+	}
+	if r.IsZero() {
+		return nil, fmt.Errorf("invalid compact signature R: zero value")
+	}
+	if overflow := s.SetByteSlice(sig[33:]); overflow {
+		return nil, fmt.Errorf("invalid compact signature S: value exceeds curve order")
+	}
+	if s.IsZero() {
+		return nil, fmt.Errorf("invalid compact signature S: zero value")
+	}
+
+	recoveryCode := (sig[0] - compactSignatureMinCode) & 3
+	x := new(big.Int).SetBytes(sig[1:33])
+	if recoveryCode&2 != 0 {
+		x.Add(x, btcec.Params().N)
+	}
+	if x.Cmp(btcec.Params().P) >= 0 {
+		return nil, fmt.Errorf("invalid compact signature R: x coordinate exceeds field prime")
+	}
+
+	canonical := make([]byte, compactSignatureSize)
+	canonical[0] = 2 + recoveryCode&1
+	x.FillBytes(canonical[1:33])
+	if _, err := btcec.ParsePubKey(canonical[:33]); err != nil {
+		return nil, fmt.Errorf("invalid compact signature R: %w", err)
+	}
+	copy(canonical[33:], sig[33:])
+	return canonical, nil
 }
 
 func VerifySignatureDER(public string, msg, sig []byte) error {

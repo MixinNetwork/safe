@@ -3,10 +3,10 @@ package protocol
 import (
 	"fmt"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/MixinNetwork/multi-party-sig/common/round"
 	"github.com/MixinNetwork/multi-party-sig/pkg/hash"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type Message struct {
@@ -91,13 +91,17 @@ func (m *Message) toMarshallable() *marshallableMessage {
 }
 
 func (m *Message) MarshalBinary() ([]byte, error) {
-	return cbor.Marshal(m.toMarshallable())
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, err
+	}
+	return enc.Marshal(m.toMarshallable())
 }
 
 func (m *Message) UnmarshalBinary(data []byte) error {
 	deserialized := m.toMarshallable()
 	if err := cbor.Unmarshal(data, deserialized); err != nil {
-		return nil
+		return err
 	}
 	m.SSID = deserialized.SSID
 	m.From = deserialized.From

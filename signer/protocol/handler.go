@@ -87,6 +87,20 @@ func (h *MultiHandler) CanAccept(msg *Message) bool {
 	if !msg.IsFor(r.SelfID()) {
 		return false
 	}
+	// non-broadcast round messages must be addressed specifically to us:
+	// an empty To field is only meaningful for broadcasts and abort
+	// notifications (round number 0). Anything else would cause nil map
+	// lookups, and therefore panics, in the round handlers.
+	if !msg.Broadcast && msg.RoundNumber > 0 && msg.To != r.SelfID() {
+		return false
+	}
+	// the symmetric check: broadcast messages must not be addressed to a
+	// specific party. A unicast "broadcast" would otherwise be stored (and
+	// folded into the broadcast verification hash) by only a subset of the
+	// participants.
+	if msg.Broadcast && msg.To != "" {
+		return false
+	}
 	// is the protocol ID correct
 	if msg.Protocol != r.ProtocolID() {
 		return false
@@ -132,7 +146,15 @@ func (h *MultiHandler) Accept(msg *Message) bool {
 
 	// a msg with roundNumber 0 is considered an abort from another party
 	if msg.RoundNumber == 0 {
-		h.abort(fmt.Errorf("aborted by other party with error: \"%s\"", msg.Data), msg.From)
+		// Do not treat the abort's sender as a culprit: they may be an
+		// honest party that detected misbehavior we haven't processed yet,
+		// and a malicious party could otherwise frame anyone by forwarding
+		// aborts. Culprits are only assigned from locally verified evidence;
+		// a forwarded abort carries no verifiable information about who
+		// failed, so the culprit list stays empty. The sender is still named
+		// in the message: having received the abort from them is a locally
+		// verifiable fact, and it is not an accusation.
+		h.abort(fmt.Errorf("aborted by other party %q with error: %q", msg.From, msg.Data))
 		return false
 	}
 
@@ -243,8 +265,9 @@ func (h *MultiHandler) finalize() {
 	}
 
 	// forward messages with the correct header.
+	enc, _ := cbor.CanonicalEncOptions().EncMode()
 	for roundMsg := range out {
-		data, err := cbor.Marshal(roundMsg.Content)
+		data, err := enc.Marshal(roundMsg.Content)
 		if err != nil {
 			panic(fmt.Errorf("failed to marshal round message: %w", err))
 		}
@@ -337,10 +360,14 @@ func (h *MultiHandler) abort(err error, culprits ...party.ID) {
 }
 
 // Stop cancels the current execution of the protocol, and alerts the other users.
+// If the protocol has already finished, successfully or not, Stop is a no-op.
 func (h *MultiHandler) Stop() {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	if h.err != nil || h.result != nil {
-		h.abort(errors.New("aborted by user"), h.currentRound.SelfID())
+		return
 	}
+	h.abort(errors.New("aborted by user"), h.currentRound.SelfID())
 }
 
 func expectsNormalMessage(r round.Session) bool {
