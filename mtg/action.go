@@ -166,6 +166,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
 			a.consumed = make(map[string]uint64)
+			a.consumedOutputs = make(map[string][]*UnifiedOutput)
 			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
 			ReplayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
 		}
