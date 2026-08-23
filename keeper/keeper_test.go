@@ -1426,9 +1426,6 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	group, err := mtg.BuildGroup(ctx, db, conf.Keeper.MTG)
 	require.Nil(err)
 	require.NotNil(group)
-	// FIXME this actually has no effect because we are not using group.Run()
-	group.EnableDebug()
-
 	for i := range 1000 {
 		sequence += uint64(i)
 		_, err = testWriteOutput(ctx, db, conf.Keeper.AppId, conf.Keeper.AssetId, "", uint64(sequence), decimal.NewFromInt(1))

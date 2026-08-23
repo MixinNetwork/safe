@@ -52,7 +52,6 @@ type Group struct {
 	index           int
 	epoch           uint64
 	spendPrivateKey string
-	debug           bool
 	kernelRPC       string
 }
 
@@ -143,12 +142,6 @@ func (grp *Group) GetMembers() []string {
 	if len(grp.rawMembers) != n {
 		panic(n)
 	}
-	if grp.debug {
-		sort.Strings(ms)
-		if !slices.Equal(ms, grp.rawMembers) {
-			panic(ms)
-		}
-	}
 	return ms
 }
 
@@ -161,10 +154,6 @@ func (grp *Group) Index() int {
 		panic(grp.index)
 	}
 	return grp.index
-}
-
-func (grp *Group) EnableDebug() {
-	grp.debug = true
 }
 
 func (grp *Group) SetKernelRPC(rpc string) {

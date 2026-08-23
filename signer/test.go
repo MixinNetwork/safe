@@ -248,8 +248,6 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.Nil(err)
 	group, err := mtg.BuildGroup(ctx, md, conf.Signer.MTG)
 	require.Nil(err)
-	group.EnableDebug()
-
 	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil, nil)
 	group.AttachWorker(node.conf.AppId, node)
 	return node, md

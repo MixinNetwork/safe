@@ -164,7 +164,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		a.consumed = make(map[string]uint64)
 		a.consumedOutputs = make(map[string][]*UnifiedOutput)
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
-		if grp.debug {
+		if util.CheckTestEnvironment(ctx) {
 			a.consumed = make(map[string]uint64)
 			a.consumedOutputs = make(map[string][]*UnifiedOutput)
 			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)

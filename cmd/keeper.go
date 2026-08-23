@@ -41,7 +41,6 @@ func KeeperBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	group.EnableDebug()
 	group.SetKernelRPC(mc.Keeper.MixinRPC)
 
 	s := &mixin.Keystore{
