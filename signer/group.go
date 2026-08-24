@@ -320,6 +320,19 @@ func (node *Node) readKeyByFingerPath(ctx context.Context, crv byte, public stri
 }
 
 func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) ([]byte, []byte) {
+	dbp := append([]byte{crv}, share...)
+	dbp = append(dbp, path...)
+	dbpk := crypto.Blake3Hash(dbp)
+	olds, found := node.derivedKeys[dbpk]
+	if found {
+		return olds[0], olds[1]
+	}
+	pub, code := node.deriveByPathImpl(crv, share, path)
+	node.derivedKeys[dbpk] = [2][]byte{pub, code}
+	return pub, code
+}
+
+func (node *Node) deriveByPathImpl(crv byte, share, path []byte) ([]byte, []byte) {
 	switch crv {
 	case common.CurveSecp256k1ECDSABitcoin, common.CurveSecp256k1ECDSAEthereum:
 		conf := cmp.EmptyConfig(curve.Secp256k1{})

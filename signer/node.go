@@ -43,6 +43,8 @@ type Node struct {
 	wallet       *common.MixinWallet
 	backupClient *http.Client
 	saverKey     *crypto.Key
+
+	derivedKeys map[crypto.Hash][2][]byte
 }
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, mw *common.MixinWallet, version string) *Node {
@@ -63,6 +65,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 		backupClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
+		derivedKeys: make(map[crypto.Hash][2][]byte),
 	}
 	node.aesKey = common.ECDHEd25519(conf.SharedKey, conf.KeeperPublicKey)
 
@@ -576,7 +579,7 @@ func (node *Node) verifyAllKeys(ctx context.Context) {
 		return
 	}
 	keys, err := node.store.ListAllKeys(ctx)
-	logger.Printf("node.ListAllKeys() => %d %v", len(keys), err)
+	logger.Printf("node.ListAllKeys(%s) => %d %v", vv, len(keys), err)
 	if err != nil {
 		panic(err)
 	}
@@ -593,7 +596,7 @@ func (node *Node) verifyAllKeys(ctx context.Context) {
 		groups[k.Curve]++
 	}
 	for crv, count := range groups {
-		logger.Printf("node.verifyAllKeys(%d) => %d", crv, count)
+		logger.Printf("node.verifyAllKeys(%s, %d) => %d", node.version, crv, count)
 	}
 	err = node.store.WriteProperty(ctx, vk, node.version)
 	if err != nil {
