@@ -81,6 +81,7 @@ func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Confi
 
 func (node *Node) Boot(ctx context.Context) {
 	node.store.CheckStoreOwner(ctx, node.id)
+	node.verifyAllKeys(ctx)
 	go node.loopBackup(ctx)
 	go node.loopInitialSessions(ctx)
 	go node.loopPreparedSessions(ctx)
@@ -561,4 +562,19 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 	m := mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	_, err := common.SendTransactionUntilSufficient(ctx, node.wallet, node.mixin, receivers, threshold, amount, traceId, node.conf.AssetId, m, nil, node.conf.MTG.App.SpendPrivateKey)
 	return err
+}
+
+func (node *Node) verifyAllKeys(ctx context.Context) {
+	keys, err := node.store.ListAllKeys(ctx)
+	logger.Printf("node.verifyAllKeys() => %d %v", len(keys), err)
+	if err != nil {
+		panic(err)
+	}
+	for _, k := range keys {
+		conf, err := common.Base91Decode(k.Share)
+		if err != nil {
+			panic(k.Public)
+		}
+		_, _ = node.deriveByPath(ctx, k.Curve, conf, []byte{0, 0, 0, 0})
+	}
 }

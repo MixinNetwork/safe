@@ -94,6 +94,7 @@ func TestFROSTPrepareKeys(ctx context.Context, require *require.Assertions, node
 		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, curve, pub, conf, false)
 		require.Nil(err)
+		node.verifyAllKeys(ctx)
 	}
 	return public
 }
@@ -113,6 +114,7 @@ func TestCMPPrepareKeys(ctx context.Context, require *require.Assertions, nodes 
 		require.Nil(err)
 		err = node.store.WriteKeyIfNotExists(ctx, op.Id, crv, pub, sb, false)
 		require.Nil(err)
+		node.verifyAllKeys(ctx)
 
 		conf := cmp.EmptyConfig(curve.Secp256k1{})
 		err = conf.UnmarshalBinary(sb)

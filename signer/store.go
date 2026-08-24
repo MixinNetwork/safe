@@ -100,6 +100,33 @@ func (s *SQLite3Store) WriteKeyIfNotExists(ctx context.Context, sessionId string
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) ListAllKeys(ctx context.Context) ([]*Key, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	cols := []string{"public", "fingerprint", "curve", "share", "session_id", "created_at", "backed_up_at"}
+	query := fmt.Sprintf("SELECT %s FROM keys", strings.Join(cols, ","))
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(rows)
+
+	var keys []*Key
+	for rows.Next() {
+		var k Key
+		err := rows.Scan(&k.Public, &k.Fingerprint, &k.Curve, &k.Share, &k.SessionId, &k.CreatedAt, &k.BackedUpAt)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, &k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
 func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([]*Key, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -120,6 +147,9 @@ func (s *SQLite3Store) ListUnbackupedKeys(ctx context.Context, threshold int) ([
 			return nil, err
 		}
 		keys = append(keys, &k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return keys, nil
 }
