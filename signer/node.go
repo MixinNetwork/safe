@@ -570,7 +570,7 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 }
 
 func (node *Node) verifyAllKeys(ctx context.Context) {
-	vk := "KEYS:VERIFICATION:VERSION"
+	vk := "KEYS:VERIFICATION:VERSION:" + node.version
 	vv, err := node.store.ReadProperty(ctx, vk)
 	if err != nil {
 		panic(err)
