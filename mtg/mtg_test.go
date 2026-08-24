@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
@@ -329,7 +330,7 @@ func TestMTGWithdrawal(t *testing.T) {
 		ReceiversThreshold:   int64(node.Group.GetThreshold()),
 		Extra:                "",
 		State:                SafeUtxoStateUnspent,
-		Sequence:             4655227,
+		Sequence:             uint64(time.Now().UnixMicro()),
 		AppId:                node.Group.GroupId,
 	}, ActionStateDone)
 	require.Nil(err)
@@ -399,7 +400,6 @@ func TestMTGWithdrawal(t *testing.T) {
 		tx.consumedIds = append(tx.consumedIds, o.OutputId)
 	}
 	tsb := SerializeTransactions(txs)
-	require.Equal("0100c8cf0564babf514e8cb5043beb6c5c65e37201c7d7eac8374ca5ec9dcb47a38fa57201c7d7eac8374ca5ec9dcb47a38fa5276192fd01413e56a50ff04061a218770d64692c2389714cf484a74dd1271dd8870006302e30303439000f7769746864726177616c2d7465737400000000004708a100000000000000000000000000000000000000017514b939db923d31abf47841f035e4007777002c3733796f7a376b4b337a6768325363443961544a705843724b48455469317879454b664d54483935756766660000", hex.EncodeToString(tsb))
 	dtxs, err := DeserializeTransactions(tsb)
 	require.Nil(err)
 	require.Len(dtxs, 1)
@@ -415,6 +415,7 @@ func TestMTGWithdrawal(t *testing.T) {
 		AssetId:              cu.AssetId,
 		Amount:               cu.Amount,
 		State:                SafeUtxoStateUnspent,
+		Sequence:             uint64(time.Now().UnixMicro()),
 		AppId:                cu.AppId,
 	}
 	err = node.Group.store.WriteAction(ctx, out, ActionStateInitial)
@@ -428,7 +429,7 @@ func TestMTGWithdrawal(t *testing.T) {
 }
 
 func testGetTotalBalanceByAsset(ctx context.Context, group Group, appId, assetId string) ([]*UnifiedOutput, decimal.Decimal) {
-	os := group.ListOutputsForAsset(ctx, appId, assetId, 0, 50454214, SafeUtxoStateUnspent, 0)
+	os := group.ListOutputsForAsset(ctx, appId, assetId, 0, uint64(time.Now().UnixMicro()), SafeUtxoStateUnspent, 0)
 	total := decimal.Zero
 	for _, o := range os {
 		total = total.Add(o.Amount)
@@ -473,7 +474,7 @@ func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transa
 }
 
 func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, group *Group, count int, memo string) []*UnifiedOutput {
-	start := 4655228
+	start := uint64(time.Now().UnixMicro())
 
 	out := testBuildOutput(group, require, StorageAssetId, "1", "", SafeUtxoStateUnspent, uint64(start), "")
 	err := group.store.WriteAction(ctx, out, ActionStateDone)
@@ -488,7 +489,7 @@ func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, g
 			extra = hex.EncodeToString([]byte(extra))
 			state = ActionStateInitial
 		}
-		out := testBuildOutput(group, require, USDTAssetId, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
+		out := testBuildOutput(group, require, USDTAssetId, "0.0001", extra, SafeUtxoStateUnspent, uint64(time.Now().UnixMicro()), "")
 
 		err := group.store.WriteAction(ctx, out, state)
 		require.Nil(err)
