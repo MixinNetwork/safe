@@ -28,6 +28,7 @@ type Node struct {
 	id        party.ID
 	threshold int
 
+	version    string
 	conf       *Configuration
 	group      *mtg.Group
 	network    Network
@@ -44,10 +45,11 @@ type Node struct {
 	saverKey     *crypto.Key
 }
 
-func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, mw *common.MixinWallet) *Node {
+func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, mw *common.MixinWallet, version string) *Node {
 	node := &Node{
 		id:         party.ID(conf.MTG.App.AppId),
 		threshold:  conf.Threshold,
+		version:    version,
 		conf:       conf,
 		group:      group,
 		network:    network,
@@ -565,16 +567,36 @@ func (node *Node) sendTransactionToSignerGroupUntilSufficient(ctx context.Contex
 }
 
 func (node *Node) verifyAllKeys(ctx context.Context) {
-	keys, err := node.store.ListAllKeys(ctx)
-	logger.Printf("node.verifyAllKeys() => %d %v", len(keys), err)
+	vk := "KEYS:VERIFICATION:VERSION"
+	vv, err := node.store.ReadProperty(ctx, vk)
 	if err != nil {
 		panic(err)
 	}
+	if vv == node.version {
+		return
+	}
+	keys, err := node.store.ListAllKeys(ctx)
+	logger.Printf("node.ListAllKeys() => %d %v", len(keys), err)
+	if err != nil {
+		panic(err)
+	}
+	groups := make(map[byte]int)
 	for _, k := range keys {
 		conf, err := common.Base91Decode(k.Share)
 		if err != nil {
 			panic(k.Public)
 		}
-		_, _ = node.deriveByPath(ctx, k.Curve, conf, []byte{0, 0, 0, 0})
+		pub, _ := node.deriveByPath(ctx, k.Curve, conf, []byte{0, 0, 0, 0})
+		if hex.EncodeToString(pub) != k.Public {
+			panic(fmt.Errorf("deriveByPath(%s) => %x", k.Public, pub))
+		}
+		groups[k.Curve]++
+	}
+	for crv, count := range groups {
+		logger.Printf("node.verifyAllKeys(%d) => %d", crv, count)
+	}
+	err = node.store.WriteProperty(ctx, vk, node.version)
+	if err != nil {
+		panic(err)
 	}
 }

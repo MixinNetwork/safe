@@ -89,7 +89,7 @@ func SignerBootCmd(c *cli.Context) error {
 	mc.Signer.MTG.App.SpendPrivateKey = key.String()
 
 	mw := common.NewMixinWallet(client, wd, mc.Signer.MTG.Genesis.Epoch)
-	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client, mw)
+	node := signer.NewNode(kd, group, messenger, mc.Signer, mc.Keeper.MTG, client, mw, version)
 	mw.Boot(ctx)
 	node.Boot(ctx)
 

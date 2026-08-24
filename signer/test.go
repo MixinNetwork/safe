@@ -252,7 +252,7 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 	require.Nil(err)
 	group.EnableDebug()
 
-	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil, nil)
+	node := NewNode(kd, group, nil, conf.Signer, conf.Keeper.MTG, nil, nil, "1.0.0")
 	group.AttachWorker(node.conf.AppId, node)
 	return node, md
 }
