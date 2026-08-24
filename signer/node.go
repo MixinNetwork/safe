@@ -575,13 +575,13 @@ func (node *Node) verifyAllKeys(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	if vv == node.version {
-		return
-	}
 	keys, err := node.store.ListAllKeys(ctx)
 	logger.Printf("node.ListAllKeys(%s) => %d %v", vv, len(keys), err)
 	if err != nil {
 		panic(err)
+	}
+	if vv == node.version {
+		return
 	}
 	groups := make(map[byte]int)
 	for _, k := range keys {
