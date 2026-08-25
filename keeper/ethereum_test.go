@@ -690,8 +690,8 @@ func TestEthereumKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T)
 	case outputs[0].TokenAddress != ethereum.EthereumEmptyAddress:
 		txType = ethereum.TypeERC20Tx
 	}
-	id := common.UniqueId(safe.Address, "inheritance")
-	st, err := ethereum.CreateTransactionFromOutputs(ctx, txType, ethereum.GetEvmChainID(common.SafeChainPolygon), id, testEthereumSafeAddress, outputs, big.NewInt(safe.Nonce))
+	bindingID := l.LockId
+	st, err := ethereum.CreateTransactionFromOutputs(ctx, txType, ethereum.GetEvmChainID(common.SafeChainPolygon), bindingID, testEthereumSafeAddress, outputs, big.NewInt(safe.Nonce))
 	require.Nil(err)
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
@@ -708,12 +708,14 @@ func TestEthereumKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T)
 	ref := mc.Sha256Hash(raw)
 	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 	require.Nil(err)
-	out := testBuildObserverRequest(node, id, holder, common.ActionEthereumSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSAPolygon)
+	actionID := common.UniqueId(bindingID, ref.String())
+	out := testBuildObserverRequest(node, actionID, holder, common.ActionEthereumSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
 	tx, err := node.store.ReadTransaction(ctx, st.TxHash)
 	require.Nil(err)
 	require.Equal(common.RequestStateDone, tx.State)
+	require.Equal(actionID, tx.RequestId)
 	safe, err = node.store.ReadSafe(ctx, holder)
 	require.Nil(err)
 	require.Equal(common.RequestStateFailed, int(safe.State))

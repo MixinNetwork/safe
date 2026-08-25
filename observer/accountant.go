@@ -700,7 +700,11 @@ func (node *Node) validateEthereumRecoveryBroadcast(ctx context.Context, rpc str
 	requestID := keeperTransaction.RequestId
 	switch {
 	case recovery.IsInheritance:
-		requestID = common.UniqueId(safe.Address, "inheritance")
+		lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+		if err != nil || lock == nil || lock.State != common.RequestStateDone {
+			return fmt.Errorf("invalid inheritance lock: %v %v", lock, err)
+		}
+		requestID = lock.LockId
 	case ethereum.CheckTransactionPartiallySignedBy(recovery.RawTransaction, safe.Holder):
 		requestID = common.UniqueId(safe.Address, approvedOutputs[0].Destination)
 	}

@@ -55,6 +55,14 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	default:
 		return node.failRequest(ctx, req, "")
 	}
+	lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	if err != nil {
+		panic(err)
+	}
+	if lock == nil || lock.State != common.RequestStateDone {
+		logger.Printf("invalid lock to close account: %v", lock)
+		return node.failRequest(ctx, req, "")
+	}
 
 	ref, err := crypto.HashFromString(req.ExtraHEX)
 	if err != nil {
@@ -73,8 +81,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	if err != nil {
 		panic(err)
 	}
-	requestID := common.UniqueId(safe.Address, "inheritance")
-	outputs, err := validateEthereumSweepTransaction(safe, t, requestID, t.TxHash, "", sbm)
+	outputs, err := validateEthereumSweepTransaction(safe, t, lock.LockId, t.TxHash, "", sbm)
 	logger.Printf("validateEthereumSweepTransaction(%s, %s) => %d %v", safe.Address, t.TxHash, len(outputs), err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
@@ -111,14 +118,6 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 		panic(err)
 	}
 	if info == nil {
-		return node.failRequest(ctx, req, "")
-	}
-	lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
-	if err != nil {
-		panic(err)
-	}
-	if lock == nil || lock.State != common.RequestStateDone {
-		logger.Printf("invalid lock to close account: %v", lock)
 		return node.failRequest(ctx, req, "")
 	}
 	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)

@@ -552,7 +552,7 @@ func (node *Node) sendToKeeperBitcoinApproveRecoveryTransaction(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	id := common.UniqueId(safe.Address, receiver)
+	id := common.UniqueId(approval.TransactionHash, ref.String())
 	extra = append(extra, ref[:]...)
 	action := common.ActionBitcoinSafeCloseAccount
 	references := []crypto.Hash{ref}
@@ -581,6 +581,10 @@ func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.C
 	if err != nil {
 		return err
 	}
+	lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	if err != nil || lock == nil || lock.State != common.RequestStateDone {
+		return fmt.Errorf("invalid inheritance lock: %v %v", lock, err)
+	}
 
 	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
@@ -593,10 +597,10 @@ func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.C
 		return err
 	}
 
-	id := common.UniqueId(safe.Address, "inheritance")
 	extra := ref[:]
 	action := common.ActionBitcoinSafeCloseAccountByInheritance
 	references := []crypto.Hash{ref}
+	id := common.UniqueId(lock.LockId, ref.String())
 	err = node.sendKeeperResponseWithReferences(ctx, safe.Holder, byte(action), safe.Chain, id, extra, references)
 	logger.Printf("node.sendKeeperResponseWithReferences(%s, %s, %x, %v) => %v", safe.Holder, id, extra, references, err)
 	if err != nil {
