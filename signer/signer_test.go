@@ -93,6 +93,34 @@ func TestKeeperRequestOriginAuthentication(t *testing.T) {
 	}
 }
 
+func TestUnknownSignerSessionResponsesAreIgnored(t *testing.T) {
+	require := require.New(t)
+	store, err := OpenSQLite3Store(t.TempDir() + "/signer.sqlite3")
+	require.NoError(err)
+	t.Cleanup(func() {
+		require.NoError(store.Close())
+	})
+
+	node := &Node{store: store}
+	operation := &common.Operation{
+		Id:    uuid.Must(uuid.NewV4()).String(),
+		Type:  common.OperationTypeSignInput,
+		Curve: common.CurveSecp256k1ECDSABitcoin,
+	}
+	out := &mtg.Action{UnifiedOutput: mtg.UnifiedOutput{
+		Senders:            []string{"member-id-0"},
+		SequencerCreatedAt: time.Now(),
+	}}
+
+	prepare := *operation
+	prepare.Extra = []byte(PrepareExtra)
+	require.NoError(node.processSignerPrepare(t.Context(), &prepare, out))
+
+	transactions, asset := node.processSignerResult(t.Context(), operation, out)
+	require.Empty(transactions)
+	require.Empty(asset)
+}
+
 func TestSSID(t *testing.T) {
 	require := require.New(t)
 

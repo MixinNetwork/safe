@@ -1109,6 +1109,10 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 		if len(extra) < 34 {
 			return nil, nil, fmt.Errorf("invalid lock extra to update: %x", extra)
 		}
+		// Hash is an opaque commitment to the holder's off-chain estate plan.
+		// The keeper stores it for recovery observers to verify manually; it does
+		// not interpret the commitment or bind it to an inheritance destination.
+		// Recovery observers are therefore trusted to enforce the estate plan.
 		hash := hex.EncodeToString(extra[:32])
 		hours := binary.BigEndian.Uint16(extra[32:34])
 		inheritanceLock := time.Duration(hours) * time.Hour

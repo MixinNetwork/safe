@@ -185,6 +185,9 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	s, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
 		return fmt.Errorf("store.ReadSession(%s) => %v", op.Id, err)
+	} else if s == nil {
+		logger.Printf("ignore signer prepare for unknown session %s", op.Id)
+		return nil
 	} else if s.PreparedAt.Valid {
 		return nil
 	}
@@ -208,6 +211,10 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
 		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
+	}
+	if session == nil {
+		logger.Printf("ignore signer result for unknown session %s", op.Id)
+		return nil, ""
 	}
 	if op.Curve != session.Curve || op.Type != session.Operation {
 		panic(session.Id)
