@@ -1365,12 +1365,21 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	}
 	memo := mtg.EncodeMixinExtraBase64(appId, node.encryptSignerOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
+	var senders []string
+	var sendersThreshold int64
+	switch action {
+	case common.OperationTypeKeygenInput, common.OperationTypeSignInput:
+		senders = append(senders, node.conf.MTG.Genesis.Members...)
+		sendersThreshold = int64(node.conf.MTG.Genesis.Threshold)
+	}
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
 			OutputId:           id,
 			TransactionHash:    crypto.Sha256Hash([]byte(op.Id)).String(),
 			AppId:              appId,
 			AssetId:            node.conf.AssetId,
+			Senders:            senders,
+			SendersThreshold:   sendersThreshold,
 			Extra:              memo,
 			Amount:             decimal.New(1, 1),
 			SequencerCreatedAt: timestamp,

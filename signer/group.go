@@ -116,6 +116,10 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 	}
 	switch out.AssetId {
 	case node.conf.KeeperAssetId:
+		if !node.validateKeeperActionOrigin(out) {
+			logger.Printf("invalid keeper action origin: %v %d", out.Senders, out.SendersThreshold)
+			return sessionId, nil, ""
+		}
 		if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 			panic(out.TransactionHash)
 		}
@@ -158,6 +162,17 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 		}
 	}
 	return sessionId, nil, ""
+}
+
+func (node *Node) validateKeeperActionOrigin(out *mtg.Action) bool {
+	keepers := node.GetKeepers()
+	if out.SendersThreshold != int64(node.keeper.Genesis.Threshold) || len(out.Senders) != len(keepers) {
+		return false
+	}
+
+	senders := slices.Clone(out.Senders)
+	slices.Sort(senders)
+	return slices.Equal(senders, keepers)
 }
 
 func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation, out *mtg.Action) error {

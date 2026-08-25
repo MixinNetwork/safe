@@ -172,6 +172,8 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 			TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
 			AppId:              node.conf.AppId,
 			AssetId:            node.conf.KeeperAssetId,
+			Senders:            node.GetKeepers(),
+			SendersThreshold:   int64(node.keeper.Genesis.Threshold),
 			Extra:              memo,
 			Amount:             decimal.NewFromInt(1),
 			SequencerCreatedAt: time.Now(),
