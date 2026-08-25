@@ -22,6 +22,22 @@ import (
 
 const EthereumTransactionStuckTime = time.Hour * 24
 
+func validateEthereumSweepTransaction(safe *store.Safe, transaction *ethereum.SafeTransaction, requestID, transactionHash, destination string, balances map[string]*store.SafeBalance) ([]*ethereum.Output, error) {
+	expectedBalances := make(map[string]*big.Int, len(balances))
+	for _, balance := range balances {
+		expectedBalances[balance.AssetAddress] = new(big.Int).Set(balance.BigBalance())
+	}
+	return ethereum.ValidateSweepTransaction(transaction, ethereum.SweepValidation{
+		SafeAddress:        safe.Address,
+		ChainID:            ethereum.GetEvmChainID(int64(safe.Chain)),
+		Nonce:              big.NewInt(safe.Nonce),
+		RequestID:          requestID,
+		TransactionHash:    transactionHash,
+		Balances:           expectedBalances,
+		AllowedDestination: destination,
+	})
+}
+
 func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Context, req *common.Request) ([]*mtg.Transaction, string) {
 	if req.Role != common.RequestRoleObserver {
 		panic(req.Role)
@@ -49,6 +65,17 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
+	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	if err != nil {
+		panic(err)
+	}
+	requestID := common.UniqueId(safe.Address, "inheritance")
+	outputs, err := validateEthereumSweepTransaction(safe, t, requestID, t.TxHash, "", sbm)
+	logger.Printf("validateEthereumSweepTransaction(%s, %s) => %d %v", safe.Address, t.TxHash, len(outputs), err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -103,15 +130,6 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 		panic(fmt.Errorf("safe %s is locked", safe.Address))
 	}
 
-	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
-	if err != nil {
-		panic(err)
-	}
-	outputs, err := t.ExtractOutputs()
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
 	if len(outputs) != len(sbm) {
 		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
 		return node.failRequest(ctx, req, "")
@@ -245,6 +263,55 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
+	rid, err := uuid.FromBytes(extra[:16])
+	if err != nil {
+		logger.Printf("uuid.FromBytes(%x) => %v", extra[:16], err)
+		return node.failRequest(ctx, req, "")
+	}
+	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
+	if err != nil {
+		panic(err)
+	}
+
+	var tx *store.Transaction
+	requestID := ""
+	transactionHash := t.TxHash
+	allowedDestination := ""
+	if rid.String() == uuid.Nil.String() {
+		preliminaryOutputs, err := t.ExtractOutputs()
+		if err != nil || len(preliminaryOutputs) == 0 {
+			return node.failRequest(ctx, req, "")
+		}
+		requestID = common.UniqueId(safe.Address, preliminaryOutputs[0].Destination)
+	} else {
+		tx, err = node.store.ReadTransactionByRequestId(ctx, rid.String())
+		if err != nil {
+			panic(fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err))
+		} else if tx == nil || tx.State == common.RequestStateDone || tx.Holder != req.Holder {
+			return node.failRequest(ctx, req, "")
+		}
+		proposedRaw, err := hex.DecodeString(tx.RawTransaction)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		proposedTx, err := ethereum.UnmarshalSafeTransaction(proposedRaw)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		proposedOutputs, err := validateEthereumSweepTransaction(safe, proposedTx, tx.RequestId, tx.TransactionHash, "", sbm)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		requestID = tx.RequestId
+		transactionHash = tx.TransactionHash
+		allowedDestination = proposedOutputs[0].Destination
+	}
+	outputs, err := validateEthereumSweepTransaction(safe, t, requestID, transactionHash, allowedDestination, sbm)
+	logger.Printf("validateEthereumSweepTransaction(%s, %s) => %d %v", safe.Address, transactionHash, len(outputs), err)
+	if err != nil {
+		return node.failRequest(ctx, req, "")
+	}
 	signedByObserver, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Observer)
 	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Observer, signedByObserver, err)
 	if err != nil {
@@ -252,55 +319,18 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	} else if !signedByObserver {
 		return node.failRequest(ctx, req, "")
 	}
-	if t.Destination.Hex() == safe.Address {
-		return node.failRequest(ctx, req, "")
-	}
-
-	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
-	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v %v", safe.Address, sbm, err)
-	if err != nil {
-		panic(err)
-	}
-	outputs, err := t.ExtractOutputs()
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
-	if len(outputs) != len(sbm) {
-		logger.Printf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
-		return node.failRequest(ctx, req, "")
-	}
-
-	destination := outputs[0].Destination
-	for i, o := range outputs {
-		if destination != o.Destination {
-			logger.Printf("invalid close outputs destination: %d, %v", i, o)
-			return node.failRequest(ctx, req, "")
-		}
-
-		sbb := sbm[o.TokenAddress].BigBalance()
-		if sbb.Cmp(o.Amount) != 0 {
-			logger.Printf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
-			return node.failRequest(ctx, req, "")
-		}
-	}
-
 	count, err := node.store.CountUnfinishedTransactionsByHolder(ctx, safe.Holder)
 	logger.Printf("store.CountUnfinishedTransactionsByHolder(%s) => %d %v", safe.Holder, count, err)
 	if err != nil {
 		panic(err)
 	}
 
-	rid, err := uuid.FromBytes(extra[:16])
-	if err != nil {
-		logger.Printf("uuid.FromBytes(%x) => %v", extra[:16], err)
-		return node.failRequest(ctx, req, "")
-	}
 	if rid.String() == uuid.Nil.String() {
 		if count != 0 {
 			logger.Printf("invalid count: %d", count)
 			return node.failRequest(ctx, req, "")
 		}
-		txs, asset := node.closeEthereumAccountWithHolder(ctx, req, safe, raw)
+		txs, asset := node.closeEthereumAccountWithHolder(ctx, req, safe, raw, outputs)
 		logger.Printf("node.closeEthereumAccountWithHolder(%v, %s) => %v %s", req, t.Destination.Hex(), txs, asset)
 		return txs, asset
 	}
@@ -309,23 +339,6 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		logger.Printf("invalid count: %d", count)
 		return node.failRequest(ctx, req, "")
 	}
-	tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
-	if err != nil {
-		panic(fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err))
-	} else if tx == nil {
-		return node.failRequest(ctx, req, "")
-	} else if tx.State == common.RequestStateDone {
-		return node.failRequest(ctx, req, "")
-	} else if tx.Holder != req.Holder {
-		return node.failRequest(ctx, req, "")
-	}
-	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	proposedTx, _ := ethereum.UnmarshalSafeTransaction(b)
-	if !bytes.Equal(t.Message, proposedTx.Message) {
-		logger.Printf("Inconsistent safe tx message: %x %x", t.Message, proposedTx.Message)
-		return node.failRequest(ctx, req, "")
-	}
-
 	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
 		TransactionHash: tx.TransactionHash,
@@ -360,7 +373,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	return txs, ""
 }
 
-func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte) ([]*mtg.Transaction, string) {
+func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *common.Request, safe *store.Safe, raw []byte, outputs []*ethereum.Output) ([]*mtg.Transaction, string) {
 	t, _ := ethereum.UnmarshalSafeTransaction(raw)
 	signedByHolder, err := node.checkEthereumTransactionSignedBy(safe, t, safe.Holder)
 	logger.Printf("node.checkEthereumTransactionSignedBy(%v, %s) => %t %v", t, safe.Holder, signedByHolder, err)
@@ -370,10 +383,6 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 		return node.failRequest(ctx, req, "")
 	}
 
-	outputs, err := t.ExtractOutputs()
-	if err != nil {
-		return node.failRequest(ctx, req, "")
-	}
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
 		norm := ethereum.NormalizeAddress(out.Destination)

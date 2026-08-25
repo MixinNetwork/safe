@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"slices"
 	"strings"
 	"time"
@@ -430,8 +431,14 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 }
 
 func (node *Node) ethereumSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (string, error) {
-	b := common.DecodeHexOrPanic(tx.RawTransaction)
-	st, _ := ethereum.UnmarshalSafeTransaction(b)
+	b, err := hex.DecodeString(tx.RawTransaction)
+	if err != nil {
+		return "", err
+	}
+	st, err := ethereum.UnmarshalSafeTransaction(b)
+	if err != nil {
+		return "", err
+	}
 
 	return node.ethereumBroadcastTransactionAndWriteDeposit(ctx, tx, st)
 }
@@ -612,7 +619,19 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	rpc, _ := node.ethereumParams(tx.Chain)
 	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
-	err := st.ValidTransaction(ctx, rpc)
+	recovery, err := node.store.ReadRecoveryByHash(ctx, tx.TransactionHash)
+	if err != nil {
+		return "", err
+	}
+	if recovery != nil {
+		err = node.validateEthereumRecoveryBroadcast(ctx, rpc, tx, recovery, st)
+		logger.Printf("node.validateEthereumRecoveryBroadcast(%s) => %v", tx.TransactionHash, err)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	err = st.ValidTransaction(ctx, rpc)
 	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
 	if err != nil {
 		// retry when error not from Gnosis Safe Contract
@@ -648,6 +667,66 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 		panic(err)
 	}
 	return etx.Hash().Hex(), nil
+}
+
+func (node *Node) validateEthereumRecoveryBroadcast(ctx context.Context, rpc string, tx *Transaction, recovery *Recovery, st *ethereum.SafeTransaction) error {
+	keeperTransaction, err := node.keeperStore.ReadTransaction(ctx, tx.TransactionHash)
+	if err != nil || keeperTransaction == nil {
+		return fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", tx.TransactionHash, keeperTransaction, err)
+	}
+	safe, err := node.keeperStore.ReadSafe(ctx, keeperTransaction.Holder)
+	if err != nil || safe == nil {
+		return fmt.Errorf("keeperStore.ReadSafe(%s) => %v %v", keeperTransaction.Holder, safe, err)
+	}
+	approvedRaw, err := hex.DecodeString(keeperTransaction.RawTransaction)
+	if err != nil {
+		return err
+	}
+	approved, err := ethereum.UnmarshalSafeTransaction(approvedRaw)
+	if err != nil {
+		return err
+	}
+	approvedOutputs, err := approved.ExtractOutputs()
+	if err != nil {
+		return fmt.Errorf("invalid approved sweep outputs: %w", err)
+	}
+	if len(approvedOutputs) == 0 {
+		return fmt.Errorf("empty approved sweep outputs")
+	}
+	balances := make(map[string]*big.Int, len(approvedOutputs))
+	for _, output := range approvedOutputs {
+		balances[output.TokenAddress] = new(big.Int).Set(output.Amount)
+	}
+	requestID := keeperTransaction.RequestId
+	switch {
+	case recovery.IsInheritance:
+		requestID = common.UniqueId(safe.Address, "inheritance")
+	case ethereum.CheckTransactionPartiallySignedBy(recovery.RawTransaction, safe.Holder):
+		requestID = common.UniqueId(safe.Address, approvedOutputs[0].Destination)
+	}
+	validation := ethereum.SweepValidation{
+		SafeAddress:        safe.Address,
+		ChainID:            ethereum.GetEvmChainID(int64(safe.Chain)),
+		Nonce:              new(big.Int).Set(approved.Nonce),
+		RequestID:          requestID,
+		TransactionHash:    keeperTransaction.TransactionHash,
+		Balances:           balances,
+		AllowedDestination: approvedOutputs[0].Destination,
+	}
+	if _, err := ethereum.ValidateSweepTransaction(approved, validation); err != nil {
+		return fmt.Errorf("invalid keeper-approved sweep: %w", err)
+	}
+	if _, err := ethereum.ValidateSweepTransaction(st, validation); err != nil {
+		return fmt.Errorf("invalid broadcast sweep: %w", err)
+	}
+	liveNonce, err := ethereum.FetchSafeNonce(ctx, st.ChainID, rpc, safe.Address, 0)
+	if err != nil {
+		return err
+	}
+	if liveNonce != st.Nonce.Int64() && liveNonce != st.Nonce.Int64()+1 {
+		return fmt.Errorf("invalid live sweep nonce: %d, transaction %s", liveNonce, st.Nonce)
+	}
+	return nil
 }
 
 func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {

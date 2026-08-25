@@ -30,6 +30,22 @@ const (
 
 var minimumEthereumDepositValueUSD = decimal.RequireFromString("0.1")
 
+func validateObserverEthereumSweep(safe *store.Safe, transaction *ethereum.SafeTransaction, requestID, transactionHash, destination string, balances map[string]*store.SafeBalance) ([]*ethereum.Output, error) {
+	expectedBalances := make(map[string]*big.Int, len(balances))
+	for _, balance := range balances {
+		expectedBalances[balance.AssetAddress] = new(big.Int).Set(balance.BigBalance())
+	}
+	return ethereum.ValidateSweepTransaction(transaction, ethereum.SweepValidation{
+		SafeAddress:        safe.Address,
+		ChainID:            ethereum.GetEvmChainID(int64(safe.Chain)),
+		Nonce:              big.NewInt(safe.Nonce),
+		RequestID:          requestID,
+		TransactionHash:    transactionHash,
+		Balances:           expectedBalances,
+		AllowedDestination: destination,
+	})
+}
+
 func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []byte) error {
 	logger.Printf("node.deployEthereumGnosisSafeAccount(%x)", data)
 	gs, err := ethereum.UnmarshalGnosisSafe(data)
@@ -769,14 +785,30 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		return err
 	}
 
-	rb := common.DecodeHexOrPanic(raw)
+	rb, err := hex.DecodeString(raw)
+	if err != nil {
+		return err
+	}
 	st, err := ethereum.UnmarshalSafeTransaction(rb)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, st, err)
 	if err != nil {
 		return err
 	}
-	if st.Destination.Hex() == safe.Address {
-		return fmt.Errorf("recovery destination %s is the same as safe address %s", st.Destination.Hex(), safe.Address)
+	preliminaryOutputs, err := st.ExtractOutputs()
+	if err != nil {
+		return fmt.Errorf("invalid recovery outputs: %w", err)
+	}
+	if len(preliminaryOutputs) == 0 {
+		return fmt.Errorf("empty recovery outputs")
+	}
+	keeperTransaction, err := node.keeperStore.ReadTransaction(ctx, hash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, keeperTransaction, err)
+	if err != nil {
+		return err
+	}
+	requestID := common.UniqueId(safe.Address, preliminaryOutputs[0].Destination)
+	if keeperTransaction != nil {
+		requestID = keeperTransaction.RequestId
 	}
 
 	if approval != nil { // Close account with safeBTC
@@ -797,10 +829,8 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 			return nil
 		}
 
-		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
-		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
-		if err != nil || tx == nil {
-			return err
+		if keeperTransaction == nil {
+			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 	} else { // Close account with holder key
 		if count != 0 {
@@ -840,18 +870,10 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	outputs, err := st.ExtractOutputs()
+	outputs, err := validateObserverEthereumSweep(safe, st, requestID, hash, "", sbm)
+	logger.Printf("validateObserverEthereumSweep(%s, %s) => %d %v", safe.Address, hash, len(outputs), err)
 	if err != nil {
 		return err
-	}
-	if len(outputs) != len(sbm) {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
-	}
-	for _, o := range outputs {
-		sbb := sbm[o.TokenAddress].BigBalance()
-		if sbb.Cmp(o.Amount) != 0 {
-			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
-		}
 	}
 
 	if approval == nil {
@@ -899,27 +921,39 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	}
 
 	isHolderSigned := ethereum.CheckTransactionPartiallySignedBy(approval.RawTransaction, safe.Holder)
-	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
-		return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, safe.Observer)
-	}
 
-	rb := common.DecodeHexOrPanic(approval.RawTransaction)
+	rb, err := hex.DecodeString(approval.RawTransaction)
+	if err != nil {
+		return err
+	}
 	old, err := ethereum.UnmarshalSafeTransaction(rb)
 	if err != nil {
 		return err
 	}
-	rb = common.DecodeHexOrPanic(raw)
+	rb, err = hex.DecodeString(raw)
+	if err != nil {
+		return err
+	}
 	st, err := ethereum.UnmarshalSafeTransaction(rb)
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(old.Message, st.Message) {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	preliminaryOutputs, err := old.ExtractOutputs()
+	if err != nil {
+		return fmt.Errorf("invalid stored recovery outputs: %w", err)
 	}
-	if st.Destination.Hex() == safe.Address {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	if len(preliminaryOutputs) == 0 {
+		return fmt.Errorf("empty stored recovery outputs")
 	}
-	signedRaw := st.Marshal()
+	keeperTransaction, err := node.keeperStore.ReadTransaction(ctx, hash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, keeperTransaction, err)
+	if err != nil {
+		return err
+	}
+	requestID := common.UniqueId(safe.Address, preliminaryOutputs[0].Destination)
+	if keeperTransaction != nil {
+		requestID = keeperTransaction.RequestId
+	}
 
 	rpc, _ := node.ethereumParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
@@ -949,19 +983,22 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	outputs, err := st.ExtractOutputs()
+	oldOutputs, err := validateObserverEthereumSweep(safe, old, requestID, hash, "", sbm)
 	if err != nil {
 		return err
 	}
-	if len(outputs) != len(sbm) {
-		return fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
+	outputs, err := validateObserverEthereumSweep(safe, st, requestID, hash, oldOutputs[0].Destination, sbm)
+	logger.Printf("validateObserverEthereumSweep(%s, %s) => %d %v", safe.Address, hash, len(outputs), err)
+	if err != nil {
+		return err
 	}
-	for _, o := range outputs {
-		sbb := sbm[o.TokenAddress].BigBalance()
-		if sbb.Cmp(o.Amount) != 0 {
-			return fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
-		}
+	if !bytes.Equal(old.Message, st.Message) {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+		return fmt.Errorf("ethereum.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, safe.Observer)
+	}
+	signedRaw := st.Marshal()
 
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
 	logger.Printf("store.CountUnfinishedTransactionApprovalsForHolder(%s) => %d %v", safe.Holder, count, err)
@@ -974,12 +1011,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 
 	switch {
 	case !isHolderSigned: // Close account with safeBTC
-		tx, err := node.keeperStore.ReadTransaction(ctx, hash)
-		logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", hash, tx, err)
-		if err != nil {
-			return err
-		}
-		if tx == nil {
+		if keeperTransaction == nil {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 	case isHolderSigned: // Close account with holder key
@@ -1146,20 +1178,17 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 
 func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
 	logger.Printf("node.httpCreateEthereumInheritanceTransaction(%s)", raw)
-	rb := common.DecodeHexOrPanic(raw)
+	rb, err := hex.DecodeString(raw)
+	if err != nil {
+		return nil, err
+	}
 	st, err := ethereum.UnmarshalSafeTransaction(rb)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%v) => %v %v", raw, st, err)
 	if err != nil {
 		return nil, err
 	}
-	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
-		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
-	}
 	if st.TxHash != hash {
 		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", st.TxHash, hash)
-	}
-	if st.Destination.Hex() == safe.Address {
-		return nil, fmt.Errorf("invalid inheritance tx destination: %s", st.Destination.Hex())
 	}
 
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
@@ -1193,18 +1222,14 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	outputs, err := st.ExtractOutputs()
+	requestID := common.UniqueId(safe.Address, "inheritance")
+	outputs, err := validateObserverEthereumSweep(safe, st, requestID, hash, "", sbm)
+	logger.Printf("validateObserverEthereumSweep(%s, %s) => %d %v", safe.Address, hash, len(outputs), err)
 	if err != nil {
 		return nil, err
 	}
-	if len(outputs) != len(sbm) {
-		return nil, fmt.Errorf("inconsistent number between outputs and balances: %d, %d", len(outputs), len(sbm))
-	}
-	for _, o := range outputs {
-		sbb := sbm[o.TokenAddress].BigBalance()
-		if sbb.Cmp(o.Amount) != 0 {
-			return nil, fmt.Errorf("inconsistent amount between %s balance and output: %d, %d", o.TokenAddress, sbb, o.Amount)
-		}
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Observer) {
+		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
 	}
 
 	approval = &Transaction{
