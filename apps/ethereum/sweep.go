@@ -62,12 +62,12 @@ func ValidateSweepTransaction(tx *SafeTransaction, expected SweepValidation) ([]
 	if err != nil {
 		return nil, fmt.Errorf("invalid expected sweep transaction hash: %w", err)
 	}
-	transactionHash, err := decodeSweepHash(tx.TxHash)
+	transactionHash, err := decodeSweepHash(tx.RequestHash)
 	if err != nil {
 		return nil, fmt.Errorf("invalid sweep transaction hash: %w", err)
 	}
 	if !bytes.Equal(transactionHash, expectedHash) {
-		return nil, fmt.Errorf("unexpected sweep transaction hash: %s", tx.TxHash)
+		return nil, fmt.Errorf("unexpected sweep transaction hash: %s", tx.RequestHash)
 	}
 	requestHash := crypto.Keccak256(append([]byte(expected.RequestID), message...))
 	if !bytes.Equal(requestHash, expectedHash) {
@@ -94,9 +94,6 @@ func ValidateSweepTransaction(tx *SafeTransaction, expected SweepValidation) ([]
 		return nil, fmt.Errorf("invalid sweep destination: %s", outputs[0].Destination)
 	}
 	if expected.AllowedDestination != "" {
-		if !ethcommon.IsHexAddress(expected.AllowedDestination) {
-			return nil, fmt.Errorf("invalid allowed sweep destination: %s", expected.AllowedDestination)
-		}
 		allowed := ethcommon.HexToAddress(expected.AllowedDestination)
 		if allowed == (ethcommon.Address{}) || destination != allowed {
 			return nil, fmt.Errorf("unexpected sweep destination: %s, expected %s", destination.Hex(), allowed.Hex())

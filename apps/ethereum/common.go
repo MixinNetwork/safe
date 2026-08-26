@@ -13,6 +13,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum/abi"
+	"github.com/MixinNetwork/safe/util"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -130,6 +131,14 @@ func HashMessageForSignature(msg string) []byte {
 	}
 	hash := crypto.Keccak256Hash(fmt.Appendf(nil, "\x19Ethereum Signed Message:\n%d%s", len(b), b))
 	return hash.Bytes()
+}
+
+// for each safe, when it signs a recovery to a destination, that
+// signature should not be reused, so we use the address and destination
+// together to bind the id, hence the request hash
+func GetRecoveryRequestId(address, destination string) string {
+	requestID := util.UniqueId("ETHEREUM:RECOVERY", address)
+	return util.UniqueId(requestID, destination)
 }
 
 // TODO cross-chain deposits might be lost, which are sent from emtpy address

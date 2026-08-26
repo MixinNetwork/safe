@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	bot "github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 )
 
 const (

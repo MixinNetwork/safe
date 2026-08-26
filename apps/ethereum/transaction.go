@@ -31,7 +31,7 @@ const (
 )
 
 type SafeTransaction struct {
-	TxHash         string
+	RequestHash    string
 	ChainID        int64
 	SafeAddress    string
 	Destination    common.Address
@@ -102,7 +102,7 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 		return nil, fmt.Errorf("invalid safe transaction type: %d", typ)
 	}
 	tx.Message = tx.GetTransactionHash()
-	tx.TxHash = tx.Hash(id)
+	tx.RequestHash = tx.GetRequestHash(id)
 	return tx, nil
 }
 
@@ -126,7 +126,7 @@ func CreateMultiSendTransaction(ctx context.Context, chainID int64, id, safeAddr
 		Signatures:     make([][]byte, 3),
 	}
 	tx.Message = tx.GetTransactionHash()
-	tx.TxHash = tx.Hash(id)
+	tx.RequestHash = tx.GetRequestHash(id)
 	return tx, nil
 }
 
@@ -151,19 +151,20 @@ func CreateEnableGuardTransaction(ctx context.Context, chainID int64, id, safeAd
 	}
 	tx.Data = tx.buildEnableGuradData(observerAddress, timelock)
 	tx.Message = tx.GetTransactionHash()
-	tx.TxHash = tx.Hash(id)
+	tx.RequestHash = tx.GetRequestHash(id)
 	return tx, nil
 }
 
-func (tx *SafeTransaction) Hash(id string) string {
+// this hash is not signed on ethereum, the signers only sign message
+// it is for the keeper to distringuish different requests of an
+// identical transaction, i.e. a user may cancel a transaction and
+// start an identical one, then it is seen as two requests
+func (tx *SafeTransaction) GetRequestHash(id string) string {
 	msg := tx.GetTransactionHash()
 	if !bytes.Equal(msg, tx.Message) {
 		panic(id)
 	}
-	var txData []byte
-	txData = append(txData, []byte(id)...)
-	txData = append(txData, tx.Message...)
-	hash := crypto.Keccak256(txData)
+	hash := crypto.Keccak256(append([]byte(id), tx.Message...))
 	return hex.EncodeToString(hash)
 }
 
@@ -171,7 +172,7 @@ func (tx *SafeTransaction) Marshal() []byte {
 	enc := mc.NewEncoder()
 	enc.WriteUint64(uint64(tx.ChainID))
 	enc.WriteUint64(uint64(tx.Operation))
-	bitcoin.WriteBytes(enc, []byte(tx.TxHash))
+	bitcoin.WriteBytes(enc, []byte(tx.RequestHash))
 	bitcoin.WriteBytes(enc, []byte(tx.SafeAddress))
 	bitcoin.WriteBytes(enc, tx.Destination.Bytes())
 	bitcoin.WriteBytes(enc, tx.Value.Bytes())
@@ -261,7 +262,7 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	}
 
 	return &SafeTransaction{
-		TxHash:         string(hash),
+		RequestHash:    string(hash),
 		ChainID:        int64(chainID),
 		SafeAddress:    string(safeAddress),
 		Destination:    common.BytesToAddress(destination),
@@ -312,7 +313,7 @@ func (tx *SafeTransaction) ValidTransaction(ctx context.Context, rpc string) err
 		signature,
 	)
 	if !success || err != nil {
-		return fmt.Errorf("ValidTransaction(%s) => %t %v", tx.TxHash, success, err)
+		return fmt.Errorf("ValidTransaction(%s) => %t %v", tx.RequestHash, success, err)
 	}
 	return nil
 }

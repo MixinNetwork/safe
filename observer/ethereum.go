@@ -67,9 +67,9 @@ func (node *Node) deployEthereumGnosisSafeAccount(ctx context.Context, data []by
 		return err
 	}
 
-	tx, err := node.keeperStore.ReadTransaction(ctx, gs.TxHash)
+	tx, err := node.keeperStore.ReadTransaction(ctx, gs.RequestHash)
 	if err != nil || tx == nil {
-		return fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err)
+		return fmt.Errorf("keeperStore.ReadTransaction(%s) => %v %v", gs.RequestHash, tx, err)
 	}
 	raw, err := hex.DecodeString(tx.RawTransaction)
 	if err != nil {
@@ -810,7 +810,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	requestID := common.UniqueId(safe.Address, preliminaryOutputs[0].Destination)
+	requestID := ethereum.GetRecoveryRequestId(safe.Address, preliminaryOutputs[0].Destination)
 	if keeperTransaction != nil {
 		requestID = keeperTransaction.RequestId
 	}
@@ -954,7 +954,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if err != nil {
 		return err
 	}
-	requestID := common.UniqueId(safe.Address, preliminaryOutputs[0].Destination)
+	requestID := ethereum.GetRecoveryRequestId(safe.Address, preliminaryOutputs[0].Destination)
 	if keeperTransaction != nil {
 		requestID = keeperTransaction.RequestId
 	}
@@ -1095,8 +1095,8 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string
 		return err
 	}
 
-	approval, err := node.store.ReadTransactionApproval(ctx, st.TxHash)
-	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", st.TxHash, approval, err)
+	approval, err := node.store.ReadTransactionApproval(ctx, st.RequestHash)
+	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", st.RequestHash, approval, err)
 	if err != nil || approval == nil {
 		return err
 	}
@@ -1109,17 +1109,17 @@ func (node *Node) httpApproveEthereumTransaction(ctx context.Context, raw string
 	if !ethereum.CheckTransactionPartiallySignedBy(raw, approval.Holder) {
 		return nil
 	}
-	tx, err := node.keeperStore.ReadTransaction(ctx, st.TxHash)
-	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", st.TxHash, tx, err)
+	tx, err := node.keeperStore.ReadTransaction(ctx, st.RequestHash)
+	logger.Verbosef("keeperStore.ReadTransaction(%s) => %v %v", st.RequestHash, tx, err)
 	if err != nil || tx == nil {
 		return err
 	}
-	if st.Hash(tx.RequestId) != tx.TransactionHash {
-		return fmt.Errorf("invalid transaction hash: %s %s", st.Hash(tx.RequestId), tx.TransactionHash)
+	if h := st.GetRequestHash(tx.RequestId); h != tx.TransactionHash {
+		return fmt.Errorf("invalid transaction hash: %s %s", h, tx.TransactionHash)
 	}
 
-	err = node.store.AddTransactionPartials(ctx, st.TxHash, raw)
-	logger.Printf("store.AddTransactionPartials(%s) => %v", st.TxHash, err)
+	err = node.store.AddTransactionPartials(ctx, st.RequestHash, raw)
+	logger.Printf("store.AddTransactionPartials(%s) => %v", st.RequestHash, err)
 	return err
 }
 
@@ -1191,8 +1191,8 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	if st.TxHash != hash {
-		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", st.TxHash, hash)
+	if st.RequestHash != hash {
+		return nil, fmt.Errorf("invalid inheritance tx hash: %s %s", st.RequestHash, hash)
 	}
 
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)

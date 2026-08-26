@@ -153,7 +153,7 @@ func TestEthereumKeeper(t *testing.T) {
 	st, err := ethereum.UnmarshalSafeTransaction(b)
 	require.Nil(err)
 	require.Equal(int64(1), st.Nonce.Int64())
-	stx, err := node.store.ReadTransaction(ctx, st.TxHash)
+	stx, err := node.store.ReadTransaction(ctx, st.RequestHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(st.Marshal()), stx.RawTransaction)
 	require.Equal(common.RequestStateInitial, stx.State)
@@ -241,7 +241,7 @@ func TestEthereumKeeperRejectsMismatchedApproval(t *testing.T) {
 	err = node.store.WriteRequestIfNotExist(ctx, txReq)
 	require.Nil(err)
 	tx := &store.Transaction{
-		TransactionHash: proposed.TxHash,
+		TransactionHash: proposed.RequestHash,
 		RawTransaction:  hex.EncodeToString(proposed.Marshal()),
 		Holder:          holder,
 		Chain:           common.SafeChainPolygon,
@@ -257,7 +257,7 @@ func TestEthereumKeeperRejectsMismatchedApproval(t *testing.T) {
 
 	forged, err := ethereum.CreateTransaction(ctx, ethereum.TypeETHTx, chainId, txReqId, safe.Address, "0xF222222222222222222222222222222222222222", ethereum.EthereumEmptyAddress, proposed.Value.String(), new(big.Int).Set(proposed.Nonce))
 	require.Nil(err)
-	forged.TxHash = proposed.TxHash
+	forged.RequestHash = proposed.RequestHash
 	_, pubs := ethereum.GetSortedSafeOwners(safe.Holder, safe.Signer, safe.Observer)
 	for i, pub := range pubs {
 		if pub == holder {
@@ -278,10 +278,10 @@ func TestEthereumKeeperRejectsMismatchedApproval(t *testing.T) {
 	req, err := node.store.ReadRequest(ctx, approveReqId)
 	require.Nil(err)
 	require.Equal(uint8(common.RequestStateFailed), req.State)
-	requests, err := node.store.ListAllSignaturesForTransaction(ctx, proposed.TxHash, common.RequestStateInitial)
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, proposed.RequestHash, common.RequestStateInitial)
 	require.Nil(err)
 	require.Len(requests, 0)
-	stored, err := node.store.ReadTransaction(ctx, proposed.TxHash)
+	stored, err := node.store.ReadTransaction(ctx, proposed.RequestHash)
 	require.Nil(err)
 	require.Equal(common.RequestStateInitial, stored.State)
 	require.Equal(hex.EncodeToString(proposed.Marshal()), stored.RawTransaction)
@@ -439,7 +439,7 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 
 	safe, _ := node.store.ReadSafe(ctx, holder)
 	chainId := ethereum.GetEvmChainID(common.SafeChainPolygon)
-	id := common.UniqueId(testEthereumSafeAddress, testEthereumTransactionReceiver)
+	id := ethereum.GetRecoveryRequestId(testEthereumSafeAddress, testEthereumTransactionReceiver)
 
 	safeBalances, err := node.store.ReadAllEthereumTokenBalances(ctx, safe.Address)
 	require.Nil(err)
@@ -478,11 +478,11 @@ func TestEthereumKeeperCloseAccountWithHolderObserver(t *testing.T) {
 
 	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: sequence, Output: action}, []byte(common.Base91Encode(raw)))
 	require.NotNil(stx)
-	rid := common.UniqueId(st.TxHash, stx.TraceId)
+	rid := common.UniqueId(st.RequestHash, stx.TraceId)
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeApproveTransaction)
 	require.Equal(b, raw)
 
-	tx, err := node.store.ReadTransaction(ctx, st.TxHash)
+	tx, err := node.store.ReadTransaction(ctx, st.RequestHash)
 	require.Nil(err)
 	require.Equal(common.RequestStateDone, tx.State)
 	safe, err = node.store.ReadSafe(ctx, tx.Holder)
@@ -712,7 +712,7 @@ func TestEthereumKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T)
 	out := testBuildObserverRequest(node, actionID, holder, common.ActionEthereumSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
-	tx, err := node.store.ReadTransaction(ctx, st.TxHash)
+	tx, err := node.store.ReadTransaction(ctx, st.RequestHash)
 	require.Nil(err)
 	require.Equal(common.RequestStateDone, tx.State)
 	require.Equal(actionID, tx.RequestId)
@@ -822,7 +822,7 @@ func testEthereumSafeSetInheritanceLock(ctx context.Context, require *require.As
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionEthereumSafeProposeTransaction)
 	t, err := ethereum.UnmarshalSafeTransaction(b)
 	require.Nil(err)
-	require.Equal(rhash, t.TxHash)
+	require.Equal(rhash, t.RequestHash)
 	require.Equal(rraw, hex.EncodeToString(b))
 
 	amt := decimal.NewFromBigInt(t.Value, -ethereum.ValuePrecision)
@@ -835,7 +835,7 @@ func testEthereumSafeSetInheritanceLock(ctx context.Context, require *require.As
 	}
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
-	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
+	stx, err := node.store.ReadTransaction(ctx, t.RequestHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(t.Marshal()), stx.RawTransaction)
 	require.Equal(common.RequestStateInitial, stx.State)
@@ -914,7 +914,7 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 	require.Equal(testEthereumTransactionReceiver, t.Destination.Hex())
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
-	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
+	stx, err := node.store.ReadTransaction(ctx, t.RequestHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(t.Marshal()), stx.RawTransaction)
 	require.Equal("[{\"amount\":\"0.0001\",\"receiver\":\"0xA03A8590BB3A2cA5c747c8b99C63DA399424a055\"}]", stx.Data)
@@ -940,7 +940,7 @@ func testEthereumProposeERC20Transaction(ctx context.Context, require *require.A
 	require.Equal(testEthereumUSDTAddress, t.Destination.Hex())
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
-	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
+	stx, err := node.store.ReadTransaction(ctx, t.RequestHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(t.Marshal()), stx.RawTransaction)
 	require.Equal(common.RequestStateInitial, stx.State)
@@ -964,7 +964,7 @@ func testEthereumProposeRecoveryTransaction(ctx context.Context, require *requir
 	require.Equal(ethereum.EthereumMultiSendAddress, t.Destination.Hex())
 	require.Equal(testEthereumSafeAddress, t.SafeAddress)
 
-	stx, err := node.store.ReadTransaction(ctx, t.TxHash)
+	stx, err := node.store.ReadTransaction(ctx, t.RequestHash)
 	require.Nil(err)
 	require.Equal(hex.EncodeToString(t.Marshal()), stx.RawTransaction)
 	require.Equal(common.RequestStateInitial, stx.State)
@@ -1095,7 +1095,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	sp, err := node.store.ReadSafeProposalByAddress(ctx, gs.Address)
 	require.Nil(err)
 
-	tx, err := node.store.ReadTransaction(ctx, gs.TxHash)
+	tx, err := node.store.ReadTransaction(ctx, gs.RequestHash)
 	require.Nil(err)
 	raw, err := hex.DecodeString(tx.RawTransaction)
 	require.Nil(err)
@@ -1110,10 +1110,10 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	extra = append(extra, signature[:]...)
 	out := testBuildObserverRequest(node, approveRequestId, holder, common.ActionEthereumSafeApproveAccount, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
-	requests, err := node.store.ListAllSignaturesForTransaction(ctx, gs.TxHash, common.RequestStateInitial)
+	requests, err := node.store.ListAllSignaturesForTransaction(ctx, gs.RequestHash, common.RequestStateInitial)
 	require.Nil(err)
 	require.Len(requests, 1)
-	tx, _ = node.store.ReadTransaction(ctx, gs.TxHash)
+	tx, _ = node.store.ReadTransaction(ctx, gs.RequestHash)
 	require.Equal(common.RequestStatePending, tx.State)
 
 	msg, _ := hex.DecodeString(requests[0].Message)
@@ -1121,7 +1121,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
 	out = testBuildSignerOutput(node, requests[0].RequestId, sp.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
 	testStep(ctx, require, node, out)
-	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, gs.TxHash, common.RequestStateDone)
+	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, gs.RequestHash, common.RequestStateDone)
 	require.Len(requests, 1)
 
 	id := common.UniqueId(requests[0].RequestId, gs.Address)
@@ -1129,7 +1129,7 @@ func testEthereumApproveAccount(ctx context.Context, require *require.Assertions
 	gs, err = ethereum.UnmarshalGnosisSafe(r)
 	require.Nil(err)
 	require.Equal(testEthereumSafeAddress, gs.Address)
-	tx, _ = node.store.ReadTransaction(ctx, gs.TxHash)
+	tx, _ = node.store.ReadTransaction(ctx, gs.RequestHash)
 	require.Equal(common.RequestStateDone, tx.State)
 
 	safe, err := node.store.ReadSafe(ctx, holder)
@@ -1269,7 +1269,7 @@ func testEthereumSignMessage(require *require.Assertions, priv string, message [
 	// Golang returns the recovery ID in the last byte instead of v
 	// v = 27 + rid
 	signature[64] += 27
-	hasPrefix := testIsTxHashSignedWithPrefix(priv, hash.Bytes(), signature)
+	hasPrefix := testIsRequestHashSignedWithPrefix(priv, hash.Bytes(), signature)
 	if hasPrefix {
 		signature[64] += 4
 	}
@@ -1306,7 +1306,7 @@ func testEthereumStoreRequest(node *Node, id string, role, action byte, holder s
 	}
 }
 
-func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
+func testIsRequestHashSignedWithPrefix(priv string, hash, signature []byte) bool {
 	recoveredData, err := crypto.Ecrecover(hash, signature)
 	if err != nil {
 		return params.TestRules.IsEIP150

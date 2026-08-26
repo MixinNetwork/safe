@@ -31,7 +31,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 		ChainID:            chainID,
 		Nonce:              nonce,
 		RequestID:          requestID,
-		TransactionHash:    tx.TxHash,
+		TransactionHash:    tx.RequestHash,
 		AllowedDestination: receiver,
 		Balances: map[string]*big.Int{
 			EthereumEmptyAddress: big.NewInt(100),
@@ -52,8 +52,8 @@ func TestValidateSweepTransaction(t *testing.T) {
 			name: "message substitution",
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.Message[0] ^= 0xff
-				candidate.TxHash = sweepTestHash(requestID, candidate.Message)
-				validation.TransactionHash = candidate.TxHash
+				candidate.RequestHash = sweepTestHash(requestID, candidate.Message)
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -61,7 +61,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.SafeAddress = "0x4444444444444444444444444444444444444444"
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -69,7 +69,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.ChainID++
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -77,7 +77,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.Nonce.Add(candidate.Nonce, big.NewInt(1))
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -86,14 +86,14 @@ func TestValidateSweepTransaction(t *testing.T) {
 				candidate.Nonce = new(big.Int).Lsh(big.NewInt(1), 63)
 				validation.Nonce = new(big.Int).Set(candidate.Nonce)
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
 			name: "unbound transaction hash",
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
-				candidate.TxHash = hex.EncodeToString(make([]byte, 32))
-				validation.TransactionHash = candidate.TxHash
+				candidate.RequestHash = hex.EncodeToString(make([]byte, 32))
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -101,7 +101,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.Destination = ethcommon.HexToAddress("0x5555555555555555555555555555555555555555")
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -109,7 +109,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.Data[0] ^= 0xff
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -117,7 +117,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.Data[68] = operationTypeDelegateCall
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -125,7 +125,7 @@ func TestValidateSweepTransaction(t *testing.T) {
 			mutate: func(candidate *SafeTransaction, validation *SweepValidation) {
 				candidate.Data = candidate.Data[:len(candidate.Data)-1]
 				sweepTestSeal(candidate, requestID)
-				validation.TransactionHash = candidate.TxHash
+				validation.TransactionHash = candidate.RequestHash
 			},
 		},
 		{
@@ -205,7 +205,7 @@ func TestValidateDirectSweepTransactions(t *testing.T) {
 				ChainID:            chainID,
 				Nonce:              nonce,
 				RequestID:          requestID,
-				TransactionHash:    tx.TxHash,
+				TransactionHash:    tx.RequestHash,
 				Balances:           map[string]*big.Int{test.token: amount},
 				AllowedDestination: receiver,
 			})
@@ -217,7 +217,7 @@ func TestValidateDirectSweepTransactions(t *testing.T) {
 
 func sweepTestSeal(tx *SafeTransaction, requestID string) {
 	tx.Message = tx.GetTransactionHash()
-	tx.TxHash = sweepTestHash(requestID, tx.Message)
+	tx.RequestHash = sweepTestHash(requestID, tx.Message)
 }
 
 func sweepTestHash(requestID string, message []byte) string {

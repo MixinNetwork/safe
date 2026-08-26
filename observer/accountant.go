@@ -145,12 +145,12 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	st, _ := ethereum.UnmarshalSafeTransaction(extra)
 	raw := hex.EncodeToString(st.Marshal())
 
-	tx, err := node.store.ReadTransactionApproval(ctx, st.TxHash)
+	tx, err := node.store.ReadTransactionApproval(ctx, st.RequestHash)
 	if err != nil {
 		return err
 	}
 	if tx == nil {
-		panic(st.TxHash)
+		panic(st.RequestHash)
 	}
 	if tx.State >= common.RequestStateDone {
 		return nil
@@ -163,7 +163,7 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	case common.SafeChainEthereum:
 	case common.SafeChainPolygon:
 	default:
-		panic(st.TxHash)
+		panic(st.RequestHash)
 	}
 
 	sigs := 0
@@ -177,14 +177,14 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 		return fmt.Errorf("ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
 	}
 
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, st.TxHash, raw, common.RequestStateDone)
+	err = node.store.UpdateRecoveryState(ctx, safe.Address, st.RequestHash, raw, common.RequestStateDone)
 	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
 	if err != nil {
 		return err
 	}
 
-	err = node.store.FinishTransactionSignatures(ctx, st.TxHash, raw)
-	logger.Printf("store.FinishTransactionSignatures(%s) => %v", st.TxHash, err)
+	err = node.store.FinishTransactionSignatures(ctx, st.RequestHash, raw)
+	logger.Printf("store.FinishTransactionSignatures(%s) => %v", st.RequestHash, err)
 	return err
 }
 
@@ -632,7 +632,7 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	}
 
 	err = st.ValidTransaction(ctx, rpc)
-	logger.Printf("ValidTransaction(%s) => %v", st.TxHash, err)
+	logger.Printf("ValidTransaction(%s) => %v", st.RequestHash, err)
 	if err != nil {
 		// retry when error not from Gnosis Safe Contract
 		if !strings.Contains(err.Error(), "GS") {
@@ -656,13 +656,13 @@ func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Contex
 	if err != nil {
 		panic(err)
 	}
-	logger.Printf("BuildTransaction(%s) => %s", st.TxHash, etx.Hash().Hex())
+	logger.Printf("BuildTransaction(%s) => %s", st.RequestHash, etx.Hash().Hex())
 	err = node.store.WriteProperty(ctx, key, etx.Hash().Hex())
 	if err != nil {
 		panic(err)
 	}
 	err = ethereum.SendAndWaitMined(ctx, rpc, etx)
-	logger.Printf("SendAndWaitMined(%s) => %v", st.TxHash, err)
+	logger.Printf("SendAndWaitMined(%s) => %v", st.RequestHash, err)
 	if err != nil {
 		panic(err)
 	}
@@ -706,7 +706,7 @@ func (node *Node) validateEthereumRecoveryBroadcast(ctx context.Context, rpc str
 		}
 		requestID = lock.LockId
 	case ethereum.CheckTransactionPartiallySignedBy(recovery.RawTransaction, safe.Holder):
-		requestID = common.UniqueId(safe.Address, approvedOutputs[0].Destination)
+		requestID = ethereum.GetRecoveryRequestId(safe.Address, approvedOutputs[0].Destination)
 	}
 	validation := ethereum.SweepValidation{
 		SafeAddress:        safe.Address,

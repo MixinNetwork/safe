@@ -91,7 +91,7 @@ func (node *Node) keeperSaveTransactionProposal(ctx context.Context, chain byte,
 		txHash = psbt.UnsignedTx.TxHash().String()
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		t, _ := ethereum.UnmarshalSafeTransaction(extra)
-		txHash = t.TxHash
+		txHash = t.RequestHash
 	}
 	tx, err := node.keeperStore.ReadTransaction(ctx, txHash)
 	if err != nil {
@@ -149,8 +149,8 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if err != nil {
 			return err
 		}
-		tx, err := node.keeperStore.ReadTransaction(ctx, gs.TxHash)
-		logger.Printf("keeperStore.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err)
+		tx, err := node.keeperStore.ReadTransaction(ctx, gs.RequestHash)
+		logger.Printf("keeperStore.ReadTransaction(%s) => %v %v", gs.RequestHash, tx, err)
 		if err != nil {
 			return err
 		}
@@ -163,8 +163,8 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if err != nil {
 			return err
 		}
-		if st.Hash(sp.RequestId) != tx.TransactionHash {
-			return fmt.Errorf("inconsistent safe tx hash: %s, %s", st.Hash(sp.RequestId), tx.TransactionHash)
+		if h := st.GetRequestHash(sp.RequestId); h != tx.TransactionHash {
+			return fmt.Errorf("inconsistent safe tx hash: %s, %s", h, tx.TransactionHash)
 		}
 		err = ethereum.VerifyMessageSignature(sp.Holder, st.Message, sig)
 		logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", sp.Holder, hex.EncodeToString(st.Message), hex.EncodeToString(sig), err)

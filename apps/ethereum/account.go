@@ -24,16 +24,16 @@ import (
 // with deploy2 to determine exact contract address
 
 type GnosisSafe struct {
-	Sequence uint32
-	Address  string
-	TxHash   string
+	Sequence    uint32
+	Address     string
+	RequestHash string
 }
 
 func (gs *GnosisSafe) Marshal() []byte {
 	enc := mc.NewEncoder()
 	enc.WriteUint32(gs.Sequence)
 	bitcoin.WriteBytes(enc, []byte(gs.Address))
-	bitcoin.WriteBytes(enc, []byte(gs.TxHash))
+	bitcoin.WriteBytes(enc, []byte(gs.RequestHash))
 	return enc.Bytes()
 }
 
@@ -52,9 +52,9 @@ func UnmarshalGnosisSafe(extra []byte) (*GnosisSafe, error) {
 		return nil, err
 	}
 	return &GnosisSafe{
-		Sequence: sequence,
-		Address:  string(addr),
-		TxHash:   string(hash),
+		Sequence:    sequence,
+		Address:     string(addr),
+		RequestHash: string(hash),
 	}, nil
 }
 
@@ -79,9 +79,9 @@ func BuildGnosisSafe(ctx context.Context, rpc, holder, signer, observer, rid str
 	}
 
 	return &GnosisSafe{
-		Sequence: uint32(sequence),
-		Address:  safeAddress,
-		TxHash:   t.TxHash,
+		Sequence:    uint32(sequence),
+		Address:     safeAddress,
+		RequestHash: t.RequestHash,
 	}, t, nil
 }
 

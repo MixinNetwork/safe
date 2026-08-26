@@ -81,8 +81,8 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	if err != nil {
 		panic(err)
 	}
-	outputs, err := validateEthereumSweepTransaction(safe, t, lock.LockId, t.TxHash, "", sbm)
-	logger.Printf("validateEthereumSweepTransaction(%s, %s) => %d %v", safe.Address, t.TxHash, len(outputs), err)
+	outputs, err := validateEthereumSweepTransaction(safe, t, lock.LockId, t.RequestHash, "", sbm)
+	logger.Printf("validateEthereumSweepTransaction(%s, %s) => %d %v", safe.Address, t.RequestHash, len(outputs), err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
@@ -172,7 +172,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	}
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
-		TransactionHash: t.TxHash,
+		TransactionHash: t.RequestHash,
 		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
@@ -185,7 +185,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 
 	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
-		TransactionHash: t.TxHash,
+		TransactionHash: t.RequestHash,
 		InputIndex:      0,
 		Signer:          safe.Signer,
 		Curve:           req.Curve,
@@ -202,7 +202,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	}
 	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, nil, []*store.SignatureRequest{sr}, lock, txs)
 	if err != nil {
-		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", t.TxHash, err))
+		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", t.RequestHash, err))
 	}
 	return txs, ""
 }
@@ -273,18 +273,17 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 		panic(err)
 	}
 
-	var tx *store.Transaction
-	requestID := ""
-	transactionHash := t.TxHash
-	allowedDestination := ""
+	var requestID, transactionHash, allowedDestination string
 	if rid.String() == uuid.Nil.String() {
 		preliminaryOutputs, err := t.ExtractOutputs()
 		if err != nil || len(preliminaryOutputs) == 0 {
 			return node.failRequest(ctx, req, "")
 		}
-		requestID = common.UniqueId(safe.Address, preliminaryOutputs[0].Destination)
+		transactionHash = t.RequestHash
+		requestID = ethereum.GetRecoveryRequestId(safe.Address, preliminaryOutputs[0].Destination)
+		allowedDestination = preliminaryOutputs[0].Destination
 	} else {
-		tx, err = node.store.ReadTransactionByRequestId(ctx, rid.String())
+		tx, err := node.store.ReadTransactionByRequestId(ctx, rid.String())
 		if err != nil {
 			panic(fmt.Errorf("store.ReadTransactionByRequestId(%v) => %s %v", req, rid.String(), err))
 		} else if tx == nil || tx.State == common.RequestStateDone || tx.Holder != req.Holder {
@@ -340,7 +339,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 	hash := ethereum.HashMessageForSignature(hex.EncodeToString(t.Message))
 	sr := &store.SignatureRequest{
-		TransactionHash: tx.TransactionHash,
+		TransactionHash: transactionHash,
 		InputIndex:      0,
 		Signer:          safe.Signer,
 		Curve:           req.Curve,
@@ -357,16 +356,16 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	}
 	signedRaw := hex.EncodeToString(t.Marshal())
 	if safe.State == SafeStateApproved {
-		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, signedRaw, req, txs)
-		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", tx.TransactionHash, sr, req, err)
+		err = node.store.CloseAccountBySignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, transactionHash, signedRaw, req, txs)
+		logger.Printf("store.CloseAccountBySignatureRequestsWithRequest(%s, %v, %v) => %v", transactionHash, sr, req, err)
 		if err != nil {
-			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err))
+			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", transactionHash, err))
 		}
 	} else {
-		err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, tx.TransactionHash, signedRaw, req, txs)
-		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", tx.TransactionHash, 1, req, err)
+		err = node.store.WriteSignatureRequestsWithRequest(ctx, []*store.SignatureRequest{sr}, transactionHash, signedRaw, req, txs)
+		logger.Printf("store.WriteSignatureRequestsWithRequest(%s, %d, %v) => %v", transactionHash, 1, req, err)
 		if err != nil {
-			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", tx.TransactionHash, err))
+			panic(fmt.Errorf("store.WriteSignatureRequestsWithRequest(%s) => %v", transactionHash, err))
 		}
 	}
 	return txs, ""
@@ -411,7 +410,7 @@ func (node *Node) closeEthereumAccountWithHolder(ctx context.Context, req *commo
 	data := common.MarshalJSONOrPanic(recipients)
 
 	tx := &store.Transaction{
-		TransactionHash: t.TxHash,
+		TransactionHash: t.RequestHash,
 		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
@@ -526,7 +525,7 @@ func (node *Node) processEthereumSafeProposeAccount(ctx context.Context, req *co
 	}
 
 	tx := &store.Transaction{
-		TransactionHash: t.TxHash,
+		TransactionHash: t.RequestHash,
 		RawTransaction:  hex.EncodeToString(t.Marshal()),
 		Holder:          req.Holder,
 		Chain:           chain,
@@ -619,9 +618,9 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	if err != nil {
 		panic(err)
 	}
-	tx, err := node.store.ReadTransaction(ctx, gs.TxHash)
+	tx, err := node.store.ReadTransaction(ctx, gs.RequestHash)
 	if err != nil {
-		panic(fmt.Errorf("store.ReadTransaction(%s) => %v %v", gs.TxHash, tx, err))
+		panic(fmt.Errorf("store.ReadTransaction(%s) => %v %v", gs.RequestHash, tx, err))
 	}
 	if tx == nil {
 		return node.failRequest(ctx, req, "")
@@ -632,8 +631,8 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 	if err != nil {
 		panic(err)
 	}
-	if t.Hash(sp.RequestId) != tx.TransactionHash {
-		logger.Printf("inconsistent safe tx hash: %s, %s", t.Hash(sp.RequestId), tx.TransactionHash)
+	if h := t.GetRequestHash(sp.RequestId); h != tx.TransactionHash {
+		logger.Printf("inconsistent safe tx hash: %s, %s", h, tx.TransactionHash)
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -1006,7 +1005,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	data := common.MarshalJSONOrPanic(recipients)
 	tx := &store.Transaction{
-		TransactionHash: t.TxHash,
+		TransactionHash: t.RequestHash,
 		RawTransaction:  hex.EncodeToString(raw),
 		Holder:          req.Holder,
 		Chain:           safe.Chain,
@@ -1064,7 +1063,7 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	if err != nil {
 		panic(err)
 	}
-	if t.Hash(tx.RequestId) != tx.TransactionHash {
+	if t.GetRequestHash(tx.RequestId) != tx.TransactionHash {
 		return node.failRequest(ctx, req, "")
 	}
 
