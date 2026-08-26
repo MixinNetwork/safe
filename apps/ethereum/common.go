@@ -31,7 +31,7 @@ const (
 	ValuePrecision = 18
 	ValueDust      = 100000000000000
 
-	MinimumBalance = "0.05"
+	MaxAssetsCount = 256
 
 	TimeLockMinimum = time.Hour * 1
 	TimeLockMaximum = time.Hour * 24 * 365

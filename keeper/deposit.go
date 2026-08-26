@@ -217,6 +217,14 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	} else if deposited != nil {
 		return node.failRequest(ctx, req, "")
 	}
+	sbm, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Printf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %d %v", safe.Address, len(sbm), err)
+	if err != nil {
+		panic(fmt.Errorf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v", safe.Address, err))
+	}
+	if len(sbm) >= ethereum.MaxAssetsCount {
+		return node.failRequest(ctx, req, "")
+	}
 
 	safeBalance, err := node.store.ReadEthereumBalance(ctx, safe.Address, asset.AssetId, safeAssetId)
 	logger.Printf("store.ReadEthereumBalance(%s, %s) => %v %v", safe.Address, asset.AssetId, safeBalance, err)

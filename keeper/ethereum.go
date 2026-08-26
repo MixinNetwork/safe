@@ -885,7 +885,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		recipients[i] = r
 		total = total.Add(amt)
 	}
-	if len(outputs) > 256 || !total.Equal(req.Amount) {
+	if len(outputs) > ethereum.MaxAssetsCount || !total.Equal(req.Amount) {
 		return node.failRequest(ctx, req, "")
 	}
 	ba := decimal.NewFromBigInt(balance.BigBalance(), -decimals)
@@ -976,6 +976,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			if outputs[0].TokenAddress != ethereum.EthereumEmptyAddress {
 				txType = ethereum.TypeERC20Tx
 			}
+		}
+		if len(outputs) > ethereum.MaxAssetsCount {
+			panic(fmt.Errorf("safe %s has too much assets %d", safe.Address, len(outputs)))
 		}
 		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(nonce))
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",

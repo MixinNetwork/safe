@@ -217,6 +217,12 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return nil
 	}
 
+	sbm, err := node.keeperStore.ReadPositiveEthereumTokenBalancesMap(ctx, safe.Address)
+	logger.Verbosef("keeperStore.ReadPositiveEthereumTokenBalancesMap(%s) => %d %v", safe.Address, len(sbm), err)
+	if err != nil || len(sbm) >= ethereum.MaxAssetsCount/2 {
+		return err
+	}
+
 	asset, err := node.fetchMixinAsset(ctx, transfer.AssetId)
 	logger.Printf("node.fetchMixinAsset(%s, %s) => %v %v", transfer.Hash, transfer.AssetId, asset, err)
 	if err != nil || asset == nil {

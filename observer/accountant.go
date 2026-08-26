@@ -287,8 +287,8 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 }
 
 func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fee, fvb uint64, tx *Transaction) (*Output, error) {
-	min, max := uint64(float64(fee)*0.9), uint64(float64(fee)*1.1)
-	old, err := node.store.AssignBitcoinUTXOByRangeForTransaction(ctx, min, max, tx)
+	minF, maxF := uint64(float64(fee)*0.9), uint64(float64(fee)*1.1)
+	old, err := node.store.AssignBitcoinUTXOByRangeForTransaction(ctx, minF, maxF, tx)
 	if err != nil || old != nil {
 		return old, err
 	}
@@ -390,7 +390,7 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", assetId, asset, err)
 		panic(err)
 	}
-	min := ethereum.ParseAmount(ethereum.MinimumBalance, int32(asset.Decimals))
+	accountantMinimum := ethereum.ParseAmount("0.05", int32(asset.Decimals))
 
 	for {
 		time.Sleep(3 * time.Second)
@@ -400,7 +400,7 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 		}
 		for _, tx := range txs {
 			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
-			if err != nil || b.Cmp(min) <= 0 {
+			if err != nil || b.Cmp(accountantMinimum) <= 0 {
 				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
 				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
 				time.Sleep(3 * time.Second)
