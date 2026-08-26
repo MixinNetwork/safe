@@ -467,7 +467,7 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 		Address: testTransactionReceiver,
 		Satoshi: total,
 	}}
-	id := uuid.Must(uuid.NewV4())
+	id := uuid.Must(uuid.FromString(l.LockId))
 	psTx, err := bitcoin.BuildPartiallySignedTransaction(utxos, outputs, id.Bytes(), common.SafeChainBitcoin)
 	require.Nil(err)
 	opk := testGetDerivedObserverPrivate(require)
@@ -484,7 +484,8 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	ref := crypto.Sha256Hash(raw)
 	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 	require.Nil(err)
-	out := testBuildObserverRequest(node, id.String(), public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
+	requestId := common.UniqueId(l.LockId, ref.String())
+	out := testBuildObserverRequest(node, requestId, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	pendings, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, public)
 	require.Nil(err)

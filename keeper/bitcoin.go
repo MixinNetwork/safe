@@ -91,6 +91,10 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 	if len(mainInputs) == 0 {
 		return node.failRequest(ctx, req, "")
 	}
+	if !bitcoin.CheckTransactionInputs(msgTx, mainInputs) {
+		logger.Printf("bitcoin.CheckTransactionInputs(%s) => false", txHash)
+		return node.failRequest(ctx, req, "")
+	}
 	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
@@ -108,6 +112,10 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 	}
 	if lock == nil || lock.State != common.RequestStateDone {
 		logger.Printf("invalid lock to close account: %v", lock)
+		return node.failRequest(ctx, req, "")
+	}
+	if !bitcoin.CheckTransactionReturnId(msgTx, lock.LockId) {
+		logger.Printf("bitcoin.CheckTransactionReturnId(%s, %s) => false", txHash, lock.LockId)
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -274,7 +282,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		return node.failRequest(ctx, req, "")
 	}
 	if rid.String() == uuid.Nil.String() {
-		if count != 0 {
+		if count != 0 || !bitcoin.CheckTransactionInputs(msgTx, mainInputs) {
 			return node.failRequest(ctx, req, "")
 		}
 		txs, asset := node.closeBitcoinAccountWithHolder(ctx, req, safe, raw, mainInputs, receiver)

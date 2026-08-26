@@ -18,6 +18,7 @@ import (
 	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/btcsuite/btcd/wire/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/gofrs/uuid/v5"
 )
 
 type Input struct {
@@ -186,6 +187,57 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 	}
 
 	return len(psbt.Inputs) > 0
+}
+
+func CheckTransactionReturnId(msgTx *wire.MsgTx, rid string) bool {
+	id, err := uuid.FromString(rid)
+	if err != nil || id.IsNil() || msgTx == nil || len(msgTx.TxOut) < 2 {
+		return false
+	}
+	ro := msgTx.TxOut[len(msgTx.TxOut)-1]
+	if ro.Value != 0 {
+		return false
+	}
+
+	builder := txscript.NewScriptBuilder()
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddData(id.Bytes())
+	script, err := builder.Script()
+	return err == nil && bytes.Equal(ro.PkScript, script)
+}
+
+func CheckTransactionInputs(msgTx *wire.MsgTx, inputs []*Input) bool {
+	if msgTx == nil || len(msgTx.TxIn) != len(inputs) {
+		return false
+	}
+
+	remaining := make(map[wire.OutPoint]struct{}, len(inputs))
+	for _, input := range inputs {
+		if input == nil {
+			return false
+		}
+		hash, err := chainhash.NewHashFromStr(input.TransactionHash)
+		if err != nil {
+			return false
+		}
+		outpoint := wire.OutPoint{Hash: *hash, Index: input.Index}
+		if _, found := remaining[outpoint]; found {
+			return false
+		}
+		remaining[outpoint] = struct{}{}
+	}
+
+	for _, input := range msgTx.TxIn {
+		if input == nil {
+			return false
+		}
+		outpoint := input.PreviousOutPoint
+		if _, found := remaining[outpoint]; !found {
+			return false
+		}
+		delete(remaining, outpoint)
+	}
+	return len(remaining) == 0
 }
 
 func SpendSignedTransaction(raw string, feeInputs []*Input, accountant string, chain byte) (*wire.MsgTx, error) {

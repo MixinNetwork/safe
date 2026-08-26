@@ -585,6 +585,13 @@ func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.C
 	if err != nil || lock == nil || lock.State != common.RequestStateDone {
 		return fmt.Errorf("invalid inheritance lock: %v %v", lock, err)
 	}
+	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(objectRaw)
+	if err != nil {
+		return err
+	}
+	if !bitcoin.CheckTransactionReturnId(psbt.UnsignedTx, lock.LockId) {
+		return fmt.Errorf("invalid inheritance transaction lock: %s", lock.LockId)
+	}
 
 	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
@@ -647,6 +654,18 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
 }
 
+func (node *Node) validateBitcoinTransactionInputs(ctx context.Context, holder string, msgTx *wire.MsgTx) error {
+	inputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	logger.Printf("store.ListAllBitcoinUTXOsForHolder(%s) => %d %v", holder, len(inputs), err)
+	if err != nil {
+		return err
+	}
+	if !bitcoin.CheckTransactionInputs(msgTx, inputs) {
+		return fmt.Errorf("invalid bitcoin transaction inputs: %s", holder)
+	}
+	return nil
+}
+
 func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
@@ -703,6 +722,9 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return nil
+		}
+		if err := node.validateBitcoinTransactionInputs(ctx, safe.Holder, msgTx); err != nil {
+			return err
 		}
 	}
 
@@ -1070,6 +1092,9 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if err != nil || approval != nil {
 		return nil, err
 	}
+	if err := node.validateBitcoinTransactionInputs(ctx, safe.Holder, msgTx); err != nil {
+		return nil, err
+	}
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
@@ -1099,7 +1124,7 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if msgTx.TxOut[0].Value != balance {
 		return nil, fmt.Errorf("invalid inheritance tx amount: %d %d", msgTx.TxOut[0].Value, balance)
 	}
-	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+	if len(msgTx.TxOut) != 2 || !bitcoin.CheckTransactionReturnId(msgTx, lock.LockId) {
 		return nil, fmt.Errorf("invalid inheritance tx: %d %d", len(msgTx.TxOut), msgTx.TxOut[1].Value)
 	}
 
