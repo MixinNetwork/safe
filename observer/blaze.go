@@ -2,7 +2,6 @@ package observer
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"strings"
 	"time"
@@ -104,22 +103,22 @@ func (node *Node) handleMessage(ctx context.Context, bm bot.MessageView) error {
 	if bm.ConversationId != node.conf.MonitorConversaionId {
 		return nil
 	}
-	if bm.Category != bot.MessageCategoryPlainText {
+	if bm.Category != bot.MessageCategoryEncryptedText {
 		return nil
 	}
-	stats := parseNodeStats(bm.DataBase64)
+	mixin := node.safeUser()
+	plaintext, err := bot.DecryptMessageData(bm.DataBase64, mixin.SessionId, mixin.SessionPrivateKey)
+	if err != nil {
+		return nil
+	}
+	stats := parseNodeStats(plaintext)
 	if stats == nil {
 		return nil
 	}
 	return node.store.UpsertNodeStats(ctx, bm.UserId, stats.Type, stats.String())
 }
 
-func parseNodeStats(dataBase64 string) *StatsInfo {
-	rb, err := base64.RawURLEncoding.DecodeString(dataBase64)
-	if err != nil {
-		return nil
-	}
-	msg := string(rb)
+func parseNodeStats(msg string) *StatsInfo {
 	lines := strings.Split(msg, "\n")
 
 	stats := &StatsInfo{}

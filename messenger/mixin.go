@@ -156,18 +156,6 @@ func (mm *MixinMessenger) ReceiveMessage(ctx context.Context) (*MixinMessage, er
 	}
 }
 
-// BroadcastPlainMessage intentionally sends a server-readable message. Signer
-// protocol traffic must use SendMessage, QueueMessage, or BroadcastMessage.
-func (mm *MixinMessenger) BroadcastPlainMessage(ctx context.Context, data string) error {
-	msg := &bot.MessageRequest{
-		ConversationId: mm.conversationId,
-		MessageId:      uniqueMessageId("", []byte(data)),
-		Category:       bot.MessageCategoryPlainText,
-		DataBase64:     base64.RawURLEncoding.EncodeToString([]byte(data)),
-	}
-	return bot.PostMessageRequest(ctx, msg, mm.user)
-}
-
 func (mm *MixinMessenger) BroadcastMessage(ctx context.Context, b []byte) error {
 	messages := make([]*bot.MessageRequest, 0, len(mm.members))
 	for _, receiver := range mm.members {
