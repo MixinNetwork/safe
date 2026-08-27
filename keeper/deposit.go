@@ -269,9 +269,20 @@ func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx 
 	if err != nil || vin == nil {
 		return false, err
 	}
+	if deposit.Hash != spentBy {
+		// The input UTXO was spent by a transaction other than the recorded
+		// one, i.e. a double-spend of a pending proposal or an external spend
+		// the keeper never built. Typically when a user uses holder key and
+		// custom recovery key signed a transaction and sent to the blockchain,
+		// then this utxo should only be recorded as a change.
+		return true, nil
+	}
 	tx, err := node.store.ReadTransaction(ctx, spentBy)
 	if err != nil {
 		return false, err
+	}
+	if tx == nil {
+		return false, fmt.Errorf("store.ReadTransaction(%s) => nil", spentBy)
 	}
 	var recipients []map[string]string
 	err = json.Unmarshal([]byte(tx.Data), &recipients)

@@ -137,6 +137,71 @@ func TestBitcoinKeeper(t *testing.T) {
 	testAccountantSpentTransaction(ctx, require, signedRaw, testHolderSigner)
 }
 
+func TestBitcoinKeeperCheckBitcoinChangeDoubleSpend(t *testing.T) {
+	require := require.New(t)
+	ctx, node, db, mpc, _ := testPrepare(require)
+
+	observer := testPublicKey(testBitcoinKeyObserverPrivate)
+	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
+	require.Equal(testBondAssetId, bondId)
+	output, err := testWriteOutput(ctx, db, node.conf.AppId, bondId, testGenerateDummyExtra(node), sequence, decimal.NewFromInt(1000000))
+	require.Nil(err)
+	node.ProcessOutput(ctx, &mtg.Action{
+		UnifiedOutput: *output,
+	})
+	input := &bitcoin.Input{
+		TransactionHash: "40e228e5a3cba99fd3fc5350a00bfeef8bafb760e26919ec74bca67776c90427",
+		Index:           0, Satoshi: 86560,
+	}
+	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 1)
+	input = &bitcoin.Input{
+		TransactionHash: "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194",
+		Index:           0, Satoshi: 100000,
+	}
+	testObserverHolderDeposit(ctx, require, node, mpc, observer, input, 2)
+
+	transactionHash := testSafeProposeTransaction(ctx, require, node, bondId, "3e37ea1c-1455-400d-9642-f6bbcd8c744e", "18d6e8a1bcce1b1dddbfed5826cde933dc55ba65a733fc5a2198f113c86e31d0", "70736274ff0100cd02000000022704c97677a6bc74ec1969e260b7af8beffe0ba05053fcd39fa9cba3e528e2400000000000ffffffff9451d4f1cbcd85535e80b54b9b151225783e11365840be166df67df179e91c850000000000ffffffff030c30000000000000220020fbf817b9dd1197a37e47af0a99b2f3ea252caf13f5ea2a18cc6bec9a1b981490b4a8020000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f88730000000000000000126a103e37ea1c1455400d9642f6bbcd8c744e000000000001012b2052010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b292689352870001012ba086010000000000220020df81de61b27083d0f10966c41519bc143c17c9b1103c43059c495a1a4f7f8873010304810000000105762103911c1ef3960be7304596cfa6073b1d65ad43b421a4c272142cc7a8369b510c56ac7c2102339baf159c94cc116562d609097ff3c3bd340a34b9f7d50cc22b8d520301a7c9ac937c829263210333870af2985a674f28bb12290bb0eb403987c2211d9f26267cc4d45ae6797e7cad56b2926893528700000000")
+
+	buildBtx := func(txId, vinTxId string, vout int64) *bitcoin.RPCTransaction {
+		var btx bitcoin.RPCTransaction
+		raw := fmt.Sprintf(`{"txid":"%s","vin":[{"txid":"%s","vout":%d}]}`, txId, vinTxId, vout)
+		err := json.Unmarshal([]byte(raw), &btx)
+		require.Nil(err)
+		return &btx
+	}
+
+	// A foreign transaction spends an input of the pending proposal and pays
+	// into a safe, i.e. a double-spend of the pending proposal. Whatever the
+	// output index is, it must be handled like a change output so that no new
+	// assets are minted. Otherwise the pending proposal could be revoked for
+	// a refund while this deposit also mints new assets, breaking the backing.
+	foreign := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	btx := buildBtx(foreign, "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194", 0)
+	for index := uint64(0); index < 3; index++ {
+		change, err := node.checkBitcoinChange(ctx, &Deposit{Hash: foreign, Index: index}, btx)
+		require.Nil(err)
+		require.True(change, "foreign spend output %d must not mint", index)
+	}
+
+	// The recorded spender itself: recipient outputs, those with an index
+	// below the recipients count, are fresh deposits, the rest is change.
+	btx = buildBtx(transactionHash, "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194", 0)
+	change, err := node.checkBitcoinChange(ctx, &Deposit{Hash: transactionHash, Index: 0}, btx)
+	require.Nil(err)
+	require.False(change)
+	change, err = node.checkBitcoinChange(ctx, &Deposit{Hash: transactionHash, Index: 1}, btx)
+	require.Nil(err)
+	require.True(change)
+
+	// After a revocation the input UTXO has no recorded spender any more, and
+	// a foreign spend of it must not mint new assets either.
+	testSafeRevokeTransaction(ctx, require, node, transactionHash, false)
+	btx = buildBtx(foreign, "851ce979f17df66d16be405836113e782512159b4bb5805e5385cdcbf1d45194", 0)
+	change, err = node.checkBitcoinChange(ctx, &Deposit{Hash: foreign, Index: 0}, btx)
+	require.Nil(err)
+	require.True(change)
+}
+
 func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
 	ctx, node, db, mpc, signers := testPrepare(require)
