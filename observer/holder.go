@@ -166,7 +166,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if h := st.GetRequestHash(sp.RequestId); h != tx.TransactionHash {
 			return fmt.Errorf("inconsistent safe tx hash: %s, %s", h, tx.TransactionHash)
 		}
-		err = ethereum.VerifyMessageSignature(sp.Holder, st.Message, sig)
+		err = ethereum.VerifyMessageSignature(sp.Holder, st.Message, sig, true)
 		logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", sp.Holder, hex.EncodeToString(st.Message), hex.EncodeToString(sig), err)
 		if err != nil {
 			return err

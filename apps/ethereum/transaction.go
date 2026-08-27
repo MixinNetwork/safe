@@ -685,6 +685,26 @@ func ProcessSignature(signature []byte) []byte {
 	return signature
 }
 
+// The Gnosis Safe contract treats signatures with v > 30 as eth_sign
+// signatures and recovers the owner over the prefixed message hash, while
+// v = 27/28 makes it ecrecover the raw safe transaction hash and revert
+// with GS026 for any signature produced by a standard wallet. Holder and
+// observer signatures must therefore always carry v = 31/32 on chain.
+// ValidateGnosisRecovery verifies that a 65 byte ethereum signature carries
+// exactly that eth_sign recovery id, so malformed signatures are rejected
+// instead of reverting on chain after being accepted.
+func ValidateGnosisRecovery(sig []byte) error {
+	if len(sig) != 65 {
+		return fmt.Errorf("invalid ethereum signature length %d", len(sig))
+	}
+	switch sig[64] {
+	case 31, 32:
+		return nil
+	default:
+		return fmt.Errorf("invalid ethereum signature recovery id %d", sig[64])
+	}
+}
+
 func CheckTransactionPartiallySignedBy(raw, public string) bool {
 	b, err := hex.DecodeString(raw)
 	if err != nil {
@@ -697,7 +717,7 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 
 	for _, sig := range st.Signatures {
 		if sig != nil {
-			err := VerifyMessageSignature(public, st.Message, sig)
+			err := VerifyMessageSignature(public, st.Message, sig, true)
 			if err == nil {
 				return true
 			}

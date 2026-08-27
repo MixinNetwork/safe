@@ -252,12 +252,23 @@ func VerifyHolderKey(public string) error {
 	return err
 }
 
-func VerifyMessageSignature(public string, msg, sig []byte) error {
+// checkRecovery indicates whether the signature recovery byte must carry
+// the eth_sign format (v = 31/32) required by the Gnosis Safe contract.
+// It must be true for any signature that will end up inside a safe
+// transaction, and false for message only signatures and for raw signer
+// signatures that have not been processed with ProcessSignature yet.
+func VerifyMessageSignature(public string, msg, sig []byte, checkRecovery bool) error {
 	hash := HashMessageForSignature(hex.EncodeToString(msg))
-	return VerifyHashSignature(public, hash, sig)
+	return VerifyHashSignature(public, hash, sig, checkRecovery)
 }
 
-func VerifyHashSignature(public string, hash, sig []byte) error {
+func VerifyHashSignature(public string, hash, sig []byte, checkRecovery bool) error {
+	if checkRecovery {
+		err := ValidateGnosisRecovery(sig)
+		if err != nil {
+			return err
+		}
+	}
 	pub, err := hex.DecodeString(public)
 	if err != nil {
 		panic(public)

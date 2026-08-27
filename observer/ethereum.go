@@ -1058,7 +1058,7 @@ func (node *Node) httpCloseEthereumAccountRecoveryRequest(ctx context.Context, r
 	}
 
 	msg := fmt.Appendf(nil, "REVOKE:%s:%s", id, approval.TransactionHash)
-	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+	err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig, false)
 	logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", approval, err)
 	if err != nil {
 		return err
@@ -1157,14 +1157,14 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 		return err
 	}
 	msg := fmt.Appendf(nil, "REVOKE:%s:%s", tx.RequestId, tx.TransactionHash)
-	err = ethereum.VerifyMessageSignature(tx.Holder, msg, sig)
+	err = ethereum.VerifyMessageSignature(tx.Holder, msg, sig, false)
 	logger.Printf("holder: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 	if err != nil {
 		safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
 		if err != nil {
 			return err
 		}
-		err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+		err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig, false)
 		logger.Printf("observer: ethereum.VerifyMessageSignature(%v) => %v", tx, err)
 		if err != nil {
 			return err
