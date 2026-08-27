@@ -3,7 +3,6 @@ package messenger
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -52,7 +51,6 @@ type MixinMessenger struct {
 	conversationId        string
 	user                  *bot.SafeUser
 	sessions              bot.SessionStore
-	privateKey            string
 	recv                  chan *MixinMessage
 	send                  chan *bot.MessageRequest
 	postEncryptedMessages func(context.Context, []*bot.MessageRequest) error
@@ -92,10 +90,6 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration, members []
 	if err != nil {
 		return nil, err
 	}
-	seed, privateKey, err := decodeSessionPrivateKey(conf.Key)
-	if err != nil {
-		return nil, err
-	}
 
 	memberSet := make(map[string]struct{}, len(members))
 	normalizedMembers := make([]string, 0, len(members))
@@ -119,7 +113,7 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration, members []
 	normalizedConf.UserId = userID
 	normalizedConf.SessionId = sessionID
 	normalizedConf.ConversationId = conversationID
-	normalizedConf.Key = hex.EncodeToString(seed)
+	normalizedConf.Key = conf.Key
 
 	user := bot.NewSafeUser(userID, sessionID, normalizedConf.Key)
 	sessions := bot.NewMapSessionStore()
@@ -129,7 +123,6 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration, members []
 		conversationId: conversationID,
 		user:           user,
 		sessions:       sessions,
-		privateKey:     privateKey,
 		recv:           make(chan *MixinMessage, conf.ReceiveBuffer),
 		send:           make(chan *bot.MessageRequest, conf.SendBuffer),
 		replaySeen:     make(map[string]struct{}),
@@ -322,7 +315,7 @@ func (mm *MixinMessenger) decryptMessage(data, sender, receiver, messageID strin
 	if err := validateEncryptedMessage(data, mm.conf.SessionId); err != nil {
 		return nil, err
 	}
-	plaintext, err := bot.DecryptMessageData(data, mm.conf.SessionId, mm.privateKey)
+	plaintext, err := bot.DecryptMessageData(data, mm.conf.SessionId, mm.user.SessionPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt messenger message: %w", err)
 	}
@@ -482,18 +475,6 @@ func validateEncryptedMessage(data, sessionID string) error {
 		return fmt.Errorf("encrypted messenger message excludes this session")
 	}
 	return nil
-}
-
-func decodeSessionPrivateKey(key string) ([]byte, string, error) {
-	seed, err := hex.DecodeString(key)
-	if err != nil {
-		return nil, "", fmt.Errorf("decode messenger session key: %w", err)
-	}
-	if len(seed) != ed25519.SeedSize {
-		return nil, "", fmt.Errorf("invalid messenger session key length %d", len(seed))
-	}
-	privateKey := ed25519.NewKeyFromSeed(seed)
-	return seed, base64.RawURLEncoding.EncodeToString(privateKey), nil
 }
 
 func canonicalUUID(name, value string) (string, error) {
