@@ -265,31 +265,39 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {
-	vin, spentBy, err := node.store.ReadBitcoinUTXO(ctx, btx.Vin[0].TxId, int(btx.Vin[0].VOUT))
-	if err != nil || vin == nil {
-		return false, err
+	for i := range btx.Vin {
+		vin, spentBy, err := node.store.ReadBitcoinUTXO(ctx, btx.Vin[i].TxId, int(btx.Vin[i].VOUT))
+		if err != nil {
+			return false, err
+		}
+		if vin == nil {
+			continue
+		}
+		if deposit.Hash != spentBy {
+			// The input UTXO was spent by a transaction other than the recorded
+			// one, i.e. a double-spend of a pending proposal or an external spend
+			// the keeper never built. Typically when a user uses holder key and
+			// custom recovery key signed a transaction and sent to the blockchain,
+			// then this utxo should only be recorded as a change.
+			return true, nil
+		}
+		tx, err := node.store.ReadTransaction(ctx, spentBy)
+		if err != nil {
+			return false, err
+		}
+		if tx == nil {
+			return false, fmt.Errorf("store.ReadTransaction(%s) => nil", spentBy)
+		}
+		var recipients []map[string]string
+		err = json.Unmarshal([]byte(tx.Data), &recipients)
+		if err != nil || len(recipients) == 0 {
+			return false, fmt.Errorf("store.ReadTransaction(%s) => %s", spentBy, tx.Data)
+		}
+		if deposit.Index >= uint64(len(recipients)) {
+			return true, nil
+		}
 	}
-	if deposit.Hash != spentBy {
-		// The input UTXO was spent by a transaction other than the recorded
-		// one, i.e. a double-spend of a pending proposal or an external spend
-		// the keeper never built. Typically when a user uses holder key and
-		// custom recovery key signed a transaction and sent to the blockchain,
-		// then this utxo should only be recorded as a change.
-		return true, nil
-	}
-	tx, err := node.store.ReadTransaction(ctx, spentBy)
-	if err != nil {
-		return false, err
-	}
-	if tx == nil {
-		return false, fmt.Errorf("store.ReadTransaction(%s) => nil", spentBy)
-	}
-	var recipients []map[string]string
-	err = json.Unmarshal([]byte(tx.Data), &recipients)
-	if err != nil || len(recipients) == 0 {
-		return false, fmt.Errorf("store.ReadTransaction(%s) => %s", spentBy, tx.Data)
-	}
-	return deposit.Index >= uint64(len(recipients)), nil
+	return false, nil
 }
 
 func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, typ int) (*bitcoin.Input, error) {
