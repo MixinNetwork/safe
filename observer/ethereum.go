@@ -1188,6 +1188,9 @@ func (node *Node) httpRevokeEthereumTransaction(ctx context.Context, txHash stri
 
 func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
 	logger.Printf("node.httpCreateEthereumInheritanceTransaction(%s)", raw)
+	if !ethereum.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+		return nil, fmt.Errorf("non-existed inheritance tx signer: holder")
+	}
 	rb, err := hex.DecodeString(raw)
 	if err != nil {
 		return nil, err

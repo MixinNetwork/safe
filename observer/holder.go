@@ -285,9 +285,6 @@ func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, has
 }
 
 func (node *Node) httpCreateSafeInheritanceTransaction(ctx context.Context, safe *store.Safe, hash, raw string) (*Transaction, error) {
-	if bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
-		return nil, fmt.Errorf("invalid inheritance tx signer: holder")
-	}
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
 	if err != nil {
 		return nil, err

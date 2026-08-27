@@ -1055,6 +1055,9 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 
 func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
 	logger.Printf("node.httpCreateBitcoinInheritanceTransaction(%s)", raw)
+	if bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+		return nil, fmt.Errorf("invalid inheritance tx signer: holder")
+	}
 	rb := common.DecodeHexOrPanic(raw)
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
