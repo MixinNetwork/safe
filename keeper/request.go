@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"slices"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -46,6 +47,16 @@ func (node *Node) parseObserverRequest(out *mtg.Action) (*common.Request, error)
 }
 
 func (node *Node) parseSignerResponse(out *mtg.Action) (*common.Request, error) {
+	signers := node.GetSigners()
+	if out.SendersThreshold != int64(node.signer.Genesis.Threshold) || len(out.Senders) != len(signers) {
+		return nil, fmt.Errorf("parseSignerResponse(%v) %s", out, node.conf.ObserverUserId)
+	}
+	senders := slices.Clone(out.Senders)
+	slices.Sort(senders)
+	if !slices.Equal(senders, signers) {
+		return nil, fmt.Errorf("parseSignerResponse(%v) %s", out, node.conf.ObserverUserId)
+	}
+
 	a, m := mtg.DecodeMixinExtraHEX(out.Extra)
 	if a != node.conf.AppId {
 		panic(out.Extra)

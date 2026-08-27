@@ -1372,6 +1372,9 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 	case common.OperationTypeKeygenInput, common.OperationTypeSignInput:
 		senders = append(senders, node.conf.MTG.Genesis.Members...)
 		sendersThreshold = int64(node.conf.MTG.Genesis.Threshold)
+	case common.OperationTypeKeygenOutput, common.OperationTypeSignOutput:
+		senders = append(senders, node.signer.Genesis.Members...)
+		sendersThreshold = int64(node.signer.Genesis.Threshold)
 	}
 	return &mtg.Action{
 		UnifiedOutput: mtg.UnifiedOutput{
