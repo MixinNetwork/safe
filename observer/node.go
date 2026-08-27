@@ -251,12 +251,17 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) err
 	if s.Amount.Sign() < 0 {
 		return nil
 	}
-
-	// FIXME should read kernel rpc for the transaction details
-
 	memo, err := hex.DecodeString(s.Memo)
 	if err != nil {
-		return fmt.Errorf("hex.DecodeString(%s) => %v", s.Memo, err)
+		panic(s.Memo) // memo is always hex from api
+	}
+
+	tx, err := m.RPCGetTransaction(ctx, node.conf.MixinRPC, s.TransactionHash.String())
+	if err != nil {
+		return err
+	}
+	if tx.Extra != s.Memo {
+		panic(s.TransactionHash.String())
 	}
 	s.Memo = string(memo)
 
