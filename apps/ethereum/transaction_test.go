@@ -10,42 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateGnosisRecovery(t *testing.T) {
-	require := require.New(t)
-
-	sig := make([]byte, 65)
-
-	// standard eth_sign recovery ids accepted by the Gnosis Safe contract
-	sig[64] = 31
-	require.Nil(ValidateGnosisRecovery(sig))
-	sig[64] = 32
-	require.Nil(ValidateGnosisRecovery(sig))
-
-	// standard wallet recovery ids revert on chain with GS026
-	sig[64] = 27
-	require.NotNil(ValidateGnosisRecovery(sig))
-	sig[64] = 28
-	require.NotNil(ValidateGnosisRecovery(sig))
-
-	// raw recovery ids revert on chain as well
-	sig[64] = 0
-	require.NotNil(ValidateGnosisRecovery(sig))
-	sig[64] = 1
-	require.NotNil(ValidateGnosisRecovery(sig))
-
-	// anything else is invalid
-	sig[64] = 30
-	require.NotNil(ValidateGnosisRecovery(sig))
-	sig[64] = 33
-	require.NotNil(ValidateGnosisRecovery(sig))
-	sig[64] = 255
-	require.NotNil(ValidateGnosisRecovery(sig))
-
-	// invalid length
-	require.NotNil(ValidateGnosisRecovery(sig[:64]))
-	require.NotNil(ValidateGnosisRecovery(nil))
-}
-
 func TestCheckTransactionPartiallySignedByRejectsWalletRecoveryId(t *testing.T) {
 	require := require.New(t)
 
@@ -79,5 +43,20 @@ func TestCheckTransactionPartiallySignedByRejectsWalletRecoveryId(t *testing.T) 
 	gnosisSig[64] += 31
 	tx.Signatures[0] = gnosisSig
 	raw = hex.EncodeToString(tx.Marshal())
+	require.Nil(VerifyMessageSignature(holder, tx.Message, gnosisSig, true))
 	require.True(CheckTransactionPartiallySignedBy(raw, holder))
+
+	// flipping only the recovery id leaves r and s valid for the holder, but
+	// makes Gnosis Safe recover a different owner and revert with GS026
+	flippedSig := append([]byte(nil), gnosisSig...)
+	if flippedSig[64] == 31 {
+		flippedSig[64] = 32
+	} else {
+		flippedSig[64] = 31
+	}
+	require.Nil(VerifyMessageSignature(holder, tx.Message, flippedSig, false))
+	require.NotNil(VerifyMessageSignature(holder, tx.Message, flippedSig, true))
+	tx.Signatures[0] = flippedSig
+	raw = hex.EncodeToString(tx.Marshal())
+	require.False(CheckTransactionPartiallySignedBy(raw, holder))
 }
