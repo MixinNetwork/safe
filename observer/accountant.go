@@ -49,6 +49,9 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	}
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	hpsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	if hpsbt.Hash() != spsbt.Hash() {
+		panic(spsbt.Hash())
+	}
 
 	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
 	if err != nil {
@@ -129,12 +132,6 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	}
 
 	raw := hex.EncodeToString(hpsbt.Marshal())
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, spsbt.Hash(), raw, common.RequestStateDone)
-	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
-	if err != nil {
-		return err
-	}
-
 	err = node.store.FinishTransactionSignatures(ctx, hpsbt.Hash(), raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", hpsbt.Hash(), err)
 	return err
@@ -175,12 +172,6 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 	}
 	if sigs < 2 {
 		return fmt.Errorf("ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
-	}
-
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, st.RequestHash, raw, common.RequestStateDone)
-	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
-	if err != nil {
-		return err
 	}
 
 	err = node.store.FinishTransactionSignatures(ctx, st.RequestHash, raw)
@@ -453,19 +444,30 @@ func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Contex
 	}
 	defer common.Rollback(txn)
 
-	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE (chain=? AND satoshi>=? AND satoshi<=? AND state=?) OR (spent_by=?) LIMIT 1", strings.Join(outputCols, ","))
-	params := []any{tx.Chain, min, max, common.RequestStateInitial, tx.TransactionHash}
-	row := txn.QueryRowContext(ctx, query, params...)
-
-	var o Output
-	err = row.Scan(&o.TransactionHash, &o.Index, &o.Address, &o.Satoshi, &o.Chain, &o.State, &o.SpentBy, &o.RawTransaction, &o.CreatedAt, &o.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
+	cols := strings.Join(outputCols, ",")
+	readOutput := func(query string, params ...any) (*Output, error) {
+		row := txn.QueryRowContext(ctx, query, params...)
+		var o Output
+		err := row.Scan(&o.TransactionHash, &o.Index, &o.Address, &o.Satoshi, &o.Chain, &o.State, &o.SpentBy, &o.RawTransaction, &o.CreatedAt, &o.UpdatedAt)
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return &o, err
 	}
-	if o.SpentBy.String == tx.TransactionHash {
-		return &o, nil
+
+	// A retry must return the output already reserved for this transaction.
+	// Selecting it in the same unordered OR query as spare outputs could reserve
+	// a second output instead, depending on the query plan and insertion order.
+	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE chain=? AND spent_by=? LIMIT 1", cols)
+	o, err := readOutput(query, tx.Chain, tx.TransactionHash)
+	if err != nil || o != nil {
+		return o, err
+	}
+
+	query = fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE chain=? AND satoshi>=? AND satoshi<=? AND state=? AND spent_by IS NULL ORDER BY created_at ASC,transaction_hash ASC,output_index ASC LIMIT 1", cols)
+	o, err = readOutput(query, tx.Chain, min, max, common.RequestStateInitial)
+	if err != nil || o == nil {
+		return o, err
 	}
 
 	err = s.execOne(ctx, txn, "UPDATE bitcoin_outputs SET state=?,spent_by=?,updated_at=? WHERE transaction_hash=? AND output_index=? AND state=? AND spent_by IS NULL",
@@ -473,7 +475,7 @@ func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Contex
 	if err != nil {
 		return nil, fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 	}
-	return &o, txn.Commit()
+	return o, txn.Commit()
 }
 
 func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, hash string, index int64, chain byte) (*Output, error) {
