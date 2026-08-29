@@ -45,3 +45,29 @@ jobs:
 
     - name: TestSigner
       run: go test -v ./signer/...
+
+    - name: Security race checks
+      run: |
+        go test -race -count=1 \
+          ./apps/bitcoin ./apps/ethereum ./apps/mixin ./common ./config \
+          ./custodian ./messenger ./saver ./signer/protocol ./util
+
+    - name: Signer protocol fuzz smoke
+      run: |
+        go test ./signer/protocol -run='^$' -fuzz='^FuzzProtocolMessageBinary$' -fuzztime=10s -parallel=2
+        go test ./signer/protocol -run='^$' -fuzz='^FuzzProtocolRoundPayload$' -fuzztime=10s -parallel=2
+
+    - name: Handwritten-code coverage
+      run: |
+        go test -timeout 20m -count=1 -covermode=atomic -coverprofile=coverage.out \
+          ./apps/bitcoin ./apps/ethereum ./apps/mixin \
+          ./common ./computer ./config ./custodian \
+          ./keeper ./keeper/store ./messenger ./mtg ./observer \
+          ./saver ./signer ./signer/protocol ./util
+        sh scripts/check-coverage.sh coverage.out 60.0 \
+          apps/bitcoin=90.0 apps/mixin=90.0 config=90.0 custodian=90.0 \
+          messenger=90.0 saver=90.0 signer/protocol=90.0 util=90.0 \
+          common=70.0 mtg=70.0 keeper=70.0 keeper/store=75.0 observer=25.0
+
+    - name: Reachable vulnerability check
+      run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
