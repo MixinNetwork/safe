@@ -153,6 +153,40 @@ func TestVerifyDepositRealTransferWithSameBlockOutflowError(t *testing.T) {
 	require.ErrorContains(t, err, "inconsistent")
 }
 
+// The balance consistency check must compare the on-chain balance delta
+// against the raw transferred value, not the precision-normalized
+// deposit amount. Mixin amount rounding discards the sub-precision dust
+// from the credited amount, while the balance delta includes it, so any
+// deposit of a high precision asset with dust below the rounding
+// quantum would otherwise be rejected as inconsistent.
+//
+// This real Polygon deposit transferred 1.1e-8 POL, one tenth of which
+// is sub-precision dust: the credited amount is rounded down to 1e-8
+// POL, while the receiver balance increased by the full raw amount.
+//
+// Polygon tx 0x8375f2b2964b74c6313225887dc5e7f5006e04b0f5cd139342d01e54360d9900
+// in block 77713052 transferred 11000000000 wei to
+// 0x346607eb15821a4e194628444f3705c26c8e6ebe, whose balance increased
+// by exactly that raw amount in the block.
+func TestVerifyDepositBalanceChangeComparesRawTransferValue(t *testing.T) {
+	rpc := mainnetRPC("POLYGONRPC", "https://polygon.drpc.org")
+	const rawValue = 11_000_000_000
+	claimed := NormallizeAmount(big.NewInt(rawValue), ValuePrecision)
+	require.Equal(t, "10000000000", claimed.String()) // dust rounded away
+	destination := ethcommon.HexToAddress("0x346607eb15821a4e194628444f3705c26c8e6ebe").Hex()
+
+	transfer, etx, err := VerifyDeposit(
+		t.Context(), ChainPolygon, rpc,
+		"0x8375f2b2964b74c6313225887dc5e7f5006e04b0f5cd139342d01e54360d9900",
+		"polygon", EthereumEmptyAddress, destination, ValuePrecision, 0, claimed,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, transfer)
+	require.Equal(t, destination, transfer.Receiver)
+	require.Equal(t, int64(rawValue), transfer.Value.Int64())
+	require.Equal(t, uint64(77713052), etx.BlockHeight)
+}
+
 func TestGetERC20TransferLogFromBlockRealPolygonBlock(t *testing.T) {
 	rpc := mainnetRPC("POLYGONRPC", "https://polygon.drpc.org")
 	transfers, err := GetERC20TransferLogFromBlock(t.Context(), rpc, ChainPolygon, mainnetDelegateCallTxBlock)

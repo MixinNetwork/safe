@@ -239,9 +239,11 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 
 // matchDepositTransferAndBalanceChange reports whether the transfer is
 // the claimed deposit and the receiver's balance in the deposit block
-// increased by exactly the deposit amount. The balance cross-check
+// increased by exactly the transferred amount. The balance cross-check
 // rejects fabricated trace transfers, because no real balance change
-// backs them.
+// backs them. The comparison uses the raw on-chain transfer value, not
+// the precision-normalized deposit amount, because the balance delta
+// includes the sub-precision dust that Mixin amount rounding discards.
 //
 // The strict equality intentionally returns an error on mismatch, but
 // it cannot distinguish a fabricated transfer from a real deposit to an
@@ -272,7 +274,7 @@ func matchDepositTransferAndBalanceChange(rpc string, blockHeight uint64, t *Tra
 	if err != nil {
 		return false, err
 	}
-	balanceAfterDeposit := new(big.Int).Add(balancePrev, amount)
+	balanceAfterDeposit := new(big.Int).Add(balancePrev, t.Value)
 	if balanceNow.Cmp(balanceAfterDeposit) == 0 {
 		return true, nil
 	}
