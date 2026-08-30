@@ -229,11 +229,55 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Verbosef("transfer %d: %v", i, t)
-		if matchDepositTransfer(t, hash, assetAddress, destination, index, amount, precision) {
-			return t, etx, nil
+		match, err := matchDepositTransferAndBalanceChange(rpc, etx.BlockHeight, t, hash, assetAddress, destination, index, amount, precision)
+		if err != nil || match {
+			return t, etx, err
 		}
 	}
 	return nil, nil, nil
+}
+
+// matchDepositTransferAndBalanceChange reports whether the transfer is
+// the claimed deposit and the receiver's balance in the deposit block
+// increased by exactly the deposit amount. The balance cross-check
+// rejects fabricated trace transfers, because no real balance change
+// backs them.
+//
+// The strict equality intentionally returns an error on mismatch, but
+// it cannot distinguish a fabricated transfer from a real deposit to an
+// address whose balance moves for other reasons in the same block, so
+// it also errors on legitimate deposits in these rare scenarios:
+//
+//   - two or more deposits to the same receiver and asset in one block,
+//     because the balance delta is their sum, not the claimed amount;
+//   - a deposit to an address that spends the same asset in the same
+//     block, e.g. a withdrawal from the safe in the same block, or a
+//     contract that forwards the funds in the very same transaction;
+//   - fee-on-transfer or rebasing tokens, where the logged transfer
+//     amount differs from the actual balance delta.
+//
+// Both VerifyDeposit callers (the observer deposit confirmation loop
+// and the keeper deposit verification) escalate this error to a panic,
+// halting deposit processing until manual intervention, rather than
+// crediting a possibly fabricated deposit.
+func matchDepositTransferAndBalanceChange(rpc string, blockHeight uint64, t *Transfer, hash, assetAddress, destination string, index int64, amount *big.Int, precision int32) (bool, error) {
+	if !matchDepositTransfer(t, hash, assetAddress, destination, index, amount, precision) {
+		return false, nil
+	}
+	balancePrev, err := RPCGetAssetBalanceAtBlock(rpc, t.Receiver, t.TokenAddress, blockHeight-1)
+	if err != nil {
+		return false, err
+	}
+	balanceNow, err := RPCGetAssetBalanceAtBlock(rpc, t.Receiver, t.TokenAddress, blockHeight)
+	if err != nil {
+		return false, err
+	}
+	balanceAfterDeposit := new(big.Int).Add(balancePrev, amount)
+	if balanceNow.Cmp(balanceAfterDeposit) == 0 {
+		return true, nil
+	}
+	return false, fmt.Errorf("ethereum.RPCGetAssetBalanceAtBlock(%s, %d, %s, %s) => %s %s inconsistent",
+		rpc, blockHeight, t.Receiver, t.TokenAddress, balancePrev, balanceNow)
 }
 
 // matchDepositTransfer reports whether the transfer is the claimed

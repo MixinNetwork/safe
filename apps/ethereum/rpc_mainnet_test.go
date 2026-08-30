@@ -99,6 +99,60 @@ func TestLoopCallsRealPolygonDelegateCallInheritance(t *testing.T) {
 	)
 }
 
+// VerifyDeposit additionally cross-checks the receiver balance change
+// between the deposit block and its parent. This real clean transfer
+// passes that check: the receiver's balance delta equals the deposit.
+//
+// Polygon tx 0x4b1552672741d89fe480b5e2ae8a50597549aa7131240542f8db5025bb8e2ecf
+// in block 92922843 transferred 0.15 POL to
+// 0xa17efcff026e03d070549f674ab51d472f9e48ca, whose balance increased by
+// exactly the transfer amount in that block.
+func TestVerifyDepositRealCleanPolygonTransfer(t *testing.T) {
+	rpc := mainnetRPC("POLYGONRPC", "https://polygon.drpc.org")
+	const (
+		hash      = "0x4b1552672741d89fe480b5e2ae8a50597549aa7131240542f8db5025bb8e2ecf"
+		receiver  = "0xa17efcff026e03d070549f674ab51d472f9e48ca"
+		amountHex = "214e8348c4f0000" // 0.15 POL
+	)
+	amount, ok := new(big.Int).SetString(amountHex, 16)
+	require.True(t, ok)
+	destination := ethcommon.HexToAddress(receiver).Hex()
+
+	transfer, _, err := VerifyDeposit(
+		t.Context(), ChainPolygon, rpc, hash, "polygon",
+		EthereumEmptyAddress, destination, ValuePrecision, 0, amount,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, transfer)
+	require.Equal(t, destination, transfer.Receiver)
+	require.Zero(t, transfer.Value.Cmp(amount))
+}
+
+// The same balance consistency check rejects this real and legitimate
+// transfer: the receiver's balance did not increase by the deposit
+// amount, because it paid out the received funds in the very same
+// transaction. This demonstrates that the strict per-deposit equality
+// cannot tell a fabricated transfer from a real deposit to an address
+// whose balance moves for other reasons in the same block.
+//
+// Ethereum mainnet tx 0x6868fc4dae9aa27233b97261a0fc702b7773f245cdf59fd265af5695b9f63fb2
+// in block 25867831 transferred 0.30516 ETH to
+// 0x09c30cdcdd971423cb3ba757a47d56c35d06d818, whose balance was zero
+// both before and after the block.
+func TestVerifyDepositRealTransferWithSameBlockOutflowError(t *testing.T) {
+	rpc := mainnetRPC("ETHEREUMRPC", "https://eth.drpc.org")
+	const amountHex = "43c256737a88000" // 0.30516 ETH
+	amount, ok := new(big.Int).SetString(amountHex, 16)
+	require.True(t, ok)
+	destination := ethcommon.HexToAddress("0x09c30cdcdd971423cb3ba757a47d56c35d06d818").Hex()
+
+	_, _, err := VerifyDeposit(
+		t.Context(), ChainEthereum, rpc, mainnetDelegateCallTxEthereum, "ethereum",
+		EthereumEmptyAddress, destination, ValuePrecision, 0, amount,
+	)
+	require.ErrorContains(t, err, "inconsistent")
+}
+
 func TestGetERC20TransferLogFromBlockRealPolygonBlock(t *testing.T) {
 	rpc := mainnetRPC("POLYGONRPC", "https://polygon.drpc.org")
 	transfers, err := GetERC20TransferLogFromBlock(t.Context(), rpc, ChainPolygon, mainnetDelegateCallTxBlock)
