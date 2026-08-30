@@ -177,6 +177,11 @@ func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace,
 	switch {
 	case trace.Error != "" || trace.Type == "STATICCALL":
 		return transfers, index + 1
+	case trace.Type == "DELEGATECALL" || trace.Type == "CALLCODE":
+	// DELEGATECALL and CALLCODE frames report the value inherited
+	// from their parent call frame, but no ether moves between
+	// accounts for these frames themselves. Their children are
+	// still real calls and must be visited below.
 	case trace.Value != "": // ETH transfer
 		value, _ := new(big.Int).SetString(trace.Value[2:], 16)
 		to := common.HexToAddress(trace.To)

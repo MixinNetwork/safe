@@ -157,24 +157,27 @@ func TestValidateObserverEthereumNativeSweep(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestObserverEthereumRecoveryBroadcastRevalidatesApprovedSweep(t *testing.T) {
+func TestObserverEthereumRecoveryBroadcastRevalidatesApprovedMixedSweep(t *testing.T) {
 	const (
 		safeAddress = "0x1111111111111111111111111111111111111111"
 		receiver    = "0x2222222222222222222222222222222222222222"
+		token       = "0x3333333333333333333333333333333333333333"
 		holder      = "holder-key"
 		requestID   = "0ca34767-3a70-4a28-afd9-51c9bce4ecf5"
 	)
 	const nonce = int64(42)
-	amount := big.NewInt(1_000_000_000_000_000_000)
-	approved, err := ethereum.CreateTransaction(
+	nativeAmount := big.NewInt(1_000_000_000_000_000_000)
+	tokenAmount := big.NewInt(2_500_000)
+	approvedOutputs := []*ethereum.Output{
+		{TokenAddress: ethereum.EthereumEmptyAddress, Destination: receiver, Amount: nativeAmount},
+		{TokenAddress: token, Destination: receiver, Amount: tokenAmount},
+	}
+	approved, err := ethereum.CreateMultiSendTransaction(
 		t.Context(),
-		ethereum.TypeETHTx,
 		1,
 		requestID,
 		safeAddress,
-		receiver,
-		ethereum.EthereumEmptyAddress,
-		amount.String(),
+		approvedOutputs,
 		big.NewInt(nonce),
 	)
 	require.NoError(t, err)
@@ -290,18 +293,40 @@ func TestObserverEthereumRecoveryBroadcastRevalidatesApprovedSweep(t *testing.T)
 	require.ErrorContains(t, err, "invalid live sweep nonce")
 
 	liveNonce.Store(nonce)
-	mutated, err := ethereum.CreateTransaction(
-		t.Context(),
-		ethereum.TypeETHTx,
-		1,
-		requestID,
-		safeAddress,
-		"0x3333333333333333333333333333333333333333",
-		ethereum.EthereumEmptyAddress,
-		amount.String(),
-		big.NewInt(nonce),
-	)
-	require.NoError(t, err)
-	err = node.validateEthereumRecoveryBroadcast(t.Context(), rpc.URL, transaction, recovery, mutated)
-	require.ErrorContains(t, err, "invalid broadcast sweep")
+	mutations := []struct {
+		name    string
+		outputs []*ethereum.Output
+	}{
+		{
+			name: "redirected token",
+			outputs: []*ethereum.Output{
+				{TokenAddress: ethereum.EthereumEmptyAddress, Destination: receiver, Amount: nativeAmount},
+				{TokenAddress: token, Destination: "0x4444444444444444444444444444444444444444", Amount: tokenAmount},
+			},
+		},
+		{
+			name: "substituted token contract",
+			outputs: []*ethereum.Output{
+				{TokenAddress: ethereum.EthereumEmptyAddress, Destination: receiver, Amount: nativeAmount},
+				{TokenAddress: "0x5555555555555555555555555555555555555555", Destination: receiver, Amount: tokenAmount},
+			},
+		},
+		{
+			name: "increased token amount",
+			outputs: []*ethereum.Output{
+				{TokenAddress: ethereum.EthereumEmptyAddress, Destination: receiver, Amount: nativeAmount},
+				{TokenAddress: token, Destination: receiver, Amount: new(big.Int).Add(tokenAmount, big.NewInt(1))},
+			},
+		},
+	}
+	for _, mutation := range mutations {
+		t.Run(mutation.name, func(t *testing.T) {
+			mutated, err := ethereum.CreateMultiSendTransaction(
+				t.Context(), 1, requestID, safeAddress, mutation.outputs, big.NewInt(nonce),
+			)
+			require.NoError(t, err)
+			err = node.validateEthereumRecoveryBroadcast(t.Context(), rpc.URL, transaction, recovery, mutated)
+			require.ErrorContains(t, err, "invalid broadcast sweep")
+		})
+	}
 }

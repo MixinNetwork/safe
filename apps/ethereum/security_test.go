@@ -133,6 +133,111 @@ func TestSafeSignaturesBindCustodyFieldsAndRequest(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestERC20CustodySignaturesAndParserRejectSubstitution(t *testing.T) {
+	const token = "0x3333333333333333333333333333333333333333"
+	amount := big.NewInt(2_500_000)
+	keys := []*ecdsa.PrivateKey{
+		securityTestEthereumPrivateKey(t, 1),
+		securityTestEthereumPrivateKey(t, 2),
+		securityTestEthereumPrivateKey(t, 3),
+	}
+	publics := make([]string, len(keys))
+	for i, key := range keys {
+		publics[i] = hex.EncodeToString(crypto.CompressPubkey(&key.PublicKey))
+	}
+	_, sortedPublics := GetSortedSafeOwners(publics[0], publics[1], publics[2])
+
+	tx, err := CreateTransaction(
+		t.Context(),
+		TypeERC20Tx,
+		1,
+		securityTestRequestID,
+		securityTestSafe,
+		securityTestReceiver,
+		token,
+		amount.String(),
+		big.NewInt(42),
+	)
+	require.NoError(t, err)
+	securityTestSignSafeTransaction(t, tx, sortedPublics, keys[0])
+	securityTestSignSafeTransaction(t, tx, sortedPublics, keys[1])
+
+	expected := SweepValidation{
+		SafeAddress:        securityTestSafe,
+		ChainID:            1,
+		Nonce:              big.NewInt(42),
+		RequestID:          securityTestRequestID,
+		TransactionHash:    tx.RequestHash,
+		AllowedDestination: securityTestReceiver,
+		Balances: map[string]*big.Int{
+			token: new(big.Int).Set(amount),
+		},
+	}
+	outputs, err := ValidateSweepTransaction(tx, expected)
+	require.NoError(t, err)
+	require.Equal(t, []*Output{{
+		TokenAddress: ethcommon.HexToAddress(token).Hex(),
+		Destination:  ethcommon.HexToAddress(securityTestReceiver).Hex(),
+		Amount:       amount,
+	}}, outputs)
+
+	mutations := []struct {
+		name  string
+		apply func(*SafeTransaction)
+	}{
+		{name: "token contract", apply: func(tx *SafeTransaction) {
+			tx.Destination = ethcommon.HexToAddress("0x4444444444444444444444444444444444444444")
+		}},
+		{name: "embedded recipient", apply: func(tx *SafeTransaction) { tx.Data[35] ^= 0x01 }},
+		{name: "raw token amount", apply: func(tx *SafeTransaction) { tx.Data[67] ^= 0x01 }},
+	}
+	for _, mutation := range mutations {
+		t.Run("signed "+mutation.name, func(t *testing.T) {
+			candidate := sweepTestClone(tx)
+			mutation.apply(candidate)
+			mutatedHash := candidate.GetTransactionHash()
+			require.False(t, bytes.Equal(tx.Message, mutatedHash))
+			for i, signature := range candidate.Signatures {
+				if signature != nil {
+					require.Error(t, VerifyMessageSignature(sortedPublics[i], mutatedHash, signature, true))
+				}
+			}
+			_, err := ValidateSweepTransaction(candidate, expected)
+			require.Error(t, err)
+		})
+	}
+
+	parserMutations := []struct {
+		name  string
+		apply func(*SafeTransaction)
+	}{
+		{name: "approve selector", apply: func(tx *SafeTransaction) {
+			copy(tx.Data[:4], ethcommon.FromHex("0x095ea7b3"))
+		}},
+		{name: "transferFrom selector and arguments", apply: func(tx *SafeTransaction) {
+			copy(tx.Data[:4], ethcommon.FromHex("0x23b872dd"))
+			tx.Data = append(tx.Data, make([]byte, 32)...)
+		}},
+		{name: "non-canonical recipient padding", apply: func(tx *SafeTransaction) { tx.Data[4] = 1 }},
+		{name: "zero recipient", apply: func(tx *SafeTransaction) { clear(tx.Data[16:36]) }},
+		{name: "zero amount", apply: func(tx *SafeTransaction) { clear(tx.Data[36:68]) }},
+		{name: "trailing calldata", apply: func(tx *SafeTransaction) { tx.Data = append(tx.Data, 0) }},
+		{name: "nonzero native value", apply: func(tx *SafeTransaction) { tx.Value.SetInt64(1) }},
+		{name: "zero token contract", apply: func(tx *SafeTransaction) {
+			tx.Destination = ethcommon.Address{}
+		}},
+	}
+	for _, mutation := range parserMutations {
+		t.Run("parser rejects "+mutation.name, func(t *testing.T) {
+			candidate := sweepTestClone(tx)
+			mutation.apply(candidate)
+			outputs, err := candidate.ExtractOutputs()
+			require.Error(t, err)
+			require.Empty(t, outputs)
+		})
+	}
+}
+
 func securityTestEthereumPrivateKey(t *testing.T, scalar byte) *ecdsa.PrivateKey {
 	t.Helper()
 	encoded := make([]byte, 32)
