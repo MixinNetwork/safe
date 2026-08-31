@@ -277,6 +277,52 @@ func TestCoverageKeeperDepositAndNetworkParsing(t *testing.T) {
 	require.False(t, valid)
 }
 
+func TestCoverageKeeperOperationParamsRemainIsolatedByChain(t *testing.T) {
+	node, closeNode := coverageKeeperNode(t)
+	defer closeNode()
+	ctx := common.EnableTestEnvironment(context.Background())
+
+	tests := []struct {
+		name          string
+		chain         byte
+		curve         byte
+		asset         string
+		encodedPrice  uint64
+		expectedPrice string
+	}{
+		{name: "bitcoin", chain: common.SafeChainBitcoin, curve: common.CurveSecp256k1ECDSABitcoin, asset: common.SafeBitcoinChainId, encodedPrice: 10_000, expectedPrice: "0.0001"},
+		{name: "litecoin", chain: common.SafeChainLitecoin, curve: common.CurveSecp256k1ECDSALitecoin, asset: common.SafeLitecoinChainId, encodedPrice: 10_000_000, expectedPrice: "0.1"},
+		{name: "ethereum", chain: common.SafeChainEthereum, curve: common.CurveSecp256k1ECDSAEthereum, asset: common.SafeEthereumChainId, encodedPrice: 100_000, expectedPrice: "0.001"},
+		{name: "polygon", chain: common.SafeChainPolygon, curve: common.CurveSecp256k1ECDSAPolygon, asset: common.SafePolygonChainId, encodedPrice: 1_000_000_000, expectedPrice: "10"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			id := uuid.Must(uuid.NewV4()).String()
+			extra := []byte{test.chain}
+			extra = append(extra, uuid.Must(uuid.FromString(test.asset)).Bytes()...)
+			extra = binary.BigEndian.AppendUint64(extra, test.encodedPrice)
+			extra = binary.BigEndian.AppendUint64(extra, 10_000)
+			out := coverageKeeperOutput(node, id, common.ActionObserverSetOperationParams, test.curve, extra, "observer")
+			req, err := node.parseRequest(out)
+			require.NoError(t, err)
+			require.NoError(t, node.store.WriteRequestIfNotExist(ctx, req))
+
+			txs, compaction := node.writeOperationParams(ctx, req)
+			require.Nil(t, txs)
+			require.Empty(t, compaction)
+			params, err := node.store.ReadLatestOperationParams(ctx, test.chain, time.Now().Add(time.Second))
+			require.NoError(t, err)
+			require.NotNil(t, params)
+			require.Equal(t, id, params.RequestId)
+			require.Equal(t, test.chain, params.Chain)
+			require.Equal(t, test.asset, params.OperationPriceAsset)
+			require.Equal(t, test.expectedPrice, params.OperationPriceAmount.String())
+			require.Equal(t, "0.0001", params.TransactionMinimum.String())
+		})
+	}
+}
+
 func coverageKeeperNode(t *testing.T) (*Node, func()) {
 	t.Helper()
 	b, err := os.ReadFile("../config/example.toml")

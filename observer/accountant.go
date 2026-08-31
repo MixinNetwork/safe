@@ -180,7 +180,7 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 }
 
 func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 
 	for {
 		time.Sleep(3 * time.Second)
@@ -217,7 +217,7 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (*wire.MsgTx, error) {
-	rpc, _ := node.bitcoinParams(tx.Chain)
+	rpc, _, _ := node.bitcoinParams(tx.Chain)
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 
@@ -375,10 +375,10 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 }
 
 func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) {
-	rpc, assetId := node.ethereumParams(chain)
-	asset, err := node.fetchAssetMeta(ctx, assetId)
+	rpc, chainId, _ := node.ethereumParams(chain)
+	asset, err := node.fetchAssetMeta(ctx, chainId)
 	if err != nil || asset == nil {
-		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", assetId, asset, err)
+		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", chainId, asset, err)
 		panic(err)
 	}
 	accountantMinimum := ethereum.ParseAmount("0.05", int32(asset.Decimals))
@@ -586,7 +586,7 @@ func (s *SQLite3Store) WriteBitcoinFeeOutput(ctx context.Context, msgTx *wire.Ms
 }
 
 func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context, feeInput *Output, msgTx *wire.MsgTx, chain byte) error {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 
 	if feeInput.RawTransaction.String != "" {
 		hash := feeInput.TransactionHash
@@ -618,7 +618,7 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 }
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
-	rpc, _ := node.ethereumParams(tx.Chain)
+	rpc, _, _ := node.ethereumParams(tx.Chain)
 	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
 	recovery, err := node.store.ReadRecoveryByHash(ctx, tx.TransactionHash)
@@ -748,7 +748,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 		return false
 	}
 
-	rpc, _ := node.ethereumParams(tx.Chain)
+	rpc, _, _ := node.ethereumParams(tx.Chain)
 	height, err := ethereum.RPCGetBlockHeight(rpc)
 	if err != nil {
 		panic(err)
@@ -774,7 +774,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 }
 
 func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 	for {
 		_, ro, err := bitcoin.RPCGetTransactionOutput(chain, rpc, utxo.TransactionHash, int64(utxo.Index))
 		if err != nil {
@@ -796,7 +796,7 @@ func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 	id, err := bitcoin.RPCSendRawTransaction(rpc, hex.EncodeToString(raw))
 	if err != nil {
 		switch {

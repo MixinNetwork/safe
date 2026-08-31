@@ -33,6 +33,25 @@ const (
 	testReceiverAddress         = "0x9d04735aaEB73535672200950fA77C2dFC86eB21"
 )
 
+func TestObserverConfiguration(t *testing.T) {
+	f, err := os.ReadFile("../config/example.toml")
+	require.NoError(t, err)
+	var conf struct {
+		Observer *Configuration `toml:"observer"`
+	}
+	require.NoError(t, toml.Unmarshal(f, &conf))
+	require.NotNil(t, conf.Observer)
+	require.NoError(t, conf.Observer.Validate())
+	for chain, params := range map[string]ChainParams{
+		"bitcoin":  conf.Observer.Bitcoin,
+		"litecoin": conf.Observer.Litecoin,
+		"ethereum": conf.Observer.Ethereum,
+		"polygon":  conf.Observer.Polygon,
+	} {
+		require.NotEmpty(t, params.OperationPriceAssetId, chain)
+	}
+}
+
 func TestObserver(t *testing.T) {
 	logger.SetLevel(logger.VERBOSE)
 	ctx := context.Background()
@@ -91,7 +110,7 @@ func TestObserverMigrateBondAsset(t *testing.T) {
 	require.NotNil(node)
 
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
-	_, assetId := node.bitcoinParams(common.SafeChainBitcoin)
+	_, assetId, _ := node.bitcoinParams(common.SafeChainBitcoin)
 	asset, err := node.fetchAssetMeta(ctx, assetId)
 	require.Nil(err)
 

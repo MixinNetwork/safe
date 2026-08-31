@@ -15,6 +15,7 @@ import (
 	bot "github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
+	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	keeperstore "github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
@@ -394,16 +395,23 @@ func TestCoverageObserverBitcoinAssignmentRetryKeepsSingleReservation(t *testing
 func TestCoverageObserverPureHelpersAndCheckpoints(t *testing.T) {
 	ctx := context.Background()
 	s := coverageObserverStore(t)
+	bitcoinConfig := ChainParams{OperationPriceAssetId: "bitcoin-asset", OperationPriceAmount: "1", TransactionMinimum: "2"}
+	litecoinConfig := ChainParams{OperationPriceAssetId: "litecoin-asset", OperationPriceAmount: "3", TransactionMinimum: "4"}
+	ethereumConfig := ChainParams{OperationPriceAssetId: "ethereum-asset", OperationPriceAmount: "5", TransactionMinimum: "6"}
+	polygonConfig := ChainParams{OperationPriceAssetId: "polygon-asset", OperationPriceAmount: "7", TransactionMinimum: "8"}
 	conf := &Configuration{
 		PrivateKey: "private", Timestamp: 123,
-		CustomKeyPriceAmount: "1", OperationPriceAmount: "2", TransactionMinimum: "3",
-		BitcoinRPC: "bitcoin", LitecoinRPC: "litecoin", EthereumRPC: "ethereum", PolygonRPC: "polygon",
+		CustomKeyPriceAmount: "1",
+		BitcoinRPC:           "bitcoin", LitecoinRPC: "litecoin", EthereumRPC: "ethereum", PolygonRPC: "polygon",
+		Bitcoin: bitcoinConfig, Litecoin: litecoinConfig, Ethereum: ethereumConfig, Polygon: polygonConfig,
 	}
 	require.NoError(t, conf.Validate())
 	for _, mutate := range []func(*Configuration){
 		func(c *Configuration) { c.CustomKeyPriceAmount = "0" },
-		func(c *Configuration) { c.OperationPriceAmount = "0" },
-		func(c *Configuration) { c.TransactionMinimum = "0" },
+		func(c *Configuration) { c.Bitcoin.OperationPriceAmount = "0" },
+		func(c *Configuration) { c.Litecoin.TransactionMinimum = "0" },
+		func(c *Configuration) { c.Ethereum.OperationPriceAmount = "0" },
+		func(c *Configuration) { c.Polygon.TransactionMinimum = "0" },
 	} {
 		copy := *conf
 		mutate(&copy)
@@ -414,10 +422,22 @@ func TestCoverageObserverPureHelpersAndCheckpoints(t *testing.T) {
 	group.Genesis.Members = []string{"z", "a", "m"}
 	node := &Node{conf: conf, store: s, keeper: group}
 	require.Equal(t, []string{"a", "m", "z"}, node.GetKeepers())
-	require.Equal(t, "bitcoin", firstString(node.bitcoinParams(common.SafeChainBitcoin)))
-	require.Equal(t, "litecoin", firstString(node.bitcoinParams(common.SafeChainLitecoin)))
-	require.Equal(t, "ethereum", firstString(node.ethereumParams(common.SafeChainEthereum)))
-	require.Equal(t, "polygon", firstString(node.ethereumParams(common.SafeChainPolygon)))
+	bitcoinRPC, bitcoinChainID, bitcoinParams := node.bitcoinParams(common.SafeChainBitcoin)
+	require.Equal(t, "bitcoin", bitcoinRPC)
+	require.Equal(t, common.SafeBitcoinChainId, bitcoinChainID)
+	require.Equal(t, bitcoinConfig, bitcoinParams)
+	litecoinRPC, litecoinChainID, litecoinParams := node.bitcoinParams(common.SafeChainLitecoin)
+	require.Equal(t, "litecoin", litecoinRPC)
+	require.Equal(t, common.SafeLitecoinChainId, litecoinChainID)
+	require.Equal(t, litecoinConfig, litecoinParams)
+	ethereumRPC, ethereumChainID, ethereumParams := node.ethereumParams(common.SafeChainEthereum)
+	require.Equal(t, "ethereum", ethereumRPC)
+	require.Equal(t, common.SafeEthereumChainId, ethereumChainID)
+	require.Equal(t, ethereumConfig, ethereumParams)
+	polygonRPC, polygonChainID, polygonParams := node.ethereumParams(common.SafeChainPolygon)
+	require.Equal(t, "polygon", polygonRPC)
+	require.Equal(t, common.SafePolygonChainId, polygonChainID)
+	require.Equal(t, polygonConfig, polygonParams)
 	require.Panics(t, func() { node.bitcoinParams(0xff) })
 	require.Panics(t, func() { node.ethereumParams(0xff) })
 	require.NotEmpty(t, node.bitcoinDummyHolder())
@@ -517,6 +537,25 @@ func TestCoverageObserverPureHelpersAndCheckpoints(t *testing.T) {
 	require.Equal(t, "hash", depositViews[0]["sent_hash"])
 }
 
+func TestCoverageObserverEthereumDepositUsesChainParams(t *testing.T) {
+	kd, err := keeperstore.OpenSQLite3Store(t.TempDir() + "/keeper.sqlite3")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, kd.Close()) })
+	node := &Node{
+		conf: &Configuration{
+			EthereumRPC: "ethereum",
+			Ethereum:    ChainParams{TransactionMinimum: "0.0001"},
+		},
+		keeperStore: kd,
+	}
+
+	err = node.ethereumWritePendingDeposit(t.Context(), &ethereum.Transfer{
+		Hash:     "transaction-hash",
+		Receiver: "unknown-safe",
+	}, common.SafeChainEthereum)
+	require.NoError(t, err)
+}
+
 func TestCoverageObserverHTTPAndEarlyNodeBranches(t *testing.T) {
 	ctx := common.EnableTestEnvironment(context.Background())
 	s := coverageObserverStore(t)
@@ -525,7 +564,6 @@ func TestCoverageObserverHTTPAndEarlyNodeBranches(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, kd.Close()) })
 	conf := &Configuration{
 		Timestamp: 1, CustomKeyPriceAssetId: "custom-asset", CustomKeyPriceAmount: "1",
-		OperationPriceAmount: "1", TransactionMinimum: "1",
 	}
 	conf.App.AppId = "observer-app"
 	conf.App.SessionId = "session"
@@ -685,8 +723,4 @@ func coverageObserverTransaction(name string, state byte, chain byte, at time.Ti
 		TransactionHash: crypto.Sha256Hash([]byte(name)).String(), RawTransaction: "raw", Chain: chain,
 		Holder: "holder-" + name, Signer: "signer", State: state, CreatedAt: at, UpdatedAt: at,
 	}
-}
-
-func firstString(first string, _ string) string {
-	return first
 }

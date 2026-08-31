@@ -95,31 +95,32 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	var chainId string
+	var params ChainParams
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		_, chainId = node.bitcoinParams(chain)
+		_, chainId, params = node.bitcoinParams(chain)
 	case common.SafeChainPolygon, common.SafeChainEthereum:
-		_, chainId = node.ethereumParams(chain)
+		_, chainId, params = node.ethereumParams(chain)
 	default:
 		panic(chain)
 	}
-	asset, err := node.fetchAssetMeta(ctx, node.conf.OperationPriceAssetId)
+	asset, err := node.fetchAssetMeta(ctx, params.OperationPriceAssetId)
 	if err != nil {
 		return err
 	}
-	amount := decimal.RequireFromString(node.conf.OperationPriceAmount)
-	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
+	amount := decimal.RequireFromString(params.OperationPriceAmount)
+	minimum := decimal.RequireFromString(params.TransactionMinimum)
 	logger.Printf("node.sendPriceInfo(%d, %s, %s, %s)", chain, asset.AssetId, amount, minimum)
 	amount = amount.Mul(decimal.New(1, 8))
 	if amount.Sign() <= 0 || !amount.IsInteger() || !amount.BigInt().IsInt64() {
-		panic(node.conf.OperationPriceAmount)
+		panic(params.OperationPriceAmount)
 	}
 	minimum = minimum.Mul(decimal.New(1, 8))
 	if minimum.Sign() <= 0 || !minimum.IsInteger() || !minimum.BigInt().IsInt64() {
-		panic(node.conf.TransactionMinimum)
+		panic(params.TransactionMinimum)
 	}
 	if minimum.IntPart() < 10000 {
-		panic(node.conf.TransactionMinimum)
+		panic(params.TransactionMinimum)
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := common.UniqueId("ActionObserverSetOperationParams", dummy)
@@ -166,7 +167,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 			var assetId string
 			switch sp.Chain {
 			case common.SafeChainBitcoin, common.SafeChainLitecoin:
-				_, assetId = node.bitcoinParams(sp.Chain)
+				_, assetId, _ = node.bitcoinParams(sp.Chain)
 				sig, err := base64.RawURLEncoding.DecodeString(account.Signature.String)
 				if err != nil {
 					panic(err)
@@ -174,7 +175,7 @@ func (node *Node) sendAccountApprovals(ctx context.Context) {
 				action = common.ActionBitcoinSafeApproveAccount
 				extra = append(rid.Bytes(), sig...)
 			case common.SafeChainPolygon, common.SafeChainEthereum:
-				_, assetId = node.ethereumParams(sp.Chain)
+				_, assetId, _ = node.ethereumParams(sp.Chain)
 				sig, err := hex.DecodeString(account.Signature.String)
 				if err != nil {
 					panic(err)
@@ -339,7 +340,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSn
 		hash := string(extra[64:])
 		switch asset.Chain {
 		case common.SafeChainBitcoin, common.SafeChainLitecoin:
-			rpc, _ := node.bitcoinParams(asset.Chain)
+			rpc, _, _ := node.bitcoinParams(asset.Chain)
 			logger.Printf("processMixinWithdrawalSnapshot(%v) => %s %s", s, hash, rpc)
 			btx, err := bitcoin.RPCGetTransaction(asset.Chain, rpc, hash)
 			if err != nil {
@@ -347,7 +348,7 @@ func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSn
 			}
 			return node.bitcoinProcessTransaction(ctx, btx, asset.Chain)
 		case common.SafeChainEthereum, common.SafeChainPolygon:
-			rpc, _ := node.ethereumParams(asset.Chain)
+			rpc, _, _ := node.ethereumParams(asset.Chain)
 			logger.Printf("processMixinWithdrawalSnapshot(%v) => %s %s", s, hash, rpc)
 			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
 			if err != nil {

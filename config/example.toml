@@ -120,11 +120,8 @@ keeper-public-key = "b6db9ab1f558a8dc064adae960df412b7513c3b02483d3b905ab0eed097
 # the mixin messenger group for monitor messages
 monitor-conversation-id = ""
 asset-id = "90f4351b-29b6-3b47-8b41-7efcec3c6672"
-custom-key-price-asset-id = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
-custom-key-price-amount = "10"
-operation-price-asset-id = "31d2ea9c-95eb-3355-b65b-ba096853bc18"
-operation-price-amount = "1"
-transaction-minimum = "0.0001"
+custom-key-price-asset-id = "c94ac88f-4671-3976-b60a-09064f1811e8"
+custom-key-price-amount = "1"
 mixin-messenger-api="https://api.mixin.one"
 mixin-rpc = "https://kernel.mixin.dev"
 bitcoin-rpc = "https://mixin:safe@bitcoin.mixin.dev"
@@ -144,6 +141,26 @@ evm-key = ""
 # so they can back up the signer database in time, and there is
 # no unexpected new keygens.
 signer-key-threshold = 0
+
+[observer.bitcoin]
+operation-price-asset-id = "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
+operation-price-amount = "0.0001"
+transaction-minimum = "0.0001"
+
+[observer.litecoin]
+operation-price-asset-id = "76c802a2-7c88-447f-a93e-c29c9e5dd9c8"
+operation-price-amount = "0.1"
+transaction-minimum = "0.0001"
+
+[observer.ethereum]
+operation-price-asset-id = "43d61dcd-e413-450d-80b8-101d5e903357"
+operation-price-amount = "0.001"
+transaction-minimum = "0.0001"
+
+[observer.polygon]
+operation-price-asset-id = "b7938396-3f94-4e0a-9179-d3440718156f"
+operation-price-amount = "10"
+transaction-minimum = "0.0001"
 
 [observer.app]
 app-id = "c91eb626-eb89-4fbd-ae21-76f0bd763da5"
