@@ -130,11 +130,6 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		return
 	}
 
-	plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), common.SafeChainBitcoin, time.Now())
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
 	common.RenderJSON(w, r, http.StatusOK, map[string]any{
 		"version":  VERSION,
 		"observer": node.conf.App.AppId,
@@ -145,15 +140,6 @@ func (node *Node) httpIndex(w http.ResponseWriter, r *http.Request, params map[s
 		"keeper": map[string]any{
 			"members":   node.GetKeepers(),
 			"threshold": node.keeper.Genesis.Threshold,
-		},
-		"params": map[string]any{
-			"operation": map[string]any{
-				"asset": plan.OperationPriceAsset,
-				"price": plan.OperationPriceAmount.String(),
-			},
-			"transaction": map[string]any{
-				"minimum": plan.TransactionMinimum.String(),
-			},
 		},
 	})
 }
@@ -180,6 +166,11 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 			common.RenderError(w, r, err)
 			return
 		}
+		plan, err := node.keeperStore.ReadLatestOperationParams(r.Context(), c, time.Now())
+		if err != nil {
+			common.RenderError(w, r, err)
+			return
+		}
 		id := common.SafeChainAssetId(c)
 		head := make(map[string]any)
 		head["id"] = info.RequestId
@@ -193,6 +184,15 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		chain["head"] = head
 		chain["deposit"] = map[string]any{
 			"checkpoint": ckp,
+		}
+		chain["params"] = map[string]any{
+			"operation": map[string]any{
+				"asset": plan.OperationPriceAsset,
+				"price": plan.OperationPriceAmount.String(),
+			},
+			"transaction": map[string]any{
+				"minimum": plan.TransactionMinimum.String(),
+			},
 		}
 		switch c {
 		case common.SafeChainBitcoin, common.SafeChainLitecoin:

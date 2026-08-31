@@ -94,12 +94,12 @@ func (node *Node) Boot(ctx context.Context) {
 }
 
 func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
-	var assetId string
+	var chainId string
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		_, assetId = node.bitcoinParams(chain)
+		_, chainId = node.bitcoinParams(chain)
 	case common.SafeChainPolygon, common.SafeChainEthereum:
-		_, assetId = node.ethereumParams(chain)
+		_, chainId = node.ethereumParams(chain)
 	default:
 		panic(chain)
 	}
@@ -123,7 +123,7 @@ func (node *Node) sendPriceInfo(ctx context.Context, chain byte) error {
 	}
 	dummy := node.bitcoinDummyHolder()
 	id := common.UniqueId("ActionObserverSetOperationParams", dummy)
-	id = common.UniqueId(id, assetId)
+	id = common.UniqueId(id, chainId)
 	id = common.UniqueId(id, asset.AssetId)
 	id = common.UniqueId(id, amount.String())
 	id = common.UniqueId(id, minimum.String())
