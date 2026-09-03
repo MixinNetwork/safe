@@ -136,10 +136,6 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 			if err != nil {
 				return fmt.Errorf("INSERT custodian_transfers %v", err)
 			}
-			err = s.creditExternalBalance(ctx, tx, t.AppId, t.AssetId, request.Amount, t.Sequence, now)
-			if err != nil {
-				return fmt.Errorf("credit external balance %s: %v", t.TraceId, err)
-			}
 		}
 
 		for _, o := range t.consumed {
@@ -473,11 +469,20 @@ func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) er
 		return fmt.Errorf("UPDATE outputs %v", err)
 	}
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM custodian_transfers WHERE trace_id=?", traceId)
+	transfer, err := s.readCustodianTransferByTraceId(ctx, tx, traceId)
 	if err != nil {
 		return err
 	}
-	if existed {
+	if transfer != nil {
+		amount := decimal.RequireFromString(t.Amount)
+		if transfer.State != CustodianTransferStatePending || transfer.AppId != t.AppId || transfer.AssetId != t.AssetId ||
+			!transfer.Amount.Equal(amount) || transfer.Sequence != t.Sequence {
+			return fmt.Errorf("invalid custodian transfer to finish %s", traceId)
+		}
+		err = s.creditExternalBalance(ctx, tx, transfer.AppId, transfer.AssetId, transfer.Amount, transfer.Sequence, now)
+		if err != nil {
+			return fmt.Errorf("credit external balance %s: %v", traceId, err)
+		}
 		err = s.execOne(ctx, tx, "UPDATE custodian_transfers SET state=?,updated_at=? WHERE trace_id=? AND state=?",
 			CustodianTransferStateDone, now, traceId, CustodianTransferStatePending)
 		if err != nil {
@@ -849,6 +854,12 @@ func (s *SQLite3Store) completeLiquidityRequest(ctx context.Context, act *Action
 func (s *SQLite3Store) ReadCustodianTransferByRequestId(ctx context.Context, requestId string) (*CustodianTransfer, error) {
 	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE request_id=?", strings.Join(custodianTransferCols, ","))
 	row := s.db.QueryRowContext(ctx, query, requestId)
+	return custodianTransferFromRow(row)
+}
+
+func (s *SQLite3Store) readCustodianTransferByTraceId(ctx context.Context, tx *sql.Tx, traceId string) (*CustodianTransfer, error) {
+	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE trace_id=?", strings.Join(custodianTransferCols, ","))
+	row := tx.QueryRowContext(ctx, query, traceId)
 	return custodianTransferFromRow(row)
 }
 
