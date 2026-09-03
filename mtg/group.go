@@ -26,10 +26,12 @@ const (
 )
 
 type Worker interface {
-	// process the action in a queue and return transactions
-	// need to ensure enough balance with CheckAssetBalanceAt(ctx, a)
-	// before return any transactions, otherwise the transactions
-	// will be ignored when issuficient balance
+	// ProcessOutput processes an action in sequence order. Workers should check
+	// CheckAssetBalanceAt before building transactions. BuildTransaction returns
+	// nil when the hot internal outputs are insufficient; in that case the worker
+	// must discard all transactions and return the affected asset as the existing
+	// compaction signal. MTG will either compact internal outputs or request a
+	// custodian refill, then replay the action.
 	//
 	// if we want to make a multi process worker, it's possible that
 	// we pass some RPC handle to the process, or we could build a
@@ -45,18 +47,25 @@ type Group struct {
 	entries   map[string]string
 	groupSize int
 
-	id              string
-	GroupId         string
-	rawMembers      []string
-	threshold       int
-	index           int
-	epoch           uint64
-	spendPrivateKey string
-	debug           bool
-	kernelRPC       string
+	id                  string
+	GroupId             string
+	rawMembers          []string
+	threshold           int
+	index               int
+	epoch               uint64
+	spendPrivateKey     string
+	debug               bool
+	kernelRPC           string
+	custodianAddress    string
+	custodianMembers    []string
+	custodianThreshold  int
+	custodianRequesters map[string]bool
 }
 
 func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
+	if err := store.Migrate(ctx); err != nil {
+		return nil, fmt.Errorf("store.Migrate() => %v", err)
+	}
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}
@@ -81,17 +90,25 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	}
 
 	id := generateGenesisId(conf)
+	custodianAddress, custodianMembers, custodianThreshold, custodianRequesters, err := validateCustodianConfiguration(conf)
+	if err != nil {
+		return nil, err
+	}
 	grp := &Group{
-		mixin:           client,
-		store:           store,
-		spendPrivateKey: conf.App.SpendPrivateKey,
-		id:              id,
-		GroupId:         UniqueId(id, conf.Project),
-		groupSize:       conf.GroupSize,
-		workers:         make(map[string]Worker),
-		entries:         make(map[string]string),
-		kernelRPC:       defaultKernelRPC,
-		index:           -1,
+		mixin:               client,
+		store:               store,
+		spendPrivateKey:     conf.App.SpendPrivateKey,
+		id:                  id,
+		GroupId:             UniqueId(id, conf.Project),
+		groupSize:           conf.GroupSize,
+		workers:             make(map[string]Worker),
+		entries:             make(map[string]string),
+		kernelRPC:           defaultKernelRPC,
+		index:               -1,
+		custodianAddress:    custodianAddress,
+		custodianMembers:    custodianMembers,
+		custodianThreshold:  custodianThreshold,
+		custodianRequesters: custodianRequesters,
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -292,7 +309,13 @@ func (grp *Group) TestUpdateOutputsState(ctx context.Context, os []*UnifiedOutpu
 
 // this function or rpc should be used only in ProcessOutput
 func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
-	os := act.group.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	total := act.checkInternalAssetBalanceAt(ctx, assetId)
+	external := act.readExternalBalanceAt(ctx, assetId)
+	return total.Add(external.Available())
+}
+
+func (act *Action) checkInternalAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
+	os := act.listSpendableOutputs(ctx, assetId, act.consumed[assetId], OutputsBatchSize)
 	total := decimal.NewFromInt(0)
 	for _, o := range os {
 		total = total.Add(o.Amount)
@@ -404,8 +427,9 @@ func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
 }
 
 func generateGenesisId(conf *Configuration) string {
-	slices.Sort(conf.Genesis.Members)
-	id := strings.Join(conf.Genesis.Members, "")
+	members := append([]string(nil), conf.Genesis.Members...)
+	slices.Sort(members)
+	id := strings.Join(members, "")
 	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Epoch)
 	return crypto.Sha256Hash([]byte(id)).String()
 }

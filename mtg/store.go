@@ -72,6 +72,12 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, txn *sql.Tx, t 
 	return actionFromRow(row)
 }
 
+func (s *SQLite3Store) readRestorableActionById(ctx context.Context, tx *sql.Tx, id string) (*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=? AND action_state=?", strings.Join(actionCols, ","))
+	row := tx.QueryRowContext(ctx, query, id, ActionStateRestorable)
+	return actionFromRow(row)
+}
+
 func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, state ActionState, ts []*Transaction) error {
 	act, err := s.readAction(ctx, tx, id)
 	if err != nil || act == nil || act.ActionState != ActionStateInitial {
@@ -113,16 +119,44 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 			return fmt.Errorf("INSERT transactions %v", err)
 		}
 
+		now := time.Now().UTC()
+		if t.custodianTransfer {
+			out, err := s.readOutput(ctx, tx, t.ActionId)
+			if err != nil || out == nil {
+				return fmt.Errorf("read custodian transfer action %s: %v", t.ActionId, err)
+			}
+			_, memo := DecodeMixinExtraHEX(out.Extra)
+			request, valid := decodeCustodianTransferMemo(memo)
+			if !valid || request.AssetId != t.AssetId || !request.Amount.Equal(decimal.RequireFromString(t.Amount)) || t.custodianAddress == "" {
+				return fmt.Errorf("invalid custodian transfer %s", t.TraceId)
+			}
+			err = s.execOne(ctx, tx, buildInsertionSQL("custodian_transfers", custodianTransferCols),
+				t.TraceId, t.ActionId, t.ActionId, t.AppId, t.AssetId, t.Amount, t.custodianAddress,
+				CustodianTransferStatePending, t.Sequence, now, now)
+			if err != nil {
+				return fmt.Errorf("INSERT custodian_transfers %v", err)
+			}
+			err = s.creditExternalBalance(ctx, tx, t.AppId, t.AssetId, request.Amount, t.Sequence, now)
+			if err != nil {
+				return fmt.Errorf("credit external balance %s: %v", t.TraceId, err)
+			}
+		}
+
 		for _, o := range t.consumed {
-			query := "UPDATE outputs SET state=?,trace_id=?,updated_at=? WHERE output_id=? AND state=?"
-			err = s.execOne(ctx, tx, query, SafeUtxoStateAssigned, t.TraceId, time.Now().UTC(), o.OutputId, SafeUtxoStateUnspent)
+			query := "UPDATE outputs SET state=?,trace_id=?,reserved_by='',updated_at=? WHERE output_id=? AND ((state=? AND reserved_by='') OR (state=? AND reserved_by=?))"
+			err = s.execOne(ctx, tx, query, SafeUtxoStateAssigned, t.TraceId, now, o.OutputId,
+				SafeUtxoStateUnspent, SafeUtxoStateLocked, id)
 			if err != nil {
 				return fmt.Errorf("UPDATE outputs %v", err)
 			}
 		}
 	}
-
 	return nil
+}
+
+func (s *SQLite3Store) readTransactionByTraceId(ctx context.Context, tx *sql.Tx, id string) (*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions WHERE trace_id=?", strings.Join(transactionCols, ","))
+	return transactionFromRow(tx.QueryRowContext(ctx, query, id))
 }
 
 func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state ActionState, ts []*Transaction) error {
@@ -144,7 +178,7 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 }
 
 func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out *UnifiedOutput, state ActionState) error {
-	if out.State != SafeUtxoStateUnspent {
+	if out.State != SafeUtxoStateUnspent || out.ReservedBy != "" {
 		panic(out.OutputId)
 	}
 	aid := uuid.Must(uuid.FromString(out.AppId))
@@ -229,8 +263,7 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 		return fmt.Errorf("readRestorableAction(%v) => %v %v", t, rAct, err)
 	}
 
-	query := "UPDATE actions SET action_state=?,restore_sequence=? WHERE output_id=? AND action_state=?"
-	err = s.execOne(ctx, tx, query, ActionStateInitial, act.Sequence, rAct.OutputId, ActionStateRestorable)
+	err = s.restoreAction(ctx, tx, rAct.OutputId, act.Sequence)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
 	}
@@ -241,6 +274,11 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 	}
 
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) restoreAction(ctx context.Context, tx *sql.Tx, id string, sequence uint64) error {
+	query := "UPDATE actions SET action_state=?,restore_sequence=? WHERE output_id=? AND action_state=?"
+	return s.execOne(ctx, tx, query, ActionStateInitial, sequence, id, ActionStateRestorable)
 }
 
 func (s *SQLite3Store) listOutputs(ctx context.Context, ids []string) ([]*UnifiedOutput, error) {
@@ -309,6 +347,28 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 		os = append(os, o)
 	}
 	return os, nil
+}
+
+func (s *SQLite3Store) ListReservedOutputsForAsset(ctx context.Context, appId, assetId, reservationId string, consumedUntil, sequence uint64, limit int) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND state=? AND reserved_by=? AND sequence>? AND sequence<=? ORDER BY sequence ASC", strings.Join(outputCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, appId, assetId, SafeUtxoStateLocked, reservationId, consumedUntil, sequence)
+	if err != nil {
+		return nil, err
+	}
+	defer closeOrPanic(rows)
+
+	var outputs []*UnifiedOutput
+	for rows.Next() {
+		out, err := outputFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		outputs = append(outputs, out)
+	}
+	return outputs, rows.Err()
 }
 
 func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change common.Integer) error {
@@ -395,17 +455,34 @@ func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) er
 		return err
 	}
 	defer rollBack(tx)
+	now := time.Now().UTC()
 
+	t, err := s.readTransactionByTraceId(ctx, tx, traceId)
+	if err != nil || t == nil || t.State != TransactionStateSigned {
+		return fmt.Errorf("invalid transaction to finish %s: %v", traceId, err)
+	}
 	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE trace_id=? AND state=?",
-		TransactionStateSnapshot, time.Now(), traceId, TransactionStateSigned)
+		TransactionStateSnapshot, now, traceId, TransactionStateSigned)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
 	_, err = tx.ExecContext(ctx, "UPDATE outputs SET state=?,updated_at=? WHERE trace_id=? AND state=?",
-		SafeUtxoStateSpent, time.Now().UTC(), traceId, SafeUtxoStateSigned)
+		SafeUtxoStateSpent, now, traceId, SafeUtxoStateSigned)
 	if err != nil {
 		return fmt.Errorf("UPDATE outputs %v", err)
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM custodian_transfers WHERE trace_id=?", traceId)
+	if err != nil {
+		return err
+	}
+	if existed {
+		err = s.execOne(ctx, tx, "UPDATE custodian_transfers SET state=?,updated_at=? WHERE trace_id=? AND state=?",
+			CustodianTransferStateDone, now, traceId, CustodianTransferStatePending)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -554,6 +631,225 @@ func (s *SQLite3Store) ReadTransactionByTraceId(ctx context.Context, id string) 
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE trace_id=?", strings.Join(transactionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
 	return transactionFromRow(row)
+}
+
+func (s *SQLite3Store) readExternalBalance(ctx context.Context, tx *sql.Tx, appId, assetId string) (*ExternalBalance, error) {
+	query := fmt.Sprintf("SELECT %s FROM external_balances WHERE app_id=? AND asset_id=?", strings.Join(externalBalanceCols, ","))
+	row := tx.QueryRowContext(ctx, query, appId, assetId)
+	return externalBalanceFromRow(row)
+}
+
+func (s *SQLite3Store) ReadExternalBalance(ctx context.Context, appId, assetId string) (*ExternalBalance, error) {
+	query := fmt.Sprintf("SELECT %s FROM external_balances WHERE app_id=? AND asset_id=?", strings.Join(externalBalanceCols, ","))
+	row := s.db.QueryRowContext(ctx, query, appId, assetId)
+	balance, err := externalBalanceFromRow(row)
+	if err != nil || balance != nil {
+		return balance, err
+	}
+	return &ExternalBalance{AppId: appId, AssetId: assetId}, nil
+}
+
+func (s *SQLite3Store) updateExternalBalance(ctx context.Context, tx *sql.Tx, balance *ExternalBalance, amount, reserved decimal.Decimal, sequence uint64, now time.Time) error {
+	if balance == nil || amount.Cmp(decimal.Zero) < 0 || reserved.Cmp(decimal.Zero) < 0 || reserved.Cmp(amount) > 0 {
+		return fmt.Errorf("invalid external balance update %v %s/%s", balance, amount, reserved)
+	}
+	query := `UPDATE external_balances SET amount=?,reserved_amount=?,updated_sequence=?,updated_at=?
+		WHERE app_id=? AND asset_id=? AND amount=? AND reserved_amount=?`
+	return s.execOne(ctx, tx, query, amount.String(), reserved.String(), sequence, now,
+		balance.AppId, balance.AssetId, balance.Amount.String(), balance.ReservedAmount.String())
+}
+
+func (s *SQLite3Store) creditExternalBalance(ctx context.Context, tx *sql.Tx, appId, assetId string, amount decimal.Decimal, sequence uint64, now time.Time) error {
+	if amount.Cmp(decimal.Zero) <= 0 || !amount.Shift(8).IsInteger() {
+		return fmt.Errorf("invalid external balance credit %s", amount)
+	}
+	balance, err := s.readExternalBalance(ctx, tx, appId, assetId)
+	if err != nil {
+		return err
+	}
+	if balance == nil {
+		return s.execOne(ctx, tx, buildInsertionSQL("external_balances", externalBalanceCols),
+			appId, assetId, amount.String(), decimal.Zero.String(), sequence, now, now)
+	}
+	return s.updateExternalBalance(ctx, tx, balance, balance.Amount.Add(amount), balance.ReservedAmount, sequence, now)
+}
+
+func (s *SQLite3Store) reserveExternalBalance(ctx context.Context, tx *sql.Tx, appId, assetId string, amount decimal.Decimal, sequence uint64, now time.Time) error {
+	if amount.Cmp(decimal.Zero) <= 0 {
+		return fmt.Errorf("invalid external balance reservation %s", amount)
+	}
+	balance, err := s.readExternalBalance(ctx, tx, appId, assetId)
+	if err != nil {
+		return err
+	}
+	if balance == nil || balance.Available().Cmp(amount) < 0 {
+		available := decimal.Zero
+		if balance != nil {
+			available = balance.Available()
+		}
+		return fmt.Errorf("insufficient external balance for %s/%s: %s < %s", appId, assetId, available, amount)
+	}
+	return s.updateExternalBalance(ctx, tx, balance, balance.Amount, balance.ReservedAmount.Add(amount), sequence, now)
+}
+
+func (s *SQLite3Store) consumeExternalBalance(ctx context.Context, tx *sql.Tx, appId, assetId string, amount decimal.Decimal, sequence uint64, now time.Time) error {
+	if amount.Cmp(decimal.Zero) <= 0 {
+		return fmt.Errorf("invalid external balance consumption %s", amount)
+	}
+	balance, err := s.readExternalBalance(ctx, tx, appId, assetId)
+	if err != nil {
+		return err
+	}
+	if balance == nil || balance.Amount.Cmp(amount) < 0 || balance.ReservedAmount.Cmp(amount) < 0 {
+		return fmt.Errorf("invalid external balance consumption %s/%s %s", appId, assetId, amount)
+	}
+	return s.updateExternalBalance(ctx, tx, balance, balance.Amount.Sub(amount), balance.ReservedAmount.Sub(amount), sequence, now)
+}
+
+func (s *SQLite3Store) readLiquidityRequest(ctx context.Context, tx *sql.Tx, requestId string) (*LiquidityRequest, error) {
+	query := fmt.Sprintf("SELECT %s FROM liquidity_requests WHERE request_id=?", strings.Join(liquidityRequestCols, ","))
+	row := tx.QueryRowContext(ctx, query, requestId)
+	return liquidityRequestFromRow(row)
+}
+
+func (s *SQLite3Store) ReadLiquidityRequest(ctx context.Context, requestId string) (*LiquidityRequest, error) {
+	query := fmt.Sprintf("SELECT %s FROM liquidity_requests WHERE request_id=?", strings.Join(liquidityRequestCols, ","))
+	row := s.db.QueryRowContext(ctx, query, requestId)
+	return liquidityRequestFromRow(row)
+}
+
+func (s *SQLite3Store) ListLiquidityRequests(ctx context.Context, state string, limit int) ([]*LiquidityRequest, error) {
+	query := fmt.Sprintf("SELECT %s FROM liquidity_requests WHERE state=? ORDER BY sequence,request_id", strings.Join(liquidityRequestCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, state)
+	if err != nil {
+		return nil, err
+	}
+	defer closeOrPanic(rows)
+
+	var requests []*LiquidityRequest
+	for rows.Next() {
+		request, err := liquidityRequestFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, rows.Err()
+}
+
+func (s *SQLite3Store) lockOutput(ctx context.Context, tx *sql.Tx, outputId, reservationId string, now time.Time) error {
+	query := "UPDATE outputs SET state=?,reserved_by=?,updated_at=? WHERE output_id=? AND state=? AND reserved_by=''"
+	return s.execOne(ctx, tx, query, SafeUtxoStateLocked, reservationId, now, outputId, SafeUtxoStateUnspent)
+}
+
+func (s *SQLite3Store) CreateLiquidityRequest(ctx context.Context, act *Action, request *LiquidityRequest, internalIds []string) error {
+	if request == nil || request.State != LiquidityRequestStateWaiting || request.Amount.Cmp(decimal.Zero) <= 0 {
+		return fmt.Errorf("invalid liquidity request %v", request)
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollBack(tx)
+
+	storedAction, err := s.readAction(ctx, tx, act.OutputId)
+	if err != nil || storedAction == nil || storedAction.ActionState != ActionStateInitial {
+		return fmt.Errorf("invalid action for liquidity request %s: %v", act.OutputId, err)
+	}
+	if request.ActionId != act.OutputId || request.AppId != act.AppId || request.Sequence != act.Sequence {
+		return fmt.Errorf("invalid liquidity request origin %s", request.RequestId)
+	}
+
+	now := time.Now().UTC()
+	request.CreatedAt = now
+	request.UpdatedAt = now
+	err = s.execOne(ctx, tx, buildInsertionSQL("liquidity_requests", liquidityRequestCols), request.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT liquidity_requests %v", err)
+	}
+
+	for _, outputId := range internalIds {
+		out, err := s.readOutput(ctx, tx, outputId)
+		if err != nil || out == nil || out.AppId != request.AppId || out.Sequence > request.Sequence {
+			return fmt.Errorf("invalid internal liquidity input %s: %v", outputId, err)
+		}
+		switch {
+		case out.State == SafeUtxoStateUnspent && out.ReservedBy == "":
+			err = s.lockOutput(ctx, tx, outputId, act.OutputId, now)
+			if err != nil {
+				return fmt.Errorf("lock internal output %s: %v", outputId, err)
+			}
+		case out.State == SafeUtxoStateLocked && out.ReservedBy == act.OutputId:
+		default:
+			return fmt.Errorf("invalid internal liquidity input state %s: %s/%s", outputId, out.State, out.ReservedBy)
+		}
+	}
+	err = s.reserveExternalBalance(ctx, tx, request.AppId, request.AssetId, request.Amount, request.Sequence, now)
+	if err != nil {
+		return err
+	}
+	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=? AND action_state=?", ActionStateRestorable, act.OutputId, ActionStateInitial)
+	if err != nil {
+		return fmt.Errorf("reserve action for liquidity request %s: %v", request.RequestId, err)
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) completeLiquidityRequest(ctx context.Context, act *Action, request *LiquidityRequest) error {
+	if act == nil || request == nil {
+		return fmt.Errorf("invalid liquidity return %v %v", act, request)
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollBack(tx)
+
+	rAct, err := s.readRestorableActionById(ctx, tx, request.ActionId)
+	if err != nil || rAct == nil {
+		return fmt.Errorf("invalid restorable action %s: %v", request.ActionId, err)
+	}
+
+	now := time.Now().UTC()
+	err = s.consumeExternalBalance(ctx, tx, request.AppId, request.AssetId, request.Amount, act.Sequence, now)
+	if err != nil {
+		return err
+	}
+	err = s.lockOutput(ctx, tx, act.OutputId, request.ActionId, now)
+	if err != nil {
+		return fmt.Errorf("lock liquidity return output %s: %v", act.OutputId, err)
+	}
+	err = s.execOne(ctx, tx, "UPDATE liquidity_requests SET state=?,return_output_id=?,updated_at=? WHERE request_id=? AND state=?",
+		LiquidityRequestStateDone, act.OutputId, now, request.RequestId, LiquidityRequestStateWaiting)
+	if err != nil {
+		return err
+	}
+	err = s.restoreAction(ctx, tx, rAct.OutputId, act.Sequence)
+	if err != nil {
+		return err
+	}
+	err = s.finishAction(ctx, tx, act.OutputId, ActionStateDone, nil)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ReadCustodianTransferByRequestId(ctx context.Context, requestId string) (*CustodianTransfer, error) {
+	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE request_id=?", strings.Join(custodianTransferCols, ","))
+	row := s.db.QueryRowContext(ctx, query, requestId)
+	return custodianTransferFromRow(row)
 }
 
 type Row interface {

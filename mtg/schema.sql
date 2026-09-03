@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS outputs (
   updated_at           TIMESTAMP NOT NULL,
   signers              VARCHAR NOT NULL,
   signed_by            VARCHAR NOT NULL,
+  reserved_by          VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
   app_id               VARCHAR NOT NULL,
   deposit_hash         VARCHAR,
@@ -109,3 +110,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS transactions_by_hash ON transactions(hash) WHE
 CREATE INDEX IF NOT EXISTS transactions_by_state_sequence_hash ON transactions(state, sequence, hash);
 CREATE INDEX IF NOT EXISTS transactions_by_asset_state_sequence ON transactions(asset_id, state, sequence);
 CREATE INDEX IF NOT EXISTS transactions_by_state_withdrawal_hash_updated ON transactions(state, withdrawal_hash, updated_at);
+
+
+
+CREATE TABLE IF NOT EXISTS external_balances (
+  app_id                VARCHAR NOT NULL,
+  asset_id              VARCHAR NOT NULL,
+  amount                VARCHAR NOT NULL,
+  reserved_amount       VARCHAR NOT NULL,
+  updated_sequence      INTEGER NOT NULL,
+  created_at            TIMESTAMP NOT NULL,
+  updated_at            TIMESTAMP NOT NULL,
+  PRIMARY KEY ('app_id', 'asset_id')
+);
+
+
+
+CREATE TABLE IF NOT EXISTS liquidity_requests (
+  request_id            VARCHAR NOT NULL,
+  action_id             VARCHAR NOT NULL,
+  app_id                VARCHAR NOT NULL,
+  asset_id              VARCHAR NOT NULL,
+  amount                VARCHAR NOT NULL,
+  state                 VARCHAR NOT NULL,
+  sequence              INTEGER NOT NULL,
+  return_output_id      VARCHAR NOT NULL,
+  created_at            TIMESTAMP NOT NULL,
+  updated_at            TIMESTAMP NOT NULL,
+  PRIMARY KEY ('request_id')
+);
+
+CREATE INDEX IF NOT EXISTS liquidity_requests_by_state_sequence ON liquidity_requests(state, sequence);
+CREATE UNIQUE INDEX IF NOT EXISTS liquidity_requests_by_waiting_action ON liquidity_requests(action_id) WHERE state='waiting';
+
+
+
+CREATE TABLE IF NOT EXISTS custodian_transfers (
+  trace_id              VARCHAR NOT NULL,
+  request_id            VARCHAR NOT NULL,
+  action_id             VARCHAR NOT NULL,
+  app_id                VARCHAR NOT NULL,
+  asset_id              VARCHAR NOT NULL,
+  amount                VARCHAR NOT NULL,
+  address               VARCHAR NOT NULL,
+  state                 VARCHAR NOT NULL,
+  sequence              INTEGER NOT NULL,
+  created_at            TIMESTAMP NOT NULL,
+  updated_at            TIMESTAMP NOT NULL,
+  PRIMARY KEY ('trace_id')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS custodian_transfers_by_request_id ON custodian_transfers(request_id);
+CREATE INDEX IF NOT EXISTS custodian_transfers_by_state_sequence ON custodian_transfers(state, sequence);

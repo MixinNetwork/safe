@@ -18,3 +18,7 @@ members = [
 ]
 threshold = 3
 epoch = 4655227
+
+# [custodian]
+# mix-address = "MIX..."
+# requesters = ["observer-user-id"]

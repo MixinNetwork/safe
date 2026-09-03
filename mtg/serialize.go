@@ -97,6 +97,12 @@ func (tx *Transaction) Serialize() []byte {
 		writeString(enc, strings.Join(tx.Receivers, ","))
 		writeByte(enc, tx.Threshold)
 	}
+	if tx.custodianTransfer {
+		enc.Write(magic)
+		writeString(enc, tx.custodianAddress)
+	} else {
+		enc.Write(null)
+	}
 	return enc.Bytes()
 }
 
@@ -266,6 +272,19 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		}
 		tx.Receivers = util.SplitIds(receivers, ",")
 		tx.Threshold = int(threshold)
+	}
+
+	extended, err := dec.ReadMagic()
+	if err != nil {
+		return nil, err
+	}
+	if !extended {
+		return tx, nil
+	}
+	tx.custodianTransfer = true
+	tx.custodianAddress, err = readString(dec)
+	if err != nil {
+		return nil, err
 	}
 	return tx, nil
 }

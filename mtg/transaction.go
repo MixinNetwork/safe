@@ -56,16 +56,18 @@ type Transaction struct {
 	Sequence      uint64
 	UpdatedAt     time.Time
 
-	compaction     bool
-	storage        bool
-	references     []crypto.Hash
-	storageTraceId string
-	Destination    sql.NullString
-	Tag            sql.NullString
-	WithdrawalHash sql.NullString
-	requestId      sql.NullString
-	consumed       []*UnifiedOutput
-	consumedIds    []string
+	compaction        bool
+	storage           bool
+	references        []crypto.Hash
+	storageTraceId    string
+	Destination       sql.NullString
+	Tag               sql.NullString
+	WithdrawalHash    sql.NullString
+	requestId         sql.NullString
+	consumed          []*UnifiedOutput
+	consumedIds       []string
+	custodianTransfer bool
+	custodianAddress  string
 }
 
 var transactionCols = []string{
@@ -139,7 +141,17 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	return &t, nil
 }
 
+// BuildTransaction returns nil when the requested amount cannot be funded by
+// internal outputs. A restored liquidity Action uses the outputs reserved for
+// it, including the custodian return; a compaction-restored Action keeps using
+// normal unspent outputs. Otherwise, when fewer than OutputsBatchSize inputs are
+// available and total custody is sufficient, the Action records the exact
+// hot-wallet deficit so Group can request a refill.
 func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
+	return act.buildTransaction(ctx, traceId, opponentAppId, assetId, amount, memo, receivers, threshold, true)
+}
+
+func (act *Action) buildTransaction(ctx context.Context, traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, allowLiquidity bool) *Transaction {
 	checkAmountPrecision(amount)
 
 	rs := make([]string, len(receivers))
@@ -159,7 +171,9 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 		AppId:         act.AppId,
 		Sequence:      act.Sequence,
 	}
-	tx.fillInputs(ctx, act)
+	if !tx.fillInputs(ctx, act, allowLiquidity) {
+		return nil
+	}
 	return tx
 }
 
@@ -168,6 +182,9 @@ func (act *Action) BuildTransactionWithReference(ctx context.Context, traceId, o
 		panic(reference)
 	}
 	t := act.BuildTransaction(ctx, traceId, opponentAppId, assetId, amount, memo, receivers, threshold)
+	if t == nil {
+		return nil
+	}
 	t.references = []crypto.Hash{reference}
 	return t
 }
@@ -177,6 +194,9 @@ func (act *Action) BuildTransactionWithStorageTraceId(ctx context.Context, trace
 		panic(err)
 	}
 	t := act.BuildTransaction(ctx, traceId, opponentAppId, assetId, amount, memo, receivers, threshold)
+	if t == nil {
+		return nil
+	}
 	t.storageTraceId = storageTraceId
 	return t
 }
@@ -192,6 +212,9 @@ func (act *Action) BuildStorageTransaction(ctx context.Context, extra []byte) *T
 	receivers := []string{addr.String()}
 	amount := getStorageTransactionAmount(extra)
 	t := act.BuildTransaction(ctx, sTraceId, act.group.GroupId, StorageAssetId, amount.String(), string(extra), receivers, 64)
+	if t == nil {
+		return nil
+	}
 	t.storage = true
 	return t
 }
@@ -212,15 +235,14 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 		Tag:            sql.NullString{Valid: true, String: tag},
 		WithdrawalHash: sql.NullString{Valid: false},
 	}
-	tx.fillInputs(ctx, act)
+	if !tx.fillInputs(ctx, act, true) {
+		return nil
+	}
 	return tx
 }
 
-func (tx *Transaction) fillInputs(ctx context.Context, act *Action) {
-	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[tx.AssetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
-	if len(outputs) == 0 {
-		panic(tx.TraceId)
-	}
+func (tx *Transaction) fillInputs(ctx context.Context, act *Action, allowLiquidity bool) bool {
+	outputs := act.listSpendableOutputs(ctx, tx.AssetId, act.consumed[tx.AssetId], OutputsBatchSize)
 	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
 		hack, err := act.group.store.listOutputs(ctx, ids)
 		if err != nil {
@@ -228,6 +250,19 @@ func (tx *Transaction) fillInputs(ctx context.Context, act *Action) {
 		}
 		outputs = hack
 	}
+
+	target := decimal.RequireFromString(tx.Amount)
+	internal := decimal.Zero
+	for _, out := range outputs {
+		internal = internal.Add(out.Amount)
+	}
+	if internal.Cmp(target) < 0 {
+		if allowLiquidity && len(outputs) < OutputsBatchSize {
+			act.requireLiquidity(ctx, tx.AssetId, target, internal, outputs)
+		}
+		return false
+	}
+
 	inputs, _, err := act.group.getTransactionInputsAndRecipients(ctx, tx, outputs)
 	if err != nil {
 		panic(err)
@@ -235,10 +270,12 @@ func (tx *Transaction) fillInputs(ctx context.Context, act *Action) {
 	tx.consumed = inputs
 	for _, o := range tx.consumed {
 		tx.consumedIds = append(tx.consumedIds, o.OutputId)
+		act.protectedInputs[o.OutputId] = o
 		if o.Sequence > act.consumed[tx.AssetId] {
 			act.consumed[tx.AssetId] = o.Sequence
 		}
 	}
+	return true
 }
 
 func getStorageTransactionAmount(extra []byte) common.Integer {
@@ -272,6 +309,8 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		tx.storage == t.storage &&
 		tx.storageTraceId == t.storageTraceId &&
 		tx.getConsumedString() == t.getConsumedString() &&
+		tx.custodianTransfer == t.custodianTransfer &&
+		tx.custodianAddress == t.custodianAddress &&
 		tx.Destination.String == t.Destination.String &&
 		tx.Tag.String == t.Tag.String &&
 		tx.WithdrawalHash.String == t.WithdrawalHash.String &&
@@ -336,7 +375,7 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 
 func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, act *Action) (*Transaction, error) {
 	// compaction transaction is special, this is the sole transaction for an action
-	compaction := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.consumed[asset], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	compaction := act.listSpendableOutputs(ctx, asset, act.consumed[asset], OutputsBatchSize)
 	if len(compaction) != OutputsBatchSize {
 		return nil, fmt.Errorf("insufficient outputs to build compaction transaction: %d", len(compaction))
 	}
