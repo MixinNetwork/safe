@@ -63,35 +63,42 @@ func custodianTransferFromRow(row Row) (*CustodianTransfer, error) {
 	return &transfer, err
 }
 
-func validateCustodianConfiguration(conf *Configuration) (string, []string, int, map[string]bool, error) {
+func validateCustodianConfiguration(conf *Configuration) (string, string, []string, int, map[string]bool, error) {
 	requesters := make(map[string]bool)
-	if conf.Custodian.MixAddress == "" && len(conf.Custodian.Requesters) == 0 {
-		return "", nil, 0, requesters, nil
+	if conf.Custodian.MixAddress == "" && conf.Custodian.ConversationId == "" && len(conf.Custodian.Requesters) == 0 {
+		return "", "", nil, 0, requesters, nil
 	}
 	if conf.Custodian.MixAddress == "" {
-		return "", nil, 0, nil, fmt.Errorf("missing custodian mix address")
+		return "", "", nil, 0, nil, fmt.Errorf("missing custodian mix address")
+	}
+	if conf.Custodian.ConversationId == "" {
+		return "", "", nil, 0, nil, fmt.Errorf("missing custodian conversation id")
+	}
+	conversationId, err := uuid.FromString(conf.Custodian.ConversationId)
+	if err != nil || conversationId == uuid.Nil || conversationId.String() != conf.Custodian.ConversationId {
+		return "", "", nil, 0, nil, fmt.Errorf("invalid custodian conversation id %s", conf.Custodian.ConversationId)
 	}
 	if len(conf.Custodian.Requesters) == 0 {
-		return "", nil, 0, nil, fmt.Errorf("missing custodian requesters")
+		return "", "", nil, 0, nil, fmt.Errorf("missing custodian requesters")
 	}
 	address, err := mixin.MixAddressFromString(conf.Custodian.MixAddress)
 	if err != nil {
-		return "", nil, 0, nil, fmt.Errorf("invalid custodian mix address: %v", err)
+		return "", "", nil, 0, nil, fmt.Errorf("invalid custodian mix address: %v", err)
 	}
 	if len(address.Members()) == 1 || address.Threshold == 1 {
-		return "", nil, 0, nil, fmt.Errorf("invalid custodian mix address multisigs")
+		return "", "", nil, 0, nil, fmt.Errorf("invalid custodian mix address multisigs")
 	}
 	for _, item := range conf.Custodian.Requesters {
 		id, err := uuid.FromString(item)
 		if err != nil || id.String() != item {
-			return "", nil, 0, nil, fmt.Errorf("invalid custodian requester %s", item)
+			return "", "", nil, 0, nil, fmt.Errorf("invalid custodian requester %s", item)
 		}
 		if requesters[item] {
-			return "", nil, 0, nil, fmt.Errorf("duplicate custodian requester %s", item)
+			return "", "", nil, 0, nil, fmt.Errorf("duplicate custodian requester %s", item)
 		}
 		requesters[item] = true
 	}
-	return address.String(), address.Members(), int(address.Threshold), requesters, nil
+	return conversationId.String(), address.String(), address.Members(), int(address.Threshold), requesters, nil
 }
 
 func EncodeCustodianTransferMemo(assetId, amount string) []byte {

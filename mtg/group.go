@@ -48,19 +48,20 @@ type Group struct {
 	entries   map[string]string
 	groupSize int
 
-	id                  string
-	GroupId             string
-	rawMembers          []string
-	threshold           int
-	index               int
-	epoch               uint64
-	spendPrivateKey     string
-	debug               bool
-	kernelRPC           string
-	custodianAddress    string
-	custodianMembers    []string
-	custodianThreshold  int
-	custodianRequesters map[string]bool
+	id                      string
+	GroupId                 string
+	rawMembers              []string
+	threshold               int
+	index                   int
+	epoch                   uint64
+	spendPrivateKey         string
+	debug                   bool
+	kernelRPC               string
+	custodianAddress        string
+	custodianConversationId string
+	custodianMembers        []string
+	custodianThreshold      int
+	custodianRequesters     map[string]bool
 }
 
 func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
@@ -91,25 +92,26 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	}
 
 	id := generateGenesisId(conf)
-	custodianAddress, custodianMembers, custodianThreshold, custodianRequesters, err := validateCustodianConfiguration(conf)
+	custodianConversationId, custodianAddress, custodianMembers, custodianThreshold, custodianRequesters, err := validateCustodianConfiguration(conf)
 	if err != nil {
 		return nil, err
 	}
 	grp := &Group{
-		mixin:               client,
-		store:               store,
-		spendPrivateKey:     conf.App.SpendPrivateKey,
-		id:                  id,
-		GroupId:             UniqueId(id, conf.Project),
-		groupSize:           conf.GroupSize,
-		workers:             make(map[string]Worker),
-		entries:             make(map[string]string),
-		kernelRPC:           defaultKernelRPC,
-		index:               -1,
-		custodianAddress:    custodianAddress,
-		custodianMembers:    custodianMembers,
-		custodianThreshold:  custodianThreshold,
-		custodianRequesters: custodianRequesters,
+		mixin:                   client,
+		store:                   store,
+		spendPrivateKey:         conf.App.SpendPrivateKey,
+		id:                      id,
+		GroupId:                 UniqueId(id, conf.Project),
+		groupSize:               conf.GroupSize,
+		workers:                 make(map[string]Worker),
+		entries:                 make(map[string]string),
+		kernelRPC:               defaultKernelRPC,
+		index:                   -1,
+		custodianAddress:        custodianAddress,
+		custodianConversationId: custodianConversationId,
+		custodianMembers:        custodianMembers,
+		custodianThreshold:      custodianThreshold,
+		custodianRequesters:     custodianRequesters,
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize

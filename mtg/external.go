@@ -200,6 +200,7 @@ type FundingRequest struct {
 	AssetId          string
 	Amount           decimal.Decimal
 	CustodianAddress string
+	ConversationId   string
 	ReturnAddress    string
 	ReturnMemo       []byte
 	Sequence         uint64
@@ -263,6 +264,7 @@ func (grp *Group) ListFundingRequests(ctx context.Context, limit int) ([]*Fundin
 			AssetId:          request.AssetId,
 			Amount:           request.Amount,
 			CustodianAddress: grp.custodianAddress,
+			ConversationId:   grp.custodianConversationId,
 			ReturnAddress:    returnAddress.String(),
 			ReturnMemo:       EncodeFundingReturnMemo(request.RequestId),
 			Sequence:         request.Sequence,
