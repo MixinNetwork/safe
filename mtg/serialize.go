@@ -3,12 +3,14 @@ package mtg
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -319,4 +321,73 @@ func DeserializeTransactions(tb []byte) ([]*Transaction, error) {
 		txs[i] = tx
 	}
 	return txs, nil
+}
+
+// Serialize encodes a liquidity requirement using the MTG binary format.
+func (r *LiquidityRequirement) Serialize() []byte {
+	enc := common.NewEncoder()
+	writeUuid(enc, r.AssetId)
+	writeString(enc, r.Amount.String())
+	writeString(enc, r.InternalAmount.String())
+	enc.WriteInt(len(r.InternalInputIds))
+	for _, id := range r.InternalInputIds {
+		writeUuid(enc, id)
+	}
+	return enc.Bytes()
+}
+
+// DeserializeLiquidityRequirement decodes a liquidity requirement.
+func DeserializeLiquidityRequirement(rb []byte) (*LiquidityRequirement, error) {
+	dec := common.NewDecoder(rb)
+	assetId, err := readUuid(dec)
+	if err != nil {
+		return nil, err
+	}
+	amountString, err := readString(dec)
+	if err != nil {
+		return nil, err
+	}
+	amount, err := decimal.NewFromString(amountString)
+	if err != nil {
+		return nil, fmt.Errorf("invalid liquidity amount %q: %v", amountString, err)
+	}
+	if amount.Cmp(decimal.Zero) <= 0 {
+		return nil, fmt.Errorf("invalid liquidity amount %s", amount)
+	}
+	internalAmountString, err := readString(dec)
+	if err != nil {
+		return nil, err
+	}
+	internalAmount, err := decimal.NewFromString(internalAmountString)
+	if err != nil {
+		return nil, fmt.Errorf("invalid liquidity internal amount %q: %v", internalAmountString, err)
+	}
+	if internalAmount.Cmp(decimal.Zero) < 0 {
+		return nil, fmt.Errorf("invalid liquidity internal amount %s", internalAmount)
+	}
+	count, err := dec.ReadInt()
+	if err != nil {
+		return nil, err
+	}
+	inputIds := make([]string, count)
+	for i := range count {
+		inputIds[i], err = readUuid(dec)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !slices.IsSorted(inputIds) {
+		return nil, fmt.Errorf("unsorted liquidity inputs %v", inputIds)
+	}
+	for i := 1; i < len(inputIds); i++ {
+		if inputIds[i] == inputIds[i-1] {
+			return nil, fmt.Errorf("duplicate liquidity input %s", inputIds[i])
+		}
+	}
+	return &LiquidityRequirement{
+		AssetId:          assetId,
+		Amount:           amount,
+		InternalAmount:   internalAmount,
+		InternalInputIds: inputIds,
+	}, nil
 }
