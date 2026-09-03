@@ -19,7 +19,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/dimfeld/httptreemux/v5 v5.5.0
 	github.com/ethereum/go-ethereum v1.17.5
-	github.com/fox-one/mixin-sdk-go/v3 v3.0.0
+	github.com/fox-one/mixin-sdk-go/v3 v3.0.1
 	github.com/fxamacker/cbor/v2 v2.9.3
 	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/mattn/go-sqlite3 v1.14.50
@@ -28,13 +28,13 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
-	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260814054414-7dc2037c6ef9 // indirect
+	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260903034124-3b896fc4e368 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.25.0 // indirect
