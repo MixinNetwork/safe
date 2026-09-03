@@ -29,15 +29,16 @@ type Worker interface {
 	// ProcessOutput processes an action in sequence order. Workers should check
 	// CheckAssetBalanceAt before building transactions. BuildTransaction returns
 	// nil when the hot internal outputs are insufficient; in that case the worker
-	// must discard all transactions and return the affected asset as the existing
-	// compaction signal. MTG will either compact internal outputs or request a
-	// custodian refill, then replay the action.
+	// must discard all transactions and return either a liquidity requirement or
+	// the affected asset as the compaction signal. MTG will satisfy that result,
+	// then replay the action. Transactions, liquidity, and compaction are mutually
+	// exclusive action results.
 	//
 	// if we want to make a multi process worker, it's possible that
 	// we pass some RPC handle to the process, or we could build a
 	// whole state of the current sequence and send it to the process
 	// i.e. ProcessOutput(StateAtSequence, Action) []*Transaction
-	ProcessOutput(context.Context, *Action) ([]*Transaction, string)
+	ProcessOutput(context.Context, *Action) ([]*Transaction, *LiquidityRequirement, string)
 }
 
 type Group struct {

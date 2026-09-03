@@ -30,7 +30,7 @@ type Action struct {
 	group           *Group
 	consumed        map[string]uint64
 	protectedInputs map[string]*UnifiedOutput
-	liquidity       *liquidityRequirement
+	liquidity       *LiquidityRequirement
 }
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
@@ -82,7 +82,7 @@ func (a *Action) TestAttachActionToGroup(g *Group) {
 	a.prepareForProcessing(g)
 }
 
-func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string, liquidity1, liquidity2 *liquidityRequirement) {
+func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string, liquidity1, liquidity2 *LiquidityRequirement) {
 	if asset1 != asset2 {
 		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset1, asset2)
 		panic(err)
@@ -250,27 +250,25 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			continue
 		}
 
-		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
-		liquidity := a.liquidity.clone()
+		txs, liquidity, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
 			a.prepareForProcessing(grp)
-			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
-			replayCheck(a, txs, txs2, compactionAsset, compactionAsset2, liquidity, a.liquidity)
-			a.liquidity = liquidity
+			txs2, liquidity2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
+			replayCheck(a, txs, txs2, compactionAsset, compactionAsset2, liquidity, liquidity2)
 		}
 
 		state := ActionStateDone
-		if compactionAsset != "" && len(txs) == 0 {
-			if a.liquidity != nil {
-				if a.liquidity.AssetId != compactionAsset {
-					return fmt.Errorf("invalid liquidity asset %s for compaction %s", a.liquidity.AssetId, compactionAsset)
-				}
-				err = grp.createLiquidityRequest(ctx, a, a.liquidity)
-				if err != nil {
-					return fmt.Errorf("group.createLiquidityRequest(%s %v) => %v", compactionAsset, a, err)
-				}
-				continue
+		if liquidity != nil {
+			if len(txs) > 0 || compactionAsset != "" {
+				return fmt.Errorf("invalid liquidity result for action %s", a.OutputId)
 			}
+			err = grp.createLiquidityRequest(ctx, a, liquidity)
+			if err != nil {
+				return fmt.Errorf("group.createLiquidityRequest(%s %v) => %v", liquidity.AssetId, a, err)
+			}
+			continue
+		}
+		if compactionAsset != "" && len(txs) == 0 {
 			t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
 			if err != nil {
 				return fmt.Errorf("group.buildCompactionTransaction(%s %v) => %v", compactionAsset, a, err)

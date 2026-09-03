@@ -83,26 +83,17 @@ func (act *Action) readExternalBalanceAt(ctx context.Context, assetId string) *E
 	return balance
 }
 
-// liquidityRequirement is produced while an application worker tries to build
+// LiquidityRequirement is produced while an application worker tries to build
 // a transaction. Only the exact hot-wallet deficit and the internal outputs
 // which must remain available for replay are retained.
-type liquidityRequirement struct {
+type LiquidityRequirement struct {
 	AssetId          string
 	Amount           decimal.Decimal
 	InternalAmount   decimal.Decimal
 	InternalInputIds []string
 }
 
-func (r *liquidityRequirement) clone() *liquidityRequirement {
-	if r == nil {
-		return nil
-	}
-	c := *r
-	c.InternalInputIds = append([]string(nil), r.InternalInputIds...)
-	return &c
-}
-
-func (r *liquidityRequirement) equal(other *liquidityRequirement) bool {
+func (r *LiquidityRequirement) equal(other *LiquidityRequirement) bool {
 	if r == nil || other == nil {
 		return r == nil && other == nil
 	}
@@ -115,6 +106,11 @@ func (r *liquidityRequirement) equal(other *liquidityRequirement) bool {
 		}
 	}
 	return true
+}
+
+// LiquidityRequirement returns the requirement produced while processing this action.
+func (act *Action) LiquidityRequirement() *LiquidityRequirement {
+	return act.liquidity
 }
 
 func (act *Action) requireLiquidity(ctx context.Context, assetId string, target, internal decimal.Decimal, inputs []*UnifiedOutput) bool {
@@ -136,7 +132,7 @@ func (act *Action) requireLiquidity(ctx context.Context, assetId string, target,
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	act.liquidity = &liquidityRequirement{
+	act.liquidity = &LiquidityRequirement{
 		AssetId:          assetId,
 		Amount:           target.Sub(internal),
 		InternalAmount:   internal,
@@ -229,7 +225,7 @@ func DecodeFundingReturnMemo(memo []byte) (string, bool) {
 	return uid.String(), true
 }
 
-func (grp *Group) createLiquidityRequest(ctx context.Context, act *Action, requirement *liquidityRequirement) error {
+func (grp *Group) createLiquidityRequest(ctx context.Context, act *Action, requirement *LiquidityRequirement) error {
 	if grp.custodianAddress == "" {
 		return fmt.Errorf("custodian is not configured")
 	}
