@@ -10,6 +10,7 @@ on:
 env:
   POLYGONRPC: ${{ vars.POLYGONRPC }}
   BITCOINRPC: ${{ vars.BITCOINRPC }}
+  ETHEREUMRPC: ${{ vars.ETHEREUMRPC }}
 
 jobs:
   test:

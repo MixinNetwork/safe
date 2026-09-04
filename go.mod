@@ -1,11 +1,11 @@
 module github.com/MixinNetwork/safe
 
-go 1.27.0
+go 1.27.1
 
 require (
 	filippo.io/edwards25519 v1.2.0
 	github.com/MixinNetwork/bot-api-go-client/v3 v3.25.3
-	github.com/MixinNetwork/mixin v0.19.6
+	github.com/MixinNetwork/mixin v0.19.7
 	github.com/MixinNetwork/multi-party-sig v0.7.0
 	github.com/btcsuite/btcd v0.26.2
 	github.com/btcsuite/btcd/address/v2 v2.0.0
@@ -34,7 +34,7 @@ require (
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
-	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260903034124-3b896fc4e368 // indirect
+	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260904015846-89a2b745b5c2 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.25.0 // indirect
