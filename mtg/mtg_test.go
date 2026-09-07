@@ -37,7 +37,19 @@ type Node struct {
 
 var actionResult map[string]string
 
-func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
+func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, *LiquidityRequirement, string) {
+	txs, compaction := n.processOutput(ctx, a)
+	liquidity := a.LiquidityRequirement()
+	if liquidity != nil {
+		if len(txs) > 0 || compaction != liquidity.AssetId {
+			panic(a.OutputId)
+		}
+		return nil, liquidity, ""
+	}
+	return txs, nil, compaction
+}
+
+func (n *Node) processOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
 	if actionResult[a.OutputId] != "" {
 		data, err := hex.DecodeString(actionResult[a.OutputId])
 		if err != nil {
@@ -72,11 +84,17 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 				panic(a.Sequence)
 			}
 			t := a.BuildStorageTransaction(ctx, extra)
+			if t == nil {
+				return nil, StorageAssetId
+			}
 			storageTraceId = t.TraceId
 			txs = append(txs, t)
 		case "withdrawal":
 			tid := "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3"
 			t := a.BuildWithdrawTransaction(ctx, tid, SOLAssetId, testWithdrawalAmount, testWithdrawalMemo, testWithdrawalDestination, "")
+			if t == nil {
+				return nil, SOLAssetId
+			}
 			txs = append(txs, t)
 		default:
 			amt := decimal.RequireFromString(tx)
@@ -92,6 +110,9 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 				t = a.BuildTransactionWithStorageTraceId(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
 			} else {
 				t = a.BuildTransaction(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
+			}
+			if t == nil {
+				return nil, a.AssetId
 			}
 			txs = append(txs, t)
 		}
@@ -399,7 +420,7 @@ func TestMTGWithdrawal(t *testing.T) {
 		tx.consumedIds = append(tx.consumedIds, o.OutputId)
 	}
 	tsb := SerializeTransactions(txs)
-	require.Equal("0100c8cf0564babf514e8cb5043beb6c5c65e37201c7d7eac8374ca5ec9dcb47a38fa57201c7d7eac8374ca5ec9dcb47a38fa5276192fd01413e56a50ff04061a218770d64692c2389714cf484a74dd1271dd8870006302e30303439000f7769746864726177616c2d7465737400000000004708a100000000000000000000000000000000000000017514b939db923d31abf47841f035e4007777002c3733796f7a376b4b337a6768325363443961544a705843724b48455469317879454b664d54483935756766660000", hex.EncodeToString(tsb))
+	require.Equal("0100cacf0564babf514e8cb5043beb6c5c65e37201c7d7eac8374ca5ec9dcb47a38fa57201c7d7eac8374ca5ec9dcb47a38fa5276192fd01413e56a50ff04061a218770d64692c2389714cf484a74dd1271dd8870006302e30303439000f7769746864726177616c2d7465737400000000004708a100000000000000000000000000000000000000017514b939db923d31abf47841f035e4007777002c3733796f7a376b4b337a6768325363443961544a705843724b48455469317879454b664d544839357567666600000000", hex.EncodeToString(tsb))
 	dtxs, err := DeserializeTransactions(tsb)
 	require.Nil(err)
 	require.Len(dtxs, 1)
@@ -425,6 +446,24 @@ func TestMTGWithdrawal(t *testing.T) {
 	o, err := node.Group.store.ReadOutputById(ctx, cu.OutputId)
 	require.Nil(err)
 	require.Nil(o)
+}
+
+func TestLiquidityRequirementSerialize(t *testing.T) {
+	requirement := &LiquidityRequirement{
+		AssetId:        "218bc6f4-7927-3f8e-8568-3a3725b74361",
+		Amount:         decimal.RequireFromString("2.1"),
+		InternalAmount: decimal.RequireFromString("7.9"),
+		InternalInputIds: []string{
+			"cf0564ba-bf51-4e8c-b504-3beb6c5c65e3",
+			"df0564ba-bf51-4e8c-b504-3beb6c5c65e3",
+		},
+	}
+	b := requirement.Serialize()
+	require.Equal(t, "218bc6f479273f8e85683a3725b743610003322e310003372e390002cf0564babf514e8cb5043beb6c5c65e3df0564babf514e8cb5043beb6c5c65e3", hex.EncodeToString(b))
+
+	actual, err := DeserializeLiquidityRequirement(b)
+	require.NoError(t, err)
+	require.True(t, requirement.equal(actual))
 }
 
 func testGetTotalBalanceByAsset(ctx context.Context, group Group, appId, assetId string) ([]*UnifiedOutput, decimal.Decimal) {
@@ -594,6 +633,9 @@ func teardownTestDatabase(store *SQLite3Store) {
 		DROP TABLE IF EXISTS actions;
 		DROP TABLE IF EXISTS outputs;
 		DROP TABLE IF EXISTS transactions;
+		DROP TABLE IF EXISTS external_balances;
+		DROP TABLE IF EXISTS liquidity_requests;
+		DROP TABLE IF EXISTS custodian_transfers;
 	`
 	_, err := store.db.Exec(dropTablesDDL)
 	if err != nil {

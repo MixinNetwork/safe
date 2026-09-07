@@ -18,6 +18,7 @@ import (
 const (
 	CustodianTransferStatePending = "pending"
 	CustodianTransferStateDone    = "done"
+	CustodianTransferStateFailed  = "failed"
 )
 
 var custodianRequestPrefix = []byte("CUSTODIAN-REQUEST")
@@ -48,6 +49,10 @@ var custodianTransferCols = []string{
 	"trace_id", "request_id", "action_id", "app_id", "asset_id", "amount", "address", "state", "sequence", "created_at", "updated_at",
 }
 
+func (t *CustodianTransfer) values() []any {
+	return []any{t.TraceId, t.RequestId, t.ActionId, t.AppId, t.AssetId, t.Amount.String(), t.Address, t.State, t.Sequence, t.CreatedAt, t.UpdatedAt}
+}
+
 func custodianTransferFromRow(row Row) (*CustodianTransfer, error) {
 	var transfer CustodianTransfer
 	var amount string
@@ -61,6 +66,50 @@ func custodianTransferFromRow(row Row) (*CustodianTransfer, error) {
 	}
 	transfer.Amount, err = decimal.NewFromString(amount)
 	return &transfer, err
+}
+
+func (s *SQLite3Store) insertCustodianTransfer(ctx context.Context, tx *sql.Tx, transfer *CustodianTransfer) error {
+	if transfer == nil || transfer.TraceId == "" || transfer.RequestId == "" || transfer.ActionId == "" || transfer.AppId == "" ||
+		transfer.AssetId == "" || transfer.Amount.Cmp(decimal.Zero) <= 0 || transfer.Address == "" ||
+		(transfer.State != CustodianTransferStatePending && transfer.State != CustodianTransferStateFailed) {
+		return fmt.Errorf("invalid custodian transfer %v", transfer)
+	}
+	return s.execOne(ctx, tx, buildInsertionSQL("custodian_transfers", custodianTransferCols), transfer.values()...)
+}
+
+func (s *SQLite3Store) failCustodianTransfer(ctx context.Context, transfer *CustodianTransfer) error {
+	if transfer == nil || transfer.State != CustodianTransferStateFailed {
+		return fmt.Errorf("invalid failed custodian transfer %v", transfer)
+	}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollBack(tx)
+
+	old, err := s.readCustodianTransferByRequestId(ctx, tx, transfer.RequestId)
+	if err != nil {
+		return err
+	}
+	if old != nil {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	transfer.CreatedAt = now
+	transfer.UpdatedAt = now
+	err = s.insertCustodianTransfer(ctx, tx, transfer)
+	if err != nil {
+		return fmt.Errorf("INSERT failed custodian transfer %v", err)
+	}
+	err = s.finishAction(ctx, tx, transfer.ActionId, ActionStateDone, nil)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func validateCustodianConfiguration(conf *Configuration) (string, string, []string, int, map[string]bool, error) {
@@ -156,12 +205,22 @@ func (grp *Group) handleCustodianTransferAction(ctx context.Context, action *Act
 		txs = []*Transaction{tx}
 	} else {
 		outputs := grp.ListOutputsForAsset(ctx, action.AppId, request.AssetId, action.consumed[request.AssetId], action.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
-		// FIXME: If there are not enough outputs to fund the custodian transfer, finish the action as done.
 		if len(outputs) < OutputsBatchSize {
 			logger.Printf("handleCustodianTransferAction(%s) => %v %d", action.OutputId, request, len(outputs))
-			err := grp.store.FinishAction(ctx, action.OutputId, ActionStateDone, nil)
+			transfer := &CustodianTransfer{
+				TraceId:   traceId,
+				RequestId: action.OutputId,
+				ActionId:  action.OutputId,
+				AppId:     action.AppId,
+				AssetId:   request.AssetId,
+				Amount:    request.Amount,
+				Address:   grp.custodianAddress,
+				State:     CustodianTransferStateFailed,
+				Sequence:  action.Sequence,
+			}
+			err := grp.store.failCustodianTransfer(ctx, transfer)
 			if err != nil {
-				return true, fmt.Errorf("store.FinishAction(%s) => %v", action.OutputId, err)
+				return true, fmt.Errorf("store.failCustodianTransfer(%s) => %v", action.OutputId, err)
 			}
 			return true, nil
 		}

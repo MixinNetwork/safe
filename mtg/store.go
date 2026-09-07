@@ -130,9 +130,20 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 			if !valid || request.AssetId != t.AssetId || !request.Amount.Equal(decimal.RequireFromString(t.Amount)) || t.custodianAddress == "" {
 				return fmt.Errorf("invalid custodian transfer %s", t.TraceId)
 			}
-			err = s.execOne(ctx, tx, buildInsertionSQL("custodian_transfers", custodianTransferCols),
-				t.TraceId, t.ActionId, t.ActionId, t.AppId, t.AssetId, t.Amount, t.custodianAddress,
-				CustodianTransferStatePending, t.Sequence, now, now)
+			transfer := &CustodianTransfer{
+				TraceId:   t.TraceId,
+				RequestId: t.ActionId,
+				ActionId:  t.ActionId,
+				AppId:     t.AppId,
+				AssetId:   t.AssetId,
+				Amount:    request.Amount,
+				Address:   t.custodianAddress,
+				State:     CustodianTransferStatePending,
+				Sequence:  t.Sequence,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			err = s.insertCustodianTransfer(ctx, tx, transfer)
 			if err != nil {
 				return fmt.Errorf("INSERT custodian_transfers %v", err)
 			}
@@ -852,8 +863,17 @@ func (s *SQLite3Store) completeLiquidityRequest(ctx context.Context, act *Action
 }
 
 func (s *SQLite3Store) ReadCustodianTransferByRequestId(ctx context.Context, requestId string) (*CustodianTransfer, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
 	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE request_id=?", strings.Join(custodianTransferCols, ","))
 	row := s.db.QueryRowContext(ctx, query, requestId)
+	return custodianTransferFromRow(row)
+}
+
+func (s *SQLite3Store) readCustodianTransferByRequestId(ctx context.Context, tx *sql.Tx, requestId string) (*CustodianTransfer, error) {
+	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE request_id=?", strings.Join(custodianTransferCols, ","))
+	row := tx.QueryRowContext(ctx, query, requestId)
 	return custodianTransferFromRow(row)
 }
 
