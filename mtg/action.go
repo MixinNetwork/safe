@@ -346,7 +346,9 @@ func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction)
 			return err
 		}
 		for _, o := range outputs {
-			if o.State != SafeUtxoStateUnspent {
+			spendable := o.State == SafeUtxoStateUnspent && o.ReservedBy == ""
+			reserved := action.Restored() && o.State == SafeUtxoStateLocked && o.ReservedBy == action.OutputId
+			if !spendable && !reserved {
 				panic(fmt.Sprintf("invalid output %s state %s for tx %s", o.OutputId, o.State, tx.TraceId))
 			}
 			if o.Sequence <= action.Sequence && o.Sequence >= action.consumed[tx.AssetId] {
