@@ -480,27 +480,6 @@ func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) er
 		return fmt.Errorf("UPDATE outputs %v", err)
 	}
 
-	transfer, err := s.readCustodianTransferByTraceId(ctx, tx, traceId)
-	if err != nil {
-		return err
-	}
-	if transfer != nil {
-		amount := decimal.RequireFromString(t.Amount)
-		if transfer.State != CustodianTransferStatePending || transfer.AppId != t.AppId || transfer.AssetId != t.AssetId ||
-			!transfer.Amount.Equal(amount) || transfer.Sequence != t.Sequence {
-			return fmt.Errorf("invalid custodian transfer to finish %s", traceId)
-		}
-		err = s.creditExternalBalance(ctx, tx, transfer.AppId, transfer.AssetId, transfer.Amount, transfer.Sequence, now)
-		if err != nil {
-			return fmt.Errorf("credit external balance %s: %v", traceId, err)
-		}
-		err = s.execOne(ctx, tx, "UPDATE custodian_transfers SET state=?,updated_at=? WHERE trace_id=? AND state=?",
-			CustodianTransferStateDone, now, traceId, CustodianTransferStatePending)
-		if err != nil {
-			return err
-		}
-	}
-
 	return tx.Commit()
 }
 
@@ -869,6 +848,75 @@ func (s *SQLite3Store) ReadCustodianTransferByRequestId(ctx context.Context, req
 	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE request_id=?", strings.Join(custodianTransferCols, ","))
 	row := s.db.QueryRowContext(ctx, query, requestId)
 	return custodianTransferFromRow(row)
+}
+
+func (s *SQLite3Store) ReadCustodianTransferByTraceId(ctx context.Context, traceId string) (*CustodianTransfer, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE trace_id=?", strings.Join(custodianTransferCols, ","))
+	row := s.db.QueryRowContext(ctx, query, traceId)
+	return custodianTransferFromRow(row)
+}
+
+func (s *SQLite3Store) ListCustodianTransfers(ctx context.Context, state string, limit int) ([]*CustodianTransfer, error) {
+	query := fmt.Sprintf("SELECT %s FROM custodian_transfers WHERE state=? ORDER BY sequence,trace_id", strings.Join(custodianTransferCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, state)
+	if err != nil {
+		return nil, err
+	}
+	defer closeOrPanic(rows)
+
+	var transfers []*CustodianTransfer
+	for rows.Next() {
+		transfer, err := custodianTransferFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		transfers = append(transfers, transfer)
+	}
+	return transfers, rows.Err()
+}
+
+func (s *SQLite3Store) confirmCustodianTransfer(ctx context.Context, act *Action, transfer *CustodianTransfer) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollBack(tx)
+
+	stored, err := s.readCustodianTransferByTraceId(ctx, tx, transfer.TraceId)
+	if err != nil || stored == nil {
+		return fmt.Errorf("invalid custodian transfer confirmation %s: %v", transfer.TraceId, err)
+	}
+	if stored.State == CustodianTransferStateDone {
+		if err := s.finishAction(ctx, tx, act.OutputId, ActionStateDone, nil); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+	if stored.State != CustodianTransferStatePending {
+		return fmt.Errorf("invalid custodian transfer state %s: %s", stored.TraceId, stored.State)
+	}
+
+	now := time.Now().UTC()
+	if err := s.creditExternalBalance(ctx, tx, stored.AppId, stored.AssetId, stored.Amount, act.Sequence, now); err != nil {
+		return fmt.Errorf("credit external balance %s: %v", stored.TraceId, err)
+	}
+	if err := s.execOne(ctx, tx, "UPDATE custodian_transfers SET state=?,updated_at=? WHERE trace_id=? AND state=?",
+		CustodianTransferStateDone, now, stored.TraceId, CustodianTransferStatePending); err != nil {
+		return err
+	}
+	if err := s.finishAction(ctx, tx, act.OutputId, ActionStateDone, nil); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLite3Store) readCustodianTransferByRequestId(ctx context.Context, tx *sql.Tx, requestId string) (*CustodianTransfer, error) {

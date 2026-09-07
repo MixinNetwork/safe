@@ -22,6 +22,7 @@ const (
 )
 
 var custodianRequestPrefix = []byte("CUSTODIAN-REQUEST")
+var custodianConfirmationPrefix = []byte("CUSTODIAN-CONFIRM")
 
 // CustodianTransferRequest is encoded in an Action extra by an authorized
 // external requester. The custodian destination is never accepted from the
@@ -29,6 +30,12 @@ var custodianRequestPrefix = []byte("CUSTODIAN-REQUEST")
 type CustodianTransferRequest struct {
 	AssetId string
 	Amount  decimal.Decimal
+}
+
+// CustodianTransferConfirmation is sent by an authorized observer after the
+// observer has verified the MTG transfer to the custodian on Mixin Network.
+type CustodianTransferConfirmation struct {
+	TraceId string
 }
 
 type CustodianTransfer struct {
@@ -188,6 +195,32 @@ func decodeCustodianTransferMemo(memo []byte) (*CustodianTransferRequest, bool) 
 		return nil, false
 	}
 	return &CustodianTransferRequest{AssetId: assetId.String(), Amount: amount}, true
+}
+
+func EncodeCustodianTransferConfirmationMemo(traceId string) []byte {
+	id, err := uuid.FromString(traceId)
+	if err != nil || id == uuid.Nil || id.String() != traceId {
+		panic(fmt.Errorf("invalid custodian transfer confirmation %s", traceId))
+	}
+	memo := append([]byte(nil), custodianConfirmationPrefix...)
+	return append(memo, id.Bytes()...)
+}
+
+func DecodeCustodianTransferConfirmationMemo(memo []byte) (*CustodianTransferConfirmation, bool) {
+	if len(memo) != len(custodianConfirmationPrefix)+16 || !bytes.HasPrefix(memo, custodianConfirmationPrefix) {
+		return nil, false
+	}
+	id, err := uuid.FromBytes(memo[len(custodianConfirmationPrefix):])
+	if err != nil || id == uuid.Nil {
+		return nil, false
+	}
+	return &CustodianTransferConfirmation{TraceId: id.String()}, true
+}
+
+// ListPendingCustodianTransfers returns transfers an observer should watch and
+// confirm. TraceId is also the Mixin Safe transaction request ID.
+func (grp *Group) ListPendingCustodianTransfers(ctx context.Context, limit int) ([]*CustodianTransfer, error) {
+	return grp.store.ListCustodianTransfers(ctx, CustodianTransferStatePending, limit)
 }
 
 func (grp *Group) handleCustodianTransferAction(ctx context.Context, action *Action, request *CustodianTransferRequest) (bool, error) {

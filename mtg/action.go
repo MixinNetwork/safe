@@ -119,6 +119,43 @@ func (grp *Group) checkCustodianTransferRequest(ctx context.Context, action *Act
 	return req, nil
 }
 
+func (grp *Group) checkCustodianTransferConfirmation(ctx context.Context, action *Action) (*CustodianTransfer, bool, error) {
+	_, memo := DecodeMixinExtraHEX(action.Extra)
+	confirmation, valid := DecodeCustodianTransferConfirmationMemo(memo)
+	if !valid {
+		return nil, false, nil
+	}
+	if grp.custodianAddress == "" || action.SendersThreshold != 1 || len(action.Senders) != 1 || !grp.custodianRequesters[action.Senders[0]] {
+		return nil, false, nil
+	}
+	transfer, err := grp.store.ReadCustodianTransferByTraceId(ctx, confirmation.TraceId)
+	if err != nil {
+		return nil, false, err
+	}
+	if transfer == nil || transfer.State == CustodianTransferStateFailed || action.AppId != transfer.AppId || action.Sequence <= transfer.Sequence {
+		return nil, false, nil
+	}
+	if transfer.State != CustodianTransferStatePending && transfer.State != CustodianTransferStateDone {
+		return nil, false, fmt.Errorf("invalid custodian transfer state %s: %s", transfer.TraceId, transfer.State)
+	}
+	tx, err := grp.store.ReadTransactionByTraceId(ctx, transfer.TraceId)
+	if err != nil || tx == nil {
+		return nil, false, fmt.Errorf("invalid custodian transaction %s: %v", transfer.TraceId, err)
+	}
+	if tx.State != TransactionStateSnapshot {
+		return nil, true, nil
+	}
+	amount := decimal.RequireFromString(tx.Amount)
+	if !tx.Hash.HasValue() || !tx.IsNormal() || tx.compaction || tx.storage ||
+		transfer.RequestId != transfer.ActionId || transfer.Address != grp.custodianAddress ||
+		transfer.AppId != tx.AppId || transfer.AppId != tx.OpponentAppId || transfer.AssetId != tx.AssetId ||
+		!transfer.Amount.Equal(amount) || transfer.Sequence != tx.Sequence || transfer.ActionId != tx.ActionId ||
+		tx.Threshold != grp.custodianThreshold || bot.HashMembers(tx.Receivers) != bot.HashMembers(grp.custodianMembers) {
+		return nil, false, fmt.Errorf("invalid completed custodian transaction %s", transfer.TraceId)
+	}
+	return transfer, true, nil
+}
+
 func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action) (*Transaction, bool) {
 	ver, err := grp.ReadKernelTransactionUntilSufficient(ctx, action.TransactionHash)
 	if err != nil {
@@ -220,6 +257,23 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			if handled {
 				continue
 			}
+		}
+
+		transfer, isCustodianTransferConfirmation, err := grp.checkCustodianTransferConfirmation(ctx, a)
+		if err != nil {
+			return err
+		}
+		if isCustodianTransferConfirmation && transfer == nil {
+			// The observer confirmation is an action sequence barrier until
+			// this node has independently confirmed the transfer snapshot.
+			return nil
+		}
+		if transfer != nil {
+			err := grp.store.confirmCustodianTransfer(ctx, a, transfer)
+			if err != nil {
+				return err
+			}
+			continue
 		}
 
 		tx, isMTG := grp.checkCompactionTransaction(ctx, a)
