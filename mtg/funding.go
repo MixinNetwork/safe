@@ -299,7 +299,7 @@ func (funding *FundingRequest) readMultisigInputs(ctx context.Context, client *m
 	utxos := make([]*mixin.SafeUtxo, 0, len(transaction.Inputs))
 	total := decimal.Zero
 	for _, input := range transaction.Inputs {
-		utxo, err := client.SafeReadUtxoByHash(ctx, *transaction.Hash, input.Index)
+		utxo, err := client.SafeReadUtxoByHash(ctx, *input.Hash, input.Index)
 		if err != nil {
 			return nil, err
 		}

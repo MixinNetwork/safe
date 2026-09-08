@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v3"
+	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -143,6 +144,10 @@ func validateCustodianConfiguration(conf *Configuration) (string, string, []stri
 	}
 	if len(address.Members()) == 1 || address.Threshold == 1 {
 		return "", "", nil, 0, nil, fmt.Errorf("invalid custodian mix address multisigs")
+	}
+	if int(address.Threshold) == conf.Genesis.Threshold &&
+		mixinnet.HashMembers(address.Members()) == mixinnet.HashMembers(conf.Genesis.Members) {
+		return "", "", nil, 0, nil, fmt.Errorf("custodian address equals MTG address")
 	}
 	members := make(map[string]bool)
 	for _, member := range address.Members() {
