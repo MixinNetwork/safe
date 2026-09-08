@@ -28,20 +28,29 @@ func (funding *FundingRequest) CreateAndSignMultisigTransaction(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	members := custodian.Members()
-	sort.Strings(members)
-	utxos, err := client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
-		Members:   members,
-		Threshold: custodian.Threshold,
-		Asset:     funding.AssetId,
-		State:     mixin.SafeUtxoStateUnspent,
-		Limit:     500,
-		Order:     "ASC",
-	})
-	if err != nil {
+	// A retry must use the original inputs even after they become signed/spent.
+	// Rebuild the expected outputs independently; a public request ID alone is
+	// not sufficient authorization to sign the raw transaction returned by API.
+	request, err := client.SafeReadMultisigRequests(ctx, funding.TraceId)
+	var utxos []*mixin.SafeUtxo
+	switch {
+	case mixin.IsErrorCodes(err, mixin.EndpointNotFound):
+		request = nil
+		members := custodian.Members()
+		sort.Strings(members)
+		utxos, err = client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
+			Members: members, Threshold: custodian.Threshold,
+			Asset: funding.AssetId, State: mixin.SafeUtxoStateUnspent,
+			Limit: 500, Order: "ASC",
+		})
+		if err == nil {
+			utxos, err = selectFundingUTXOs(utxos, funding.Amount)
+		}
+	case err != nil:
 		return nil, err
+	default:
+		utxos, err = funding.readMultisigInputs(ctx, client, request, custodian)
 	}
-	utxos, err = selectFundingUTXOs(utxos, funding.Amount)
 	if err != nil {
 		return nil, err
 	}
@@ -63,13 +72,13 @@ func (funding *FundingRequest) CreateAndSignMultisigTransaction(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	raw := hex.EncodeToString(data)
-	request, err := client.SafeCreateMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
-		RequestID:      funding.TraceId,
-		RawTransaction: raw,
-	})
-	if err != nil {
-		return nil, err
+	if request == nil {
+		request, err = client.SafeCreateMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID: funding.TraceId, RawTransaction: hex.EncodeToString(data),
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := validateFundingMultisigRequest(request, expected, custodian, funding.TraceId); err != nil {
 		return nil, err
@@ -276,4 +285,29 @@ func fundingSignerIndex(senders []string, clientId string) (uint16, error) {
 		return 0, fmt.Errorf("observer %s is not a custodian member", clientId)
 	}
 	return uint16(index), nil
+}
+
+// Read inputs by identity, without filtering by their current spend state.
+func (funding *FundingRequest) readMultisigInputs(ctx context.Context, client *mixin.Client, request *mixin.SafeMultisigRequest, custodian *mixin.MixAddress) ([]*mixin.SafeUtxo, error) {
+	if request == nil || request.RequestID != funding.TraceId || request.RevokedBy != "" {
+		return nil, fmt.Errorf("invalid custodian multisig request")
+	}
+	transaction, err := mixinnet.TransactionFromRaw(request.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	utxos := make([]*mixin.SafeUtxo, 0, len(transaction.Inputs))
+	total := decimal.Zero
+	for _, input := range transaction.Inputs {
+		utxo, err := client.SafeReadUtxoByHash(ctx, *transaction.Hash, input.Index)
+		if err != nil {
+			return nil, err
+		}
+		total = total.Add(utxo.Amount)
+		utxos = append(utxos, utxo)
+	}
+	if total.Cmp(funding.Amount) < 0 {
+		return nil, fmt.Errorf("insufficient funding inputs %s < %s", total, funding.Amount)
+	}
+	return utxos, nil
 }
