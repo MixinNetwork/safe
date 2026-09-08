@@ -292,6 +292,9 @@ func (funding *FundingRequest) readMultisigInputs(ctx context.Context, client *m
 	if request == nil || request.RequestID != funding.TraceId || request.RevokedBy != "" {
 		return nil, fmt.Errorf("invalid custodian multisig request")
 	}
+	if request.AssetID != funding.AssetId {
+		return nil, fmt.Errorf("funding request asset mismatch for %s", funding.TraceId)
+	}
 	transaction, err := mixinnet.TransactionFromRaw(request.RawTransaction)
 	if err != nil {
 		return nil, err
