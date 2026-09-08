@@ -3,6 +3,7 @@ package mtg
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 
@@ -102,8 +103,6 @@ func (tx *Transaction) Serialize() []byte {
 	if tx.custodianTransfer {
 		enc.Write(magic)
 		writeString(enc, tx.custodianAddress)
-	} else {
-		enc.Write(null)
 	}
 	return enc.Bytes()
 }
@@ -277,6 +276,9 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	}
 
 	extended, err := dec.ReadMagic()
+	if err == io.EOF {
+		return tx, nil // Legacy transactions have no custody extension.
+	}
 	if err != nil {
 		return nil, err
 	}
