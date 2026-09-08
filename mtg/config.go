@@ -20,7 +20,8 @@ type Configuration struct {
 }
 
 // CustodianConfiguration fixes the cold-wallet destination and the identities
-// allowed to request and confirm MTG transfers. All nodes must use the same values.
+// allowed to request and confirm MTG transfers. Every requester must also be a
+// member of MixAddress. All nodes must use the same values.
 type CustodianConfiguration struct {
 	MixAddress     string   `toml:"mix-address"`
 	ConversationId string   `toml:"conversation-id"`

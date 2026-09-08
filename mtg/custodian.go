@@ -144,10 +144,20 @@ func validateCustodianConfiguration(conf *Configuration) (string, string, []stri
 	if len(address.Members()) == 1 || address.Threshold == 1 {
 		return "", "", nil, 0, nil, fmt.Errorf("invalid custodian mix address multisigs")
 	}
+	members := make(map[string]bool)
+	for _, member := range address.Members() {
+		if members[member] {
+			return "", "", nil, 0, nil, fmt.Errorf("duplicate custodian member %s", member)
+		}
+		members[member] = true
+	}
 	for _, item := range conf.Custodian.Requesters {
 		id, err := uuid.FromString(item)
-		if err != nil || id.String() != item {
+		if err != nil || id == uuid.Nil || id.String() != item {
 			return "", "", nil, 0, nil, fmt.Errorf("invalid custodian requester %s", item)
+		}
+		if !members[item] {
+			return "", "", nil, 0, nil, fmt.Errorf("custodian requester %s is not a custodian member", item)
 		}
 		if requesters[item] {
 			return "", "", nil, 0, nil, fmt.Errorf("duplicate custodian requester %s", item)

@@ -22,4 +22,5 @@ epoch = 4655227
 # [custodian]
 # mix-address = "MIX..."
 # conversation-id = "custodian-conversation-id"
+# Every requester/observer must also be a member of mix-address.
 # requesters = ["observer-user-id"]
