@@ -3,16 +3,22 @@ package mtg
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
 
+	bot "github.com/MixinNetwork/bot-api-go-client/v3"
 	mixinCommon "github.com/MixinNetwork/mixin/common"
 	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
+
+const fundingMultisigMessagePurpose = "custodian-funding-multisig"
 
 // CreateAndSignMultisigTransaction creates the deterministic transaction that
 // returns this funding request from the custodian to the MTG, then adds the
@@ -108,6 +114,97 @@ func (funding *FundingRequest) CreateAndSignMultisigTransaction(ctx context.Cont
 		return nil, fmt.Errorf("custodian multisig request %s did not record signer %s", request.RequestID, client.ClientID)
 	}
 	return signed, nil
+}
+
+// SendMultisigTransactionMessage sends a per-participant approval card to the
+// custodian conversation. The safe user only needs session credentials; its
+// spend private key is neither read nor sent by this method.
+func (funding *FundingRequest) SendMultisigTransactionMessage(ctx context.Context, request *mixin.SafeMultisigRequest, user *bot.SafeUser) error {
+	conversationId, err := uuid.FromString(funding.ConversationId)
+	if err != nil || conversationId == uuid.Nil || conversationId.String() != funding.ConversationId {
+		return fmt.Errorf("invalid funding conversation id %s", funding.ConversationId)
+	}
+	custodian, err := mixin.MixAddressFromString(funding.CustodianAddress)
+	if err != nil || custodian.Threshold <= 1 {
+		return fmt.Errorf("invalid custodian address %s", funding.CustodianAddress)
+	}
+	if request == nil || request.RequestID != funding.TraceId || request.RevokedBy != "" {
+		return fmt.Errorf("invalid custodian multisig request")
+	}
+	if request.SendersThreshold != custodian.Threshold || mixinnet.HashMembers(request.Senders) != mixinnet.HashMembers(custodian.Members()) {
+		return fmt.Errorf("invalid custodian multisig members %s", request.RequestID)
+	}
+	if !slices.Contains(request.Senders, user.UserId) {
+		return fmt.Errorf("observer %s is not a custodian member", user.UserId)
+	}
+	if !slices.Contains(request.Signers, user.UserId) {
+		return fmt.Errorf("observer %s has not signed custodian multisig request %s", user.UserId, request.RequestID)
+	}
+
+	approveURL := fmt.Sprintf("https://mixin.one/multisigs/%s?action=sign", request.RequestID)
+	revokeURL := fmt.Sprintf("https://mixin.one/multisigs/%s?action=unlock", request.RequestID)
+	card := &bot.AppCardView{
+		AppID: user.UserId,
+		Title: "Custodian Transfer Approval",
+		Description: fmt.Sprintf("Asset: %s\nAmount: %s\nFrom: %s\nTo: %s\nRequest ID: %s\nAction ID: %s\nSignatures: %d/%d",
+			funding.AssetId,
+			funding.Amount.String(),
+			funding.CustodianAddress,
+			funding.ReturnAddress,
+			request.RequestID,
+			funding.ActionId,
+			len(request.Signers),
+			request.SendersThreshold,
+		),
+		Actions: []bot.AppCardAction{
+			{Label: "Approve", Action: approveURL, Color: "#42AD63"},
+			{Label: "Revoke", Action: revokeURL, Color: "#DD4B65"},
+		},
+	}
+	data, err := json.Marshal(card)
+	if err != nil {
+		return err
+	}
+	conversation, err := bot.ConversationShow(ctx, funding.ConversationId, user)
+	if err != nil {
+		return fmt.Errorf("read custodian conversation %s: %w", funding.ConversationId, err)
+	}
+	if conversation == nil || conversation.ConversationId != funding.ConversationId {
+		return fmt.Errorf("invalid custodian conversation %s", funding.ConversationId)
+	}
+
+	participants := make(map[string]bool, len(conversation.Participants))
+	for _, participant := range conversation.Participants {
+		participants[participant.UserId] = true
+	}
+	for _, member := range request.Senders {
+		if member != user.UserId && !participants[member] {
+			return fmt.Errorf("custodian member %s is not in conversation %s", member, funding.ConversationId)
+		}
+	}
+
+	payload := base64.RawURLEncoding.EncodeToString(data)
+	messageSeed := UniqueId(funding.TraceId, fundingMultisigMessagePurpose)
+	messages := make([]*bot.MessageRequest, 0, len(conversation.Participants))
+	for _, participant := range conversation.Participants {
+		if participant.UserId == user.UserId {
+			continue
+		}
+		messages = append(messages, &bot.MessageRequest{
+			ConversationId: conversation.ConversationId,
+			RecipientId:    participant.UserId,
+			MessageId:      UniqueId(messageSeed, participant.UserId),
+			Category:       bot.MessageCategoryAppCard,
+			DataBase64:     payload,
+		})
+	}
+	if len(messages) == 0 {
+		return fmt.Errorf("custodian conversation %s has no recipients", funding.ConversationId)
+	}
+	if err := bot.PostMessages(ctx, messages, user); err != nil {
+		return fmt.Errorf("send custodian multisig request %s: %w", request.RequestID, err)
+	}
+	return nil
 }
 
 func (funding *FundingRequest) validateMultisigTransaction(client *mixin.Client) (*mixin.MixAddress, *mixin.MixAddress, error) {
