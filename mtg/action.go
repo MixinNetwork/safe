@@ -11,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -82,13 +83,10 @@ func (a *Action) TestAttachActionToGroup(g *Group) {
 	a.prepareForProcessing(g)
 }
 
-func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string, liquidity1, liquidity2 *LiquidityRequirement) {
+func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 	if asset1 != asset2 {
 		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset1, asset2)
 		panic(err)
-	}
-	if !liquidity1.equal(liquidity2) {
-		panic(fmt.Errorf("action %s liquidity requirement changed: %v => %v", a.OutputId, liquidity1, liquidity2))
 	}
 	b1 := SerializeTransactions(txs1)
 	b2 := SerializeTransactions(txs2)
@@ -304,25 +302,29 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			continue
 		}
 
-		txs, liquidity, compactionAsset := wkr.ProcessOutput(ctx, a)
+		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
 			a.prepareForProcessing(grp)
-			txs2, liquidity2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
-			replayCheck(a, txs, txs2, compactionAsset, compactionAsset2, liquidity, liquidity2)
+			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
+			replayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
 		}
 
 		state := ActionStateDone
-		if liquidity != nil {
-			if len(txs) > 0 || compactionAsset != "" {
-				return fmt.Errorf("invalid liquidity result for action %s", a.OutputId)
-			}
-			err = grp.createLiquidityRequest(ctx, a, liquidity)
-			if err != nil {
-				return fmt.Errorf("group.createLiquidityRequest(%s %v) => %v", liquidity.AssetId, a, err)
-			}
-			continue
-		}
 		if compactionAsset != "" && len(txs) == 0 {
+			custodianCompaction := a.CustodianCompactionString()
+			if compactionAsset == custodianCompaction {
+				liquidity := a.LiquidityRequirement()
+				err = grp.createLiquidityRequest(ctx, a, liquidity)
+				if err != nil {
+					return fmt.Errorf("group.createLiquidityRequest(%s %v) => %v", liquidity.AssetId, a, err)
+				}
+				continue
+			}
+
+			id, err := uuid.FromString(compactionAsset)
+			if err != nil || id == uuid.Nil || id.String() != compactionAsset {
+				return fmt.Errorf("invalid compaction asset: %s", compactionAsset)
+			}
 			t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
 			if err != nil {
 				return fmt.Errorf("group.buildCompactionTransaction(%s %v) => %v", compactionAsset, a, err)
@@ -331,6 +333,8 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			txs = []*Transaction{t}
 		} else if compactionAsset != "" {
 			return fmt.Errorf("invalid compactionAsset: %s", compactionAsset)
+		} else if a.CustodianCompactionString() != "" {
+			return fmt.Errorf("liquidity requirement requires custodian compaction signal %s", a.CustodianCompactionString())
 		}
 
 		err = a.attachTxsConsumed(ctx, txs)

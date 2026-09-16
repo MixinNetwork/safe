@@ -39,16 +39,16 @@ type Node struct {
 
 var actionResult map[string]string
 
-func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, *LiquidityRequirement, string) {
+func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
 	txs, compaction := n.processOutput(ctx, a)
 	liquidity := a.LiquidityRequirement()
 	if liquidity != nil {
 		if len(txs) > 0 || compaction != liquidity.AssetId {
 			panic(a.OutputId)
 		}
-		return nil, liquidity, ""
+		return nil, a.CustodianCompactionString()
 	}
-	return txs, nil, compaction
+	return txs, compaction
 }
 
 func (n *Node) processOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
@@ -653,23 +653,23 @@ func init() {
 // depending on keeper/signer adaptation or application result caches.
 type custodianFlowWorker struct{}
 
-func (*custodianFlowWorker) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, *LiquidityRequirement, string) {
+func (*custodianFlowWorker) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
 	_, memo := DecodeMixinExtraHEX(a.Extra)
 	if string(memo) != "custodian-test-pay" {
-		return nil, nil, ""
+		return nil, ""
 	}
 	var txs []*Transaction
 	for i, amount := range []string{"7", "2"} {
 		tx := a.BuildTransaction(ctx, UniqueId(a.OutputId, fmt.Sprintf("payout:%d", i)), a.AppId, USDTAssetId, amount, "", []string{testSender}, 1)
 		if tx == nil {
 			if liquidity := a.LiquidityRequirement(); liquidity != nil {
-				return nil, liquidity, ""
+				return nil, liquidity.CompactionString()
 			}
-			return nil, nil, USDTAssetId
+			return nil, USDTAssetId
 		}
 		txs = append(txs, tx)
 	}
-	return txs, nil, ""
+	return txs, ""
 }
 
 func TestMTGCustodianFlow(t *testing.T) {

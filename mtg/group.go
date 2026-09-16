@@ -30,16 +30,16 @@ type Worker interface {
 	// ProcessOutput processes an action in sequence order. Workers should check
 	// CheckAssetBalanceAt before building transactions. BuildTransaction returns
 	// nil when the hot internal outputs are insufficient; in that case the worker
-	// must discard all transactions and return either a liquidity requirement or
-	// the affected asset as the compaction signal. MTG will satisfy that result,
-	// then replay the action. Transactions, liquidity, and compaction are mutually
-	// exclusive action results.
+	// must discard all transactions and return either the affected asset as the
+	// compaction signal, or Action.CustodianCompaction() to request a custodian
+	// refill. Transactions and compaction signals are mutually exclusive action
+	// results.
 	//
 	// if we want to make a multi process worker, it's possible that
 	// we pass some RPC handle to the process, or we could build a
 	// whole state of the current sequence and send it to the process
 	// i.e. ProcessOutput(StateAtSequence, Action) []*Transaction
-	ProcessOutput(context.Context, *Action) ([]*Transaction, *LiquidityRequirement, string)
+	ProcessOutput(context.Context, *Action) ([]*Transaction, string)
 }
 
 type Group struct {
@@ -66,9 +66,6 @@ type Group struct {
 }
 
 func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
-	if err := store.Migrate(ctx); err != nil {
-		return nil, fmt.Errorf("store.Migrate() => %v", err)
-	}
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}

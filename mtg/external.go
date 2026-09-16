@@ -15,6 +15,8 @@ import (
 const (
 	LiquidityRequestStateWaiting = "waiting"
 	LiquidityRequestStateDone    = "done"
+
+	CustodianCompactionPrefix = "custodian:"
 )
 
 var fundingReturnMemoPrefix = []byte("MTG-FUNDING-V1:")
@@ -111,6 +113,17 @@ func (r *LiquidityRequirement) equal(other *LiquidityRequirement) bool {
 // LiquidityRequirement returns the requirement produced while processing this action.
 func (act *Action) LiquidityRequirement() *LiquidityRequirement {
 	return act.liquidity
+}
+
+func (r *LiquidityRequirement) CompactionString() string {
+	if r == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s%s:%s", CustodianCompactionPrefix, r.AssetId, r.Amount.String())
+}
+
+func (act *Action) CustodianCompactionString() string {
+	return act.LiquidityRequirement().CompactionString()
 }
 
 func (act *Action) requireLiquidity(ctx context.Context, assetId string, target, internal decimal.Decimal, inputs []*UnifiedOutput) bool {
