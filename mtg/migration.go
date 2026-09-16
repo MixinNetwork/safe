@@ -1,6 +1,8 @@
 package mtg
 
-import "context"
+import (
+	"context"
+)
 
 const outputsReservedByMigrationKey = "SCHEMA:VERSION:OUTPUTS_RESERVED_BY"
 

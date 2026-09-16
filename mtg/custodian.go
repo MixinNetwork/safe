@@ -7,8 +7,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"sort"
+	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
@@ -150,7 +153,9 @@ func validateCustodianConfiguration(conf *Configuration) (string, string, []stri
 		return "", "", nil, 0, nil, fmt.Errorf("custodian address equals MTG address")
 	}
 	members := make(map[string]bool)
-	for _, member := range address.Members() {
+	custodianMembers := append([]string(nil), address.Members()...)
+	sort.Strings(custodianMembers)
+	for _, member := range custodianMembers {
 		if members[member] {
 			return "", "", nil, 0, nil, fmt.Errorf("duplicate custodian member %s", member)
 		}
@@ -169,7 +174,23 @@ func validateCustodianConfiguration(conf *Configuration) (string, string, []stri
 		}
 		requesters[item] = true
 	}
-	return conversationId.String(), address.String(), address.Members(), int(address.Threshold), requesters, nil
+	return conversationId.String(), address.String(), custodianMembers, int(address.Threshold), requesters, nil
+}
+
+func generateCustodianConfigId(conversationId, address string, members []string, threshold int, requesters map[string]bool) string {
+	if address == "" {
+		return crypto.Sha256Hash([]byte("custodian:v1:disabled")).String()
+	}
+	ms := append([]string(nil), members...)
+	sort.Strings(ms)
+	rs := make([]string, 0, len(requesters))
+	for id := range requesters {
+		rs = append(rs, id)
+	}
+	sort.Strings(rs)
+	payload := fmt.Sprintf("custodian:v1:enabled:%s:%s:%d:%s:%s",
+		address, conversationId, threshold, strings.Join(ms, ","), strings.Join(rs, ","))
+	return crypto.Sha256Hash([]byte(payload)).String()
 }
 
 func EncodeCustodianTransferMemo(assetId, amount string) []byte {

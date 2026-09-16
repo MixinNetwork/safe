@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	groupGenesisId   = "group-genesis-id"
-	groupBootSynced  = "group-boot-synced"
-	defaultKernelRPC = "https://kernel.mixin.dev"
+	groupGenesisId         = "group-genesis-id"
+	groupCustodianConfigId = "group-custodian-config-id"
+	groupBootSynced        = "group-boot-synced"
+	defaultKernelRPC       = "https://kernel.mixin.dev"
 )
 
 type Worker interface {
@@ -125,6 +126,19 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		return nil, fmt.Errorf("malformed group genesis id %s %s", string(oid), grp.id)
 	}
 	err = store.WriteProperty(ctx, groupGenesisId, grp.id)
+	if err != nil {
+		return nil, err
+	}
+
+	custodianId := generateCustodianConfigId(custodianConversationId, custodianAddress, custodianMembers, custodianThreshold, custodianRequesters)
+	storedCustodianId, err := store.ReadProperty(ctx, groupCustodianConfigId)
+	if err != nil {
+		return nil, err
+	}
+	if storedCustodianId != "" && storedCustodianId != custodianId {
+		return nil, fmt.Errorf("malformed custodian config id %s %s", storedCustodianId, custodianId)
+	}
+	err = store.WriteProperty(ctx, groupCustodianConfigId, custodianId)
 	if err != nil {
 		return nil, err
 	}
