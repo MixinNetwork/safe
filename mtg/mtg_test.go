@@ -165,7 +165,8 @@ func TestMTGCompaction(t *testing.T) {
 
 		// write output from compaction tx
 		out := testHandleCompactionTransaction(ctx, require, node.Group, hash)
-		node.Group.processSafeOutput(ctx, out)
+		km := node.Group.BatchReadKernelTransactions(ctx, []*UnifiedOutput{out})
+		node.Group.processSafeOutput(ctx, out, km[out.TransactionHash])
 		as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 		require.Nil(err)
 		require.Len(as, 1)
