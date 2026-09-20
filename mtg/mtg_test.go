@@ -128,6 +128,13 @@ func (n *Node) processOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	return txs, ""
 }
 
+func testProcessSafeOutput(ctx context.Context, r *require.Assertions, g *Group, output *UnifiedOutput) {
+	km := g.BatchReadKernelTransactions(ctx, []*UnifiedOutput{output})
+	ver := km[output.TransactionHash]
+	r.NotNil(ver)
+	g.processSafeOutput(ctx, output, ver)
+}
+
 func TestMTGExtra(t *testing.T) {
 	require := require.New(t)
 	id := uuid.Must(uuid.NewV4()).String()
@@ -704,7 +711,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 
 	sequence++
 	hotTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
-	hotTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	hotTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	hotTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, nil))
 	hotTx.Outputs = append(hotTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("8"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	hotVer := hotTx.AsVersioned()
@@ -712,7 +719,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", hotHash), base64.RawURLEncoding.EncodeToString(hotVer.Marshal())))
 	hot := testBuildOutput(g, r, USDTAssetId, "8", hex.EncodeToString(hotVer.Extra), SafeUtxoStateUnspent, sequence, hotHash)
 	hot.KernelAssetId = hotVer.Asset.String()
-	g.processSafeOutput(ctx, hot)
+	testProcessSafeOutput(ctx, r, g, hot)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance := g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("0", balance.Amount.String())
@@ -721,7 +728,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	// Untrusted requests must not move the hot balance into custody.
 	sequence++
 	unauthorizedTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	unauthorizedTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	unauthorizedTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	unauthorizedTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "8")))
 	unauthorizedTx.Outputs = append(unauthorizedTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	unauthorizedVer := unauthorizedTx.AsVersioned()
@@ -730,7 +737,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	unauthorized := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(unauthorizedVer.Extra), SafeUtxoStateUnspent, sequence, unauthorizedHash)
 	unauthorized.KernelAssetId = unauthorizedVer.Asset.String()
 	unauthorized.Senders = []string{g.GetMembers()[0]}
-	g.processSafeOutput(ctx, unauthorized)
+	testProcessSafeOutput(ctx, r, g, unauthorized)
 	r.NoError(g.handleActionsQueue(ctx))
 	transfers, err := g.ListPendingCustodianTransfers(ctx, 0)
 	r.NoError(err)
@@ -741,7 +748,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 
 	sequence++
 	requestTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	requestTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	requestTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	requestTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "8")))
 	requestTx.Outputs = append(requestTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	requestVer := requestTx.AsVersioned()
@@ -749,7 +756,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", requestHash), base64.RawURLEncoding.EncodeToString(requestVer.Marshal())))
 	request := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(requestVer.Extra), SafeUtxoStateUnspent, sequence, requestHash)
 	request.KernelAssetId = requestVer.Asset.String()
-	g.processSafeOutput(ctx, request)
+	testProcessSafeOutput(ctx, r, g, request)
 	r.NoError(g.handleActionsQueue(ctx))
 	transfers, err = g.ListPendingCustodianTransfers(ctx, 0)
 	r.NoError(err)
@@ -772,7 +779,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	confirmationMemo := EncodeCustodianTransferConfirmationMemo(transfer.TraceId)
 	sequence++
 	unauthorizedConfirmationTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	unauthorizedConfirmationTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	unauthorizedConfirmationTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	unauthorizedConfirmationTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, confirmationMemo))
 	unauthorizedConfirmationTx.Outputs = append(unauthorizedConfirmationTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	unauthorizedConfirmationVer := unauthorizedConfirmationTx.AsVersioned()
@@ -781,7 +788,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	unauthorizedConfirmation := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(unauthorizedConfirmationVer.Extra), SafeUtxoStateUnspent, sequence, unauthorizedConfirmationHash)
 	unauthorizedConfirmation.KernelAssetId = unauthorizedConfirmationVer.Asset.String()
 	unauthorizedConfirmation.Senders = []string{g.GetMembers()[0]}
-	g.processSafeOutput(ctx, unauthorizedConfirmation)
+	testProcessSafeOutput(ctx, r, g, unauthorizedConfirmation)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("0", balance.Amount.String())
@@ -789,7 +796,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 
 	sequence++
 	confirmationTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	confirmationTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	confirmationTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	confirmationTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, confirmationMemo))
 	confirmationTx.Outputs = append(confirmationTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	confirmationVer := confirmationTx.AsVersioned()
@@ -797,7 +804,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", confirmationHash), base64.RawURLEncoding.EncodeToString(confirmationVer.Marshal())))
 	confirmation := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(confirmationVer.Extra), SafeUtxoStateUnspent, sequence, confirmationHash)
 	confirmation.KernelAssetId = confirmationVer.Asset.String()
-	g.processSafeOutput(ctx, confirmation)
+	testProcessSafeOutput(ctx, r, g, confirmation)
 	r.NoError(g.handleActionsQueue(ctx))
 	action, err := g.store.ReadAction(ctx, confirmation.OutputId)
 	r.NoError(err)
@@ -821,7 +828,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 
 	sequence++
 	duplicateConfirmationTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	duplicateConfirmationTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	duplicateConfirmationTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	duplicateConfirmationTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, confirmationMemo))
 	duplicateConfirmationTx.Outputs = append(duplicateConfirmationTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	duplicateConfirmationVer := duplicateConfirmationTx.AsVersioned()
@@ -829,7 +836,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", duplicateConfirmationHash), base64.RawURLEncoding.EncodeToString(duplicateConfirmationVer.Marshal())))
 	duplicateConfirmation := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(duplicateConfirmationVer.Extra), SafeUtxoStateUnspent, sequence, duplicateConfirmationHash)
 	duplicateConfirmation.KernelAssetId = duplicateConfirmationVer.Asset.String()
-	g.processSafeOutput(ctx, duplicateConfirmation)
+	testProcessSafeOutput(ctx, r, g, duplicateConfirmation)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("8", balance.Amount.String())
@@ -839,7 +846,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	// balance and recursively request a refill to send the same funds back out.
 	sequence++
 	unfundedTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	unfundedTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	unfundedTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	unfundedTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "3")))
 	unfundedTx.Outputs = append(unfundedTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	unfundedVer := unfundedTx.AsVersioned()
@@ -847,7 +854,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", unfundedHash), base64.RawURLEncoding.EncodeToString(unfundedVer.Marshal())))
 	unfunded := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(unfundedVer.Extra), SafeUtxoStateUnspent, sequence, unfundedHash)
 	unfunded.KernelAssetId = unfundedVer.Asset.String()
-	g.processSafeOutput(ctx, unfunded)
+	testProcessSafeOutput(ctx, r, g, unfunded)
 	r.NoError(g.handleActionsQueue(ctx))
 	failed, err := g.store.ReadCustodianTransferByRequestId(ctx, unfunded.OutputId)
 	r.NoError(err)
@@ -866,7 +873,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 		}
 		sequence++
 		fragmentTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
-		fragmentTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+		fragmentTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 		fragmentTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, nil))
 		fragmentTx.Outputs = append(fragmentTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString(amount), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 		fragmentVer := fragmentTx.AsVersioned()
@@ -874,12 +881,12 @@ func TestMTGCustodianFlow(t *testing.T) {
 		r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", fragmentHash), base64.RawURLEncoding.EncodeToString(fragmentVer.Marshal())))
 		out := testBuildOutput(g, r, USDTAssetId, amount, hex.EncodeToString(fragmentVer.Extra), SafeUtxoStateUnspent, sequence, fragmentHash)
 		out.KernelAssetId = fragmentVer.Asset.String()
-		g.processSafeOutput(ctx, out)
+		testProcessSafeOutput(ctx, r, g, out)
 		r.NoError(g.handleActionsQueue(ctx))
 	}
 	sequence++
 	payoutInputTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	payoutInputTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	payoutInputTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	payoutInputTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, []byte("custodian-test-pay")))
 	payoutInputTx.Outputs = append(payoutInputTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	payoutInputVer := payoutInputTx.AsVersioned()
@@ -887,7 +894,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", payoutInputHash), base64.RawURLEncoding.EncodeToString(payoutInputVer.Marshal())))
 	payout := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(payoutInputVer.Extra), SafeUtxoStateUnspent, sequence, payoutInputHash)
 	payout.KernelAssetId = payoutInputVer.Asset.String()
-	g.processSafeOutput(ctx, payout)
+	testProcessSafeOutput(ctx, r, g, payout)
 	r.NoError(g.handleActionsQueue(ctx))
 	action, err = g.store.ReadAction(ctx, payout.OutputId)
 	r.NoError(err)
@@ -901,7 +908,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	spare := testHandleCompactionTransaction(ctx, r, g, payout.TransactionHash)
 	r.Equal("2", spare.Amount.String())
 	sequence = spare.Sequence
-	g.processSafeOutput(ctx, spare)
+	testProcessSafeOutput(ctx, r, g, spare)
 	r.NoError(g.handleActionsQueue(ctx))
 	action, err = g.store.ReadAction(ctx, payout.OutputId)
 	r.NoError(err)
@@ -977,7 +984,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 			}
 			sequence++
 			returnTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(asset)))
-			returnTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+			returnTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 			returnTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, memo))
 			returnTx.Outputs = append(returnTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString(amount), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 			returnVer := returnTx.AsVersioned()
@@ -1009,7 +1016,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 
 	sequence++
 	returnedTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
-	returnedTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	returnedTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	returnedTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, need.ReturnMemo))
 	returnedTx.Outputs = append(returnedTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("5"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	returnedVer := returnedTx.AsVersioned()
@@ -1019,7 +1026,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	returned.KernelAssetId = returnedVer.Asset.String()
 	returned.Senders = append([]string(nil), g.custodianMembers...)
 	returned.SendersThreshold = int64(g.custodianThreshold)
-	g.processSafeOutput(ctx, returned)
+	testProcessSafeOutput(ctx, r, g, returned)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("3", balance.Amount.String())
@@ -1062,7 +1069,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 		r.Equal(SafeUtxoStateLocked, out.State)
 		r.Equal(payout.OutputId, out.ReservedBy)
 	}
-	g.processSafeOutput(ctx, returned)
+	testProcessSafeOutput(ctx, r, g, returned)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("3", balance.Amount.String())
@@ -1074,7 +1081,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 
 	sequence++
 	secondReturnTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
-	secondReturnTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	secondReturnTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	secondReturnTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, secondNeed.ReturnMemo))
 	secondReturnTx.Outputs = append(secondReturnTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("2"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	secondReturnVer := secondReturnTx.AsVersioned()
@@ -1084,7 +1091,7 @@ func TestMTGCustodianFlow(t *testing.T) {
 	secondReturn.KernelAssetId = secondReturnVer.Asset.String()
 	secondReturn.Senders = append([]string(nil), g.custodianMembers...)
 	secondReturn.SendersThreshold = int64(g.custodianThreshold)
-	g.processSafeOutput(ctx, secondReturn)
+	testProcessSafeOutput(ctx, r, g, secondReturn)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("1", balance.Amount.String())
@@ -1131,8 +1138,8 @@ func TestMTGCustodianFlow(t *testing.T) {
 		r.Equal(SafeUtxoStateSpent, out.State)
 	}
 	// Re-delivering the same chain outputs is idempotent after both payouts.
-	g.processSafeOutput(ctx, returned)
-	g.processSafeOutput(ctx, secondReturn)
+	testProcessSafeOutput(ctx, r, g, returned)
+	testProcessSafeOutput(ctx, r, g, secondReturn)
 	r.NoError(g.handleActionsQueue(ctx))
 	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
 	r.Equal("1", balance.Amount.String())
@@ -1181,7 +1188,7 @@ func TestMTGCustodianCompaction(t *testing.T) {
 		}
 		sequence++
 		inputTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
-		inputTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+		inputTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 		inputTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, nil))
 		inputTx.Outputs = append(inputTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString(amount), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 		inputVer := inputTx.AsVersioned()
@@ -1193,7 +1200,7 @@ func TestMTGCustodianCompaction(t *testing.T) {
 	}
 	sequence++
 	requestTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
-	requestTx.AddInput(crypto.Sha256Hash([]byte(fmt.Sprintf("custodian-input:%d", sequence))), 0)
+	requestTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
 	requestTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "4.6")))
 	requestTx.Outputs = append(requestTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
 	requestVer := requestTx.AsVersioned()
@@ -1201,7 +1208,7 @@ func TestMTGCustodianCompaction(t *testing.T) {
 	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", requestHash), base64.RawURLEncoding.EncodeToString(requestVer.Marshal())))
 	request := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(requestVer.Extra), SafeUtxoStateUnspent, sequence, requestHash)
 	request.KernelAssetId = requestVer.Asset.String()
-	g.processSafeOutput(ctx, request)
+	testProcessSafeOutput(ctx, r, g, request)
 	r.NoError(g.handleActionsQueue(ctx))
 	pending, err := g.ListPendingCustodianTransfers(ctx, 0)
 	r.NoError(err)
@@ -1213,7 +1220,7 @@ func TestMTGCustodianCompaction(t *testing.T) {
 	r.Equal("0", balance.Amount.String())
 	r.Equal("0", balance.ReservedAmount.String())
 	compacted := testHandleCompactionTransaction(ctx, r, g, request.TransactionHash)
-	g.processSafeOutput(ctx, compacted)
+	testProcessSafeOutput(ctx, r, g, compacted)
 	r.NoError(g.handleActionsQueue(ctx))
 	action, err = g.store.ReadAction(ctx, request.OutputId)
 	r.NoError(err)

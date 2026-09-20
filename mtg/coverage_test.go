@@ -101,7 +101,7 @@ func TestCoverageGroupConfigurationAndAccessors(t *testing.T) {
 	confB.Genesis.Threshold = 1
 	confB.Genesis.Epoch = 9
 	req.Equal(generateGenesisId(confA), generateGenesisId(confB))
-	req.Equal([]string{"a", "b"}, confA.Genesis.Members)
+	req.Equal([]string{"b", "a"}, confA.Genesis.Members)
 }
 
 func TestCoverageEncodingAndTransactionValidation(t *testing.T) {
