@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS recoveries (
   PRIMARY KEY ('address', 'transaction_hash')
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS recoveries_by_hash ON recoveries(transaction_hash);
+
 
 
 CREATE TABLE IF NOT EXISTS nodes (

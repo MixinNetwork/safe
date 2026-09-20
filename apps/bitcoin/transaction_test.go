@@ -4,7 +4,10 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/btcsuite/btcd/chainhash/v2"
+	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/btcsuite/btcd/wire/v2"
+	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,4 +50,74 @@ func TestTransaction(t *testing.T) {
 	msgTx, _ = psbt.SignedTransaction("0208134c3bb3263598db7f28cb631b34f81d34bfdf3cee163da7c41b6434e92fad", "03e17978200e8961fc87358898db7b0d5686aa4f14935d418de9b533d14922a4b3", "")
 	raw, _ = MarshalWiredTransaction(msgTx, wire.WitnessEncoding, ChainBitcoin)
 	require.Equal("020000000001016daf0a2ca612879093698c5ab6dbcff372e893137d5dfda23615e1489f5e07210000000000ffffffff0310270000000000002200204a8f0888cc30695a20c71ae0d119f4c09743c0d03a7db52774d06c49a52d081a905f0100000000002200204a8f0888cc30695a20c71ae0d119f4c09743c0d03a7db52774d06c49a52d081a0000000000000000126a104525b641cc6e4ed1b2bb0713b786da6b0400483045022100ab98516d06c3a32eae440d58d6a2cfca1a4e545a50d52f56926869916a028a2002203e65b54b64f1d4298d255e4368529291265274eaa9c2d712ee5e3474cf8ae8308147304402206c9adbfea684f9dca42700db018a6aaebbee1f679f553e871351031ccdbff3510220064eeed0c51e0a018b4c275e6585fd81d686c106be1708507a1bd4813affb7a88178210208134c3bb3263598db7f28cb631b34f81d34bfdf3cee163da7c41b6434e92fadac7c2103e17978200e8961fc87358898db7b0d5686aa4f14935d418de9b533d14922a4b3ac937c8292632103c8f64e27a2f3ae961a57184841df19e7d8708ddbc998f0c5abc7197ead70931fad02b001b2926893528700000000", hex.EncodeToString(raw))
+}
+
+func TestCheckTransactionReturnId(t *testing.T) {
+	require := require.New(t)
+	lockId := "358c0e9e-8d9c-4e0f-acde-8945a859763a"
+	id := uuid.Must(uuid.FromString(lockId))
+	builder := txscript.NewScriptBuilder()
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddData(id.Bytes())
+	script, err := builder.Script()
+	require.NoError(err)
+
+	msgTx := wire.NewMsgTx(2)
+	msgTx.AddTxOut(wire.NewTxOut(100, []byte{txscript.OP_TRUE}))
+	msgTx.AddTxOut(wire.NewTxOut(0, script))
+	require.True(CheckTransactionReturnId(msgTx, lockId))
+
+	oldLockId := "1924a324-dbcb-48db-b0ea-5d23ebe59475"
+	require.False(CheckTransactionReturnId(msgTx, oldLockId))
+	require.False(CheckTransactionReturnId(msgTx, uuid.Nil.String()))
+
+	malformed := msgTx.Copy()
+	malformed.TxOut[1].PkScript = append(malformed.TxOut[1].PkScript, txscript.OP_TRUE)
+	require.False(CheckTransactionReturnId(malformed, lockId))
+
+	nonZero := msgTx.Copy()
+	nonZero.TxOut[1].Value = 1
+	require.False(CheckTransactionReturnId(nonZero, lockId))
+
+	oneOutput := msgTx.Copy()
+	oneOutput.TxOut = oneOutput.TxOut[:1]
+	require.False(CheckTransactionReturnId(oneOutput, lockId))
+}
+
+func TestCheckTransactionInputs(t *testing.T) {
+	require := require.New(t)
+	first := &Input{
+		TransactionHash: "0000000000000000000000000000000000000000000000000000000000000001",
+		Index:           1,
+	}
+	second := &Input{
+		TransactionHash: "0000000000000000000000000000000000000000000000000000000000000002",
+		Index:           2,
+	}
+	third := &Input{
+		TransactionHash: "0000000000000000000000000000000000000000000000000000000000000003",
+		Index:           3,
+	}
+	inputs := []*Input{first, second}
+
+	msgTx := testTransactionWithInputs(t, second, first)
+	require.True(CheckTransactionInputs(msgTx, inputs))
+	require.False(CheckTransactionInputs(testTransactionWithInputs(t, first), inputs))
+	require.False(CheckTransactionInputs(testTransactionWithInputs(t, first, second, third), inputs))
+	require.False(CheckTransactionInputs(testTransactionWithInputs(t, first, third), inputs))
+	require.False(CheckTransactionInputs(testTransactionWithInputs(t, first, first), inputs))
+	require.False(CheckTransactionInputs(msgTx, []*Input{first, first}))
+	require.False(CheckTransactionInputs(msgTx, []*Input{first, nil}))
+}
+
+func testTransactionWithInputs(t *testing.T, inputs ...*Input) *wire.MsgTx {
+	t.Helper()
+	msgTx := wire.NewMsgTx(2)
+	for _, input := range inputs {
+		hash, err := chainhash.NewHashFromStr(input.TransactionHash)
+		require.NoError(t, err)
+		outpoint := wire.NewOutPoint(hash, input.Index)
+		msgTx.AddTxIn(wire.NewTxIn(outpoint, nil, nil))
+	}
+	return msgTx
 }

@@ -53,7 +53,7 @@ func (node *Node) deployBitcoinSafeBond(ctx context.Context, data []byte) error 
 	if err != nil || safe == nil || safe.State != common.RequestStateDone {
 		return fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v %v", wsa.Address, safe, err)
 	}
-	_, bitcoinAssetId := node.bitcoinParams(safe.Chain)
+	_, bitcoinAssetId, _ := node.bitcoinParams(safe.Chain)
 	_, err = node.checkOrDeployKeeperBond(ctx, safe.Chain, bitcoinAssetId, "", safe.Holder, safe.Address)
 	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", bitcoinAssetId, safe.Holder, err)
 	if err != nil {
@@ -124,7 +124,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 	default:
 		panic(chain)
 	}
-	rpc, _ := node.ethereumParams(chain)
+	rpc, _, _ := node.ethereumParams(chain)
 	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
 	if err != nil {
 		return nil, err

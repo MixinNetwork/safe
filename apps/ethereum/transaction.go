@@ -697,7 +697,7 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 
 	for _, sig := range st.Signatures {
 		if sig != nil {
-			err := VerifyMessageSignature(public, st.Message, sig)
+			err := VerifyMessageSignature(public, st.Message, sig, true)
 			if err == nil {
 				return true
 			}

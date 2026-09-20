@@ -38,6 +38,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 	if err != nil {
 		panic(err)
 	}
+	sessionStore := bot.NewMapSessionStore()
 
 	for {
 		time.Sleep(1 * time.Minute)
@@ -46,7 +47,7 @@ func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQL
 			logger.Verbosef("Monitor.bundleSignerState() => %v", err)
 			continue
 		}
-		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverUserId)
+		postMessages(ctx, store, sessionStore, conv, conf.MTG, msg, conf.ObserverUserId)
 		time.Sleep(2 * time.Minute)
 	}
 }
@@ -119,6 +120,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 	if err != nil {
 		panic(err)
 	}
+	sessionStore := bot.NewMapSessionStore()
 
 	for {
 		time.Sleep(1 * time.Minute)
@@ -127,7 +129,7 @@ func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQL
 			logger.Verbosef("Monitor.bundleKeeperState() => %v", err)
 			continue
 		}
-		postMessages(ctx, store, conv, conf.MTG, msg, conf.ObserverUserId)
+		postMessages(ctx, store, sessionStore, conv, conf.MTG, msg, conf.ObserverUserId)
 		time.Sleep(2 * time.Minute)
 	}
 }
@@ -226,7 +228,7 @@ func bundleKeeperState(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore
 	return state, nil
 }
 
-func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, conf *mtg.Configuration, msg, observer string) {
+func postMessages(ctx context.Context, store UserStore, sessionStore bot.SessionStore, conv *bot.Conversation, conf *mtg.Configuration, msg, observer string) {
 	app := conf.App
 	var messages []*bot.MessageRequest
 	for i := range conv.Participants {
@@ -242,12 +244,12 @@ func postMessages(ctx context.Context, store UserStore, conv *bot.Conversation, 
 		messages = append(messages, &bot.MessageRequest{
 			ConversationId: conv.ConversationId,
 			RecipientId:    s.UserId,
-			Category:       bot.MessageCategoryPlainText,
+			Category:       bot.MessageCategoryEncryptedText,
 			MessageId:      common.UniqueId(msg, s.UserId),
 			DataBase64:     base64.RawURLEncoding.EncodeToString([]byte(msg)),
 		})
 	}
-	err := bot.PostMessages(ctx, messages, &bot.SafeUser{
+	err := bot.PostEncryptedMessages(ctx, messages, sessionStore, &bot.SafeUser{
 		UserId:            app.AppId,
 		SessionId:         app.SessionId,
 		SessionPrivateKey: app.SessionPrivateKey,

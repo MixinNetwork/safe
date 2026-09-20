@@ -28,19 +28,19 @@ const (
 	bitcoinKeyDummyHolderPrivate = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 )
 
-func (node *Node) bitcoinParams(chain byte) (string, string) {
+func (node *Node) bitcoinParams(chain byte) (string, string, ChainParams) {
 	switch chain {
 	case common.SafeChainBitcoin:
-		return node.conf.BitcoinRPC, common.SafeBitcoinChainId
+		return node.conf.BitcoinRPC, common.SafeBitcoinChainId, node.conf.Bitcoin
 	case common.SafeChainLitecoin:
-		return node.conf.LitecoinRPC, common.SafeLitecoinChainId
+		return node.conf.LitecoinRPC, common.SafeLitecoinChainId, node.conf.Litecoin
 	default:
 		panic(chain)
 	}
 }
 
 func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
-	rpc, assetId := node.bitcoinParams(chain)
+	rpc, chainId, _ := node.bitcoinParams(chain)
 
 	for {
 		time.Sleep(depositNetworkInfoDelay)
@@ -80,7 +80,7 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		extra = binary.BigEndian.AppendUint64(extra, uint64(fvb))
 		extra = binary.BigEndian.AppendUint64(extra, uint64(height))
 		extra = append(extra, hash[:]...)
-		id := common.UniqueId(assetId, fmt.Sprintf("%s:%d", blockHash, height))
+		id := common.UniqueId(chainId, fmt.Sprintf("%s:%d", blockHash, height))
 		id = common.UniqueId(id, fmt.Sprintf("%d:%d", time.Now().UnixNano(), fvb))
 		logger.Printf("node.bitcoinNetworkInfoLoop(%d) => %d %d %s %s", chain, height, fvb, blockHash, id)
 
@@ -98,7 +98,7 @@ func (node *Node) bitcoinDummyHolder() string {
 }
 
 func (node *Node) bitcoinReadBlock(_ context.Context, num int64, chain byte) ([]*bitcoin.RPCTransaction, error) {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 
 	if num == 0 {
 		return bitcoin.RPCGetRawMempool(chain, rpc)
@@ -172,9 +172,9 @@ func (node *Node) bitcoinCheckDepositChange(ctx context.Context, transactionHash
 }
 
 func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver string, tx *bitcoin.RPCTransaction, index int64, value float64, chain byte) error {
-	_, assetId := node.bitcoinParams(chain)
+	rpc, chainId, params := node.bitcoinParams(chain)
 	amount := decimal.NewFromFloat(value)
-	minimum := decimal.RequireFromString(node.conf.TransactionMinimum)
+	minimum := decimal.RequireFromString(params.TransactionMinimum)
 
 	sent, err := node.store.QueryDepositSentHashes(ctx, []*Deposit{{TransactionHash: tx.TxId}})
 	logger.Verbosef("store.QueryDepositSentHashes(%s) => %v %v", tx.TxId, sent, err)
@@ -208,13 +208,13 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		return err
 	}
 
-	id := common.UniqueId(assetId, safe.Holder)
+	id := common.UniqueId(chainId, safe.Holder)
 	id = common.UniqueId(id, fmt.Sprintf("%s:%d", tx.TxId, index))
 	createdAt := time.Now().UTC()
 	deposit := &Deposit{
 		TransactionHash: tx.TxId,
 		OutputIndex:     index,
-		AssetId:         assetId,
+		AssetId:         chainId,
 		Amount:          amount.String(),
 		Receiver:        receiver,
 		Holder:          safe.Holder,
@@ -226,7 +226,6 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		UpdatedAt:       createdAt,
 	}
 
-	rpc, _ := node.bitcoinParams(chain)
 	sender, err := bitcoin.RPCGetTransactionSender(chain, rpc, tx)
 	if err != nil {
 		return fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
@@ -241,13 +240,13 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 }
 
 func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
-	rpc, assetId := node.bitcoinParams(deposit.Chain)
+	rpc, chainId, _ := node.bitcoinParams(deposit.Chain)
 	safe, err := node.keeperStore.ReadSafe(ctx, deposit.Holder)
 	logger.Printf("node.bitcoinConfirmPendingDeposit(%v) => %v %v", deposit, safe, err)
 	if err != nil || safe == nil {
 		return err
 	}
-	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, assetId, "", deposit.Holder, safe.Address)
+	bonded, err := node.checkOrDeployKeeperBond(ctx, deposit.Chain, chainId, "", deposit.Holder, safe.Address)
 	logger.Printf("node.checkOrDeployKeeperBond(%v) => %t %v", deposit, bonded, err)
 	if err != nil {
 		return fmt.Errorf("node.checkOrDeployKeeperBond(%s) => %v", deposit.Holder, err)
@@ -311,7 +310,7 @@ func (node *Node) bitcoinDepositConfirmLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 	duration := 3 * time.Minute
 	switch chain {
 	case common.SafeChainLitecoin:
@@ -585,6 +584,13 @@ func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.C
 	if err != nil || lock == nil || lock.State != common.RequestStateDone {
 		return fmt.Errorf("invalid inheritance lock: %v %v", lock, err)
 	}
+	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(objectRaw)
+	if err != nil {
+		return err
+	}
+	if !bitcoin.CheckTransactionReturnId(psbt.UnsignedTx, lock.LockId) {
+		return fmt.Errorf("invalid inheritance transaction lock: %s", lock.LockId)
+	}
 
 	rawId := common.UniqueId(approval.RawTransaction, approval.RawTransaction)
 	objectRaw = append(uuid.Must(uuid.FromString(rawId)).Bytes(), objectRaw...)
@@ -647,6 +653,18 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 	return bitcoin.CheckMultisigHolderSignerScript(utxo.Script)
 }
 
+func (node *Node) validateBitcoinTransactionInputs(ctx context.Context, holder string, msgTx *wire.MsgTx) error {
+	inputs, err := node.keeperStore.ListAllBitcoinUTXOsForHolder(ctx, holder)
+	logger.Printf("store.ListAllBitcoinUTXOsForHolder(%s) => %d %v", holder, len(inputs), err)
+	if err != nil {
+		return err
+	}
+	if !bitcoin.CheckTransactionInputs(msgTx, inputs) {
+		return fmt.Errorf("invalid bitcoin transaction inputs: %s", holder)
+	}
+	return nil
+}
+
 func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
@@ -704,9 +722,12 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		if !bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 			return nil
 		}
+		if err := node.validateBitcoinTransactionInputs(ctx, safe.Holder, msgTx); err != nil {
+			return err
+		}
 	}
 
-	rpc, _ := node.bitcoinParams(safe.Chain)
+	rpc, _, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	logger.Printf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	if err != nil || info == nil {
@@ -814,7 +835,7 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	rpc, _ := node.bitcoinParams(safe.Chain)
+	rpc, _, _ := node.bitcoinParams(safe.Chain)
 
 	var balance int64
 	for idx := range msgTx.TxIn {
@@ -1033,6 +1054,9 @@ func (node *Node) httpRevokeBitcoinTransaction(ctx context.Context, txHash strin
 
 func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, safe *store.Safe, lock *store.InheritanceLock, hash, raw string) (*Transaction, error) {
 	logger.Printf("node.httpCreateBitcoinInheritanceTransaction(%s)", raw)
+	if bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
+		return nil, fmt.Errorf("invalid inheritance tx signer: holder")
+	}
 	rb := common.DecodeHexOrPanic(raw)
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
@@ -1070,8 +1094,11 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if err != nil || approval != nil {
 		return nil, err
 	}
+	if err := node.validateBitcoinTransactionInputs(ctx, safe.Holder, msgTx); err != nil {
+		return nil, err
+	}
 
-	rpc, _ := node.bitcoinParams(safe.Chain)
+	rpc, _, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, safe.Chain, time.Now())
 	if err != nil || info == nil {
 		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
@@ -1099,7 +1126,7 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if msgTx.TxOut[0].Value != balance {
 		return nil, fmt.Errorf("invalid inheritance tx amount: %d %d", msgTx.TxOut[0].Value, balance)
 	}
-	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+	if len(msgTx.TxOut) != 2 || !bitcoin.CheckTransactionReturnId(msgTx, lock.LockId) {
 		return nil, fmt.Errorf("invalid inheritance tx: %d %d", len(msgTx.TxOut), msgTx.TxOut[1].Value)
 	}
 

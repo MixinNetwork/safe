@@ -49,6 +49,9 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	}
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	hpsbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
+	if hpsbt.Hash() != spsbt.Hash() {
+		panic(spsbt.Hash())
+	}
 
 	safe, err := node.keeperStore.ReadSafe(ctx, tx.Holder)
 	if err != nil {
@@ -129,12 +132,6 @@ func (node *Node) keeperCombineBitcoinTransactionSignatures(ctx context.Context,
 	}
 
 	raw := hex.EncodeToString(hpsbt.Marshal())
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, spsbt.Hash(), raw, common.RequestStateDone)
-	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
-	if err != nil {
-		return err
-	}
-
 	err = node.store.FinishTransactionSignatures(ctx, hpsbt.Hash(), raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", hpsbt.Hash(), err)
 	return err
@@ -177,19 +174,13 @@ func (node *Node) keeperVerifyEthereumTransactionSignatures(ctx context.Context,
 		return fmt.Errorf("ethereum safe transaction %v has insufficient signatures: %d", st, sigs)
 	}
 
-	err = node.store.UpdateRecoveryState(ctx, safe.Address, st.RequestHash, raw, common.RequestStateDone)
-	logger.Printf("store.UpdateRecoveryState(%s, %d) => %v", safe.Address, common.RequestStateDone, err)
-	if err != nil {
-		return err
-	}
-
 	err = node.store.FinishTransactionSignatures(ctx, st.RequestHash, raw)
 	logger.Printf("store.FinishTransactionSignatures(%s) => %v", st.RequestHash, err)
 	return err
 }
 
 func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 
 	for {
 		time.Sleep(3 * time.Second)
@@ -226,7 +217,7 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Transaction) (*wire.MsgTx, error) {
-	rpc, _ := node.bitcoinParams(tx.Chain)
+	rpc, _, _ := node.bitcoinParams(tx.Chain)
 	b := common.DecodeHexOrPanic(tx.RawTransaction)
 	psbt, _ := bitcoin.UnmarshalPartiallySignedTransaction(b)
 
@@ -287,8 +278,8 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 }
 
 func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fee, fvb uint64, tx *Transaction) (*Output, error) {
-	min, max := uint64(float64(fee)*0.9), uint64(float64(fee)*1.1)
-	old, err := node.store.AssignBitcoinUTXOByRangeForTransaction(ctx, min, max, tx)
+	minF, maxF := uint64(float64(fee)*0.9), uint64(float64(fee)*1.1)
+	old, err := node.store.AssignBitcoinUTXOByRangeForTransaction(ctx, minF, maxF, tx)
 	if err != nil || old != nil {
 		return old, err
 	}
@@ -384,13 +375,13 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 }
 
 func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) {
-	rpc, assetId := node.ethereumParams(chain)
-	asset, err := node.fetchAssetMeta(ctx, assetId)
+	rpc, chainId, _ := node.ethereumParams(chain)
+	asset, err := node.fetchAssetMeta(ctx, chainId)
 	if err != nil || asset == nil {
-		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", assetId, asset, err)
+		logger.Verbosef("node.fetchAssetMeta(%s) => %v, %v", chainId, asset, err)
 		panic(err)
 	}
-	min := ethereum.ParseAmount(ethereum.MinimumBalance, int32(asset.Decimals))
+	accountantMinimum := ethereum.ParseAmount("0.05", int32(asset.Decimals))
 
 	for {
 		time.Sleep(3 * time.Second)
@@ -400,7 +391,7 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 		}
 		for _, tx := range txs {
 			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
-			if err != nil || b.Cmp(min) <= 0 {
+			if err != nil || b.Cmp(accountantMinimum) <= 0 {
 				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
 				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
 				time.Sleep(3 * time.Second)
@@ -453,19 +444,30 @@ func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Contex
 	}
 	defer common.Rollback(txn)
 
-	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE (chain=? AND satoshi>=? AND satoshi<=? AND state=?) OR (spent_by=?) LIMIT 1", strings.Join(outputCols, ","))
-	params := []any{tx.Chain, min, max, common.RequestStateInitial, tx.TransactionHash}
-	row := txn.QueryRowContext(ctx, query, params...)
-
-	var o Output
-	err = row.Scan(&o.TransactionHash, &o.Index, &o.Address, &o.Satoshi, &o.Chain, &o.State, &o.SpentBy, &o.RawTransaction, &o.CreatedAt, &o.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
+	cols := strings.Join(outputCols, ",")
+	readOutput := func(query string, params ...any) (*Output, error) {
+		row := txn.QueryRowContext(ctx, query, params...)
+		var o Output
+		err := row.Scan(&o.TransactionHash, &o.Index, &o.Address, &o.Satoshi, &o.Chain, &o.State, &o.SpentBy, &o.RawTransaction, &o.CreatedAt, &o.UpdatedAt)
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return &o, err
 	}
-	if o.SpentBy.String == tx.TransactionHash {
-		return &o, nil
+
+	// A retry must return the output already reserved for this transaction.
+	// Selecting it in the same unordered OR query as spare outputs could reserve
+	// a second output instead, depending on the query plan and insertion order.
+	query := fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE chain=? AND spent_by=? LIMIT 1", cols)
+	o, err := readOutput(query, tx.Chain, tx.TransactionHash)
+	if err != nil || o != nil {
+		return o, err
+	}
+
+	query = fmt.Sprintf("SELECT %s FROM bitcoin_outputs WHERE chain=? AND satoshi>=? AND satoshi<=? AND state=? AND spent_by IS NULL ORDER BY created_at ASC,transaction_hash ASC,output_index ASC LIMIT 1", cols)
+	o, err = readOutput(query, tx.Chain, min, max, common.RequestStateInitial)
+	if err != nil || o == nil {
+		return o, err
 	}
 
 	err = s.execOne(ctx, txn, "UPDATE bitcoin_outputs SET state=?,spent_by=?,updated_at=? WHERE transaction_hash=? AND output_index=? AND state=? AND spent_by IS NULL",
@@ -473,7 +475,7 @@ func (s *SQLite3Store) AssignBitcoinUTXOByRangeForTransaction(ctx context.Contex
 	if err != nil {
 		return nil, fmt.Errorf("UPDATE bitcoin_outputs %v", err)
 	}
-	return &o, txn.Commit()
+	return o, txn.Commit()
 }
 
 func (s *SQLite3Store) ReadBitcoinUTXO(ctx context.Context, hash string, index int64, chain byte) (*Output, error) {
@@ -584,7 +586,7 @@ func (s *SQLite3Store) WriteBitcoinFeeOutput(ctx context.Context, msgTx *wire.Ms
 }
 
 func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context, feeInput *Output, msgTx *wire.MsgTx, chain byte) error {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 
 	if feeInput.RawTransaction.String != "" {
 		hash := feeInput.TransactionHash
@@ -616,7 +618,7 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 }
 
 func (node *Node) ethereumBroadcastTransactionAndWriteDeposit(ctx context.Context, tx *Transaction, st *ethereum.SafeTransaction) (string, error) {
-	rpc, _ := node.ethereumParams(tx.Chain)
+	rpc, _, _ := node.ethereumParams(tx.Chain)
 	key := fmt.Sprintf("%s:SPENT_HASH", tx.TransactionHash)
 
 	recovery, err := node.store.ReadRecoveryByHash(ctx, tx.TransactionHash)
@@ -746,7 +748,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 		return false
 	}
 
-	rpc, _ := node.ethereumParams(tx.Chain)
+	rpc, _, _ := node.ethereumParams(tx.Chain)
 	height, err := ethereum.RPCGetBlockHeight(rpc)
 	if err != nil {
 		panic(err)
@@ -772,7 +774,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 }
 
 func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 	for {
 		_, ro, err := bitcoin.RPCGetTransactionOutput(chain, rpc, utxo.TransactionHash, int64(utxo.Index))
 		if err != nil {
@@ -794,7 +796,7 @@ func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
 }
 
 func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
-	rpc, _ := node.bitcoinParams(chain)
+	rpc, _, _ := node.bitcoinParams(chain)
 	id, err := bitcoin.RPCSendRawTransaction(rpc, hex.EncodeToString(raw))
 	if err != nil {
 		switch {

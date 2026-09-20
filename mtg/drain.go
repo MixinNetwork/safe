@@ -34,8 +34,14 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 			continue
 		}
 
-		checkpoint = grp.processSafeOutputs(ctx, filter, checkpoint, outputs)
-		grp.writeDrainingCheckpoint(ctx, checkpoint)
+		for i := 0; i < len(outputs); i += 64 {
+			batch := outputs[i:]
+			if len(batch) > 64 {
+				batch = batch[:64]
+			}
+			checkpoint = grp.processSafeOutputs(ctx, filter, checkpoint, batch)
+			grp.writeDrainingCheckpoint(ctx, checkpoint)
+		}
 		if len(outputs) < batch/2 {
 			break
 		}
@@ -43,6 +49,7 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 }
 
 func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool, checkpoint uint64, outputs []*UnifiedOutput) uint64 {
+	var filtered []*UnifiedOutput
 	for _, utxo := range outputs {
 		checkpoint = utxo.Sequence
 		key := fmt.Sprintf("ACT:%s:%d", utxo.OutputId, utxo.Sequence)
@@ -50,19 +57,19 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 			continue
 		}
 		filter[key] = true
-		grp.processSafeOutput(ctx, utxo)
+		filtered = append(filtered, utxo)
+	}
+	km := grp.BatchReadKernelTransactions(ctx, filtered)
+	for _, utxo := range filtered {
+		grp.processSafeOutput(ctx, utxo, km[utxo.TransactionHash])
 	}
 	return checkpoint
 }
 
-func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
+func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput, ver *common.VersionedTransaction) {
 	logger.Verbosef("Group.processSafeOutput(%v)\n", output)
 	actionState := ActionStateInitial
 
-	ver, err := grp.ReadKernelTransactionUntilSufficient(ctx, output.TransactionHash)
-	if err != nil {
-		panic(err)
-	}
 	vo := ver.Outputs[output.OutputIndex]
 	if vo.Amount.Cmp(common.NewIntegerFromString(output.Amount.String())) != 0 {
 		panic(output.OutputId)
@@ -95,7 +102,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	}
 	output.AppId = appId
 
-	appId, err = grp.checkChange(ctx, output, ver)
+	appId, err := grp.checkChange(ctx, output, ver)
 	if err != nil {
 		panic(err)
 	}

@@ -80,7 +80,7 @@ func (node *Node) getBondAssetId(ctx context.Context, entry, assetId, holder str
 	return safeAssetId
 }
 
-func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {
+func (node *Node) verifyRemoveMessageSignatureWithHolderOrObserver(ctx context.Context, safe *store.Safe, ms string, sig []byte) error {
 	switch common.NormalizeCurve(common.SafeChainCurve(safe.Chain)) {
 	case common.CurveSecp256k1ECDSABitcoin:
 		msg := bitcoin.HashMessageForSignature(ms, safe.Chain)
@@ -99,10 +99,10 @@ func (node *Node) verifySafeMessageSignatureWithHolderOrObserver(ctx context.Con
 		}
 	case common.CurveSecp256k1ECDSAEthereum:
 		msg := []byte(ms)
-		err := ethereum.VerifyMessageSignature(safe.Holder, msg, sig)
+		err := ethereum.VerifyMessageSignature(safe.Holder, msg, sig, false)
 		logger.Printf("holder: ethereum.VerifyMessageSignature(%s, %x) => %v", ms, sig, err)
 		if err != nil {
-			err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig)
+			err = ethereum.VerifyMessageSignature(safe.Observer, msg, sig, false)
 			logger.Printf("observer: ethereum.VerifyMessageSignature(%s, %x) => %v", ms, sig, err)
 			if err != nil {
 				return err

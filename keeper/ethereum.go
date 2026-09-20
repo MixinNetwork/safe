@@ -636,7 +636,7 @@ func (node *Node) processEthereumSafeApproveAccount(ctx context.Context, req *co
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:])
+	err = ethereum.VerifyMessageSignature(req.Holder, t.Message, extra[16:], true)
 	logger.Printf("ethereum.VerifyMessageSignature(%v) => %v", req, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
@@ -885,7 +885,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		recipients[i] = r
 		total = total.Add(amt)
 	}
-	if len(outputs) > 256 || !total.Equal(req.Amount) {
+	if len(outputs) > ethereum.MaxAssetsCount || !total.Equal(req.Amount) {
 		return node.failRequest(ctx, req, "")
 	}
 	ba := decimal.NewFromBigInt(balance.BigBalance(), -decimals)
@@ -976,6 +976,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			if outputs[0].TokenAddress != ethereum.EthereumEmptyAddress {
 				txType = ethereum.TypeERC20Tx
 			}
+		}
+		if len(outputs) > ethereum.MaxAssetsCount {
+			panic(fmt.Errorf("safe %s has too much assets %d", safe.Address, len(outputs)))
 		}
 		t, err = ethereum.CreateTransactionFromOutputs(ctx, txType, chainId, req.Id, safe.Address, outputs, big.NewInt(nonce))
 		logger.Printf("ethereum.CreateTransactionFromOutputs(%d, %d, %s, %s, %v, %d) => %v %v",
@@ -1107,7 +1110,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 
 	sig := req.ExtraBytes()
 	msg := common.DecodeHexOrPanic(old.Message)
-	err := ethereum.VerifyHashSignature(safe.Signer, msg, sig)
+	err := ethereum.VerifyHashSignature(safe.Signer, msg, sig, false)
 	logger.Printf("node.VerifyHashSignature(%v) => %v", req, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
@@ -1141,7 +1144,7 @@ func (node *Node) processEthereumSafeSignatureResponse(ctx context.Context, req 
 		}
 		sig := common.DecodeHexOrPanic(requests[0].Signature.String)
 		sig = ethereum.ProcessSignature(sig)
-		err = ethereum.VerifyMessageSignature(safe.Signer, t.Message, sig)
+		err = ethereum.VerifyMessageSignature(safe.Signer, t.Message, sig, true)
 		if err != nil {
 			panic(requests[0].Signature.String)
 		}
@@ -1282,7 +1285,7 @@ func (node *Node) checkEthereumTransactionSignedBy(safe *store.Safe, t *ethereum
 		if k != public || sig == nil {
 			continue
 		}
-		err := ethereum.VerifyMessageSignature(public, t.Message, sig)
+		err := ethereum.VerifyMessageSignature(public, t.Message, sig, true)
 		logger.Printf("ethereum.VerifyMessageSignature(%s, %x, %x) => %v", safe.Holder, t.Message, sig, err)
 		return err == nil, nil
 	}

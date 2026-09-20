@@ -112,6 +112,28 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 	}
 }
 
+func (grp *Group) BatchReadKernelTransactions(ctx context.Context, outputs []*UnifiedOutput) map[string]*common.VersionedTransaction {
+	km := make(map[string]*common.VersionedTransaction)
+	kc := make(chan *common.VersionedTransaction, len(outputs))
+	for _, o := range outputs {
+		km[o.TransactionHash] = nil
+	}
+	for txHash := range km {
+		go func() {
+			ver, err := grp.ReadKernelTransactionUntilSufficient(ctx, txHash)
+			if err != nil {
+				panic(err)
+			}
+			kc <- ver
+		}()
+	}
+	for range len(km) {
+		ver := <-kc
+		km[ver.PayloadHash().String()] = ver
+	}
+	return km
+}
+
 func (grp *Group) ReadKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
 	key := fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", txHash)
 	val, err := grp.store.ReadCache(ctx, key)

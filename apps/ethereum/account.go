@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -252,21 +253,46 @@ func VerifyHolderKey(public string) error {
 	return err
 }
 
-func VerifyMessageSignature(public string, msg, sig []byte) error {
+// checkRecovery indicates whether the signature recovery byte must carry
+// the eth_sign format (v = 31/32) required by the Gnosis Safe contract.
+// It must be true for any signature that will end up inside a safe
+// transaction, and false for message only signatures and for raw signer
+// signatures that have not been processed with ProcessSignature yet.
+func VerifyMessageSignature(public string, msg, sig []byte, checkRecovery bool) error {
 	hash := HashMessageForSignature(hex.EncodeToString(msg))
-	return VerifyHashSignature(public, hash, sig)
+	return VerifyHashSignature(public, hash, sig, checkRecovery)
 }
 
-func VerifyHashSignature(public string, hash, sig []byte) error {
+func VerifyHashSignature(public string, hash, sig []byte, checkRecovery bool) error {
+	if len(sig) != 65 {
+		return fmt.Errorf("invalid ethereum signature length %d", len(sig))
+	}
 	pub, err := hex.DecodeString(public)
 	if err != nil {
-		panic(public)
+		return fmt.Errorf("decode ethereum public key: %w", err)
 	}
-	signed := crypto.VerifySignature(pub, hash, sig[:64])
-	if signed {
-		return nil
+	if !crypto.VerifySignature(pub, hash, sig[:64]) {
+		return fmt.Errorf("invalid ethereum signature")
 	}
-	return fmt.Errorf("crypto.VerifySignature(%s, %x, %x)", public, hash, sig)
+
+	if checkRecovery {
+		switch sig[64] {
+		case 31, 32: // gnosis safe only accept signature recovery byte 31/32
+		default:
+			return fmt.Errorf("invalid ethereum signature recovery id %d", sig[64])
+		}
+		recoverySig := append([]byte(nil), sig...)
+		recoverySig[64] -= 31 // Gnosis 31/32 -> go-ethereum 0/1
+
+		recovered, err := crypto.SigToPub(hash, recoverySig)
+		if err != nil {
+			return fmt.Errorf("recover ethereum signature: %w", err)
+		}
+		if !bytes.Equal(crypto.CompressPubkey(recovered), pub) {
+			return fmt.Errorf("ethereum signature recovery id does not match signer")
+		}
+	}
+	return nil
 }
 
 func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {

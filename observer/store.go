@@ -402,7 +402,7 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 
 func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Context, holder, assetId string, offset time.Time) (bool, error) {
 	query := "SELECT request_id FROM deposits WHERE holder=? AND asset_id=? AND state=? AND created_at<?"
-	params := []any{holder, assetId, offset, common.RequestStateInitial}
+	params := []any{holder, assetId, common.RequestStateInitial, offset}
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -686,10 +686,21 @@ func (s *SQLite3Store) FinishTransactionSignatures(ctx context.Context, transact
 	}
 	defer common.Rollback(tx)
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=?",
-		raw, common.RequestStateDone, time.Now().UTC(), transactionHash)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw_transaction=?, state=?, updated_at=? WHERE transaction_hash=? AND state IN (?, ?)",
+		raw, common.RequestStateDone, time.Now().UTC(), transactionHash, common.RequestStateInitial, common.RequestStatePending)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT state FROM recoveries WHERE transaction_hash=?", transactionHash)
+	if err != nil {
+		return err
+	}
+	if existed {
+		err = s.updateRecoveryState(ctx, tx, transactionHash, raw, common.RequestStateDone)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -854,21 +865,25 @@ func (s *SQLite3Store) UpdateRecoveryState(ctx context.Context, address, hash, r
 	if err != nil || !existed {
 		return err
 	}
-	switch state {
-	case common.RequestStatePending:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND transaction_hash=? AND state=?",
-			state, raw, time.Now().UTC(), address, hash, common.RequestStateInitial)
-	case common.RequestStateDone:
-		err = s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE address=? AND transaction_hash=? AND state IN (?, ?)",
-			state, raw, time.Now().UTC(), address, hash, common.RequestStateInitial, common.RequestStatePending)
-	default:
-		panic(state)
-	}
+	err = s.updateRecoveryState(ctx, tx, hash, raw, state)
 	if err != nil {
-		return fmt.Errorf("UPDATE recoveries %v", err)
+		return err
 	}
 
 	return tx.Commit()
+}
+
+func (s *SQLite3Store) updateRecoveryState(ctx context.Context, tx *sql.Tx, hash, raw string, state int) error {
+	switch state {
+	case common.RequestStatePending:
+		return s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE transaction_hash=? AND state=?",
+			state, raw, time.Now().UTC(), hash, common.RequestStateInitial)
+	case common.RequestStateDone:
+		return s.execOne(ctx, tx, "UPDATE recoveries SET state=?, raw_transaction=?, updated_at=? WHERE transaction_hash=? AND state IN (?, ?)",
+			state, raw, time.Now().UTC(), hash, common.RequestStateInitial, common.RequestStatePending)
+	default:
+		panic(state)
+	}
 }
 
 func (s *SQLite3Store) CloseRecoveryWithObserverKey(ctx context.Context, address, hash, sigRaw string) error {

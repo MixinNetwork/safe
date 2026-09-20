@@ -24,7 +24,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if common.CheckTestEnvironment(ctx) {
 		out.TestAttachActionToGroup(node.group)
 	}
-	isDeposit := node.verifyKernelTransaction(ctx, out)
+	isDeposit := node.checkKernelDepositTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
 	}
@@ -357,8 +357,8 @@ func (node *Node) processSafeRevokeTransaction(ctx context.Context, req *common.
 	}
 
 	ms := fmt.Sprintf("REVOKE:%s:%s", rid.String(), tx.TransactionHash)
-	err = node.verifySafeMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
-	logger.Printf("holder: node.verifySafeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
+	err = node.verifyRemoveMessageSignatureWithHolderOrObserver(ctx, safe, ms, extra[16:])
+	logger.Printf("holder: node.verifyRevokeMessageSignatureWithHolderOrObserver(%v) => %v", req, err)
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}

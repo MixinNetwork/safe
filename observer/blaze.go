@@ -104,10 +104,15 @@ func (node *Node) handleMessage(ctx context.Context, bm bot.MessageView) error {
 	if bm.ConversationId != node.conf.MonitorConversaionId {
 		return nil
 	}
-	if bm.Category != bot.MessageCategoryPlainText {
+	if bm.Category != bot.MessageCategoryEncryptedText {
 		return nil
 	}
-	stats := parseNodeStats(bm.DataBase64)
+	mixin := node.safeUser()
+	plain64, err := bot.DecryptMessageData(bm.DataBase64, mixin.SessionId, mixin.SessionPrivateKey)
+	if err != nil {
+		return nil
+	}
+	stats := parseNodeStats(plain64)
 	if stats == nil {
 		return nil
 	}
@@ -120,6 +125,7 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		return nil
 	}
 	msg := string(rb)
+
 	lines := strings.Split(msg, "\n")
 
 	stats := &StatsInfo{}

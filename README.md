@@ -37,10 +37,41 @@ private: 1b639e995830c253eb38780480440a72919f5448be345a574c545329f2df4d76
 
 After generating the key pair, you will need to create a random UUID as the session ID. As example, the UUID `2e78d04a-e61a-442d-a014-dec19bd61cfe` will be used.
 
+## Fees and Transaction Minimums
+
+Operation fees and transaction minimums are configured per chain. The values in [`config/example.toml`](config/example.toml) are:
+
+| Chain | Operation fee asset ID | Operation fee | Transaction minimum |
+| --- | --- | ---: | ---: |
+| Bitcoin | `c6d0c728-2624-429b-8e0d-d9d19b6592fa` | `0.0001` | `0.0001` |
+| Litecoin | `76c802a2-7c88-447f-a93e-c29c9e5dd9c8` | `0.1` | `0.0001` |
+| Ethereum | `43d61dcd-e413-450d-80b8-101d5e903357` | `0.001` | `0.0001` |
+| Polygon | `b7938396-3f94-4e0a-9179-d3440718156f` | `10` | `0.0001` |
+
+These are example configuration values, not a promise about the live network. Before submitting an account proposal or paying for an approved transaction, query [`https://observer.mixin.one/chains`](https://observer.mixin.one/chains) and use the selected chain's `params.operation.asset` and `params.operation.price`. Also check `params.transaction.minimum` before proposing a transaction. A Bitcoin chain entry has this parameter shape:
+
+```json
+{
+  "chain": 1,
+  "id": "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
+  "params": {
+    "operation": {
+      "asset": "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
+      "price": "0.0001"
+    },
+    "transaction": {
+      "minimum": "0.0001"
+    }
+  }
+}
+```
+
+If the live response differs from this README, use the live response. If a deployment does not yet include `params`, it has not advertised per-chain pricing; confirm the values with its operator instead of assuming the example values are live.
+
 
 ## Propose Safe Account
 
-To ensure the efficiency of the network, every Mixin Safe account proposal costs 1USD. To propose an account, one simply needs to send 20pUSD to the network with a properly encoded memo. All messages sent to the safe network must be encoded as per the following operation structure:
+To ensure the efficiency of the network, every Mixin Safe account proposal pays the operation fee for its chain. This walkthrough proposes a Bitcoin account, so the example configuration charges `0.0001` of asset `c6d0c728-2624-429b-8e0d-d9d19b6592fa`. Use the live values described above when submitting a real proposal. All messages sent to the safe network must be encoded as per the following operation structure:
 
 ```golang
 type Operation struct {
@@ -96,8 +127,8 @@ Then we can encode the operation and use it as a memo to send the account propos
 ```golang
 memo := base64.RawURLEncoding.EncodeToString(op.Encode())
 input := mixin.TransferInput{
-  AssetID: "31d2ea9c-95eb-3355-b65b-ba096853bc18",
-  Amount:  decimal.NewFromFloat(1),
+  AssetID: "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
+  Amount:  decimal.RequireFromString("0.0001"),
   TraceID: op.Id,
   Memo:    memo,
 }
@@ -195,12 +226,21 @@ curl https://observer.mixin.one/chains
       "height": 780626,
       "id": "155e4f85-d4b8-33f7-82e6-542711f1f26e"
     },
-    "id": "c6d0c728-2624-429b-8e0d-d9d19b6592fa"
+    "id": "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
+    "params": {
+      "operation": {
+        "asset": "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
+        "price": "0.0001"
+      },
+      "transaction": {
+        "minimum": "0.0001"
+      }
+    }
   }
 ]
 ```
 
-Using the response we receive, we can determine that the Bitcoin transaction fee rate will be `13 Satoshis/vByte`. We will then include the head ID `155e4f85-d4b8-33f7-82e6-542711f1f26e` in the operation extra to indicate the fee rate we prefer.
+Using the response we receive, we can determine that the Bitcoin transaction fee rate will be `13 Satoshis/vByte`. We will then include the head ID `155e4f85-d4b8-33f7-82e6-542711f1f26e` in the operation extra to indicate the fee rate we prefer. The proposed amount must also be at least `params.transaction.minimum`; the `0.000123` example below is above the example minimum of `0.0001`.
 
 Furthermore, we need to generate another random session ID, for which we will use `36c2075c-5af0-4593-b156-e72f58f9f421` as an example. With the owner key prepared in the first step, the operation value should be as follows:
 
@@ -302,14 +342,14 @@ curl https://observer.mixin.one/transactions/36c2075c-5af0-4593-b156-e72f58f9f42
   -d '{"action":"approve","chain":1,"raw":"00200e88c368c51fb...000000000000000007db5"}'
 ```
 
-Once the transaction approval has succeeded, we will need to transfer 20pUSD to Mixin Safe Observer node(c91eb626-eb89-4fbd-ae21-76f0bd763da5), using the transaction hash as the memo to pay for it. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
+Once the transaction approval has succeeded, pay the chain-specific operation fee to Mixin Safe Observer node (`c91eb626-eb89-4fbd-ae21-76f0bd763da5`), using the transaction hash as the memo. With the example Bitcoin configuration, transfer at least `0.0001` of asset `c6d0c728-2624-429b-8e0d-d9d19b6592fa`. For a live transaction, use `params.operation.asset` and `params.operation.price` from the current [`/chains`](https://observer.mixin.one/chains) response. After a few minutes, we should be able to query the transaction on a Bitcoin explorer and view its details.
 
 https://blockstream.info/tx/0e88c368c51fb24421b2a36d82674a5f058eb98d67da844d393b8df00ad2ad3f?expand
 
 
 ## Custom Recovery Key
 
-It's possible to have your own recovery key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your recovery public key and a chain code according to Bitcoin extended public key specification. Then add this key to Mixin Safe Observer node(c91eb626-eb89-4fbd-ae21-76f0bd763da5) by transferring 100pUSD, and the memo should be:
+It's possible to have your own recovery key instead of using the managed recovery service provided by Mixin Safe. At first you need to prepare your recovery public key and a chain code according to Bitcoin extended public key specification. Then add this key to Mixin Safe Observer node (`c91eb626-eb89-4fbd-ae21-76f0bd763da5`) by paying the configured custom-key fee. In [`config/example.toml`](config/example.toml), that fee is `1` of asset `c94ac88f-4671-3976-b60a-09064f1811e8`. The memo should be:
 
 ```golang
 const CurveSecp256k1ECDSABitcoin = 1

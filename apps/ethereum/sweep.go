@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-const MaximumSweepOutputs = 256
+const MaximumSweepOutputs = MaxAssetsCount
 
 type SweepValidation struct {
 	SafeAddress        string
@@ -29,12 +29,6 @@ func ValidateSweepTransaction(tx *SafeTransaction, expected SweepValidation) ([]
 	}
 	if expected.ChainID <= 0 || tx.ChainID != expected.ChainID {
 		return nil, fmt.Errorf("invalid sweep chain id: %d, expected %d", tx.ChainID, expected.ChainID)
-	}
-	if !ethcommon.IsHexAddress(expected.SafeAddress) {
-		return nil, fmt.Errorf("invalid expected safe address: %s", expected.SafeAddress)
-	}
-	if !ethcommon.IsHexAddress(tx.SafeAddress) {
-		return nil, fmt.Errorf("invalid sweep safe address: %s", tx.SafeAddress)
 	}
 	expectedSafe := ethcommon.HexToAddress(expected.SafeAddress)
 	if expectedSafe == (ethcommon.Address{}) || ethcommon.HexToAddress(tx.SafeAddress) != expectedSafe {
@@ -105,11 +99,8 @@ func ValidateSweepTransaction(tx *SafeTransaction, expected SweepValidation) ([]
 		if output == nil || output.Amount == nil || output.Amount.Sign() <= 0 {
 			return nil, fmt.Errorf("invalid sweep output")
 		}
-		if !ethcommon.IsHexAddress(output.Destination) || ethcommon.HexToAddress(output.Destination) != destination {
+		if ethcommon.HexToAddress(output.Destination) != destination {
 			return nil, fmt.Errorf("sweep outputs have different destinations")
-		}
-		if !ethcommon.IsHexAddress(output.TokenAddress) {
-			return nil, fmt.Errorf("invalid sweep token address: %s", output.TokenAddress)
 		}
 		token := ethcommon.HexToAddress(output.TokenAddress).Hex()
 		if seen[token] {
@@ -130,9 +121,6 @@ func normalizeSweepBalances(balances map[string]*big.Int) (map[string]*big.Int, 
 	}
 	normalized := make(map[string]*big.Int, len(balances))
 	for token, balance := range balances {
-		if !ethcommon.IsHexAddress(token) {
-			return nil, fmt.Errorf("invalid sweep balance token: %s", token)
-		}
 		if balance == nil || balance.Sign() <= 0 {
 			return nil, fmt.Errorf("invalid sweep balance for %s: %v", token, balance)
 		}

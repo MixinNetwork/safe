@@ -218,7 +218,7 @@ func makeEncryptedTestMessage(t *testing.T, payload []byte) (*MixinMessenger, *M
 		SessionID: testReceiverSessionID,
 		PublicKey: base64.RawURLEncoding.EncodeToString(receiverPublic),
 	}}
-	ciphertext, err := bot.EncryptMessageData(request.DataBase64, sessions, sender.privateKey)
+	ciphertext, err := bot.EncryptMessageData(request.DataBase64, sessions, sender.user.SessionPrivateKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,15 +235,11 @@ func makeEncryptedTestMessage(t *testing.T, payload []byte) (*MixinMessenger, *M
 func newTestMixinMessenger(t *testing.T, userID, sessionID string, seed byte) *MixinMessenger {
 	t.Helper()
 	key := hex.EncodeToString(bytes.Repeat([]byte{seed}, ed25519.SeedSize))
-	_, privateKey, err := decodeSessionPrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
 	return &MixinMessenger{
 		members:        []string{testSenderID, testReceiverID, testThirdMemberID},
 		conf:           &MixinConfiguration{UserId: userID, SessionId: sessionID},
 		conversationId: testConversationID,
-		privateKey:     privateKey,
+		user:           bot.NewSafeUser(userID, sessionID, key),
 		recv:           make(chan *MixinMessage, 8),
 		replaySeen:     make(map[string]struct{}),
 	}

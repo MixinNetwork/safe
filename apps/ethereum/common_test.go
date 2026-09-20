@@ -51,3 +51,49 @@ func TestMatchDepositTransfer(t *testing.T) {
 	wrongAmount.Value = big.NewInt(100000001)
 	require.False(matchDepositTransfer(&wrongAmount, hash, token, receiver, 42, amount, 6))
 }
+
+func TestLoopCallsIgnoresInheritedDelegateCallValue(t *testing.T) {
+	require := require.New(t)
+
+	safe := "0x1111111111111111111111111111111111111111"
+	receiver := "0x2222222222222222222222222222222222222222"
+	attacker := "0x3333333333333333333333333333333333333333"
+	oneEther := "0xde0b6b3a7640000"
+
+	// Models a safe withdrawal of 1 ETH to an attacker contract whose
+	// fallback delegatecalls back to the safe. The DELEGATECALL frame
+	// reports the inherited 1 ETH although no ether moves, and must not
+	// produce a phantom deposit to the safe.
+	trace := &RPCTransactionCallTrace{
+		Type: "CALL", From: attacker, To: safe, Value: "0x0",
+		Calls: []*RPCTransactionCallTrace{
+			{Type: "CALL", From: safe, To: receiver, Value: oneEther},
+			{Type: "DELEGATECALL", From: receiver, To: safe, Value: oneEther},
+			{Type: "CALLCODE", From: receiver, To: safe, Value: oneEther},
+			{Type: "STATICCALL", From: receiver, To: safe, Value: oneEther},
+			{Type: "CALL", From: receiver, To: safe, Value: oneEther, Error: "execution reverted"},
+			{Type: "DELEGATECALL", From: safe, To: attacker, Value: "0x0",
+				Calls: []*RPCTransactionCallTrace{
+					// a call nested below a delegatecall frame is a real
+					// value transfer and must still be visited
+					{Type: "CALL", From: attacker, To: safe, Value: oneEther},
+				}},
+		},
+	}
+
+	transfers, end := LoopCalls(ChainEthereum, "asset-id", "tx-hash", trace, 0)
+	require.Len(transfers, 2)
+	require.Equal(int64(8), end)
+
+	real := transfers[0]
+	require.Equal(int64(1), real.Index)
+	require.Equal(safe, real.Sender)
+	require.Equal(receiver, real.Receiver)
+	require.Equal(big.NewInt(1_000_000_000_000_000_000), real.Value)
+
+	nested := transfers[1]
+	require.Equal(int64(7), nested.Index)
+	require.Equal(attacker, nested.Sender)
+	require.Equal(safe, nested.Receiver)
+	require.Equal(EthereumEmptyAddress, nested.TokenAddress)
+}

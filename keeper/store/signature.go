@@ -240,6 +240,17 @@ func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Contex
 		if err != nil {
 			return fmt.Errorf("UPDATE safes %v", err)
 		}
+	} else {
+		// A cancel transaction replaces the stuck one without advancing the
+		// safe nonce, so the stuck transaction must be failed now. Otherwise
+		// it would stay done forever and could be cancelled again and again,
+		// each completed cancel paying a fresh refund and re-crediting the
+		// safe balances.
+		err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE transaction_hash=? AND state=?",
+			common.RequestStateFailed, req.CreatedAt, trx.CancelPrevious.TransactionHash, common.RequestStateDone)
+		if err != nil {
+			return fmt.Errorf("UPDATE transactions %v", err)
+		}
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE requests SET state=?, updated_at=? WHERE request_id=?",
@@ -316,4 +327,13 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 	}
 
 	return rm, nil
+}
+
+func (s *SQLite3Store) CountCollectedUniqueSignatures(ctx context.Context, transactionHash string) (int, error) {
+	query := "SELECT COUNT(DISTINCT input_index) FROM signature_requests WHERE transaction_hash=? AND signature IS NOT NULL"
+	row := s.db.QueryRowContext(ctx, query, transactionHash)
+
+	var count int
+	err := row.Scan(&count)
+	return count, err
 }

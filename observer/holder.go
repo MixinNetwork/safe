@@ -42,7 +42,7 @@ func (node *Node) getSafeStatus(ctx context.Context, proposalId string) (string,
 
 func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, extra []byte, createdAt time.Time) error {
 	logger.Printf("node.keeperSaveAccountProposal(%d, %x, %s)", chain, extra, createdAt)
-	var address string
+	var address, chainId string
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		wsa, err := bitcoin.UnmarshalWitnessScriptAccount(extra)
@@ -50,12 +50,14 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 			return err
 		}
 		address = wsa.Address
+		_, chainId, _ = node.bitcoinParams(chain)
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		gs, err := ethereum.UnmarshalGnosisSafe(extra)
 		if err != nil {
 			return err
 		}
 		address = gs.Address
+		_, chainId, _ = node.ethereumParams(chain)
 	default:
 		panic(chain)
 	}
@@ -67,15 +69,8 @@ func (node *Node) keeperSaveAccountProposal(ctx context.Context, chain byte, ext
 		return fmt.Errorf("inconsistent chain between SafeProposal and keeper response: %d, %d", sp.Chain, chain)
 	}
 
-	var assetId string
-	switch sp.Chain {
-	case common.SafeChainBitcoin, common.SafeChainLitecoin:
-		_, assetId = node.bitcoinParams(sp.Chain)
-	case common.SafeChainEthereum, common.SafeChainPolygon:
-		_, assetId = node.ethereumParams(sp.Chain)
-	}
-	_, err = node.checkOrDeployKeeperBond(ctx, chain, assetId, "", sp.Holder, sp.Address)
-	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", assetId, sp.Holder, err)
+	_, err = node.checkOrDeployKeeperBond(ctx, chain, chainId, "", sp.Holder, sp.Address)
+	logger.Printf("node.checkOrDeployKeeperBond(%s, %s) => %v", chainId, sp.Holder, err)
 	if err != nil {
 		return err
 	}
@@ -166,7 +161,7 @@ func (node *Node) httpApproveSafeAccount(ctx context.Context, addr, signature st
 		if h := st.GetRequestHash(sp.RequestId); h != tx.TransactionHash {
 			return fmt.Errorf("inconsistent safe tx hash: %s, %s", h, tx.TransactionHash)
 		}
-		err = ethereum.VerifyMessageSignature(sp.Holder, st.Message, sig)
+		err = ethereum.VerifyMessageSignature(sp.Holder, st.Message, sig, true)
 		logger.Printf("ethereum.VerifyMessageSignature(%s %s %s) => %v", sp.Holder, hex.EncodeToString(st.Message), hex.EncodeToString(sig), err)
 		if err != nil {
 			return err
@@ -285,9 +280,6 @@ func (node *Node) httpRevokeSafeTransaction(ctx context.Context, chain byte, has
 }
 
 func (node *Node) httpCreateSafeInheritanceTransaction(ctx context.Context, safe *store.Safe, hash, raw string) (*Transaction, error) {
-	if bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
-		return nil, fmt.Errorf("invalid inheritance tx signer: holder")
-	}
 	count, err := node.store.CountUnfinishedTransactionApprovalsForHolder(ctx, safe.Holder)
 	if err != nil {
 		return nil, err
