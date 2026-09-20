@@ -2,7 +2,6 @@ package mtg
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -695,11 +694,6 @@ func TestMTGCustodianFlow(t *testing.T) {
 		Requesters:     []string{testSender},
 	}
 	path := filepath.Join(conf.StoreDir, "mtg.sqlite3")
-	legacy, err := sql.Open("sqlite3", path)
-	r.NoError(err)
-	_, err = legacy.Exec(strings.Replace(SCHEMA, "  reserved_by          VARCHAR NOT NULL,\n", "", 1))
-	r.NoError(err)
-	r.NoError(legacy.Close())
 	store, err := OpenSQLite3Store(path)
 	r.NoError(err)
 	g, err := BuildGroup(ctx, store, &conf)
@@ -1167,11 +1161,6 @@ func TestMTGCustodianCompaction(t *testing.T) {
 		Requesters:     []string{testSender},
 	}
 	path := filepath.Join(conf.StoreDir, "mtg.sqlite3")
-	legacy, err := sql.Open("sqlite3", path)
-	r.NoError(err)
-	_, err = legacy.Exec(strings.Replace(SCHEMA, "  reserved_by          VARCHAR NOT NULL,\n", "", 1))
-	r.NoError(err)
-	r.NoError(legacy.Close())
 	store, err := OpenSQLite3Store(path)
 	r.NoError(err)
 	g, err := BuildGroup(ctx, store, &conf)
