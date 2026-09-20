@@ -110,7 +110,7 @@ func (node *Node) processActionWithPersistence(ctx context.Context, out *mtg.Act
 
 func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, []*mtg.Transaction, string) {
 	sessionId := uuid.Nil.String()
-	isDeposit := node.verifyKernelTransaction(ctx, out)
+	isDeposit := node.checkKernelDepositTransaction(ctx, out)
 	if isDeposit {
 		return sessionId, nil, ""
 	}
@@ -649,7 +649,7 @@ func (node *Node) startSign(ctx context.Context, op *common.Operation, members [
 	return err
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) bool {
+func (node *Node) checkKernelDepositTransaction(ctx context.Context, out *mtg.Action) bool {
 	if common.CheckTestEnvironment(ctx) {
 		return false
 	}

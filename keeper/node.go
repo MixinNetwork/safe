@@ -126,7 +126,7 @@ func (node *Node) checkTransaction(ctx context.Context, act *mtg.Action, assetId
 	return nextId
 }
 
-func (node *Node) verifyKernelTransaction(ctx context.Context, out *mtg.Action) bool {
+func (node *Node) checkKernelDepositTransaction(ctx context.Context, out *mtg.Action) bool {
 	if common.CheckTestEnvironment(ctx) {
 		return false
 	}

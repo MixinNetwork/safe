@@ -24,7 +24,7 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) ([]*mtg.Tr
 	if common.CheckTestEnvironment(ctx) {
 		out.TestAttachActionToGroup(node.group)
 	}
-	isDeposit := node.verifyKernelTransaction(ctx, out)
+	isDeposit := node.checkKernelDepositTransaction(ctx, out)
 	if isDeposit {
 		return nil, ""
 	}
