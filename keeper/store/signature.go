@@ -328,3 +328,12 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 
 	return rm, nil
 }
+
+func (s *SQLite3Store) CountCollectedUniqueSignatures(ctx context.Context, transactionHash string) (int, error) {
+	query := "SELECT COUNT(DISTINCT input_index) FROM signature_requests WHERE transaction_hash=? AND signature IS NOT NULL"
+	row := s.db.QueryRowContext(ctx, query, transactionHash)
+
+	var count int
+	err := row.Scan(&count)
+	return count, err
+}

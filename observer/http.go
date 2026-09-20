@@ -589,7 +589,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 	stuck := node.isTxStuck(r.Context(), approval)
-	sigs, err := node.keeperStore.ListAllSignaturesForTransaction(r.Context(), approval.TransactionHash, common.RequestStateDone)
+	collectedSigs, err := node.keeperStore.CountCollectedUniqueSignatures(r.Context(), tx.TransactionHash)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -603,7 +603,7 @@ func (node *Node) httpGetTransaction(w http.ResponseWriter, r *http.Request, par
 		"hash":            tx.TransactionHash,
 		"raw":             approval.RawTransaction,
 		"signers":         approval.Signers(r.Context(), node, safe),
-		"signatures":      len(sigs),
+		"signatures":      collectedSigs,
 		"state":           common.StateName(int(approval.State)), // tx could be stuck of failed in observer, but be done in keeper
 	}
 	if approval.SpentRaw.Valid {
