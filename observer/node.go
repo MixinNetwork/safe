@@ -13,22 +13,19 @@ import (
 	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
-	"github.com/MixinNetwork/safe/apps/ethereum"
 	m "github.com/MixinNetwork/safe/apps/mixin"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/fox-one/mixin-sdk-go/v3"
-	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	snapshotsCheckpointKey        = "snapshots-checkpoint"
-	mixinWithdrawalsCheckpointKey = "mixin-withdrawals-checkpoint"
-	depositNetworkInfoDelay       = 3 * time.Minute
+	snapshotsCheckpointKey  = "snapshots-checkpoint"
+	depositNetworkInfoDelay = 3 * time.Minute
 )
 
 type Node struct {
@@ -88,7 +85,6 @@ func (node *Node) Boot(ctx context.Context) {
 	}
 	go node.safeKeyLoop(ctx, common.SafeChainBitcoin)
 	go node.safeKeyLoop(ctx, common.SafeChainEthereum)
-	go node.mixinWithdrawalsLoop(ctx)
 	go node.sendAccountApprovals(ctx)
 	node.snapshotsLoop(ctx)
 }
@@ -282,84 +278,6 @@ func (node *Node) handleSnapshot(ctx context.Context, s *mixin.SafeSnapshot) err
 	return err
 }
 
-func (node *Node) mixinWithdrawalsLoop(ctx context.Context) {
-	for {
-		checkpoint, err := node.readMixinWithdrawalsCheckpoint(ctx)
-		logger.Verbosef("node.readMixinWithdrawalsCheckpoint() => %d %v", checkpoint, err)
-		if err != nil {
-			panic(err)
-		}
-		snapshots, err := m.RPCListSnapshots(ctx, node.conf.MixinRPC, checkpoint, 100)
-		logger.Verbosef("RPCListSnapshots(%s, %d) => %d %v",
-			node.conf.MixinRPC, checkpoint, len(snapshots), err)
-		if err != nil {
-			continue
-		}
-
-		for i := range snapshots {
-			s := &snapshots[i]
-			err := node.processMixinWithdrawalSnapshot(ctx, s)
-			logger.Verbosef("node.processMixinWithdrawalSnapshot(%v) => %v", s, err)
-			if err != nil {
-				panic(err)
-			}
-			err = node.writeMixinWithdrawalsCheckpoint(ctx, checkpoint)
-			if err != nil {
-				panic(err)
-			}
-		}
-		if len(snapshots) < 100 {
-			time.Sleep(time.Second)
-		}
-	}
-}
-
-func (node *Node) processMixinWithdrawalSnapshot(ctx context.Context, s *m.RPCSnapshot) error {
-	for _, t := range s.Transactions {
-		if len(t.Output) == 0 {
-			continue
-		}
-		out := t.Output[0]
-		if out.Type != mixinnet.OutputTypeWithdrawalClaim {
-			continue
-		}
-
-		tx, err := m.RPCGetTransaction(ctx, node.conf.MixinRPC, t.References[0])
-		if err != nil {
-			return err
-		}
-		asset, err := node.fetchMixinAsset(ctx, tx.Asset)
-		if err != nil {
-			return err
-		}
-
-		extra, err := hex.DecodeString(t.Extra)
-		if err != nil {
-			return err
-		}
-		hash := string(extra[64:])
-		switch asset.Chain {
-		case common.SafeChainBitcoin, common.SafeChainLitecoin:
-			rpc, _, _ := node.bitcoinParams(asset.Chain)
-			logger.Printf("processMixinWithdrawalSnapshot(%v) => %s %s", s, hash, rpc)
-			btx, err := bitcoin.RPCGetTransaction(asset.Chain, rpc, hash)
-			if err != nil {
-				return err
-			}
-			return node.bitcoinProcessTransaction(ctx, btx, asset.Chain)
-		case common.SafeChainEthereum, common.SafeChainPolygon:
-			rpc, _, _ := node.ethereumParams(asset.Chain)
-			logger.Printf("processMixinWithdrawalSnapshot(%v) => %s %s", s, hash, rpc)
-			etx, err := ethereum.RPCGetTransactionByHash(rpc, hash)
-			if err != nil {
-				return err
-			}
-			return node.ethereumProcessTransaction(ctx, etx, asset.Chain)
-		}
-	}
-	return nil
-}
-
 func (node *Node) handleCustomObserverKeyRegistration(ctx context.Context, s *mixin.SafeSnapshot) (bool, error) {
 	if s.AssetID != node.conf.CustomKeyPriceAssetId {
 		return false, nil
@@ -520,18 +438,6 @@ func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64,
 		checkpoint = min
 	}
 	return checkpoint, nil
-}
-
-func (node *Node) readMixinWithdrawalsCheckpoint(ctx context.Context) (uint64, error) {
-	val, err := node.store.ReadProperty(ctx, mixinWithdrawalsCheckpointKey)
-	if err != nil || val == "" {
-		return 77_000_000, err
-	}
-	return strconv.ParseUint(val, 10, 64)
-}
-
-func (node *Node) writeMixinWithdrawalsCheckpoint(ctx context.Context, offset uint64) error {
-	return node.store.WriteProperty(ctx, mixinWithdrawalsCheckpointKey, fmt.Sprint(offset))
 }
 
 func (node *Node) getStuckTxHash(ctx context.Context, hash string) string {

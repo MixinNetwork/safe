@@ -335,13 +335,6 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
-	isSafe, err := node.checkTrustedSender(ctx, deposit.Sender)
-	if err != nil {
-		return fmt.Errorf("node.checkTrustedSender(%s) => %v", deposit.Sender, err)
-	}
-	if isSafe && confirmations > 0 {
-		confirmations = 1000000
-	}
 	if !ethereum.CheckFinalization(confirmations, deposit.Chain) {
 		return nil
 	}

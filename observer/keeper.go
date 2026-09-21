@@ -3,7 +3,6 @@ package observer
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -28,21 +27,6 @@ func (node *Node) deriveBIP32WithKeeperPath(ctx context.Context, public, path st
 	}
 	_, sdk, err := bitcoin.DeriveBIP32(public, common.DecodeHexOrPanic(sk.Extra), path32...)
 	return sdk, err
-}
-
-func (node *Node) checkTrustedSender(ctx context.Context, address string) (bool, error) {
-	if slices.Contains([]string{
-		"bc1ql24x05zhqrpejar0p3kevhu48yhnnr3r95sv4y",
-		"ltc1qs46hqx885kpz83vfg6evm9dsuapznfaw997qwl",
-		"0x1616b057F8a89955d4A4f9fd9Eb10289ac0e44A1",
-	}, address) {
-		return true, nil
-	}
-	safe, err := node.keeperStore.ReadSafeByAddress(ctx, address)
-	if err != nil {
-		return false, fmt.Errorf("keeperStore.ReadSafeByAddress(%s) => %v", address, err)
-	}
-	return safe != nil, nil
 }
 
 func (node *Node) sendKeeperResponse(ctx context.Context, holder string, typ, chain uint8, id string, extra []byte) error {

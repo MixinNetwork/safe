@@ -279,13 +279,6 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	isSafe, err := node.checkTrustedSender(ctx, deposit.Sender)
-	if err != nil {
-		return fmt.Errorf("node.checkTrustedSender(%s) => %v", deposit.Sender, err)
-	}
-	if isSafe && confirmations > 0 {
-		confirmations = 1000000
-	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil
 	}

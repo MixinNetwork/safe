@@ -352,17 +352,6 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, tx)
-	if err != nil {
-		return nil, fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", tx.TxId, err)
-	}
-	isSafe, err := node.checkTrustedSender(ctx, sender)
-	if err != nil {
-		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", sender, err)
-	}
-	if isSafe && confirmations > 0 {
-		confirmations = 1000000
-	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil, fmt.Errorf("bitcoin.CheckFinalization(%s)", tx.TxId)
 	}
@@ -394,13 +383,6 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
-	isSafe, err := node.checkTrustedSender(ctx, t.Sender)
-	if err != nil {
-		return nil, fmt.Errorf("node.checkTrustedSender(%s) => %v", t.Sender, err)
-	}
-	if isSafe && confirmations > 0 {
-		confirmations = 1000000
-	}
 	if slices.Contains([]string{ // FIXME observer sends block height zero deposits
 		"0x88d0b3eee00e0361ca98974c70825d55013f7d563ae18e9e3b4cbc5268d4c2d8",
 	}, deposit.Hash) {
@@ -411,19 +393,4 @@ func (node *Node) verifyEthereumTransaction(ctx context.Context, req *common.Req
 	}
 
 	return t, nil
-}
-
-func (node *Node) checkTrustedSender(ctx context.Context, address string) (bool, error) {
-	if slices.Contains([]string{
-		"bc1ql24x05zhqrpejar0p3kevhu48yhnnr3r95sv4y",
-		"ltc1qs46hqx885kpz83vfg6evm9dsuapznfaw997qwl",
-		"0x1616b057F8a89955d4A4f9fd9Eb10289ac0e44A1",
-	}, address) {
-		return true, nil
-	}
-	safe, err := node.store.ReadSafeByAddress(ctx, address)
-	if err != nil {
-		return false, fmt.Errorf("store.ReadSafeByAddress(%s) => %v", address, err)
-	}
-	return safe != nil, nil
 }
