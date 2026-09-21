@@ -221,6 +221,12 @@ func (tx *Transaction) fillInputs(ctx context.Context, act *Action) {
 	if len(outputs) == 0 {
 		panic(tx.TraceId)
 	}
+	var ids []string
+	for _, o := range outputs {
+		ids = append(ids, o.OutputId)
+	}
+	logger.Printf("group.ListOutputsForAsset() => %s", strings.Join(ids, ","))
+
 	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
 		hack, err := act.group.store.listOutputs(ctx, ids)
 		if err != nil {
@@ -233,7 +239,8 @@ func (tx *Transaction) fillInputs(ctx context.Context, act *Action) {
 		panic(err)
 	}
 	tx.consumed = inputs
-	for _, o := range tx.consumed {
+	for i, o := range tx.consumed {
+		logger.Printf("tx.consumed(%d) => %s", i, o.OutputId)
 		tx.consumedIds = append(tx.consumedIds, o.OutputId)
 		if o.Sequence > act.consumed[tx.AssetId] {
 			act.consumed[tx.AssetId] = o.Sequence

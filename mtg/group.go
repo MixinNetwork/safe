@@ -256,6 +256,7 @@ func (grp *Group) Run(ctx context.Context) {
 
 func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, consumedUntil, sequence uint64, state SafeUtxoState, limit int) []*UnifiedOutput {
 	outputs, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, consumedUntil, sequence, state, limit)
+	logger.Printf("group.ListOutputsForAsset(%s, %s, %d, %d) => %d %v", assetId, state, consumedUntil, sequence, len(outputs), err)
 	if err != nil {
 		panic(err)
 	}
