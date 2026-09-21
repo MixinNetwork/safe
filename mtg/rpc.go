@@ -51,7 +51,6 @@ func callMixinRPC(node, method string, params []any) ([]byte, error) {
 		return nil, err
 	}
 
-	req.Close = true
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {

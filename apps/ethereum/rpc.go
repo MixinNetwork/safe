@@ -375,7 +375,6 @@ func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
 		return nil, buildRPCError(rpc, method, params, err)
 	}
 
-	req.Close = true
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
