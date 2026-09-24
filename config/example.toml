@@ -98,6 +98,13 @@ members = [
 threshold = 3
 epoch = 15903300
 
+# Optional MTG custody. Every requester/observer must also be a member of the
+# custodian MIX address so it can create and sign funding-return multisigs.
+# [keeper.mtg.custodian]
+# mix-address = "MIX..."
+# conversation-id = "custodian-conversation-id"
+# requesters = ["c91eb626-eb89-4fbd-ae21-76f0bd763da5"]
+
 [keeper.mtg.app]
 app-id = "signer-id-0"
 session-id = "194ac88f-4671-3976-b60a-09064f1811e8"

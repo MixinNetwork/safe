@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -38,6 +39,18 @@ type Node struct {
 var actionResult map[string]string
 
 func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
+	txs, compaction := n.processOutput(ctx, a)
+	liquidity := a.LiquidityRequirement()
+	if liquidity != nil {
+		if len(txs) > 0 || compaction != liquidity.AssetId {
+			panic(a.OutputId)
+		}
+		return nil, a.CustodianCompactionString()
+	}
+	return txs, compaction
+}
+
+func (n *Node) processOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
 	if actionResult[a.OutputId] != "" {
 		data, err := hex.DecodeString(actionResult[a.OutputId])
 		if err != nil {
@@ -72,11 +85,17 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 				panic(a.Sequence)
 			}
 			t := a.BuildStorageTransaction(ctx, extra)
+			if t == nil {
+				return nil, StorageAssetId
+			}
 			storageTraceId = t.TraceId
 			txs = append(txs, t)
 		case "withdrawal":
 			tid := "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3"
 			t := a.BuildWithdrawTransaction(ctx, tid, SOLAssetId, testWithdrawalAmount, testWithdrawalMemo, testWithdrawalDestination, "")
+			if t == nil {
+				return nil, SOLAssetId
+			}
 			txs = append(txs, t)
 		default:
 			amt := decimal.RequireFromString(tx)
@@ -93,6 +112,9 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			} else {
 				t = a.BuildTransaction(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
 			}
+			if t == nil {
+				return nil, a.AssetId
+			}
 			txs = append(txs, t)
 		}
 	}
@@ -103,6 +125,13 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	}
 
 	return txs, ""
+}
+
+func testProcessSafeOutput(ctx context.Context, r *require.Assertions, g *Group, output *UnifiedOutput) {
+	km := g.BatchReadKernelTransactions(ctx, []*UnifiedOutput{output})
+	ver := km[output.TransactionHash]
+	r.NotNil(ver)
+	g.processSafeOutput(ctx, output, ver)
 }
 
 func TestMTGExtra(t *testing.T) {
@@ -428,6 +457,24 @@ func TestMTGWithdrawal(t *testing.T) {
 	require.Nil(o)
 }
 
+func TestLiquidityRequirementSerialize(t *testing.T) {
+	requirement := &LiquidityRequirement{
+		AssetId:        "218bc6f4-7927-3f8e-8568-3a3725b74361",
+		Amount:         decimal.RequireFromString("2.1"),
+		InternalAmount: decimal.RequireFromString("7.9"),
+		InternalInputIds: []string{
+			"cf0564ba-bf51-4e8c-b504-3beb6c5c65e3",
+			"df0564ba-bf51-4e8c-b504-3beb6c5c65e3",
+		},
+	}
+	b := requirement.Serialize()
+	require.Equal(t, "218bc6f479273f8e85683a3725b743610003322e310003372e390002cf0564babf514e8cb5043beb6c5c65e3df0564babf514e8cb5043beb6c5c65e3", hex.EncodeToString(b))
+
+	actual, err := DeserializeLiquidityRequirement(b)
+	require.NoError(t, err)
+	require.True(t, requirement.equal(actual))
+}
+
 func testGetTotalBalanceByAsset(ctx context.Context, group Group, appId, assetId string) ([]*UnifiedOutput, decimal.Decimal) {
 	os := group.ListOutputsForAsset(ctx, appId, assetId, 0, 50454214, SafeUtxoStateUnspent, 0)
 	total := decimal.Zero
@@ -595,6 +642,9 @@ func teardownTestDatabase(store *SQLite3Store) {
 		DROP TABLE IF EXISTS actions;
 		DROP TABLE IF EXISTS outputs;
 		DROP TABLE IF EXISTS transactions;
+		DROP TABLE IF EXISTS external_balances;
+		DROP TABLE IF EXISTS liquidity_requests;
+		DROP TABLE IF EXISTS custodian_transfers;
 	`
 	_, err := store.db.Exec(dropTablesDDL)
 	if err != nil {
@@ -604,4 +654,584 @@ func teardownTestDatabase(store *SQLite3Store) {
 
 func init() {
 	actionResult = make(map[string]string)
+}
+
+// This worker has fixed payouts so replay exercises MTG reservations without
+// depending on keeper/signer adaptation or application result caches.
+type custodianFlowWorker struct{}
+
+func (*custodianFlowWorker) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
+	_, memo := DecodeMixinExtraHEX(a.Extra)
+	if string(memo) != "custodian-test-pay" {
+		return nil, ""
+	}
+	var txs []*Transaction
+	for i, amount := range []string{"7", "2"} {
+		tx := a.BuildTransaction(ctx, UniqueId(a.OutputId, fmt.Sprintf("payout:%d", i)), a.AppId, USDTAssetId, amount, "", []string{testSender}, 1)
+		if tx == nil {
+			if liquidity := a.LiquidityRequirement(); liquidity != nil {
+				return nil, liquidity.CompactionString()
+			}
+			return nil, USDTAssetId
+		}
+		txs = append(txs, tx)
+	}
+	return txs, ""
+}
+
+func TestMTGCustodianFlow(t *testing.T) {
+	r := require.New(t)
+	ctx := util.EnableTestEnvironment(context.Background())
+	data, err := os.ReadFile("example.toml")
+	r.NoError(err)
+	var conf Configuration
+	r.NoError(toml.Unmarshal(data, &conf))
+	conf.StoreDir = t.TempDir()
+	conf.GroupSize = 1
+	conf.Custodian = CustodianConfiguration{
+		MixAddress:     mixin.RequireNewMixAddress([]string{testSender, "194ac88f-4671-3976-b60a-09064f1811e8"}, 2).String(),
+		ConversationId: "294ac88f-4671-3976-b60a-09064f1811e8",
+		Requesters:     []string{testSender},
+	}
+	path := filepath.Join(conf.StoreDir, "mtg.sqlite3")
+	store, err := OpenSQLite3Store(path)
+	r.NoError(err)
+	g, err := BuildGroup(ctx, store, &conf)
+	r.NoError(err)
+	g.EnableDebug()
+	g.AttachWorker(g.GroupId, &custodianFlowWorker{})
+	sequence := conf.Genesis.Epoch
+	t.Cleanup(func() { r.NoError(g.store.Close()) })
+
+	sequence++
+	hotTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
+	hotTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	hotTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, nil))
+	hotTx.Outputs = append(hotTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("8"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	hotVer := hotTx.AsVersioned()
+	hotHash := hotVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", hotHash), base64.RawURLEncoding.EncodeToString(hotVer.Marshal())))
+	hot := testBuildOutput(g, r, USDTAssetId, "8", hex.EncodeToString(hotVer.Extra), SafeUtxoStateUnspent, sequence, hotHash)
+	hot.KernelAssetId = hotVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, hot)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance := g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("0", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+
+	// Untrusted requests must not move the hot balance into custody.
+	sequence++
+	unauthorizedTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	unauthorizedTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	unauthorizedTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "8")))
+	unauthorizedTx.Outputs = append(unauthorizedTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	unauthorizedVer := unauthorizedTx.AsVersioned()
+	unauthorizedHash := unauthorizedVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", unauthorizedHash), base64.RawURLEncoding.EncodeToString(unauthorizedVer.Marshal())))
+	unauthorized := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(unauthorizedVer.Extra), SafeUtxoStateUnspent, sequence, unauthorizedHash)
+	unauthorized.KernelAssetId = unauthorizedVer.Asset.String()
+	unauthorized.Senders = []string{g.GetMembers()[0]}
+	testProcessSafeOutput(ctx, r, g, unauthorized)
+	r.NoError(g.handleActionsQueue(ctx))
+	transfers, err := g.ListPendingCustodianTransfers(ctx, 0)
+	r.NoError(err)
+	r.Empty(transfers)
+	txs, _, err := g.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	r.NoError(err)
+	r.Empty(txs)
+
+	sequence++
+	requestTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	requestTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	requestTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "8")))
+	requestTx.Outputs = append(requestTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	requestVer := requestTx.AsVersioned()
+	requestHash := requestVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", requestHash), base64.RawURLEncoding.EncodeToString(requestVer.Marshal())))
+	request := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(requestVer.Extra), SafeUtxoStateUnspent, sequence, requestHash)
+	request.KernelAssetId = requestVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, request)
+	r.NoError(g.handleActionsQueue(ctx))
+	transfers, err = g.ListPendingCustodianTransfers(ctx, 0)
+	r.NoError(err)
+	r.Len(transfers, 1)
+	transfer := transfers[0]
+	r.Equal(request.OutputId, transfer.ActionId)
+	r.Equal("8", transfer.Amount.String())
+	r.Equal(g.custodianAddress, transfer.Address)
+	tx, err := g.store.ReadTransactionByTraceId(ctx, transfer.TraceId)
+	r.NoError(err)
+	r.NotNil(tx)
+	r.ElementsMatch(g.custodianMembers, tx.Receivers)
+	r.Equal(g.custodianThreshold, tx.Threshold)
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("0", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+
+	// Even an authorized observer cannot credit the balance before this node
+	// observes the transfer snapshot; the confirmation blocks later actions.
+	confirmationMemo := EncodeCustodianTransferConfirmationMemo(transfer.TraceId)
+	sequence++
+	unauthorizedConfirmationTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	unauthorizedConfirmationTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	unauthorizedConfirmationTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, confirmationMemo))
+	unauthorizedConfirmationTx.Outputs = append(unauthorizedConfirmationTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	unauthorizedConfirmationVer := unauthorizedConfirmationTx.AsVersioned()
+	unauthorizedConfirmationHash := unauthorizedConfirmationVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", unauthorizedConfirmationHash), base64.RawURLEncoding.EncodeToString(unauthorizedConfirmationVer.Marshal())))
+	unauthorizedConfirmation := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(unauthorizedConfirmationVer.Extra), SafeUtxoStateUnspent, sequence, unauthorizedConfirmationHash)
+	unauthorizedConfirmation.KernelAssetId = unauthorizedConfirmationVer.Asset.String()
+	unauthorizedConfirmation.Senders = []string{g.GetMembers()[0]}
+	testProcessSafeOutput(ctx, r, g, unauthorizedConfirmation)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("0", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+
+	sequence++
+	confirmationTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	confirmationTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	confirmationTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, confirmationMemo))
+	confirmationTx.Outputs = append(confirmationTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	confirmationVer := confirmationTx.AsVersioned()
+	confirmationHash := confirmationVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", confirmationHash), base64.RawURLEncoding.EncodeToString(confirmationVer.Marshal())))
+	confirmation := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(confirmationVer.Extra), SafeUtxoStateUnspent, sequence, confirmationHash)
+	confirmation.KernelAssetId = confirmationVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, confirmation)
+	r.NoError(g.handleActionsQueue(ctx))
+	action, err := g.store.ReadAction(ctx, confirmation.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateInitial, action.ActionState)
+	r.NotNil(g.signTransaction(ctx, tx))
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("0", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	r.NoError(g.store.FinishTransaction(ctx, tx.TraceId))
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("8", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	transfers, err = g.ListPendingCustodianTransfers(ctx, 0)
+	r.NoError(err)
+	r.Empty(transfers)
+	stored, err := g.store.ReadCustodianTransferByTraceId(ctx, transfer.TraceId)
+	r.NoError(err)
+	r.Equal(CustodianTransferStateDone, stored.State)
+
+	sequence++
+	duplicateConfirmationTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	duplicateConfirmationTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	duplicateConfirmationTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, confirmationMemo))
+	duplicateConfirmationTx.Outputs = append(duplicateConfirmationTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	duplicateConfirmationVer := duplicateConfirmationTx.AsVersioned()
+	duplicateConfirmationHash := duplicateConfirmationVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", duplicateConfirmationHash), base64.RawURLEncoding.EncodeToString(duplicateConfirmationVer.Marshal())))
+	duplicateConfirmation := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(duplicateConfirmationVer.Extra), SafeUtxoStateUnspent, sequence, duplicateConfirmationHash)
+	duplicateConfirmation.KernelAssetId = duplicateConfirmationVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, duplicateConfirmation)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("8", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+
+	// A custody transfer may spend only internal funds, not count the external
+	// balance and recursively request a refill to send the same funds back out.
+	sequence++
+	unfundedTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	unfundedTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	unfundedTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "3")))
+	unfundedTx.Outputs = append(unfundedTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	unfundedVer := unfundedTx.AsVersioned()
+	unfundedHash := unfundedVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", unfundedHash), base64.RawURLEncoding.EncodeToString(unfundedVer.Marshal())))
+	unfunded := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(unfundedVer.Extra), SafeUtxoStateUnspent, sequence, unfundedHash)
+	unfunded.KernelAssetId = unfundedVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, unfunded)
+	r.NoError(g.handleActionsQueue(ctx))
+	failed, err := g.store.ReadCustodianTransferByRequestId(ctx, unfunded.OutputId)
+	r.NoError(err)
+	r.NotNil(failed)
+	r.Equal(CustodianTransferStateFailed, failed.State)
+	funding, err := g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Empty(funding)
+
+	// Fragment the hot balance into 36 outputs totaling 2. The first payout
+	// requires compaction before requesting 5; the second then requests 2.
+	for i := 0; i < OutputsBatchSize; i++ {
+		amount := "0.05"
+		if i == OutputsBatchSize-1 {
+			amount = "0.25"
+		}
+		sequence++
+		fragmentTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
+		fragmentTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+		fragmentTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, nil))
+		fragmentTx.Outputs = append(fragmentTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString(amount), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+		fragmentVer := fragmentTx.AsVersioned()
+		fragmentHash := fragmentVer.PayloadHash().String()
+		r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", fragmentHash), base64.RawURLEncoding.EncodeToString(fragmentVer.Marshal())))
+		out := testBuildOutput(g, r, USDTAssetId, amount, hex.EncodeToString(fragmentVer.Extra), SafeUtxoStateUnspent, sequence, fragmentHash)
+		out.KernelAssetId = fragmentVer.Asset.String()
+		testProcessSafeOutput(ctx, r, g, out)
+		r.NoError(g.handleActionsQueue(ctx))
+	}
+	sequence++
+	payoutInputTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	payoutInputTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	payoutInputTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, []byte("custodian-test-pay")))
+	payoutInputTx.Outputs = append(payoutInputTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	payoutInputVer := payoutInputTx.AsVersioned()
+	payoutInputHash := payoutInputVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", payoutInputHash), base64.RawURLEncoding.EncodeToString(payoutInputVer.Marshal())))
+	payout := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(payoutInputVer.Extra), SafeUtxoStateUnspent, sequence, payoutInputHash)
+	payout.KernelAssetId = payoutInputVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, payout)
+	r.NoError(g.handleActionsQueue(ctx))
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateRestorable, action.ActionState)
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Empty(funding)
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("8", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	spare := testHandleCompactionTransaction(ctx, r, g, payout.TransactionHash)
+	r.Equal("2", spare.Amount.String())
+	sequence = spare.Sequence
+	testProcessSafeOutput(ctx, r, g, spare)
+	r.NoError(g.handleActionsQueue(ctx))
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateInitial, action.ActionState)
+	r.Equal(spare.Sequence, action.restoreSequence)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("8", balance.Amount.String())
+	r.Equal("5", balance.ReservedAmount.String())
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Len(funding, 1)
+	need := funding[0]
+	r.Equal("5", need.Amount.String())
+	r.Equal(USDTAssetId, need.AssetId)
+	r.Equal(payout.OutputId, need.ActionId)
+	r.Equal(g.custodianAddress, need.CustodianAddress)
+	returnAddress, _, err := NewMixAddress(ctx, g.GetMembers(), byte(g.GetThreshold()))
+	r.NoError(err)
+	r.Equal(returnAddress.String(), need.ReturnAddress)
+	requestId, ok := DecodeFundingReturnMemo(need.ReturnMemo)
+	r.True(ok)
+	r.Equal(need.TraceId, requestId)
+	locked, err := g.store.ReadOutputById(ctx, spare.OutputId)
+	r.NoError(err)
+	r.Equal(SafeUtxoStateLocked, locked.State)
+	r.Equal(payout.OutputId, locked.ReservedBy)
+	r.Empty(g.ListOutputsForAsset(ctx, g.GroupId, USDTAssetId, 0, sequence, SafeUtxoStateUnspent, 0))
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateRestorable, action.ActionState)
+	r.NoError(g.handleActionsQueue(ctx))
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Len(funding, 1)
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("8", balance.Amount.String())
+	r.Equal("5", balance.ReservedAmount.String())
+
+	// Restart while waiting: reservations and the original request ID persist.
+	r.NoError(g.store.Close())
+	store, err = OpenSQLite3Store(path)
+	r.NoError(err)
+	rebuilt, err := BuildGroup(ctx, store, &conf)
+	r.NoError(err)
+	*g = *rebuilt
+	g.EnableDebug()
+	g.AttachWorker(g.GroupId, &custodianFlowWorker{})
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Len(funding, 1)
+	r.Equal(need.TraceId, funding[0].TraceId)
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("8", balance.Amount.String())
+	r.Equal("5", balance.ReservedAmount.String())
+
+	// Invalid returns cannot complete the waiting request or consume reservations.
+	for _, kind := range []string{"asset", "amount", "sender", "threshold", "app", "request", "sequence", "kernel amount"} {
+		t.Run("reject return "+kind, func(t *testing.T) {
+			asset, amount, memo := USDTAssetId, "5", need.ReturnMemo
+			senders, threshold := g.custodianMembers, g.custodianThreshold
+			switch kind {
+			case "asset":
+				asset = SOLAssetId
+			case "amount", "kernel amount":
+				amount = "4"
+			case "sender":
+				senders = []string{testSender, g.GetMembers()[0]}
+			case "threshold":
+				threshold = 1
+			case "request":
+				memo = EncodeFundingReturnMemo(UniqueId(need.TraceId, "unknown"))
+			}
+			sequence++
+			returnTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(asset)))
+			returnTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+			returnTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, memo))
+			returnTx.Outputs = append(returnTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString(amount), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+			returnVer := returnTx.AsVersioned()
+			returnHash := returnVer.PayloadHash().String()
+			require.NoError(t, g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", returnHash), base64.RawURLEncoding.EncodeToString(returnVer.Marshal())))
+			out := testBuildOutput(g, require.New(t), asset, amount, hex.EncodeToString(returnVer.Extra), SafeUtxoStateUnspent, sequence, returnHash)
+			out.KernelAssetId = returnVer.Asset.String()
+			out.Senders = append([]string(nil), senders...)
+			out.SendersThreshold = int64(threshold)
+			switch kind {
+			case "app":
+				out.AppId = UniqueId(g.GroupId, "other app")
+			case "sequence":
+				out.Sequence = need.Sequence
+			case "kernel amount":
+				out.Amount = decimal.NewFromInt(5)
+			}
+			matched, err := g.checkFundingReturn(ctx, &Action{UnifiedOutput: *out})
+			require.NoError(t, err)
+			require.Nil(t, matched)
+			balance := g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+			require.Equal(t, "8", balance.Amount.String())
+			require.Equal(t, "5", balance.ReservedAmount.String())
+			waiting, err := g.store.ReadLiquidityRequest(ctx, need.TraceId)
+			require.NoError(t, err)
+			require.Equal(t, LiquidityRequestStateWaiting, waiting.State)
+		})
+	}
+
+	sequence++
+	returnedTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
+	returnedTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	returnedTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, need.ReturnMemo))
+	returnedTx.Outputs = append(returnedTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("5"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	returnedVer := returnedTx.AsVersioned()
+	returnedHash := returnedVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", returnedHash), base64.RawURLEncoding.EncodeToString(returnedVer.Marshal())))
+	returned := testBuildOutput(g, r, USDTAssetId, "5", hex.EncodeToString(returnedVer.Extra), SafeUtxoStateUnspent, sequence, returnedHash)
+	returned.KernelAssetId = returnedVer.Asset.String()
+	returned.Senders = append([]string(nil), g.custodianMembers...)
+	returned.SendersThreshold = int64(g.custodianThreshold)
+	testProcessSafeOutput(ctx, r, g, returned)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("3", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateInitial, action.ActionState)
+	r.Equal(returned.Sequence, action.restoreSequence)
+	waiting, err := g.store.ReadLiquidityRequest(ctx, need.TraceId)
+	r.NoError(err)
+	r.Equal(LiquidityRequestStateDone, waiting.State)
+	r.Equal(returned.OutputId, waiting.ReturnOutputId)
+	returnedStored, err := g.store.ReadOutputById(ctx, returned.OutputId)
+	r.NoError(err)
+	r.Equal(SafeUtxoStateLocked, returnedStored.State)
+	r.Equal(payout.OutputId, returnedStored.ReservedBy)
+	// Replaying after the first return can build payout 0, but payout 1 still
+	// needs its own refill. Neither transaction may be persisted prematurely.
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("3", balance.Amount.String())
+	r.Equal("2", balance.ReservedAmount.String())
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Len(funding, 1)
+	secondNeed := funding[0]
+	r.NotEqual(need.TraceId, secondNeed.TraceId)
+	r.Equal(payout.OutputId, secondNeed.ActionId)
+	r.Equal(USDTAssetId, secondNeed.AssetId)
+	r.Equal("2", secondNeed.Amount.String())
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateRestorable, action.ActionState)
+	txs, _, err = g.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	r.NoError(err)
+	r.Empty(txs)
+	for _, id := range []string{spare.OutputId, returned.OutputId} {
+		out, err := g.store.ReadOutputById(ctx, id)
+		r.NoError(err)
+		r.Equal(SafeUtxoStateLocked, out.State)
+		r.Equal(payout.OutputId, out.ReservedBy)
+	}
+	testProcessSafeOutput(ctx, r, g, returned)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("3", balance.Amount.String())
+	r.Equal("2", balance.ReservedAmount.String())
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Len(funding, 1)
+	r.Equal(secondNeed.TraceId, funding[0].TraceId)
+
+	sequence++
+	secondReturnTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
+	secondReturnTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	secondReturnTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, secondNeed.ReturnMemo))
+	secondReturnTx.Outputs = append(secondReturnTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("2"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	secondReturnVer := secondReturnTx.AsVersioned()
+	secondReturnHash := secondReturnVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", secondReturnHash), base64.RawURLEncoding.EncodeToString(secondReturnVer.Marshal())))
+	secondReturn := testBuildOutput(g, r, USDTAssetId, "2", hex.EncodeToString(secondReturnVer.Extra), SafeUtxoStateUnspent, sequence, secondReturnHash)
+	secondReturn.KernelAssetId = secondReturnVer.Asset.String()
+	secondReturn.Senders = append([]string(nil), g.custodianMembers...)
+	secondReturn.SendersThreshold = int64(g.custodianThreshold)
+	testProcessSafeOutput(ctx, r, g, secondReturn)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("1", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateInitial, action.ActionState)
+	r.Equal(secondReturn.Sequence, action.restoreSequence)
+	waiting, err = g.store.ReadLiquidityRequest(ctx, secondNeed.TraceId)
+	r.NoError(err)
+	r.Equal(LiquidityRequestStateDone, waiting.State)
+	r.Equal(secondReturn.OutputId, waiting.ReturnOutputId)
+	r.NoError(g.handleActionsQueue(ctx))
+	action, err = g.store.ReadAction(ctx, payout.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateDone, action.ActionState)
+	txs, _, err = g.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	r.NoError(err)
+	r.Len(txs, 2)
+	for i, amount := range []string{"7", "2"} {
+		payoutTx, err := g.store.ReadTransactionByTraceId(ctx, UniqueId(payout.OutputId, fmt.Sprintf("payout:%d", i)))
+		r.NoError(err)
+		r.NotNil(payoutTx)
+		r.Equal(amount, payoutTx.Amount)
+		r.Equal(secondReturn.Sequence, payoutTx.Sequence)
+		inputs := g.ListOutputsForTransaction(ctx, payoutTx.TraceId, payoutTx.Sequence)
+		var ids []string
+		for _, input := range inputs {
+			ids = append(ids, input.OutputId)
+			r.Equal(SafeUtxoStateAssigned, input.State)
+			r.Empty(input.ReservedBy)
+		}
+		if i == 0 {
+			r.ElementsMatch([]string{spare.OutputId, returned.OutputId}, ids)
+		} else {
+			r.Equal([]string{secondReturn.OutputId}, ids)
+		}
+		r.NotNil(g.signTransaction(ctx, payoutTx))
+		r.NoError(g.store.FinishTransaction(ctx, payoutTx.TraceId))
+	}
+	for _, id := range []string{spare.OutputId, returned.OutputId, secondReturn.OutputId} {
+		out, err := g.store.ReadOutputById(ctx, id)
+		r.NoError(err)
+		r.Equal(SafeUtxoStateSpent, out.State)
+	}
+	// Re-delivering the same chain outputs is idempotent after both payouts.
+	testProcessSafeOutput(ctx, r, g, returned)
+	testProcessSafeOutput(ctx, r, g, secondReturn)
+	r.NoError(g.handleActionsQueue(ctx))
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("1", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	funding, err = g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Empty(funding)
+	txs, _, err = g.store.ListTransactions(ctx, TransactionStateSnapshot, 0)
+	r.NoError(err)
+	r.Len(txs, 4) // Custody transfer, compaction, and two payouts.
+}
+
+func TestMTGCustodianCompaction(t *testing.T) {
+	r := require.New(t)
+	ctx := util.EnableTestEnvironment(context.Background())
+	data, err := os.ReadFile("example.toml")
+	r.NoError(err)
+	var conf Configuration
+	r.NoError(toml.Unmarshal(data, &conf))
+	conf.StoreDir = t.TempDir()
+	conf.GroupSize = 1
+	conf.Custodian = CustodianConfiguration{
+		MixAddress:     mixin.RequireNewMixAddress([]string{testSender, "194ac88f-4671-3976-b60a-09064f1811e8"}, 2).String(),
+		ConversationId: "294ac88f-4671-3976-b60a-09064f1811e8",
+		Requesters:     []string{testSender},
+	}
+	path := filepath.Join(conf.StoreDir, "mtg.sqlite3")
+	store, err := OpenSQLite3Store(path)
+	r.NoError(err)
+	g, err := BuildGroup(ctx, store, &conf)
+	r.NoError(err)
+	g.EnableDebug()
+	g.AttachWorker(g.GroupId, &custodianFlowWorker{})
+	sequence := conf.Genesis.Epoch
+	t.Cleanup(func() { r.NoError(g.store.Close()) })
+
+	for i := 0; i < OutputsBatchSize+1; i++ {
+		amount := "0.1"
+		if i == OutputsBatchSize {
+			amount = "1"
+		}
+		sequence++
+		inputTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(USDTAssetId)))
+		inputTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+		inputTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, nil))
+		inputTx.Outputs = append(inputTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString(amount), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+		inputVer := inputTx.AsVersioned()
+		inputHash := inputVer.PayloadHash().String()
+		r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", inputHash), base64.RawURLEncoding.EncodeToString(inputVer.Marshal())))
+		out := testBuildOutput(g, r, USDTAssetId, amount, hex.EncodeToString(inputVer.Extra), SafeUtxoStateUnspent, sequence, inputHash)
+		out.KernelAssetId = inputVer.Asset.String()
+		r.NoError(g.store.WriteAction(ctx, out, ActionStateDone))
+	}
+	sequence++
+	requestTx := common.NewTransactionV5(crypto.Sha256Hash([]byte(SOLAssetId)))
+	requestTx.AddInput(crypto.Sha256Hash(fmt.Appendf(nil, "custodian-input:%d", sequence)), 0)
+	requestTx.Extra = []byte(EncodeMixinExtraBase64(g.GroupId, EncodeCustodianTransferMemo(USDTAssetId, "4.6")))
+	requestTx.Outputs = append(requestTx.Outputs, &common.Output{Type: common.OutputTypeScript, Amount: common.NewIntegerFromString("0.00000001"), Script: common.NewThresholdScript(byte(g.GetThreshold()))})
+	requestVer := requestTx.AsVersioned()
+	requestHash := requestVer.PayloadHash().String()
+	r.NoError(g.store.WriteCache(ctx, fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", requestHash), base64.RawURLEncoding.EncodeToString(requestVer.Marshal())))
+	request := testBuildOutput(g, r, SOLAssetId, "0.00000001", hex.EncodeToString(requestVer.Extra), SafeUtxoStateUnspent, sequence, requestHash)
+	request.KernelAssetId = requestVer.Asset.String()
+	testProcessSafeOutput(ctx, r, g, request)
+	r.NoError(g.handleActionsQueue(ctx))
+	pending, err := g.ListPendingCustodianTransfers(ctx, 0)
+	r.NoError(err)
+	r.Empty(pending)
+	action, err := g.store.ReadAction(ctx, request.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateRestorable, action.ActionState)
+	balance := g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("0", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	compacted := testHandleCompactionTransaction(ctx, r, g, request.TransactionHash)
+	testProcessSafeOutput(ctx, r, g, compacted)
+	r.NoError(g.handleActionsQueue(ctx))
+	action, err = g.store.ReadAction(ctx, request.OutputId)
+	r.NoError(err)
+	r.Equal(ActionStateInitial, action.ActionState)
+	r.Equal(compacted.Sequence, action.restoreSequence)
+	r.NoError(g.handleActionsQueue(ctx))
+	pending, err = g.ListPendingCustodianTransfers(ctx, 0)
+	r.NoError(err)
+	r.Len(pending, 1)
+	r.Equal(UniqueId(request.OutputId, "custodian-transfer"), pending[0].TraceId)
+	r.Equal("4.6", pending[0].Amount.String())
+	r.Equal(compacted.Sequence, pending[0].Sequence)
+	tx, err := g.store.ReadTransactionByTraceId(ctx, pending[0].TraceId)
+	r.NoError(err)
+	r.NotNil(tx)
+	r.False(tx.compaction)
+	inputs := g.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
+	r.Len(inputs, 2)
+	balance = g.ReadExternalBalance(ctx, g.GroupId, USDTAssetId)
+	r.Equal("0", balance.Amount.String())
+	r.Equal("0", balance.ReservedAmount.String())
+	funding, err := g.ListFundingRequests(ctx, 0)
+	r.NoError(err)
+	r.Empty(funding)
 }

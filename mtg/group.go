@@ -20,16 +20,20 @@ import (
 )
 
 const (
-	groupGenesisId   = "group-genesis-id"
-	groupBootSynced  = "group-boot-synced"
-	defaultKernelRPC = "https://kernel.mixin.dev"
+	groupGenesisId         = "group-genesis-id"
+	groupCustodianConfigId = "group-custodian-config-id"
+	groupBootSynced        = "group-boot-synced"
+	defaultKernelRPC       = "https://kernel.mixin.dev"
 )
 
 type Worker interface {
-	// process the action in a queue and return transactions
-	// need to ensure enough balance with CheckAssetBalanceAt(ctx, a)
-	// before return any transactions, otherwise the transactions
-	// will be ignored when issuficient balance
+	// ProcessOutput processes an action in sequence order. Workers should check
+	// CheckAssetBalanceAt before building transactions. BuildTransaction returns
+	// nil when the hot internal outputs are insufficient; in that case the worker
+	// must discard all transactions and return either the affected asset as the
+	// compaction signal, or Action.CustodianCompaction() to request a custodian
+	// refill. Transactions and compaction signals are mutually exclusive action
+	// results.
 	//
 	// if we want to make a multi process worker, it's possible that
 	// we pass some RPC handle to the process, or we could build a
@@ -45,15 +49,20 @@ type Group struct {
 	entries   map[string]string
 	groupSize int
 
-	id              string
-	GroupId         string
-	rawMembers      []string
-	threshold       int
-	index           int
-	epoch           uint64
-	spendPrivateKey string
-	debug           bool
-	kernelRPC       string
+	id                      string
+	GroupId                 string
+	rawMembers              []string
+	threshold               int
+	index                   int
+	epoch                   uint64
+	spendPrivateKey         string
+	debug                   bool
+	kernelRPC               string
+	custodianAddress        string
+	custodianConversationId string
+	custodianMembers        []string
+	custodianThreshold      int
+	custodianRequesters     map[string]bool
 }
 
 func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
@@ -81,17 +90,26 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	}
 
 	id := generateGenesisId(conf)
+	custodianConversationId, custodianAddress, custodianMembers, custodianThreshold, custodianRequesters, err := validateCustodianConfiguration(conf)
+	if err != nil {
+		return nil, err
+	}
 	grp := &Group{
-		mixin:           client,
-		store:           store,
-		spendPrivateKey: conf.App.SpendPrivateKey,
-		id:              id,
-		GroupId:         UniqueId(id, conf.Project),
-		groupSize:       conf.GroupSize,
-		workers:         make(map[string]Worker),
-		entries:         make(map[string]string),
-		kernelRPC:       defaultKernelRPC,
-		index:           -1,
+		mixin:                   client,
+		store:                   store,
+		spendPrivateKey:         conf.App.SpendPrivateKey,
+		id:                      id,
+		GroupId:                 UniqueId(id, conf.Project),
+		groupSize:               conf.GroupSize,
+		workers:                 make(map[string]Worker),
+		entries:                 make(map[string]string),
+		kernelRPC:               defaultKernelRPC,
+		index:                   -1,
+		custodianAddress:        custodianAddress,
+		custodianConversationId: custodianConversationId,
+		custodianMembers:        custodianMembers,
+		custodianThreshold:      custodianThreshold,
+		custodianRequesters:     custodianRequesters,
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -105,6 +123,19 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		return nil, fmt.Errorf("malformed group genesis id %s %s", string(oid), grp.id)
 	}
 	err = store.WriteProperty(ctx, groupGenesisId, grp.id)
+	if err != nil {
+		return nil, err
+	}
+
+	custodianId := generateCustodianConfigId(custodianConversationId, custodianAddress, custodianMembers, custodianThreshold, custodianRequesters)
+	storedCustodianId, err := store.ReadProperty(ctx, groupCustodianConfigId)
+	if err != nil {
+		return nil, err
+	}
+	if storedCustodianId != "" && storedCustodianId != custodianId {
+		return nil, fmt.Errorf("malformed custodian config id %s %s", storedCustodianId, custodianId)
+	}
+	err = store.WriteProperty(ctx, groupCustodianConfigId, custodianId)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +323,13 @@ func (grp *Group) TestUpdateOutputsState(ctx context.Context, os []*UnifiedOutpu
 
 // this function or rpc should be used only in ProcessOutput
 func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
-	os := act.group.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	total := act.checkInternalAssetBalanceAt(ctx, assetId)
+	external := act.readExternalBalanceAt(ctx, assetId)
+	return total.Add(external.Available())
+}
+
+func (act *Action) checkInternalAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
+	os := act.listSpendableOutputs(ctx, assetId, act.consumed[assetId], OutputsBatchSize)
 	total := decimal.NewFromInt(0)
 	for _, o := range os {
 		total = total.Add(o.Amount)
@@ -404,8 +441,9 @@ func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
 }
 
 func generateGenesisId(conf *Configuration) string {
-	slices.Sort(conf.Genesis.Members)
-	id := strings.Join(conf.Genesis.Members, "")
+	members := append([]string(nil), conf.Genesis.Members...)
+	slices.Sort(members)
+	id := strings.Join(members, "")
 	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Epoch)
 	return crypto.Sha256Hash([]byte(id)).String()
 }
