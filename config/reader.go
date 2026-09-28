@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/observer"
 	"github.com/MixinNetwork/safe/signer"
@@ -35,6 +36,9 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 	err = toml.Unmarshal(f, &conf)
 	if err != nil {
 		return nil, err
+	}
+	if conf.Dev == nil {
+		conf.Dev = &DevConfig{LogLevel: logger.INFO}
 	}
 	handleDevConfig(conf.Dev)
 	conf.checkMainnet(role)

@@ -275,6 +275,9 @@ func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
 		sum = sum.Add(f)
 		count += 1
 	}
+	if count == 0 {
+		return new(big.Int), nil
+	}
 	avg := sum.Div(decimal.NewFromInt(count))
 	return avg.Ceil().BigInt(), nil
 }

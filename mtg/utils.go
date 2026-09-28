@@ -364,22 +364,22 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	}
 
 	var uuidGkrs []*mixin.GhostInput
-	for i, r := range tr {
+	for oidx, r := range tr {
 		if r.MixAddress == nil {
 			continue
 		}
 		members := r.MixAddress.Members()
 		if r.UuidMember {
 			sort.Strings(members)
-			hint := UniqueId(tx.TraceId, fmt.Sprintf("index:%d", i))
+			hint := UniqueId(tx.TraceId, fmt.Sprintf("index:%d", oidx))
 			uuidGkrs = append(uuidGkrs, &mixin.GhostInput{
 				Receivers: members,
-				Index:     uint8(i),
+				Index:     uint8(oidx),
 				Hint:      hint,
 			})
 		} else {
 			index := make([]byte, 16)
-			binary.BigEndian.PutUint16(index, uint16(i))
+			binary.BigEndian.PutUint16(index, uint16(oidx))
 
 			seed := uuid.FromStringOrNil(tx.TraceId).Bytes()
 			seed = append(seed, uuid.FromStringOrNil(tx.AssetId).Bytes()...)
@@ -388,15 +388,15 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 			r := mixinnet.KeyFromBytes(seed)
 
 			keys := make([]mixinnet.Key, len(members))
-			for i, a := range members {
+			for midx, a := range members {
 				addr, err := mixinnet.AddressFromString(a)
 				if err != nil {
 					return nil, err
 				}
-				key := mixinnet.DeriveGhostPublicKey(mixinnet.TxVersionHashSignature, &r, &addr.PublicViewKey, &addr.PublicSpendKey, uint8(i))
-				keys[i] = *key
+				key := mixinnet.DeriveGhostPublicKey(mixinnet.TxVersionHashSignature, &r, &addr.PublicViewKey, &addr.PublicSpendKey, uint8(oidx))
+				keys[midx] = *key
 			}
-			gkm[i] = &mixin.GhostKeys{
+			gkm[oidx] = &mixin.GhostKeys{
 				Mask: r.Public(),
 				Keys: keys,
 			}

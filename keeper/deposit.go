@@ -52,6 +52,9 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
 		}
 	case common.SafeChainEthereum, common.SafeChainPolygon:
+		if len(extra) < 32+20+8 {
+			return nil, fmt.Errorf("invalid deposit extra %s", req.ExtraHEX)
+		}
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])

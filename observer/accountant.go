@@ -369,7 +369,9 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 	return &Output{
 		TransactionHash: hash,
 		Index:           0,
+		Address:         receiver,
 		Satoshi:         msgTx.TxOut[0].Value,
+		Chain:           tx.Chain,
 		RawTransaction:  sql.NullString{Valid: true, String: hex.EncodeToString(raw)},
 	}, node.store.WriteBitcoinFeeOutput(ctx, msgTx, receiver, tx)
 }
@@ -383,17 +385,22 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 	}
 	accountantMinimum := ethereum.ParseAmount("0.05", int32(asset.Decimals))
 
-	for {
-		time.Sleep(3 * time.Second)
+	for ctx.Err() == nil {
+		time.Sleep(time.Second)
 		txs, err := node.store.ListFullySignedTransactionApprovals(ctx, chain)
 		if err != nil {
 			panic(err)
 		}
 		for _, tx := range txs {
 			b, err := ethereum.FetchBalanceFromKey(ctx, rpc, node.conf.EVMKey)
-			if err != nil || b.Cmp(accountantMinimum) <= 0 {
+			if err != nil {
+				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %v", chain, err)
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if b.Cmp(accountantMinimum) <= 0 {
 				bs := ethereum.UnitAmount(b, int32(asset.Decimals))
-				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %s, %v", chain, bs, err)
+				logger.Printf("ethereum.FetchBalanceFromKey(%d) => %s", chain, bs)
 				time.Sleep(3 * time.Second)
 				continue
 			}
@@ -758,7 +765,7 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 		panic(err)
 	}
 	// check rpc is synced
-	if time.Until(block.Time).Abs() <= time.Minute {
+	if time.Until(block.Time).Abs() > 10*time.Second {
 		return false
 	}
 	st, err := ethereum.UnmarshalSafeTransaction(common.DecodeHexOrPanic(tx.RawTransaction))

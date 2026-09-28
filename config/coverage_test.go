@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/observer"
@@ -91,6 +92,20 @@ func TestHandleDevConfigurationDefaults(t *testing.T) {
 	configuration = &DevConfig{LogLevel: 2, Network: TestNetworkName, ProfilePort: 70_000}
 	handleDevConfig(configuration)
 	require.Equal(t, TestNetworkName, configuration.Network)
+}
+
+func TestReadConfigurationDefaultsOmittedDevToMainnet(t *testing.T) {
+	want := coverageConfiguration(MainNetworkName)
+	want.Dev = nil
+	raw, err := toml.Marshal(want)
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "mainnet.toml")
+	require.NoError(t, os.WriteFile(path, raw, 0o600))
+	got, err := ReadConfiguration(path, "observer")
+	require.NoError(t, err)
+	require.NotNil(t, got.Dev)
+	require.Equal(t, MainNetworkName, got.Dev.Network)
+	require.Equal(t, logger.INFO, got.Dev.LogLevel)
 }
 
 func coverageConfiguration(network string) *Configuration {

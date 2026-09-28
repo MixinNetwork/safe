@@ -281,15 +281,15 @@ func (node *Node) synced(ctx context.Context) bool {
 func (node *Node) acceptIncomingMessages(ctx context.Context) {
 	for {
 		mm, err := node.network.ReceiveMessage(ctx)
-		logger.Debugf("network.ReceiveMessage() => %s %x %s %v", mm.Peer, mm.Data, mm.CreatedAt, err)
 		if err != nil {
 			panic(err)
 		}
+		logger.Debugf("network.ReceiveMessage() => %s %x %s %v", mm.Peer, mm.Data, mm.CreatedAt, err)
 		sessionId, msg, err := unmarshalSessionMessage(mm.Data)
-		logger.Verbosef("node.acceptIncomingMessages(%x, %d) => %s %s %x", sessionId, msg.RoundNumber, mm.Peer, mm.CreatedAt, msg.SSID)
 		if err != nil {
 			continue
 		}
+		logger.Verbosef("node.acceptIncomingMessages(%x, %d) => %s %s %x", sessionId, msg.RoundNumber, mm.Peer, mm.CreatedAt, msg.SSID)
 		if msg.SSID == nil {
 			continue
 		}

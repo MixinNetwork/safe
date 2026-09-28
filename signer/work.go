@@ -55,8 +55,14 @@ func (s *SQLite3Store) CountDailyWorks(ctx context.Context, members []party.ID, 
 }
 
 func normalizeWorks(works []int) []byte {
-	max := slices.Max(works)
 	norms := make([]byte, len(works))
+	if len(works) == 0 {
+		return norms
+	}
+	max := slices.Max(works)
+	if max == 0 {
+		return norms
+	}
 	for i, w := range works {
 		norms[i] = byte(255 * w / max)
 	}

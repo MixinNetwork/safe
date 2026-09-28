@@ -1098,7 +1098,8 @@ func (node *Node) checkBitcoinUTXOSignatureRequired(ctx context.Context, pop wir
 func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Request, safe *store.Safe, flag byte, extra []byte) (*store.InheritanceLock, []byte, error) {
 	switch flag {
 	case common.FlagProposeRemoveInheritance:
-		if len(extra) < 16 {
+		// The lock ID must be followed by the transaction's network-info ID.
+		if len(extra) < 16+16 {
 			return nil, nil, fmt.Errorf("invalid lock extra to remove: %x", extra)
 		}
 		lid, err := uuid.FromBytes(extra[:16])
@@ -1114,7 +1115,8 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 		}
 		return nil, extra[16:], nil
 	case common.FlagProposeSetInheritance:
-		if len(extra) < 34 {
+		// Keep the trailing network-info ID available for the caller.
+		if len(extra) < 34+16 {
 			return nil, nil, fmt.Errorf("invalid lock extra to update: %x", extra)
 		}
 		// Hash is an opaque commitment to the holder's off-chain estate plan.
