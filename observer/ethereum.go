@@ -429,8 +429,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		delay := node.getChainFinalizationDelay(chain)
-		if checkpoint+delay > height+1 {
+		if checkpoint >= height {
 			time.Sleep(duration)
 			continue
 		}
@@ -439,7 +438,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		var wg sync.WaitGroup
 		for range batch {
 			ckpt := checkpoint + 1
-			if ckpt+delay > int64(height)+1 {
+			if ckpt > height {
 				break
 			}
 			wg.Add(1)
