@@ -279,9 +279,6 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if info.Height < output.Height {
 		confirmations = 0
 	}
-	if confirmations < uint64(node.getChainFinalizationDelay(deposit.Chain)) {
-		return nil
-	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil
 	}

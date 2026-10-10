@@ -335,9 +335,6 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
-	if confirmations < uint64(node.getChainFinalizationDelay(deposit.Chain)) {
-		return nil
-	}
 	if !ethereum.CheckFinalization(confirmations, deposit.Chain) {
 		return nil
 	}
