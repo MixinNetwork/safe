@@ -49,11 +49,6 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		if err != nil {
 			continue
 		}
-		delay := node.getChainFinalizationDelay(chain)
-		if delay > height || delay < 1 {
-			panic(delay)
-		}
-		height = height + 1 - delay
 		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
 		if err != nil {
 			panic(err)
@@ -279,6 +274,9 @@ func (node *Node) bitcoinConfirmPendingDeposit(ctx context.Context, deposit *Dep
 	if info.Height < output.Height {
 		confirmations = 0
 	}
+	if confirmations < uint64(node.getChainFinalizationDelay(deposit.Chain)) {
+		return nil
+	}
 	if !bitcoin.CheckFinalization(confirmations, output.Coinbase) {
 		return nil
 	}
@@ -323,8 +321,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.bitcoinReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		delay := node.getChainFinalizationDelay(chain)
-		if checkpoint+delay > height+1 {
+		if checkpoint >= height {
 			time.Sleep(duration)
 			continue
 		}
@@ -333,7 +330,7 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 		var wg sync.WaitGroup
 		for range batch {
 			ckpt := checkpoint + 1
-			if ckpt+delay > int64(height)+1 {
+			if ckpt > height {
 				break
 			}
 			wg.Add(1)

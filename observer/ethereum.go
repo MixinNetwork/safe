@@ -119,11 +119,6 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
-		delay := node.getChainFinalizationDelay(chain)
-		if delay > height || delay < 1 {
-			panic(delay)
-		}
-		height = height + 1 - delay
 		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
 		if err != nil {
 			panic(err)
@@ -335,6 +330,9 @@ func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *De
 	if info.Height < etx.BlockHeight {
 		confirmations = 0
 	}
+	if confirmations < uint64(node.getChainFinalizationDelay(deposit.Chain)) {
+		return nil
+	}
 	if !ethereum.CheckFinalization(confirmations, deposit.Chain) {
 		return nil
 	}
@@ -429,8 +427,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			continue
 		}
 		logger.Printf("node.ethereumReadDepositCheckpoint(%d) => %d %d", chain, checkpoint, height)
-		delay := node.getChainFinalizationDelay(chain)
-		if checkpoint+delay > height+1 {
+		if checkpoint >= height {
 			time.Sleep(duration)
 			continue
 		}
@@ -439,7 +436,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		var wg sync.WaitGroup
 		for range batch {
 			ckpt := checkpoint + 1
-			if ckpt+delay > int64(height)+1 {
+			if ckpt > height {
 				break
 			}
 			wg.Add(1)
