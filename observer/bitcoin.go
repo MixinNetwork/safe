@@ -49,6 +49,11 @@ func (node *Node) bitcoinNetworkInfoLoop(ctx context.Context, chain byte) {
 		if err != nil {
 			continue
 		}
+		delay := node.getChainFinalizationDelay(chain)
+		if delay > height || delay < 1 {
+			panic(delay)
+		}
+		height = height + 1 - delay
 		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
 		if err != nil {
 			panic(err)

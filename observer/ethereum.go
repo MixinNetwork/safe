@@ -119,6 +119,11 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
 		}
+		delay := node.getChainFinalizationDelay(chain)
+		if delay > height || delay < 1 {
+			panic(delay)
+		}
+		height = height + 1 - delay
 		info, err := node.keeperStore.ReadLatestNetworkInfo(ctx, chain, time.Now())
 		if err != nil {
 			panic(err)
