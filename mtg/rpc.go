@@ -57,6 +57,9 @@ func callMixinRPC(node, method string, params []any) ([]byte, error) {
 		return nil, err
 	}
 	defer util.CloseOrPanic(resp.Body)
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("callMixinRPC(%s, %s, %s) => HTTP %d %s", node, method, params, resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
 
 	var result struct {
 		Data  any `json:"data"`
