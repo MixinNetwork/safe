@@ -197,6 +197,9 @@ func (s *SQLite3Store) FinishSignatureRequest(ctx context.Context, req *common.R
 }
 
 func (s *SQLite3Store) FinishTransactionSignaturesWithRequest(ctx context.Context, trx *Transaction, psbt string, req *common.Request, num int64, safe *Safe, bm map[string]*SafeBalance, lock *InheritanceLock, txs []*mtg.Transaction) error {
+	if lock != nil && (lock.Holder != safe.Holder || lock.Address != safe.Address || lock.Chain != safe.Chain) {
+		return fmt.Errorf("inheritance lock %s does not belong to safe %s", lock.LockId, safe.Holder)
+	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

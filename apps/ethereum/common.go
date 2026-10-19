@@ -291,7 +291,7 @@ func matchDepositTransfer(t *Transfer, hash, assetAddress, destination string, i
 	if !strings.EqualFold(t.Hash, hash) {
 		return false
 	}
-	tv := NormallizeAmount(t.Value, precision)
+	tv := NormalizeAmount(t.Value, precision)
 	return t.TokenAddress == assetAddress && t.Index == index && t.Receiver == destination && amount.Cmp(tv) == 0
 }
 
@@ -385,7 +385,7 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 	}, nil
 }
 
-func NormallizeAmount(b *big.Int, precision int32) *big.Int {
+func NormalizeAmount(b *big.Int, precision int32) *big.Int {
 	return decimal.NewFromBigInt(b, -precision).RoundFloor(8).Mul(decimal.New(1, precision)).BigInt()
 }
 
@@ -638,14 +638,17 @@ func safeInit(ctx context.Context, chainId int64, rpc, address string) (*ethclie
 	}
 	id, err := conn.ChainID(ctx)
 	if err != nil {
+		conn.Close()
 		return nil, nil, err
 	}
 	if id.Int64() != chainId {
+		conn.Close()
 		return nil, nil, fmt.Errorf("safeInit(%d, %s) => %d", chainId, rpc, id.Int64())
 	}
 
 	abi, err := abi.NewGnosisSafe(common.HexToAddress(address), conn)
 	if err != nil {
+		conn.Close()
 		return nil, nil, err
 	}
 
@@ -660,6 +663,7 @@ func factoryInit(rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
 
 	abi, err := abi.NewProxyFactory(common.HexToAddress(EthereumSafeProxyFactoryAddress), conn)
 	if err != nil {
+		conn.Close()
 		return nil, nil, err
 	}
 
@@ -674,6 +678,7 @@ func guardInit(rpc string, guard string) (*ethclient.Client, *abi.MixinSafeGuard
 
 	abi, err := abi.NewMixinSafeGuard(common.HexToAddress(guard), conn)
 	if err != nil {
+		conn.Close()
 		return nil, nil, err
 	}
 

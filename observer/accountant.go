@@ -709,7 +709,7 @@ func (node *Node) validateEthereumRecoveryBroadcast(ctx context.Context, rpc str
 	requestID := keeperTransaction.RequestId
 	switch {
 	case recovery.IsInheritance:
-		lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+		lock, err := node.keeperStore.ReadActiveInheritanceLockByHolder(ctx, safe.Holder)
 		if err != nil || lock == nil || lock.State != common.RequestStateDone {
 			return fmt.Errorf("invalid inheritance lock: %v %v", lock, err)
 		}

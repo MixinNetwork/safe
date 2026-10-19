@@ -45,6 +45,10 @@ func TestCheckTransactionPartiallySignedByRejectsWalletRecoveryId(t *testing.T) 
 	raw = hex.EncodeToString(tx.Marshal())
 	require.Nil(VerifyMessageSignature(holder, tx.Message, gnosisSig, true))
 	require.True(CheckTransactionPartiallySignedBy(raw, holder))
+	// A valid signature over a supplied message cannot authenticate changed fields.
+	tx.Nonce.SetInt64(1)
+	require.False(CheckTransactionPartiallySignedBy(hex.EncodeToString(tx.Marshal()), holder))
+	tx.Nonce.SetInt64(0)
 
 	// flipping only the recovery id leaves r and s valid for the holder, but
 	// makes Gnosis Safe recover a different owner and revert with GS026

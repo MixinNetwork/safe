@@ -287,9 +287,9 @@ func (node *Node) httpCreateSafeInheritanceTransaction(ctx context.Context, safe
 	if count > 0 {
 		return nil, fmt.Errorf("unfinished tx existed: %s %d", safe.Holder, count)
 	}
-	lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	lock, err := node.keeperStore.ReadActiveInheritanceLockByHolder(ctx, safe.Holder)
 	if err != nil || lock == nil {
-		return nil, fmt.Errorf("store.ReadLatestInheritanceLockByHolder(%s) => %v %v", safe.Holder, lock, err)
+		return nil, fmt.Errorf("store.ReadActiveInheritanceLockByHolder(%s) => %v %v", safe.Holder, lock, err)
 	}
 	if lock.State != common.RequestStateDone {
 		return nil, fmt.Errorf("invalid inheritance lock state: %s %s %d", safe.Holder, lock.LockId, lock.State)

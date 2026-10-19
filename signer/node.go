@@ -44,7 +44,8 @@ type Node struct {
 	backupClient *http.Client
 	saverKey     *crypto.Key
 
-	derivedKeys map[crypto.Hash][2][]byte
+	derivedKeysMutex sync.RWMutex
+	derivedKeys      map[crypto.Hash][2][]byte
 }
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, mw *common.MixinWallet, version string) *Node {
@@ -348,7 +349,7 @@ func (node *Node) queueOperation(ctx context.Context, op *common.Operation, memb
 	}
 	node.operations[op.Id] = true
 
-	res := make(chan error)
+	res := make(chan error, 1)
 	go func() { res <- node.startOperation(ctx, op, members) }()
 	return res
 }
@@ -510,7 +511,7 @@ func (node *Node) getSession(sessionId []byte) *MultiPartySession {
 }
 
 func marshalSessionMessage(sessionId []byte, msg *protocol.Message) []byte {
-	if len(sessionId) > 32 {
+	if len(sessionId) != uuid.Size {
 		panic(hex.EncodeToString(sessionId))
 	}
 	msb := []byte{byte(len(sessionId))}
@@ -519,15 +520,19 @@ func marshalSessionMessage(sessionId []byte, msg *protocol.Message) []byte {
 }
 
 func unmarshalSessionMessage(b []byte) ([]byte, *protocol.Message, error) {
-	if len(b) < 16 {
+	if len(b) == 0 {
 		return nil, nil, fmt.Errorf("unmarshalSessionMessage(%x) short", b)
 	}
-	if len(b[1:]) <= int(b[0]) {
+	size := int(b[0])
+	if size != uuid.Size {
+		return nil, nil, fmt.Errorf("invalid session ID length %d", size)
+	}
+	if len(b) <= 1+size {
 		return nil, nil, fmt.Errorf("unmarshalSessionMessage(%x) short", b)
 	}
-	sessionId := b[1 : 1+b[0]]
+	sessionId := b[1 : 1+size]
 	var msg protocol.Message
-	err := msg.UnmarshalBinary(b[1+b[0]:])
+	err := msg.UnmarshalBinary(b[1+size:])
 	return sessionId, &msg, err
 }
 

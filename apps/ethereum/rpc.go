@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	ga "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -127,6 +128,13 @@ func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
+	if b == nil {
+		return nil, ethereum.NotFound
+	}
+	b.Height, err = ethereumNumberToUint64(b.Number)
+	if err != nil {
+		return nil, err
+	}
 
 	timestamp, err := ethereumNumberToUint64(b.Timestamp)
 	if err != nil {
@@ -153,6 +161,9 @@ func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransac
 	}
 	b.Height = blockHeight
 	for _, tx := range b.Tx {
+		if tx == nil {
+			return nil, fmt.Errorf("missing transaction in block %d", height)
+		}
 		tx.BlockHash = b.Hash
 	}
 	return &b, err
@@ -183,22 +194,25 @@ func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	var b RPCTransaction
+	var b *RPCTransaction
 	err = json.Unmarshal(res, &b)
 	if err != nil {
 		return nil, err
 	}
+	if b == nil {
+		return nil, ethereum.NotFound
+	}
 	if b.Hash != hash {
-		panic(string(res))
+		return nil, fmt.Errorf("unexpected transaction hash %s, expected %s", b.Hash, hash)
 	}
 	if b.BlockNumber != "" {
 		blockHeight, err := ethereumNumberToUint64(b.BlockNumber)
 		if err != nil {
-			panic(b.BlockNumber)
+			return nil, err
 		}
 		b.BlockHeight = blockHeight
 	}
-	return &b, nil
+	return b, nil
 }
 
 func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace, error) {
@@ -249,11 +263,7 @@ func rpcGetEtherBalanceAtBlock(rpc, address string, blockNumber uint64) (*big.In
 	if err != nil {
 		return nil, err
 	}
-	balance, success := new(big.Int).SetString(b[2:], 16)
-	if !success {
-		return nil, fmt.Errorf("failed to parse address balance")
-	}
-	return balance, err
+	return hexutil.DecodeBig(b)
 }
 
 func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber uint64) (*big.Int, error) {

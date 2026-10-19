@@ -87,16 +87,20 @@ func (psbt *PartiallySignedTransaction) IsRecoveryTransaction() bool {
 }
 
 func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
+	hash, err := psbt.sigHash(idx)
+	if err != nil {
+		panic(err)
+	}
+	return hash
+}
+
+func (psbt *PartiallySignedTransaction) sigHash(idx int) ([]byte, error) {
 	tx := psbt.UnsignedTx
 	pin := psbt.Inputs[idx]
 	satoshi := pin.WitnessUtxo.Value
 	pof := txscript.NewCannedPrevOutputFetcher(pin.WitnessScript, satoshi)
 	tsh := txscript.NewTxSigHashes(tx, pof)
-	hash, err := txscript.CalcWitnessSigHash(pin.WitnessScript, tsh, SigHashType, tx, idx, satoshi)
-	if err != nil {
-		panic(err)
-	}
-	return hash
+	return txscript.CalcWitnessSigHash(pin.WitnessScript, tsh, SigHashType, tx, idx, satoshi)
 }
 
 func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observer string) (*wire.MsgTx, error) {
@@ -161,11 +165,20 @@ func MarshalWiredTransaction(msgTx *wire.MsgTx, encoding wire.MessageEncoding, c
 }
 
 func CheckTransactionPartiallySignedBy(raw, public string) bool {
-	b, _ := hex.DecodeString(raw)
-	psbt, _ := UnmarshalPartiallySignedTransaction(b)
+	b, err := hex.DecodeString(raw)
+	if err != nil {
+		return false
+	}
+	psbt, err := UnmarshalPartiallySignedTransaction(b)
+	if err != nil {
+		return false
+	}
 
 	for i := range psbt.Inputs {
 		pin := psbt.Inputs[i]
+		if pin.WitnessUtxo == nil || len(pin.WitnessScript) == 0 {
+			return false
+		}
 		sigs := make(map[string][]byte, 2)
 		for _, ps := range pin.PartialSigs {
 			pub := hex.EncodeToString(ps.PubKey)
@@ -179,8 +192,11 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 		if sigs[public] == nil {
 			return false
 		}
-		hash := psbt.SigHash(i)
-		err := VerifySignatureDER(public, hash, sigs[public])
+		hash, err := psbt.sigHash(i)
+		if err != nil {
+			return false
+		}
+		err = VerifySignatureDER(public, hash, sigs[public])
 		if err != nil {
 			return false
 		}

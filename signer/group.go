@@ -345,12 +345,16 @@ func (node *Node) deriveByPath(_ context.Context, crv byte, share, path []byte) 
 	dbp := append([]byte{crv}, share...)
 	dbp = append(dbp, path...)
 	dbpk := crypto.Blake3Hash(dbp)
+	node.derivedKeysMutex.RLock()
 	olds, found := node.derivedKeys[dbpk]
+	node.derivedKeysMutex.RUnlock()
 	if found {
 		return olds[0], olds[1]
 	}
 	pub, code := node.deriveByPathImpl(crv, share, path)
+	node.derivedKeysMutex.Lock()
 	node.derivedKeys[dbpk] = [2][]byte{pub, code}
+	node.derivedKeysMutex.Unlock()
 	return pub, code
 }
 

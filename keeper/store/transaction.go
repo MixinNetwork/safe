@@ -305,9 +305,9 @@ func (s *SQLite3Store) readTransaction(ctx context.Context, tx *sql.Tx, transact
 	return &trx, err
 }
 
-func (s *SQLite3Store) ReadLatestTransactionByHolder(ctx context.Context, hoder string) (*Transaction, error) {
+func (s *SQLite3Store) ReadLatestTransactionByHolder(ctx context.Context, holder string) (*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE holder=? ORDER BY created_at DESC LIMIT 1", strings.Join(transactionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, hoder)
+	row := s.db.QueryRowContext(ctx, query, holder)
 
 	var trx Transaction
 	err := row.Scan(&trx.TransactionHash, &trx.RawTransaction, &trx.Holder, &trx.Chain, &trx.AssetId, &trx.State, &trx.Data, &trx.RequestId, &trx.CreatedAt, &trx.UpdatedAt)

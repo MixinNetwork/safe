@@ -285,6 +285,9 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*store.Asset, 
 	}
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		meta, err = node.fetchMixinAsset(ctx, id)
 		if err == nil {
 			return meta, node.store.WriteAssetMeta(ctx, meta)

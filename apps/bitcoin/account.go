@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -35,6 +36,9 @@ func UnmarshalWitnessScriptAccount(extra []byte) (*WitnessScriptAccount, error) 
 	sequence, err := dec.ReadUint64()
 	if err != nil {
 		return nil, err
+	}
+	if sequence > math.MaxUint32 {
+		return nil, fmt.Errorf("invalid witness sequence: %d", sequence)
 	}
 	script, err := dec.ReadBytes()
 	if err != nil {

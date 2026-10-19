@@ -143,11 +143,11 @@ func GetSafeAccountGuard(ctx context.Context, chainId int64, rpc, address string
 	}
 	defer conn.Close()
 
-	bGuardOffet, err := hex.DecodeString(guardStorageSlot[2:])
+	bGuardOffset, err := hex.DecodeString(guardStorageSlot[2:])
 	if err != nil {
 		return "", err
 	}
-	bGuard, err := abi.GetStorageAt(nil, new(big.Int).SetBytes(bGuardOffet), new(big.Int).SetInt64(1))
+	bGuard, err := abi.GetStorageAt(nil, new(big.Int).SetBytes(bGuardOffset), new(big.Int).SetInt64(1))
 	if err != nil {
 		if strings.Contains(err.Error(), "no contract code at given address") {
 			return "", nil
@@ -345,6 +345,7 @@ func FetchBalanceFromKey(ctx context.Context, rpc, key string) (*big.Int, error)
 	if err != nil {
 		return nil, err
 	}
+	defer client.Close()
 
 	balance, err := client.BalanceAt(ctx, *addr, nil)
 	if err != nil {

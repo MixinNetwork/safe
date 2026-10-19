@@ -3,6 +3,7 @@ package signer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/MixinNetwork/safe/messenger"
@@ -15,6 +16,31 @@ type scriptedMessageNetwork struct {
 	messages [][]byte
 	received int
 	stop     error
+}
+
+func TestSessionMessageRejectsInvalidLengths(t *testing.T) {
+	id := uuid.Must(uuid.NewV4()).Bytes()
+	valid := marshalSessionMessage(id, &protocol.Message{SSID: []byte("protocol-session")})
+	for size := 0; size <= 255; size++ {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			data := append([]byte{byte(size)}, make([]byte, size)...)
+			data = append(data, valid[1+len(id):]...)
+			_, msg, err := unmarshalSessionMessage(data)
+			if size == uuid.Size {
+				require.NoError(t, err)
+				require.Equal(t, []byte("protocol-session"), msg.SSID)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+	for length := 0; length <= 1+len(id); length++ {
+		_, _, err := unmarshalSessionMessage(valid[:length])
+		require.Error(t, err, "truncated frame length %d", length)
+	}
+	decoded, _, err := unmarshalSessionMessage(valid)
+	require.NoError(t, err)
+	require.Equal(t, id, decoded)
 }
 
 func (n *scriptedMessageNetwork) ReceiveMessage(context.Context) (*messenger.MixinMessage, error) {

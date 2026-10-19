@@ -102,11 +102,17 @@ func EncodeMixinExtraBase64(appId string, extra []byte) string {
 
 func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		me, err := grp.mixin.UserMe(ctx)
 		logger.Verbosef("Group.UserMe() => %v\n", err)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Millisecond * 100)
 			continue
+		}
+		if err != nil {
+			return "", err
 		}
 		return me.SpendPublicKey, err
 	}
@@ -181,9 +187,12 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 		return ver, err
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
 		logger.Verbosef("GetKernelTransaction(%s, %s) => %s %v\n", grp.kernelRPC, txHash, snapshot, err)
-		if CheckRetryableError(err) || snapshot == "" {
+		if CheckRetryableError(err) || (err == nil && snapshot == "") {
 			time.Sleep(time.Millisecond * 500)
 			continue
 		}
