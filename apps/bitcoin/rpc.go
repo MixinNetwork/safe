@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil/v2"
 	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/shopspring/decimal"
@@ -70,7 +72,7 @@ type RPCBlockWithTransactions struct {
 
 func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
 	tx, err := RPCGetTransaction(chain, rpc, hash)
-	if err != nil {
+	if err != nil || tx == nil {
 		return nil, nil, err
 	}
 	if int64(len(tx.Vout)) <= index {
@@ -146,12 +148,19 @@ func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string
 	if err != nil {
 		return "", err
 	}
+	if itx == nil {
+		return "", fmt.Errorf("unknown transaction %s", tx.Vin[0].TxId)
+	}
 	return itx.Vout[tx.Vin[0].VOUT].ScriptPubKey.Address, nil
 }
 
 func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
 	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawtransaction", []any{hash, 1})
 	if err != nil {
+		var rpcErr *btcjson.RPCError
+		if errors.As(err, &rpcErr) && rpcErr.Code == btcjson.ErrRPCNoTxInfo {
+			return nil, nil
+		}
 		return nil, err
 	}
 	var tx RPCTransaction
@@ -419,20 +428,20 @@ func callBitcoinRPC(rpc, method string, params []any) ([]byte, error) {
 		return nil, buildRPCError(rpc, method, params, err)
 	}
 	var result struct {
-		Data  any `json:"result"`
-		Error any `json:"error"`
+		Data  any               `json:"result"`
+		Error *btcjson.RPCError `json:"error"`
 	}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
 	}
 	if result.Error != nil {
-		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
+		return nil, fmt.Errorf("%w (%s)", buildRPCError(rpc, method, params, result.Error), string(body))
 	}
 
 	return json.Marshal(result.Data)
 }
 
 func buildRPCError(rpc, method string, params []any, err error) error {
-	return fmt.Errorf("callBitcoinRPC(%s, %s, %v) => %v", rpc, method, params, err)
+	return fmt.Errorf("callBitcoinRPC(%s, %s, %v) => %w", rpc, method, params, err)
 }

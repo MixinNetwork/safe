@@ -46,8 +46,12 @@ func (node *Node) scanBitcoinPendingDeposits(ctx context.Context, chain byte, se
 			continue
 		}
 		tx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
-		if err != nil || tx == nil {
+		if err != nil {
 			return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
+		}
+		if tx == nil {
+			logger.Printf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
+			continue
 		}
 		err = node.bitcoinRecordPendingTransaction(ctx, tx, chain)
 		if err != nil {

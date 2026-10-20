@@ -116,6 +116,7 @@ func TestBitcoinPendingMempoolExcludesChange(t *testing.T) {
 			require.NoError(t, err)
 			rawCalls := 0
 			senderCalls := 0
+			missingCalls := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var q struct {
 					Method string
@@ -125,8 +126,16 @@ func TestBitcoinPendingMempoolExcludesChange(t *testing.T) {
 				var result any
 				switch q.Method {
 				case "getrawmempool":
-					result = []string{"mempool-hash"}
+					result = []string{"missing-hash", "mempool-hash"}
 				case "getrawtransaction":
+					if string(q.Params[0]) == `"missing-hash"` {
+						missingCalls++
+						require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+							"result": nil,
+							"error":  map[string]any{"code": -5, "message": "No such mempool or blockchain transaction"},
+						}))
+						return
+					}
 					if string(q.Params[0]) == `"previous-hash"` {
 						senderCalls++
 						result = map[string]any{"txid": "previous-hash", "vout": []any{
@@ -155,6 +164,7 @@ func TestBitcoinPendingMempoolExcludesChange(t *testing.T) {
 			require.NoError(t, f.node.scanBitcoinPendingDeposits(t.Context(), chain, seen))
 			require.Equal(t, 1, rawCalls, "unchanged mempool entries do not refetch transactions")
 			require.Equal(t, 1, senderCalls, "sender is resolved only for newly observed deposits")
+			require.Equal(t, 2, missingCalls, "missing transactions are skipped without being marked seen")
 			pending, err := f.node.store.ListPendingDeposits(t.Context(), int(chain), "", 0)
 			require.NoError(t, err)
 			require.Len(t, pending, 1)
@@ -170,6 +180,28 @@ func TestBitcoinPendingMempoolExcludesChange(t *testing.T) {
 			require.Empty(t, deposits, "mempool scanning does not enter the confirmation queue")
 		})
 	}
+}
+
+func TestBitcoinPendingPreservesRPCErrors(t *testing.T) {
+	f := newTransactionHTTPFixture(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var q struct{ Method string }
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&q))
+		if q.Method == "getrawmempool" {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"result": []string{"mempool-hash"}}))
+			return
+		}
+		require.Equal(t, "getrawtransaction", q.Method)
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{"code": -32601, "message": "method not found"},
+		}))
+	}))
+	t.Cleanup(server.Close)
+	f.node.conf = &Configuration{BitcoinRPC: server.URL}
+	seen := make(map[string]bool)
+	err := f.node.scanBitcoinPendingDeposits(t.Context(), common.SafeChainBitcoin, seen)
+	require.ErrorContains(t, err, "method not found")
+	require.Empty(t, seen)
 }
 
 func TestBitcoinPendingUsesDepositAdmissionChecks(t *testing.T) {
