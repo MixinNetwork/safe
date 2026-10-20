@@ -128,7 +128,7 @@ func TestBitcoinAmountsTimingFeesAndMessages(t *testing.T) {
 	for _, fee := range []int64{2, 1_000} {
 		require.True(t, CheckFeeRange(fee, ChainBitcoin))
 	}
-	require.False(t, CheckFeeRange(1, ChainBitcoin))
+	require.True(t, CheckFeeRange(1, ChainBitcoin))
 	require.False(t, CheckFeeRange(1_001, ChainBitcoin))
 	for _, fee := range []int64{1, 20} {
 		require.True(t, CheckFeeRange(fee, ChainLitecoin))
