@@ -23,6 +23,118 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestEthereumPendingExpiry(t *testing.T) {
+	for _, chain := range []byte{common.SafeChainEthereum, common.SafeChainPolygon} {
+		t.Run(fmt.Sprint(chain), func(t *testing.T) {
+			ctx := t.Context()
+			s := coverageObserverStore(t)
+			now := time.Now().UTC()
+			cutoff := now.Add(-ethereumPendingDepositTTL)
+			for i := range 102 {
+				require.NoError(t, s.WritePendingDepositRecord(ctx, &PendingDeposit{
+					TransactionHash: fmt.Sprintf("orphan-%d", i), Chain: chain,
+					State: common.RequestStateInitial, CreatedAt: cutoff.Add(-time.Second),
+				}))
+			}
+			for _, d := range []*PendingDeposit{
+				{TransactionHash: "boundary", Chain: chain, CreatedAt: cutoff},
+				{TransactionHash: "recent", Chain: chain, CreatedAt: cutoff.Add(time.Second)},
+				{TransactionHash: "confirmed", Chain: chain, CreatedAt: cutoff},
+			} {
+				d.State = common.RequestStateInitial
+				require.NoError(t, s.WritePendingDepositRecord(ctx, d))
+			}
+			for _, hash := range []string{"confirmed", "orphan-0"} {
+				require.NoError(t, s.WritePendingDepositIfNotExists(ctx, &Deposit{
+					TransactionHash: hash, Chain: chain, RequestId: hash,
+					State: common.RequestStateInitial, CreatedAt: now, UpdatedAt: now,
+				}))
+			}
+			require.NoError(t, s.ConfirmPendingDeposit(ctx, "confirmed", 0, "confirmed", chain))
+			for _, other := range []byte{common.SafeChainEthereum, common.SafeChainPolygon, common.SafeChainBitcoin, common.SafeChainLitecoin} {
+				if other == chain {
+					continue
+				}
+				require.NoError(t, s.WritePendingDepositRecord(ctx, &PendingDeposit{
+					TransactionHash: "other-chain", Chain: other,
+					State: common.RequestStateInitial, CreatedAt: cutoff,
+				}))
+			}
+			require.Error(t, s.deleteExpiredEthereumPendingDeposits(ctx, common.SafeChainBitcoin, cutoff))
+			require.NoError(t, s.deleteExpiredEthereumPendingDeposits(ctx, chain, cutoff))
+			require.NoError(t, s.deleteExpiredEthereumPendingDeposits(ctx, chain, cutoff))
+			rows, err := s.ListPendingDeposits(ctx, int(chain), "", 0)
+			require.NoError(t, err)
+			require.Len(t, rows, 1, "expired rows beyond the first 100 must also be removed")
+			require.Equal(t, "recent", rows[0].TransactionHash)
+			var count int
+			require.NoError(t, s.db.QueryRow("SELECT COUNT(*) FROM pending_deposits").Scan(&count))
+			require.Equal(t, 5, count, "keep recent, confirmed and all three other chains")
+			// The formal record survives expiry and can still finish confirmation.
+			formal, err := s.ListDeposits(ctx, int(chain), "", common.RequestStateInitial, 0)
+			require.NoError(t, err)
+			require.Len(t, formal, 1)
+			require.Equal(t, "orphan-0", formal[0].TransactionHash)
+			require.NoError(t, s.ConfirmPendingDeposit(ctx, "orphan-0", 0, "orphan-0", chain))
+			formal, err = s.ListDeposits(ctx, int(chain), "", common.RequestStateDone, 0)
+			require.NoError(t, err)
+			require.Len(t, formal, 2)
+		})
+	}
+}
+
+func TestEthereumPendingExpiryRunsBeforeRPC(t *testing.T) {
+	for _, chain := range []byte{common.SafeChainEthereum, common.SafeChainPolygon} {
+		for _, mode := range []string{"idle", "rpc error", "cleanup error"} {
+			t.Run(fmt.Sprintf("%d/%s", chain, mode), func(t *testing.T) {
+				ctx := t.Context()
+				s := coverageObserverStore(t)
+				require.NoError(t, s.WritePendingDepositRecord(ctx, &PendingDeposit{
+					TransactionHash: "expired", Chain: chain, State: common.RequestStateInitial,
+					CreatedAt: time.Now().UTC().Add(-ethereumPendingDepositTTL - time.Second),
+				}))
+				checkpoint := depositCheckpointDefault(chain)
+				require.NoError(t, s.WriteProperty(ctx, pendingDepositCheckpointKey(chain), fmt.Sprint(checkpoint)))
+				var calls atomic.Int64
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					var q struct{ Method string }
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&q))
+					require.Equal(t, "eth_blockNumber", q.Method)
+					if mode == "rpc error" {
+						require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+							"error": map[string]any{"code": -32000, "message": "backend unavailable"},
+						}))
+						return
+					}
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"result": fmt.Sprintf("0x%x", checkpoint)}))
+				}))
+				defer server.Close()
+				node := &Node{store: s, conf: &Configuration{EthereumRPC: server.URL, PolygonRPC: server.URL}}
+				if mode == "cleanup error" {
+					_, err := s.db.Exec(`CREATE TRIGGER reject_expiry BEFORE DELETE ON pending_deposits
+						BEGIN SELECT RAISE(ABORT, 'injected expiry error'); END`)
+					require.NoError(t, err)
+					require.ErrorContains(t, node.scanEthereumPendingDeposits(ctx, chain), "injected expiry error")
+					require.Zero(t, calls.Load())
+					rows, err := s.ListPendingDeposits(ctx, int(chain), "", 0)
+					require.NoError(t, err)
+					require.Len(t, rows, 1)
+					return
+				}
+				require.NoError(t, node.scanEthereumPendingDeposits(ctx, chain))
+				require.EqualValues(t, 1, calls.Load())
+				rows, err := s.ListPendingDeposits(ctx, int(chain), "", 0)
+				require.NoError(t, err)
+				require.Empty(t, rows)
+				cursor, err := node.readPendingDepositCheckpoint(ctx, chain)
+				require.NoError(t, err)
+				require.Equal(t, checkpoint, cursor, "expiry must not rewind or advance scanning")
+			})
+		}
+	}
+}
+
 func TestBitcoinPendingReconciliationDeletesMissing(t *testing.T) {
 	for _, chain := range []byte{common.SafeChainBitcoin, common.SafeChainLitecoin} {
 		for _, mode := range []string{"missing", "mined", "error"} {

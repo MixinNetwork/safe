@@ -14,6 +14,7 @@ import (
 )
 
 const bitcoinPendingDepositGracePeriod = time.Minute * 5
+const ethereumPendingDepositTTL = 24 * time.Hour
 
 func (node *Node) bitcoinPendingDepositsLoop(ctx context.Context, chain byte) {
 	seen := make(map[string]bool)
@@ -215,6 +216,12 @@ func (node *Node) ethereumPendingDepositsLoop(ctx context.Context, chain byte) {
 }
 
 func (node *Node) scanEthereumPendingDeposits(ctx context.Context, chain byte) error {
+	// Expire observations even when the head is unchanged or RPC is unavailable.
+	// Formal deposits are processed independently by the block loop.
+	err := node.store.deleteExpiredEthereumPendingDeposits(ctx, chain, time.Now().UTC().Add(-ethereumPendingDepositTTL))
+	if err != nil {
+		return err
+	}
 	rpc, _, _ := node.ethereumParams(chain)
 	duration := 5 * time.Second
 	switch chain {

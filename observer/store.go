@@ -1204,3 +1204,18 @@ func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holde
 	}
 	return deposits, rows.Err()
 }
+
+func (s *SQLite3Store) deleteExpiredEthereumPendingDeposits(ctx context.Context, chain byte, cutoff time.Time) error {
+	switch chain {
+	case common.SafeChainEthereum, common.SafeChainPolygon:
+	default:
+		return fmt.Errorf("invalid EVM pending deposit chain %d", chain)
+	}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Expiry only ends the observation; it does not invalidate a formal deposit.
+	_, err := s.db.ExecContext(ctx, "DELETE FROM pending_deposits WHERE chain=? AND state=? AND created_at<=?",
+		chain, common.RequestStateInitial, cutoff.UTC())
+	return err
+}
