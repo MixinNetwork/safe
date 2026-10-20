@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS pending_deposits (
   chain              INTEGER NOT NULL,
   holder             VARCHAR NOT NULL,
   created_at         TIMESTAMP NOT NULL,
+  missing_since      TIMESTAMP,
   PRIMARY KEY ('chain', 'transaction_hash', 'output_index')
 );
 

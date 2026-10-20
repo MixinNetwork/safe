@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -12,15 +13,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const bitcoinPendingDepositGracePeriod = time.Minute * 5
+
 func (node *Node) bitcoinPendingDepositsLoop(ctx context.Context, chain byte) {
 	seen := make(map[string]bool)
 	for {
 		time.Sleep(5 * time.Second)
 		err := node.scanBitcoinPendingDeposits(ctx, chain, seen)
 		logger.Printf("node.scanBitcoinPendingDeposits(%d) => %v", chain, err)
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
@@ -29,7 +29,7 @@ func (node *Node) scanBitcoinPendingDeposits(ctx context.Context, chain byte, se
 	hashes, err := bitcoin.RPCGetRawMempoolHashes(rpc)
 	logger.Printf("bitcoin.RPCGetRawMempoolHashes(%d) => %d %v", chain, len(hashes), err)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("bitcoin.RPCGetRawMempoolHashes(%d) => %w", chain, err)
 	}
 	mempool := make(map[string]bool, len(hashes))
 	for _, hash := range hashes {
@@ -39,6 +39,12 @@ func (node *Node) scanBitcoinPendingDeposits(ctx context.Context, chain byte, se
 		if !mempool[hash] {
 			delete(seen, hash)
 		}
+	}
+
+	// Use persisted observations, including those recorded before a restart.
+	err = node.reconcileBitcoinPendingDeposits(ctx, chain, mempool, time.Now().UTC())
+	if err != nil {
+		return err
 	}
 
 	for _, hash := range hashes {
@@ -58,6 +64,63 @@ func (node *Node) scanBitcoinPendingDeposits(ctx context.Context, chain byte, se
 			return err
 		}
 		seen[hash] = true
+	}
+	return nil
+}
+
+func (node *Node) reconcileBitcoinPendingDeposits(ctx context.Context, chain byte, mempool map[string]bool, now time.Time) error {
+	observations, err := node.store.listPendingDepositObservations(ctx, chain)
+	if err != nil {
+		return err
+	}
+	rpc, _, _ := node.bitcoinParams(chain)
+	// One RPC per transaction even when it has several Safe outputs.
+	lookups := make(map[string]bool)
+	for _, d := range observations {
+		if mempool[d.TransactionHash] {
+			if d.MissingSince.Valid {
+				err := node.store.updatePendingDepositMissingSince(ctx, chain, d, sql.NullTime{})
+				if err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if !d.MissingSince.Valid {
+			err := node.store.updatePendingDepositMissingSince(ctx, chain, d, sql.NullTime{Time: now, Valid: true})
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		if now.Before(d.MissingSince.Time.Add(bitcoinPendingDepositGracePeriod)) {
+			continue
+		}
+		found, checked := lookups[d.TransactionHash]
+		if !checked {
+			tx, err := bitcoin.RPCGetTransaction(chain, rpc, d.TransactionHash)
+			logger.Printf("reconcile pending bitcoin transaction(%d, %s) => %v %v", chain, d.TransactionHash, tx, err)
+			if err != nil {
+				return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %w", d.TransactionHash, err)
+			}
+			// With the required txindex=1, only a definitive not-found response
+			// permits deletion. Mined transactions stay pending.
+			found = tx != nil
+			lookups[d.TransactionHash] = found
+		}
+		if found {
+			// A transaction may reappear after the snapshot. Any later
+			// disappearance must receive a fresh grace period.
+			err := node.store.updatePendingDepositMissingSince(ctx, chain, d, sql.NullTime{})
+			if err != nil {
+				return err
+			}
+		} else {
+			err := node.store.deleteMissingPendingDeposit(ctx, chain, d)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

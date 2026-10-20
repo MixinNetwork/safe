@@ -1,6 +1,7 @@
 package observer
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +22,121 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBitcoinPendingReconciliationDeletesMissing(t *testing.T) {
+	for _, chain := range []byte{common.SafeChainBitcoin, common.SafeChainLitecoin} {
+		for _, mode := range []string{"missing", "mined", "error"} {
+			t.Run(fmt.Sprintf("%d/%s", chain, mode), func(t *testing.T) {
+				ctx := t.Context()
+				s := coverageObserverStore(t)
+				now := time.Now().UTC()
+				// More than one public query page, with two outputs per transaction.
+				for i := range 102 {
+					require.NoError(t, s.WritePendingDepositRecord(ctx, &PendingDeposit{
+						TransactionHash: fmt.Sprintf("replaced-%d", i/2), OutputIndex: int64(i % 2),
+						Chain: chain, State: common.RequestStateInitial, CreatedAt: now.Add(-time.Hour),
+					}))
+				}
+				var calls atomic.Int64
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var q struct{ Method string }
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&q))
+					require.Equal(t, "getrawtransaction", q.Method)
+					calls.Add(1)
+					if mode == "mined" {
+						require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+							"result": map[string]any{"blockhash": "mined-block"},
+						}))
+						return
+					}
+					code := -5
+					if mode == "error" {
+						code = -32603
+					}
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+						"error": map[string]any{"code": code, "message": "lookup failed"},
+					}))
+				}))
+				defer server.Close()
+				node := &Node{store: s, conf: &Configuration{BitcoinRPC: server.URL, LitecoinRPC: server.URL}}
+				require.NoError(t, node.reconcileBitcoinPendingDeposits(ctx, chain, nil, now))
+				require.NoError(t, node.reconcileBitcoinPendingDeposits(ctx, chain, nil, now.Add(bitcoinPendingDepositGracePeriod-time.Second)))
+				require.Zero(t, calls.Load(), "do not query or delete before grace expires")
+
+				err := node.reconcileBitcoinPendingDeposits(ctx, chain, nil, now.Add(bitcoinPendingDepositGracePeriod))
+				var count int
+				require.NoError(t, s.db.QueryRow("SELECT COUNT(*) FROM pending_deposits").Scan(&count))
+				switch mode {
+				case "missing":
+					require.NoError(t, err)
+					require.Zero(t, count, "remove rows, not just hide them with Failed state")
+					require.EqualValues(t, 51, calls.Load(), "one lookup per transaction")
+					// A rebroadcast becomes a new observation without a Failed revival path.
+					rebroadcast := &PendingDeposit{TransactionHash: "replaced-0", Chain: chain,
+						State: common.RequestStateInitial, CreatedAt: now}
+					require.NoError(t, s.WritePendingDepositRecord(ctx, rebroadcast))
+					require.NoError(t, s.WritePendingDepositRecord(ctx, rebroadcast))
+					rows, err := s.ListPendingDeposits(ctx, int(chain), "", 0)
+					require.NoError(t, err)
+					require.Len(t, rows, 1)
+					require.True(t, rows[0].CreatedAt.Equal(now))
+				case "mined":
+					require.NoError(t, err)
+					require.Equal(t, 102, count)
+					require.EqualValues(t, 51, calls.Load())
+					require.NoError(t, s.db.QueryRow("SELECT COUNT(*) FROM pending_deposits WHERE missing_since IS NOT NULL").Scan(&count))
+					require.Zero(t, count, "finding a transaction resets its disappearance timer")
+				case "error":
+					require.ErrorContains(t, err, "lookup failed")
+					require.Equal(t, 102, count)
+					require.EqualValues(t, 1, calls.Load(), "abort at the first RPC error")
+				}
+			})
+		}
+	}
+}
+
+func TestDeleteMissingPendingDepositGuards(t *testing.T) {
+	for _, mode := range []string{"missing", "refreshed", "formal", "confirmed"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := t.Context()
+			s := coverageObserverStore(t)
+			now := time.Now().UTC()
+			d := &PendingDeposit{TransactionHash: "same-hash", Chain: common.SafeChainBitcoin,
+				State: common.RequestStateInitial, CreatedAt: now}
+			require.NoError(t, s.WritePendingDepositRecord(ctx, d))
+			otherOutput := *d
+			otherOutput.OutputIndex = 1
+			require.NoError(t, s.WritePendingDepositRecord(ctx, &otherOutput))
+			otherChain := *d
+			otherChain.Chain = common.SafeChainLitecoin
+			require.NoError(t, s.WritePendingDepositRecord(ctx, &otherChain))
+			observation := pendingDepositObservation{TransactionHash: d.TransactionHash}
+			since := sql.NullTime{Time: now.Add(-2 * bitcoinPendingDepositGracePeriod), Valid: true}
+			require.NoError(t, s.updatePendingDepositMissingSince(ctx, d.Chain, observation, since))
+			observation.MissingSince = since
+			if mode == "refreshed" {
+				require.NoError(t, s.updatePendingDepositMissingSince(ctx, d.Chain, observation, sql.NullTime{}))
+			}
+			if mode == "formal" || mode == "confirmed" {
+				formal := &Deposit{TransactionHash: d.TransactionHash, Chain: d.Chain,
+					State: common.RequestStateInitial, RequestId: "request", CreatedAt: now, UpdatedAt: now}
+				require.NoError(t, s.WritePendingDepositIfNotExists(ctx, formal))
+				if mode == "confirmed" {
+					require.NoError(t, s.ConfirmPendingDeposit(ctx, d.TransactionHash, 0, formal.RequestId, d.Chain))
+				}
+			}
+			require.NoError(t, s.deleteMissingPendingDeposit(ctx, d.Chain, observation))
+			var count int
+			require.NoError(t, s.db.QueryRow("SELECT COUNT(*) FROM pending_deposits").Scan(&count))
+			if mode == "missing" {
+				require.Equal(t, 2, count, "delete only the matching chain and output")
+			} else {
+				require.Equal(t, 3, count, "preserve refreshed, formal and confirmed observations")
+			}
+		})
+	}
+}
 
 func TestPendingDepositConfirmationAndHTTP(t *testing.T) {
 	f := newTransactionHTTPFixture(t)

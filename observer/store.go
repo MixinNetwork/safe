@@ -513,7 +513,7 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 		return fmt.Errorf("UPDATE deposits %v", err)
 	}
 
-	query = "UPDATE pending_deposits SET state=? WHERE transaction_hash=? AND output_index=? AND chain=? AND state=?"
+	query = "UPDATE pending_deposits SET state=?, missing_since=NULL WHERE transaction_hash=? AND output_index=? AND chain=? AND state=?"
 	_, err = tx.ExecContext(ctx, query, common.RequestStateDone, transactionHash, outputIndex, chain, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE pending_deposits %v", err)
@@ -1129,6 +1129,54 @@ func (s *SQLite3Store) WritePendingDepositRecord(ctx context.Context, d *Pending
 	}
 
 	return tx.Commit()
+}
+
+type pendingDepositObservation struct {
+	TransactionHash string
+	OutputIndex     int64
+	MissingSince    sql.NullTime
+}
+
+// Reconciliation must include records beyond the public API's first 100 rows.
+func (s *SQLite3Store) listPendingDepositObservations(ctx context.Context, chain byte) ([]pendingDepositObservation, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT transaction_hash, output_index, missing_since FROM pending_deposits WHERE chain=? AND state=?", chain, common.RequestStateInitial)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(rows)
+
+	var observations []pendingDepositObservation
+	for rows.Next() {
+		var d pendingDepositObservation
+		if err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.MissingSince); err != nil {
+			return nil, err
+		}
+		observations = append(observations, d)
+	}
+	return observations, rows.Err()
+}
+
+func (s *SQLite3Store) updatePendingDepositMissingSince(ctx context.Context, chain byte, d pendingDepositObservation, since sql.NullTime) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	_, err := s.db.ExecContext(ctx, "UPDATE pending_deposits SET missing_since=? WHERE chain=? AND transaction_hash=? AND output_index=? AND state=? AND missing_since IS ?",
+		since, chain, d.TransactionHash, d.OutputIndex, common.RequestStateInitial, d.MissingSince)
+	return err
+}
+
+func (s *SQLite3Store) deleteMissingPendingDeposit(ctx context.Context, chain byte, d pendingDepositObservation) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Do not delete an observation confirmed or refreshed during the RPC lookup,
+	// or one already picked up by the independent formal deposit scanner.
+	_, err := s.db.ExecContext(ctx, `DELETE FROM pending_deposits
+		WHERE chain=? AND transaction_hash=? AND output_index=? AND state=? AND missing_since=?
+		AND NOT EXISTS (SELECT 1 FROM deposits WHERE chain=? AND transaction_hash=? AND output_index=?)`,
+		chain, d.TransactionHash, d.OutputIndex, common.RequestStateInitial, d.MissingSince,
+		chain, d.TransactionHash, d.OutputIndex)
+	return err
 }
 
 func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holder string, offset int64) ([]*PendingDeposit, error) {
