@@ -6,10 +6,13 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -25,13 +28,15 @@ type Action struct {
 	restoreSequence uint64
 
 	UnifiedOutput
-	group    *Group
-	consumed map[string]uint64
+	group           *Group
+	consumed        map[string]uint64
+	protectedInputs map[string]*UnifiedOutput
+	liquidity       *LiquidityRequirement
 }
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
 
-var actionJoinCols = []string{"actions.output_id", "actions.transaction_hash", "action_state", "actions.sequence", "restore_sequence", "request_id", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "created_at", "updated_at", "signers", "signed_by", "trace_id", "app_id", "deposit_hash", "deposit_index"}
+var actionJoinCols = []string{"actions.output_id", "actions.transaction_hash", "action_state", "actions.sequence", "restore_sequence", "request_id", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "created_at", "updated_at", "signers", "signed_by", "reserved_by", "trace_id", "app_id", "deposit_hash", "deposit_index"}
 
 func (a *Action) values() []any {
 	return []any{a.OutputId, a.TransactionHash, a.ActionState, a.Sequence, a.restoreSequence}
@@ -53,7 +58,7 @@ func actionFromRow(row Row) (*Action, error) {
 func actionJoinFromRow(row Row) (*Action, error) {
 	var a Action
 	var senders, signers string
-	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.TransactionRequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &a.Extra, &a.State, &a.SequencerCreatedAt, &a.updatedAt, &signers, &a.SignedBy, &a.TraceId, &a.AppId, &a.DepositHash, &a.DepositIndex)
+	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.TransactionRequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &a.Extra, &a.State, &a.SequencerCreatedAt, &a.updatedAt, &signers, &a.SignedBy, &a.ReservedBy, &a.TraceId, &a.AppId, &a.DepositHash, &a.DepositIndex)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -64,9 +69,18 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	return &a, nil
 }
 
-func (a *Action) TestAttachActionToGroup(g *Group) {
+func (a *Action) prepareForProcessing(g *Group) {
+	if a.restoreSequence > a.Sequence {
+		a.Sequence = a.restoreSequence
+	}
 	a.group = g
 	a.consumed = make(map[string]uint64)
+	a.protectedInputs = make(map[string]*UnifiedOutput)
+	a.liquidity = nil
+}
+
+func (a *Action) TestAttachActionToGroup(g *Group) {
+	a.prepareForProcessing(g)
 }
 
 func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
@@ -80,6 +94,64 @@ func replayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 		err := fmt.Errorf("action %s serialization %x => %x", a.OutputId, b1, b2)
 		panic(err)
 	}
+}
+
+func (grp *Group) checkCustodianTransferRequest(ctx context.Context, action *Action) (*CustodianTransferRequest, error) {
+	_, memo := DecodeMixinExtraHEX(action.Extra)
+	req, valid := decodeCustodianTransferMemo(memo)
+	if !valid {
+		return nil, nil
+	}
+
+	if grp.custodianAddress == "" || action.SendersThreshold != 1 || len(action.Senders) != 1 || !grp.custodianRequesters[action.Senders[0]] {
+		return nil, nil
+	}
+	requestId := action.OutputId
+	old, err := grp.store.ReadCustodianTransferByRequestId(ctx, requestId)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		return nil, nil
+	}
+	return req, nil
+}
+
+func (grp *Group) checkCustodianTransferConfirmation(ctx context.Context, action *Action) (*CustodianTransfer, bool, error) {
+	_, memo := DecodeMixinExtraHEX(action.Extra)
+	confirmation, valid := DecodeCustodianTransferConfirmationMemo(memo)
+	if !valid {
+		return nil, false, nil
+	}
+	if grp.custodianAddress == "" || action.SendersThreshold != 1 || len(action.Senders) != 1 || !grp.custodianRequesters[action.Senders[0]] {
+		return nil, false, nil
+	}
+	transfer, err := grp.store.ReadCustodianTransferByTraceId(ctx, confirmation.TraceId)
+	if err != nil {
+		return nil, false, err
+	}
+	if transfer == nil || transfer.State == CustodianTransferStateFailed || action.AppId != transfer.AppId || action.Sequence <= transfer.Sequence {
+		return nil, false, nil
+	}
+	if transfer.State != CustodianTransferStatePending && transfer.State != CustodianTransferStateDone {
+		return nil, false, fmt.Errorf("invalid custodian transfer state %s: %s", transfer.TraceId, transfer.State)
+	}
+	tx, err := grp.store.ReadTransactionByTraceId(ctx, transfer.TraceId)
+	if err != nil || tx == nil {
+		return nil, false, fmt.Errorf("invalid custodian transaction %s: %v", transfer.TraceId, err)
+	}
+	if tx.State != TransactionStateSnapshot {
+		return nil, true, nil
+	}
+	amount := decimal.RequireFromString(tx.Amount)
+	if !tx.Hash.HasValue() || !tx.IsNormal() || tx.compaction || tx.storage ||
+		transfer.RequestId != transfer.ActionId || transfer.Address != grp.custodianAddress ||
+		transfer.AppId != tx.AppId || transfer.AppId != tx.OpponentAppId || transfer.AssetId != tx.AssetId ||
+		!transfer.Amount.Equal(amount) || transfer.Sequence != tx.Sequence || transfer.ActionId != tx.ActionId ||
+		tx.Threshold != grp.custodianThreshold || bot.HashMembers(tx.Receivers) != bot.HashMembers(grp.custodianMembers) {
+		return nil, false, fmt.Errorf("invalid completed custodian transaction %s", transfer.TraceId)
+	}
+	return transfer, true, nil
 }
 
 func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action) (*Transaction, bool) {
@@ -130,6 +202,37 @@ func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action
 	return tx, true
 }
 
+func (grp *Group) checkFundingReturn(ctx context.Context, action *Action) (*LiquidityRequest, error) {
+	_, memo := DecodeMixinExtraHEX(action.Extra)
+	requestId, isFundingReturn := DecodeFundingReturnMemo(memo)
+	if !isFundingReturn {
+		return nil, nil
+	}
+
+	request, err := grp.store.ReadLiquidityRequest(ctx, requestId)
+	if err != nil {
+		return nil, err
+	}
+	if request == nil || request.State != LiquidityRequestStateWaiting {
+		return nil, nil
+	}
+	if action.AppId != request.AppId || action.AssetId != request.AssetId || action.Sequence <= request.Sequence ||
+		action.SendersThreshold != int64(grp.custodianThreshold) || bot.HashMembers(grp.custodianMembers) != bot.HashMembers(action.Senders) {
+		return nil, nil
+	}
+	ver, err := grp.ReadKernelTransactionUntilSufficient(ctx, action.TransactionHash)
+	if err != nil {
+		return nil, err
+	}
+	if ver.PayloadHash().String() != action.TransactionHash || ver.Asset != crypto.Sha256Hash([]byte(request.AssetId)) || action.Extra != fmt.Sprintf("%x", ver.Extra) || action.OutputIndex < 0 || action.OutputIndex >= len(ver.Outputs) {
+		return nil, nil
+	}
+	if !action.Amount.Equal(request.Amount) || !decimal.RequireFromString(ver.Outputs[action.OutputIndex].Amount.String()).Equal(request.Amount) {
+		return nil, nil
+	}
+	return request, nil
+}
+
 // actions queue is all the utxos ordered by their sequence
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
@@ -138,12 +241,56 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}
 	for _, a := range as {
+		a.prepareForProcessing(grp)
+
+		request, err := grp.checkCustodianTransferRequest(ctx, a)
+		if err != nil {
+			return err
+		}
+		if request != nil {
+			handled, err := grp.handleCustodianTransferAction(ctx, a, request)
+			if err != nil {
+				return err
+			}
+			if handled {
+				continue
+			}
+		}
+
+		transfer, isCustodianTransferConfirmation, err := grp.checkCustodianTransferConfirmation(ctx, a)
+		if err != nil {
+			return err
+		}
+		if isCustodianTransferConfirmation && transfer == nil {
+			// The observer confirmation is an action sequence barrier until
+			// this node has independently confirmed the transfer snapshot.
+			return nil
+		}
+		if transfer != nil {
+			err := grp.store.confirmCustodianTransfer(ctx, a, transfer)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
 		tx, isMTG := grp.checkCompactionTransaction(ctx, a)
 		if isMTG && tx == nil {
 			return nil
 		}
 		if tx != nil && tx.compaction {
 			return grp.store.RestoreAction(ctx, a, tx)
+		}
+
+		fundingRequest, err := grp.checkFundingReturn(ctx, a)
+		if err != nil {
+			return err
+		}
+		if fundingRequest != nil {
+			// Restoring an older Action is a sequence barrier. Stop this batch
+			// so it is replayed before any later Action can mutate aggregate
+			// external balances.
+			return grp.store.completeLiquidityRequest(ctx, a, fundingRequest)
 		}
 
 		wkr := grp.FindWorker(a.AppId)
@@ -155,20 +302,29 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			continue
 		}
 
-		if a.restoreSequence > a.Sequence {
-			a.Sequence = a.restoreSequence
-		}
-		a.group = grp
-		a.consumed = make(map[string]uint64)
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
-			a.consumed = make(map[string]uint64)
+			a.prepareForProcessing(grp)
 			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
 			replayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
 		}
 
 		state := ActionStateDone
 		if compactionAsset != "" && len(txs) == 0 {
+			custodianCompaction := a.CustodianCompactionString()
+			if compactionAsset == custodianCompaction {
+				liquidity := a.LiquidityRequirement()
+				err = grp.createLiquidityRequest(ctx, a, liquidity)
+				if err != nil {
+					return fmt.Errorf("group.createLiquidityRequest(%s %v) => %v", liquidity.AssetId, a, err)
+				}
+				continue
+			}
+
+			id, err := uuid.FromString(compactionAsset)
+			if err != nil || id == uuid.Nil || id.String() != compactionAsset {
+				return fmt.Errorf("invalid compaction asset: %s", compactionAsset)
+			}
 			t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
 			if err != nil {
 				return fmt.Errorf("group.buildCompactionTransaction(%s %v) => %v", compactionAsset, a, err)
@@ -177,6 +333,8 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			txs = []*Transaction{t}
 		} else if compactionAsset != "" {
 			return fmt.Errorf("invalid compactionAsset: %s", compactionAsset)
+		} else if a.CustodianCompactionString() != "" {
+			return fmt.Errorf("liquidity requirement requires custodian compaction signal %s", a.CustodianCompactionString())
 		}
 
 		err = a.attachTxsConsumed(ctx, txs)
@@ -218,7 +376,7 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 		if limit == 0 {
 			panic(asset)
 		}
-		outputs := grp.ListOutputsForAsset(ctx, act.AppId, asset, 0, act.Sequence, SafeUtxoStateUnspent, limit)
+		outputs := act.listSpendableOutputs(ctx, asset, 0, limit)
 		total := common.NewInteger(0)
 		for _, os := range outputs {
 			total = total.Add(common.NewIntegerFromString(os.Amount.String()))
@@ -246,7 +404,9 @@ func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction)
 			return err
 		}
 		for _, o := range outputs {
-			if o.State != SafeUtxoStateUnspent {
+			spendable := o.State == SafeUtxoStateUnspent && o.ReservedBy == ""
+			reserved := action.Restored() && o.State == SafeUtxoStateLocked && o.ReservedBy == action.OutputId
+			if !spendable && !reserved {
 				panic(fmt.Sprintf("invalid output %s state %s for tx %s", o.OutputId, o.State, tx.TraceId))
 			}
 			if o.Sequence <= action.Sequence && o.Sequence >= action.consumed[tx.AssetId] {

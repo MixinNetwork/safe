@@ -41,6 +41,10 @@ func KeeperBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	err = db.Migrate(ctx)
+	if err != nil {
+		return err
+	}
 	group.EnableDebug()
 	group.SetKernelRPC(mc.Keeper.MixinRPC)
 

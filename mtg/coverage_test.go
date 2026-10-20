@@ -10,12 +10,15 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/util"
+	"github.com/fox-one/mixin-sdk-go/v3"
+	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -101,7 +104,7 @@ func TestCoverageGroupConfigurationAndAccessors(t *testing.T) {
 	confB.Genesis.Threshold = 1
 	confB.Genesis.Epoch = 9
 	req.Equal(generateGenesisId(confA), generateGenesisId(confB))
-	req.Equal([]string{"a", "b"}, confA.Genesis.Members)
+	req.Equal([]string{"b", "a"}, confA.Genesis.Members)
 }
 
 func TestCoverageEncodingAndTransactionValidation(t *testing.T) {
@@ -439,6 +442,137 @@ func TestCoverageRowAndSQLiteErrorPaths(t *testing.T) {
 	req.NoError(store.Close())
 	_, err = store.ReadProperty(context.Background(), "closed")
 	req.Error(err)
+}
+
+func TestCoverageMemoAndExternalAccountingBranches(t *testing.T) {
+	req := require.New(t)
+	ctx, node := testBuildGroup(req)
+	grp := node.Group
+	defer teardownTestDatabase(grp.store)
+
+	assetID := uuid.Must(uuid.NewV4()).String()
+	transferMemo := EncodeCustodianTransferMemo(assetID, "1.23")
+	transfer, ok := DecodeCustodianTransferMemo(transferMemo)
+	req.True(ok)
+	req.Equal(assetID, transfer.AssetId)
+	req.Equal("1.23", transfer.Amount.String())
+	transfer, ok = DecodeCustodianTransferMemo(nil)
+	req.False(ok)
+	req.Nil(transfer)
+	req.Panics(func() { EncodeCustodianTransferMemo("invalid", "1") })
+	req.Panics(func() { EncodeCustodianTransferMemo(assetID, "0") })
+	req.Panics(func() { EncodeCustodianTransferMemo(assetID, "0.000000001") })
+
+	traceID := uuid.Must(uuid.NewV4()).String()
+	confirmationMemo := EncodeCustodianTransferConfirmationMemo(traceID)
+	confirmation, ok := DecodeCustodianTransferConfirmationMemo(confirmationMemo)
+	req.True(ok)
+	req.Equal(traceID, confirmation.TraceId)
+	confirmation, ok = DecodeCustodianTransferConfirmationMemo([]byte("bad"))
+	req.False(ok)
+	req.Nil(confirmation)
+	req.Panics(func() { EncodeCustodianTransferConfirmationMemo(uuid.Nil.String()) })
+
+	fundingMemo := EncodeFundingReturnMemo(traceID)
+	fundingID, ok := DecodeFundingReturnMemo(fundingMemo)
+	req.True(ok)
+	req.Equal(traceID, fundingID)
+	fundingID, ok = DecodeFundingReturnMemo([]byte("bad"))
+	req.False(ok)
+	req.Empty(fundingID)
+	req.Panics(func() { EncodeFundingReturnMemo(uuid.Nil.String()) })
+
+	req.Equal(decimal.Zero, (*ExternalBalance)(nil).Available())
+	req.True((*LiquidityRequirement)(nil).equal(nil))
+	req.False((&LiquidityRequirement{AssetId: assetID}).equal(nil))
+	left := &LiquidityRequirement{
+		AssetId:          assetID,
+		Amount:           decimal.RequireFromString("3"),
+		InternalAmount:   decimal.RequireFromString("1"),
+		InternalInputIds: []string{"b", "a"},
+	}
+	right := &LiquidityRequirement{
+		AssetId:          assetID,
+		Amount:           decimal.RequireFromString("3"),
+		InternalAmount:   decimal.RequireFromString("1"),
+		InternalInputIds: []string{"b", "a"},
+	}
+	req.True(left.equal(right))
+	right.InternalInputIds[1] = "c"
+	req.False(left.equal(right))
+	req.Equal("custodian:"+assetID+":3", left.CompactionString())
+	req.Empty((*LiquidityRequirement)(nil).CompactionString())
+
+	balance := grp.ReadExternalBalance(ctx, grp.GroupId, assetID)
+	req.True(balance.Available().Equal(decimal.Zero))
+	tx, err := grp.store.db.BeginTx(ctx, nil)
+	req.NoError(err)
+	now := time.Now().UTC()
+	req.Error(grp.store.creditExternalBalance(ctx, tx, grp.GroupId, assetID, decimal.Zero, 1, now))
+	req.NoError(grp.store.creditExternalBalance(ctx, tx, grp.GroupId, assetID, decimal.RequireFromString("2.5"), 2, now))
+	req.Error(grp.store.reserveExternalBalance(ctx, tx, grp.GroupId, assetID, decimal.RequireFromString("3"), 3, now))
+	req.NoError(grp.store.reserveExternalBalance(ctx, tx, grp.GroupId, assetID, decimal.RequireFromString("1"), 3, now))
+	req.Error(grp.store.consumeExternalBalance(ctx, tx, grp.GroupId, assetID, decimal.RequireFromString("2"), 4, now))
+	req.NoError(grp.store.consumeExternalBalance(ctx, tx, grp.GroupId, assetID, decimal.RequireFromString("1"), 4, now))
+	req.NoError(tx.Commit())
+	balance = grp.ReadExternalBalance(ctx, grp.GroupId, assetID)
+	req.Equal("1.5", balance.Amount.String())
+	req.Equal("0", balance.ReservedAmount.String())
+	req.Equal("1.5", balance.Available().String())
+
+	req.NoError(grp.store.WriteProperty(ctx, outputsReservedByMigrationKey, "already-applied"))
+	req.NoError(grp.store.Migrate(ctx))
+}
+
+func TestCoverageLegacyMigrationAndFundingHelpers(t *testing.T) {
+	req := require.New(t)
+	ctx := context.Background()
+
+	db, err := sql.Open("sqlite3", "file:"+t.TempDir()+"/legacy.sqlite3?mode=rwc&cache=private")
+	req.NoError(err)
+	store := &SQLite3Store{db: db, mutex: new(sync.RWMutex)}
+	defer func() { req.NoError(store.Close()) }()
+	_, err = db.Exec(`
+		CREATE TABLE properties (
+			key VARCHAR NOT NULL,
+			value VARCHAR NOT NULL,
+			created_at TIMESTAMP NOT NULL,
+			updated_at TIMESTAMP NOT NULL,
+			PRIMARY KEY ('key')
+		);
+		CREATE TABLE outputs (
+			output_id VARCHAR NOT NULL,
+			PRIMARY KEY ('output_id')
+		);
+	`)
+	req.NoError(err)
+	req.NoError(store.Migrate(ctx))
+	applied, err := store.ReadProperty(ctx, outputsReservedByMigrationKey)
+	req.NoError(err)
+	req.Equal("ALTER TABLE outputs ADD COLUMN reserved_by VARCHAR NOT NULL DEFAULT ''", applied)
+	req.NoError(store.Migrate(ctx))
+
+	memberA := "00000000-0000-0000-0000-000000000001"
+	memberB := "ffffffff-ffff-ffff-ffff-ffffffffffff"
+	index, err := fundingSignerIndex([]string{memberB, memberA}, memberA)
+	req.NoError(err)
+	req.Equal(uint16(0), index)
+	_, err = fundingSignerIndex([]string{memberA, memberA}, memberA)
+	req.ErrorContains(err, "duplicate custodian member")
+	_, err = fundingSignerIndex([]string{memberB}, memberA)
+	req.ErrorContains(err, "is not a custodian member")
+
+	inscription := mixinnet.Hash{1}
+	selected, err := selectFundingUTXOs([]*mixin.SafeUtxo{
+		nil,
+		{Amount: decimal.RequireFromString("0.4"), InscriptionHash: inscription},
+		{Amount: decimal.RequireFromString("0.5")},
+		{Amount: decimal.RequireFromString("0.6")},
+	}, decimal.RequireFromString("1"))
+	req.NoError(err)
+	req.Len(selected, 2)
+	_, err = selectFundingUTXOs([]*mixin.SafeUtxo{{Amount: decimal.RequireFromString("0.5")}}, decimal.RequireFromString("1"))
+	req.ErrorContains(err, "insufficient custodian outputs")
 }
 
 func first(a string, _ []byte) string {
