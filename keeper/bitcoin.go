@@ -95,7 +95,7 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		logger.Printf("bitcoin.CheckTransactionInputs(%s) => false", txHash)
 		return node.failRequest(ctx, req, "")
 	}
-	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+	transactionInputs := store.TransactionInputsFromBitcoin(mainInputs)
 
 	rpc, _ := node.bitcoinParams(safe.Chain)
 	info, err := node.store.ReadLatestNetworkInfo(ctx, safe.Chain, req.CreatedAt)
@@ -106,7 +106,7 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 	if info == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	lock, err := node.store.ReadActiveInheritanceLockByHolder(ctx, safe.Holder)
 	if err != nil {
 		panic(err)
 	}
@@ -190,7 +190,7 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		return node.failRequest(ctx, req, "")
 	}
 
-	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, transacionInputs, requests, lock, txs)
+	err = node.store.CloseAccountByInheritanceWithRequest(ctx, req, tx, transactionInputs, requests, lock, txs)
 	if err != nil {
 		panic(fmt.Errorf("store.CloseAccountByInheritanceWithRequest(%s) => %v", txHash, err))
 	}
@@ -433,8 +433,8 @@ func (node *Node) closeBitcoinAccountWithHolder(ctx context.Context, req *common
 	}
 	txs = append(txs, t)
 
-	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transacionInputs, common.RequestStateDone, txs, req)
+	transactionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+	err := node.store.CloseAccountByTransactionWithRequest(ctx, tx, transactionInputs, common.RequestStateDone, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -782,12 +782,19 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
+			satoshi, err := parseTransactionAmount(amt, bitcoin.ValuePrecision, 63)
+			if err != nil {
+				return node.failRequest(ctx, req, "")
+			}
+			if parsed := bitcoin.ParseSatoshi(amt.String()); parsed != satoshi.Int64() {
+				panic(fmt.Errorf("bitcoin amount mismatch: %s != %d", satoshi, parsed))
+			}
 			if amt.Cmp(plan.TransactionMinimum) < 0 {
 				return node.failRequest(ctx, req, "")
 			}
 			outputs = append(outputs, &bitcoin.Output{
 				Address: rp[0],
-				Satoshi: bitcoin.ParseSatoshi(amt.String()),
+				Satoshi: satoshi.Int64(),
 			})
 		}
 	} else {
@@ -796,9 +803,16 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		if err != nil {
 			return node.failRequest(ctx, req, "")
 		}
+		satoshi, err := parseTransactionAmount(req.Amount, bitcoin.ValuePrecision, 63)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		if parsed := bitcoin.ParseSatoshi(req.Amount.String()); parsed != satoshi.Int64() {
+			panic(fmt.Errorf("bitcoin amount mismatch: %s != %d", satoshi, parsed))
+		}
 		outputs = []*bitcoin.Output{{
 			Address: string(extra[16:]),
-			Satoshi: bitcoin.ParseSatoshi(req.Amount.String()),
+			Satoshi: satoshi.Int64(),
 		}}
 	}
 
@@ -852,8 +866,8 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 		CreatedAt:       req.CreatedAt,
 		UpdatedAt:       req.CreatedAt,
 	}
-	transacionInputs := store.TransactionInputsFromBitcoin(mainInputs)
-	err = node.store.WriteTransactionWithRequest(ctx, tx, transacionInputs, lock, txs, req)
+	transactionInputs := store.TransactionInputsFromBitcoin(mainInputs)
+	err = node.store.WriteTransactionWithRequest(ctx, tx, transactionInputs, lock, txs, req)
 	if err != nil {
 		panic(err)
 	}
@@ -1110,7 +1124,7 @@ func (node *Node) processSafeInheritanceLock(ctx context.Context, req *common.Re
 		if err != nil {
 			panic(err)
 		}
-		if l == nil || l.State != common.RequestStateDone {
+		if l == nil || l.State != common.RequestStateDone || l.Holder != safe.Holder || l.Address != safe.Address || l.Chain != safe.Chain {
 			return nil, nil, fmt.Errorf("invalid lock to remove: %v", l)
 		}
 		return nil, extra[16:], nil
@@ -1164,12 +1178,15 @@ func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *st
 		if err != nil {
 			panic(err)
 		}
-		if lock.State != common.RequestStateInitial {
+		if lock == nil || lock.State != common.RequestStateInitial || lock.Holder != tx.Holder || lock.Chain != tx.Chain {
 			return nil
 		}
 		lock.State = common.RequestStateDone
 		return lock
 	case common.FlagProposeRemoveInheritance:
+		if len(extra) < uuid.Size {
+			return nil
+		}
 		lid, err := uuid.FromBytes(extra[:16])
 		if err != nil || lid.IsNil() {
 			logger.Printf("invalid lock id to remove: %v %v", lid, err)
@@ -1180,7 +1197,7 @@ func (node *Node) finalizePendingSafeInheritanceLock(ctx context.Context, tx *st
 		if err != nil {
 			panic(err)
 		}
-		if lock.State != common.RequestStateDone {
+		if lock == nil || lock.State != common.RequestStateDone || lock.Holder != tx.Holder || lock.Chain != tx.Chain {
 			return nil
 		}
 		lock.State = common.RequestStateFailed

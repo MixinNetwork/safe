@@ -55,6 +55,13 @@ func (s *SQLite3Store) ReadLatestInheritanceLockByHolder(ctx context.Context, ho
 	return s.readInheritanceLockByQuery(ctx, query, holder)
 }
 
+// ReadActiveInheritanceLockByHolder excludes proposals that were never approved.
+// A failed replacement must not hide the previous, still-active lock.
+func (s *SQLite3Store) ReadActiveInheritanceLockByHolder(ctx context.Context, holder string) (*InheritanceLock, error) {
+	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE holder=? AND state=? ORDER BY created_at DESC LIMIT 1", strings.Join(inheritanceLockCols, ","))
+	return s.readInheritanceLockByQuery(ctx, query, holder, common.RequestStateDone)
+}
+
 func (s *SQLite3Store) readInheritanceLockByQuery(ctx context.Context, query string, params ...any) (*InheritanceLock, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

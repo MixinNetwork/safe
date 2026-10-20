@@ -122,7 +122,7 @@ func (c *Configuration) checkMainnet(role string) {
 		assert(k.ObserverAssetId, ObserverToken, "keeper.observer-asset-id")
 		assert(k.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "keeper.polygon-factory-address")
 		assert(k.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12", "keeper.polygon-observer-deposit-entry")
-		assert(k.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "keeper.polygon-keeper-deposity-entry")
+		assert(k.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "keeper.polygon-keeper-deposit-entry")
 	}
 	if role == "keeper" || role == "observer" {
 		assert(k.MTG.Genesis.Epoch, uint64(15903300), "keeper.genesis.epoch")
@@ -139,7 +139,7 @@ func (c *Configuration) checkMainnet(role string) {
 		assert(o.AssetId, ObserverToken, "observer.asset-id")
 		assert(o.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "observer.polygon-factory-address")
 		assert(o.PolygonObserverDepositEntry, "0x4A2eea63775F0407E1f0d147571a46959479dE12", "observer.polygon-observer-deposit-entry")
-		assert(o.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "observer.polygon-keeper-deposity-entry")
+		assert(o.PolygonKeeperDepositEntry, "0x5A3A6E35038f33458c13F3b5349ee5Ae1e94a8d9", "observer.polygon-keeper-deposit-entry")
 	}
 }
 
@@ -191,7 +191,7 @@ func (c *Configuration) checkTestnet(role string) {
 		assert(k.ObserverAssetId, ObserverToken, "keeper.observer-asset-id")
 		assert(k.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "keeper.polygon-factory-address")
 		assert(k.PolygonObserverDepositEntry, "0x9d04735aaEB73535672200950fA77C2dFC86eB21", "keeper.polygon-observer-deposit-entry")
-		assert(k.PolygonKeeperDepositEntry, "0x11EC02748116A983deeD59235302C3139D6e8cdD", "keeper.polygon-keeper-deposity-entry")
+		assert(k.PolygonKeeperDepositEntry, "0x11EC02748116A983deeD59235302C3139D6e8cdD", "keeper.polygon-keeper-deposit-entry")
 	}
 	if role == "keeper" || role == "observer" {
 		assert(k.MTG.Genesis.Epoch, uint64(9877485), "keeper.genesis.epoch")
@@ -208,7 +208,7 @@ func (c *Configuration) checkTestnet(role string) {
 		assert(o.AssetId, ObserverToken, "observer.asset-id")
 		assert(o.PolygonFactoryAddress, "0x4D17777E0AC12C6a0d4DEF1204278cFEAe142a1E", "observer.polygon-factory-address")
 		assert(o.PolygonObserverDepositEntry, "0x9d04735aaEB73535672200950fA77C2dFC86eB21", "observer.polygon-observer-deposit-entry")
-		assert(o.PolygonKeeperDepositEntry, "0x11EC02748116A983deeD59235302C3139D6e8cdD", "observer.polygon-keeper-deposity-entry")
+		assert(o.PolygonKeeperDepositEntry, "0x11EC02748116A983deeD59235302C3139D6e8cdD", "observer.polygon-keeper-deposit-entry")
 	}
 }
 

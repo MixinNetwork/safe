@@ -18,6 +18,7 @@ func TestMempoolAverageFeeHandlesNoUsableTransactions(t *testing.T) {
 	}{
 		{"empty", map[string]any{}, 0},
 		{"zero virtual size", map[string]any{"zero": map[string]any{"fees": map[string]any{"base": 1}, "vsize": 0}}, 0},
+		{"negative virtual size", map[string]any{"negative": map[string]any{"fees": map[string]any{"base": 1}, "vsize": -1}}, 0},
 		{"nonempty", map[string]any{"tx": map[string]any{"fees": map[string]any{"base": 0.00001}, "vsize": 100}}, 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

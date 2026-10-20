@@ -34,6 +34,10 @@ func TestWitnessAccountEncodingAndScriptUtilities(t *testing.T) {
 	decoded, err := UnmarshalWitnessScriptAccount(raw)
 	require.NoError(t, err)
 	require.Equal(t, account, decoded)
+	overflow := append([]byte(nil), raw...)
+	overflow[0] = 1
+	_, err = UnmarshalWitnessScriptAccount(overflow)
+	require.Error(t, err)
 	for _, truncated := range [][]byte{
 		nil,
 		raw[:8],

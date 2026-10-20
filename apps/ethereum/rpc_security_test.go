@@ -105,6 +105,7 @@ func TestEthereumRPCClientParsesNativeChainData(t *testing.T) {
 
 	blockByHeight, err := RPCGetBlockByHeight(server.URL, height)
 	require.NoError(t, err)
+	require.Equal(t, uint64(42), blockByHeight.Height)
 	require.Equal(t, time.Unix(100, 0), blockByHeight.Time)
 
 	fullBlock, err := RPCGetBlockWithTransactions(server.URL, height)

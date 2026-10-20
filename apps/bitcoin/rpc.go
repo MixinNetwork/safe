@@ -71,6 +71,9 @@ type RPCBlockWithTransactions struct {
 }
 
 func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
+	if index < 0 {
+		return nil, nil, fmt.Errorf("invalid output index %d", index)
+	}
 	tx, err := RPCGetTransaction(chain, rpc, hash)
 	if err != nil || tx == nil {
 		return nil, nil, err
@@ -79,6 +82,9 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 		return nil, nil, nil
 	}
 	out := tx.Vout[index]
+	if out == nil || out.ScriptPubKey == nil {
+		return nil, nil, fmt.Errorf("missing output script %s:%d", hash, index)
+	}
 	skt := out.ScriptPubKey.Type
 	if skt != ScriptPubKeyTypeWitnessScriptHash && skt != ScriptPubKeyTypeWitnessKeyHash {
 		return nil, nil, nil
@@ -94,7 +100,7 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	output := &Output{
 		Address:  out.ScriptPubKey.Address,
 		Satoshi:  satoshi.IntPart(),
-		Coinbase: len(tx.Vin) > 0 && tx.Vin[0].Coinbase != "",
+		Coinbase: len(tx.Vin) > 0 && tx.Vin[0] != nil && tx.Vin[0].Coinbase != "",
 	}
 
 	if tx.BlockHash == "" { // mempool
@@ -141,6 +147,9 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 }
 
 func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string, error) {
+	if tx == nil || len(tx.Vin) == 0 || tx.Vin[0] == nil {
+		return "", fmt.Errorf("missing transaction input")
+	}
 	if tx.Vin[0].Coinbase != "" {
 		return tx.Vin[0].Coinbase, nil
 	}
@@ -151,7 +160,11 @@ func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string
 	if itx == nil {
 		return "", fmt.Errorf("unknown transaction %s", tx.Vin[0].TxId)
 	}
-	return itx.Vout[tx.Vin[0].VOUT].ScriptPubKey.Address, nil
+	index := tx.Vin[0].VOUT
+	if index < 0 || index >= int64(len(itx.Vout)) || itx.Vout[index] == nil || itx.Vout[index].ScriptPubKey == nil {
+		return "", fmt.Errorf("invalid previous output %s:%d", tx.Vin[0].TxId, index)
+	}
+	return itx.Vout[index].ScriptPubKey.Address, nil
 }
 
 func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
@@ -233,6 +246,9 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 		return nil, err
 	}
 	for _, tx := range b.Tx {
+		if tx == nil {
+			return nil, fmt.Errorf("missing transaction in block %s", hash)
+		}
 		fixLitecoinLegacyScriptPubKeyRPC(chain, tx)
 		tx.BlockHash = hash
 	}
@@ -253,14 +269,21 @@ func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
 		return nil, err
 	}
 	sum := decimal.NewFromInt(0)
-	count := decimal.NewFromInt(int64(len(block.Tx)))
+	var count int64
 	for _, tx := range block.Tx {
+		if tx.VSize <= 0 {
+			continue
+		}
 		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
 		size := decimal.NewFromInt(tx.VSize)
 		feePerBytes := fee.Div(size)
 		sum = sum.Add(feePerBytes)
+		count++
 	}
-	sum = sum.Div(count)
+	if count == 0 {
+		return new(big.Int), nil
+	}
+	sum = sum.Div(decimal.NewFromInt(count))
 	return sum.Ceil().BigInt(), nil
 }
 
@@ -271,7 +294,7 @@ func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
 	}
 	fees := []decimal.Decimal{}
 	for _, tx := range txs {
-		if tx.VSize == 0 {
+		if tx.VSize <= 0 {
 			continue
 		}
 		fee := decimal.NewFromFloat(tx.Fee).Mul(decimal.New(1, 8))
@@ -370,7 +393,7 @@ func fixLitecoinLegacyScriptPubKeyRPC(chain byte, tx *RPCTransaction) {
 	switch chain {
 	case ChainLitecoin:
 		for _, o := range tx.Vout {
-			if len(o.ScriptPubKey.LegacyAddresses) != 1 {
+			if o == nil || o.ScriptPubKey == nil || len(o.ScriptPubKey.LegacyAddresses) != 1 {
 				continue
 			}
 			o.ScriptPubKey.Address = o.ScriptPubKey.LegacyAddresses[0]

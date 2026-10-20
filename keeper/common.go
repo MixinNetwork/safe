@@ -2,6 +2,8 @@ package keeper
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -12,7 +14,40 @@ import (
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/shopspring/decimal"
 )
+
+// parseTransactionAmount rejects fractional base units and values that do not
+// fit the chain's integer amount, without rounding or overflowing.
+func parseTransactionAmount(amount decimal.Decimal, precision int32, bits int) (*big.Int, error) {
+	if !amount.IsPositive() || precision < 0 {
+		return nil, fmt.Errorf("invalid transaction amount")
+	}
+	units := amount.Coefficient()
+	scale := int64(amount.Exponent()) + int64(precision)
+	digits := int64(len(units.String()))
+	if scale >= 0 {
+		// Bound the exponent before allocating a potentially enormous integer.
+		if digits+scale > int64(bits) {
+			return nil, fmt.Errorf("transaction amount overflows %d bits", bits)
+		}
+		units.Mul(units, new(big.Int).Exp(big.NewInt(10), big.NewInt(scale), nil))
+	} else {
+		if -scale >= digits {
+			return nil, fmt.Errorf("transaction amount has fractional base units")
+		}
+		divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(-scale), nil)
+		remainder := new(big.Int)
+		units.QuoRem(units, divisor, remainder)
+		if remainder.Sign() != 0 {
+			return nil, fmt.Errorf("transaction amount has fractional base units")
+		}
+	}
+	if units.BitLen() > bits {
+		return nil, fmt.Errorf("transaction amount overflows %d bits", bits)
+	}
+	return units, nil
+}
 
 const (
 	SafeSignatureTimeout  = 10 * time.Minute

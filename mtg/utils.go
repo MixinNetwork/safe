@@ -33,10 +33,24 @@ func CheckRetryableError(err error) bool {
 	switch {
 	case strings.Contains(es, "EOF"):
 	case strings.Contains(es, "context deadline exceeded"):
+	case strings.Contains(es, "connection refused"):
 	case strings.Contains(es, "connection reset by peer"):
+	case strings.Contains(es, "connection abort"):
+	case strings.Contains(es, "network is down"):
+	case strings.Contains(es, "network is unreachable"):
+	case strings.Contains(es, "no route to host"):
+	case strings.Contains(es, "broken pipe"):
+	case strings.Contains(es, "i/o timeout"):
+	case strings.Contains(es, "connection timed out"):
+	case strings.Contains(es, "failure in name resolution"):
+	case strings.Contains(es, "server misbehaving"):
 	case strings.Contains(es, "Client.Timeout exceeded"):
+	case strings.Contains(es, "Request Timeout"):
+	case strings.Contains(es, "Too Many Requests"):
 	case strings.Contains(es, "Bad Gateway"):
 	case strings.Contains(es, "Internal Server Error"):
+	case strings.Contains(es, "Service Unavailable"):
+	case strings.Contains(es, "Gateway Timeout"):
 	case strings.Contains(es, "invalid character '<' looking for beginning of value"):
 	case strings.Contains(es, "TLS handshake timeout"):
 	default:
@@ -102,11 +116,17 @@ func EncodeMixinExtraBase64(appId string, extra []byte) string {
 
 func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		me, err := grp.mixin.UserMe(ctx)
 		logger.Verbosef("Group.UserMe() => %v\n", err)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Millisecond * 100)
 			continue
+		}
+		if err != nil {
+			return "", err
 		}
 		return me.SpendPublicKey, err
 	}
@@ -181,9 +201,12 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 		return ver, err
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
 		logger.Verbosef("GetKernelTransaction(%s, %s) => %s %v\n", grp.kernelRPC, txHash, snapshot, err)
-		if CheckRetryableError(err) || snapshot == "" {
+		if CheckRetryableError(err) || (err == nil && snapshot == "") {
 			time.Sleep(time.Millisecond * 500)
 			continue
 		}

@@ -583,7 +583,7 @@ func (node *Node) sendToKeeperBitcoinApproveInheritanceTransaction(ctx context.C
 	if err != nil {
 		return err
 	}
-	lock, err := node.keeperStore.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	lock, err := node.keeperStore.ReadActiveInheritanceLockByHolder(ctx, safe.Holder)
 	if err != nil || lock == nil || lock.State != common.RequestStateDone {
 		return fmt.Errorf("invalid inheritance lock: %v %v", lock, err)
 	}

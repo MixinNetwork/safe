@@ -171,7 +171,7 @@ func TestVerifyDepositRealTransferWithSameBlockOutflowError(t *testing.T) {
 func TestVerifyDepositBalanceChangeComparesRawTransferValue(t *testing.T) {
 	rpc := mainnetRPC("POLYGONRPC", "https://polygon.drpc.org")
 	const rawValue = 11_000_000_000
-	claimed := NormallizeAmount(big.NewInt(rawValue), ValuePrecision)
+	claimed := NormalizeAmount(big.NewInt(rawValue), ValuePrecision)
 	require.Equal(t, "10000000000", claimed.String()) // dust rounded away
 	destination := ethcommon.HexToAddress("0x346607eb15821a4e194628444f3705c26c8e6ebe").Hex()
 

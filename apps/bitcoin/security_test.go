@@ -47,6 +47,24 @@ func TestBitcoinCustodySignatureCommitsToSpend(t *testing.T) {
 	require.NoError(err)
 	packet = SignPartiallySignedTransaction(packet.Marshal(), holder)
 	packet = SignPartiallySignedTransaction(packet.Marshal(), signer)
+	for _, invalid := range []string{"", "not-hex", "00", "70736274ff"} {
+		require.False(CheckTransactionPartiallySignedBy(invalid, holderHex))
+	}
+	for _, mutation := range []struct {
+		name  string
+		apply func(*PartiallySignedTransaction)
+	}{
+		{"missing witness UTXO", func(p *PartiallySignedTransaction) { p.Inputs[0].WitnessUtxo = nil }},
+		{"missing witness script", func(p *PartiallySignedTransaction) { p.Inputs[0].WitnessScript = nil }},
+		{"invalid witness script", func(p *PartiallySignedTransaction) { p.Inputs[0].WitnessScript = []byte{txscript.OP_PUSHDATA4} }},
+	} {
+		t.Run(mutation.name, func(t *testing.T) {
+			candidate, err := UnmarshalPartiallySignedTransaction(packet.Marshal())
+			require.NoError(err)
+			mutation.apply(candidate)
+			require.False(CheckTransactionPartiallySignedBy(hex.EncodeToString(candidate.Marshal()), holderHex))
+		})
+	}
 
 	tx, err := packet.SignedTransaction(holderHex, signerHex, observerHex)
 	require.NoError(err)

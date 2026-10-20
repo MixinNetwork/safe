@@ -228,7 +228,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if err != nil {
 		panic(fmt.Errorf("store.ReadPositiveEthereumTokenBalancesMap(%s) => %v", safe.Address, err))
 	}
-	if len(sbm) >= ethereum.MaxAssetsCount {
+	if len(sbm) >= ethereum.MaxAssetsCount && sbm[deposit.AssetAddress] == nil {
 		return node.failRequest(ctx, req, "")
 	}
 
@@ -250,7 +250,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 	if output == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	amount := ethereum.NormallizeAmount(deposit.Amount, int32(asset.Decimals))
+	amount := ethereum.NormalizeAmount(deposit.Amount, int32(asset.Decimals))
 	amt := decimal.NewFromBigInt(amount, -int32(asset.Decimals))
 	min := decimal.RequireFromString("0.00000001")
 	if amt.Cmp(min) < 0 {

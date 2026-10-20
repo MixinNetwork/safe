@@ -70,7 +70,7 @@ func TestEthereumDepositKeeper(t *testing.T) {
 	value, success := new(big.Int).SetString(tx.Value, 0)
 	require.True(success)
 	require.Equal(value.String(), "11000000000")
-	amount := ethereum.NormallizeAmount(value, 18)
+	amount := ethereum.NormalizeAmount(value, 18)
 	require.Equal(amount.String(), "10000000000")
 
 	output, err := testWriteOutput(ctx, db, node.conf.AppId, testEthereumBondAssetId, testGenerateDummyExtra(node), sequence, decimal.NewFromBigInt(amount, 1))

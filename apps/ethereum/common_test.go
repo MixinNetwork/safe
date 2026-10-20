@@ -20,7 +20,7 @@ func TestMatchDepositTransfer(t *testing.T) {
 		Receiver:     receiver,
 		Value:        big.NewInt(100000000),
 	}
-	amount := NormallizeAmount(transfer.Value, 6)
+	amount := NormalizeAmount(transfer.Value, 6)
 
 	// the exact claimed deposit matches
 	require.True(matchDepositTransfer(transfer, hash, token, receiver, 42, amount, 6))

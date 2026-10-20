@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -55,7 +56,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	default:
 		return node.failRequest(ctx, req, "")
 	}
-	lock, err := node.store.ReadLatestInheritanceLockByHolder(ctx, safe.Holder)
+	lock, err := node.store.ReadActiveInheritanceLockByHolder(ctx, safe.Holder)
 	if err != nil {
 		panic(err)
 	}
@@ -716,6 +717,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 
 	pendings, err := node.store.ReadUnfinishedTransactionsByHolder(ctx, safe.Holder)
 	logger.Printf("store.ReadUnfinishedTransactionsByHolder(%s) => %v %v", safe.Holder, len(pendings), err)
+	if err != nil {
+		panic(err)
+	}
 	if len(pendings) > 0 {
 		return node.failRequest(ctx, req, "")
 	}
@@ -849,20 +853,34 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			if err != nil {
 				return node.failRequest(ctx, req, "")
 			}
+			value, err := parseTransactionAmount(amt, decimals, 256)
+			if err != nil {
+				return node.failRequest(ctx, req, "")
+			}
+			if parsed := ethereum.ParseAmount(amt.String(), decimals); parsed.Cmp(value) != 0 {
+				panic(fmt.Errorf("ethereum amount mismatch: %s != %s", value, parsed))
+			}
 			if amt.Cmp(plan.TransactionMinimum) < 0 {
 				return node.failRequest(ctx, req, "")
 			}
 			o := &ethereum.Output{
 				Destination:  rp[0],
-				Amount:       ethereum.ParseAmount(amt.String(), decimals),
+				Amount:       value,
 				TokenAddress: balance.AssetAddress,
 			}
 			outputs = append(outputs, o)
 		}
 	} else {
+		value, err := parseTransactionAmount(req.Amount, decimals, 256)
+		if err != nil {
+			return node.failRequest(ctx, req, "")
+		}
+		if parsed := ethereum.ParseAmount(req.Amount.String(), decimals); parsed.Cmp(value) != 0 {
+			panic(fmt.Errorf("ethereum amount mismatch: %s != %s", value, parsed))
+		}
 		outputs = []*ethereum.Output{{
 			Destination:  string(extra[16:]),
-			Amount:       ethereum.ParseAmount(req.Amount.String(), decimals),
+			Amount:       value,
 			TokenAddress: balance.AssetAddress,
 		}}
 	}
@@ -870,6 +888,9 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	total := decimal.Zero
 	recipients := make([]map[string]string, len(outputs))
 	for i, out := range outputs {
+		if err := ethereum.VerifyAssetKey(strings.ToLower(out.Destination)); err != nil {
+			return node.failRequest(ctx, req, "")
+		}
 		norm := ethereum.NormalizeAddress(out.Destination)
 		if norm == ethereum.EthereumEmptyAddress || norm == safe.Address {
 			logger.Printf("invalid output destination: %s, %s", norm, safe.Address)
@@ -950,7 +971,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 				continue
 			}
 			output := &ethereum.Output{
-				Destination:  string(extra[16:]),
+				Destination:  outputs[0].Destination,
 				Amount:       b.BigBalance(),
 				TokenAddress: b.AssetAddress,
 			}
@@ -1064,9 +1085,9 @@ func (node *Node) processEthereumSafeApproveTransaction(ctx context.Context, req
 	t, err := ethereum.UnmarshalSafeTransaction(raw)
 	logger.Printf("ethereum.UnmarshalSafeTransaction(%x) => %v %v", raw, t, err)
 	if err != nil {
-		panic(err)
+		return node.failRequest(ctx, req, "")
 	}
-	if t.GetRequestHash(tx.RequestId) != tx.TransactionHash {
+	if !bytes.Equal(t.Message, t.GetTransactionHash()) || t.GetRequestHash(tx.RequestId) != tx.TransactionHash {
 		return node.failRequest(ctx, req, "")
 	}
 

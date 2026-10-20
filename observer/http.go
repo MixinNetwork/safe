@@ -993,7 +993,7 @@ func (node *Node) viewBalances(ctx context.Context, bs []*store.SafeBalance, txs
 		if err != nil || asset == nil {
 			return nil, nil, fmt.Errorf("store.ReadAssetMeta(%s) => %v %v", b.AssetId, asset, err)
 		}
-		amount = ethereum.NormallizeAmount(amount, int32(asset.Decimals))
+		amount = ethereum.NormalizeAmount(amount, int32(asset.Decimals))
 
 		assetBalance[b.AssetId] = &AssetBalance{
 			Amount:       amount.String(),

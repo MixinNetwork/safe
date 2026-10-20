@@ -149,14 +149,14 @@ func CreateEnableGuardTransaction(ctx context.Context, chainID int64, id, safeAd
 		Nonce:          zero,
 		Signatures:     make([][]byte, 3),
 	}
-	tx.Data = tx.buildEnableGuradData(observerAddress, timelock)
+	tx.Data = tx.buildEnableGuardData(observerAddress, timelock)
 	tx.Message = tx.GetTransactionHash()
 	tx.RequestHash = tx.GetRequestHash(id)
 	return tx, nil
 }
 
 // this hash is not signed on ethereum, the signers only sign message
-// it is for the keeper to distringuish different requests of an
+// it is for the keeper to distinguish different requests of an
 // identical transaction, i.e. a user may cancel a transaction and
 // start an identical one, then it is seen as two requests
 func (tx *SafeTransaction) GetRequestHash(id string) string {
@@ -566,7 +566,7 @@ func boundedABIUint(word []byte, maximum int) (int, error) {
 	return int(value.Uint64()), nil
 }
 
-func (tx *SafeTransaction) buildEnableGuradData(observer string, timelock *big.Int) []byte {
+func (tx *SafeTransaction) buildEnableGuardData(observer string, timelock *big.Int) []byte {
 	safeAbi, err := ga.JSON(strings.NewReader(abi.GnosisSafeMetaData.ABI))
 	if err != nil {
 		panic(err)
@@ -692,6 +692,9 @@ func CheckTransactionPartiallySignedBy(raw, public string) bool {
 	}
 	st, err := UnmarshalSafeTransaction(b)
 	if err != nil {
+		return false
+	}
+	if !bytes.Equal(st.Message, st.GetTransactionHash()) {
 		return false
 	}
 
