@@ -61,6 +61,25 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 
 
+CREATE TABLE IF NOT EXISTS pending_deposits (
+  transaction_hash   VARCHAR NOT NULL,
+  output_index       INTEGER NOT NULL,
+  asset_id           VARCHAR NOT NULL,
+  asset_address      VARCHAR NOT NULL,
+  amount             VARCHAR NOT NULL,
+  receiver           VARCHAR NOT NULL,
+  sender             VARCHAR NOT NULL,
+  state              INTEGER NOT NULL,
+  chain              INTEGER NOT NULL,
+  holder             VARCHAR NOT NULL,
+  created_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY ('chain', 'transaction_hash', 'output_index')
+);
+
+CREATE INDEX IF NOT EXISTS pending_deposits_by_chain_state_created ON pending_deposits(chain, state, created_at);
+CREATE INDEX IF NOT EXISTS pending_deposits_by_holder_chain_state_created ON pending_deposits(holder, chain, state, created_at);
+
+
 CREATE TABLE IF NOT EXISTS deposits (
   transaction_hash   VARCHAR NOT NULL,
   output_index       VARCHAR NOT NULL,

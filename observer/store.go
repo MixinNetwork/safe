@@ -56,6 +56,20 @@ type Deposit struct {
 	UpdatedAt       time.Time
 }
 
+type PendingDeposit struct {
+	TransactionHash string    `json:"transaction_hash"`
+	OutputIndex     int64     `json:"output_index"`
+	AssetId         string    `json:"asset_id"`
+	AssetAddress    string    `json:"asset_address"`
+	Amount          string    `json:"amount"`
+	Receiver        string    `json:"receiver"`
+	Sender          string    `json:"sender"`
+	State           int       `json:"state"`
+	Chain           byte      `json:"chain"`
+	Holder          string    `json:"holder"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
 type Transaction struct {
 	TransactionHash string
 	RawTransaction  string
@@ -116,8 +130,14 @@ var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", 
 
 var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "request_id", "created_at", "updated_at"}
 
+var pendingDepositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "created_at"}
+
 func (d *Deposit) values() []any {
 	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.RequestId, d.CreatedAt, d.UpdatedAt}
+}
+
+func (d *PendingDeposit) values() []any {
+	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.CreatedAt}
 }
 
 var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "state", "spent_hash", "spent_raw", "created_at", "updated_at"}
@@ -477,7 +497,7 @@ func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHa
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64, rid string) error {
+func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64, rid string, chain byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -487,10 +507,16 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, common.RequestStateInitial)
+	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND chain=? AND state=?"
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, chain, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
+	}
+
+	query = "UPDATE pending_deposits SET state=? WHERE transaction_hash=? AND output_index=? AND chain=? AND state=?"
+	_, err = tx.ExecContext(ctx, query, common.RequestStateDone, transactionHash, outputIndex, chain, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE pending_deposits %v", err)
 	}
 
 	return tx.Commit()
@@ -1071,4 +1097,62 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 
 func (s SQLite3Store) writeBlockCheckpoint(ctx context.Context, chain byte, checkpoint int64) error {
 	return s.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(checkpoint))
+}
+
+func (s *SQLite3Store) WritePendingDepositRecord(ctx context.Context, d *PendingDeposit) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	if d.State != common.RequestStateInitial {
+		panic(d.State)
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT amount FROM pending_deposits WHERE chain=? AND transaction_hash=? AND output_index=?", d.Chain, d.TransactionHash, d.OutputIndex)
+	if err != nil || existed {
+		return err
+	}
+
+	existed, err = s.checkExistence(ctx, tx, "SELECT amount FROM deposits WHERE transaction_hash=? AND output_index=? AND chain=? AND state=?", d.TransactionHash, d.OutputIndex, d.Chain, common.RequestStateDone)
+	if err != nil || existed {
+		return err
+	}
+
+	err = s.execOne(ctx, tx, buildInsertionSQL("pending_deposits", pendingDepositsCols), d.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT pending_deposits %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holder string, offset int64) ([]*PendingDeposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM pending_deposits WHERE chain=? AND state=? AND created_at>=?", strings.Join(pendingDepositsCols, ","))
+	params := []any{chain, common.RequestStateInitial, time.Unix(0, offset)}
+	if holder != "" {
+		query += " AND holder=?"
+		params = append(params, holder)
+	}
+	query += " ORDER BY created_at ASC, transaction_hash ASC, output_index ASC LIMIT 100"
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(rows)
+
+	deposits := make([]*PendingDeposit, 0)
+	for rows.Next() {
+		var d PendingDeposit
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		deposits = append(deposits, &d)
+	}
+	return deposits, rows.Err()
 }

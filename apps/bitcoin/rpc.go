@@ -163,13 +163,18 @@ func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
 	return &tx, err
 }
 
-func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
+func RPCGetRawMempoolHashes(rpc string) ([]string, error) {
 	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawmempool", []any{})
 	if err != nil {
 		return nil, err
 	}
 	var txs []string
 	err = json.Unmarshal(res, &txs)
+	return txs, err
+}
+
+func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
+	txs, err := RPCGetRawMempoolHashes(rpc)
 	if err != nil {
 		return nil, err
 	}

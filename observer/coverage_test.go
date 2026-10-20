@@ -153,11 +153,11 @@ func TestCoverageObserverDepositsAndTransactions(t *testing.T) {
 
 	newRequestID := uuid.Must(uuid.NewV4()).String()
 	require.NoError(t, s.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, newRequestID))
-	require.NoError(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID))
+	require.NoError(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID, deposit.Chain))
 	deposits, err = s.ListDeposits(ctx, int(deposit.Chain), deposit.Holder, common.RequestStateDone, 0)
 	require.NoError(t, err)
 	require.Len(t, deposits, 1)
-	require.Error(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID))
+	require.Error(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID, deposit.Chain))
 
 	sent := coverageObserverTransaction("sent", common.RequestStateDone, common.SafeChainBitcoin, now)
 	sent.SpentHash = sql.NullString{Valid: true, String: deposit.TransactionHash}
