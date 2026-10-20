@@ -392,7 +392,7 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 
 func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder string, state int, offset int64) ([]*Deposit, error) {
 	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND updated_at>=?", strings.Join(depositsCols, ","))
-	params := []any{chain, time.Unix(0, offset)}
+	params := []any{chain, time.Unix(0, offset).UTC()}
 	if state > 0 {
 		query += " AND state=?"
 		params = append(params, state)
@@ -1133,7 +1133,7 @@ func (s *SQLite3Store) WritePendingDepositRecord(ctx context.Context, d *Pending
 
 func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holder string, offset int64) ([]*PendingDeposit, error) {
 	query := fmt.Sprintf("SELECT %s FROM pending_deposits WHERE chain=? AND state=? AND created_at>=?", strings.Join(pendingDepositsCols, ","))
-	params := []any{chain, common.RequestStateInitial, time.Unix(0, offset)}
+	params := []any{chain, common.RequestStateInitial, time.Unix(0, offset).UTC()}
 	if holder != "" {
 		query += " AND holder=?"
 		params = append(params, holder)

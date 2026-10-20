@@ -76,7 +76,19 @@ func TestPendingDepositConfirmationAndHTTP(t *testing.T) {
 	for _, query := range []string{"", "?chain=999", "?chain=invalid"} {
 		require.Equal(t, http.StatusBadRequest, get("/pending_deposits"+query, true).Code)
 	}
+	// Formal Initial deposits fill gaps left by the early scanner.
+	_, err = f.node.store.db.ExecContext(ctx, "DELETE FROM pending_deposits WHERE chain=?", d.Chain)
+	require.NoError(t, err)
+	response = get("/pending_deposits?chain="+chain, true)
+	require.Equal(t, http.StatusOK, response.Code)
+	var initial []map[string]any
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &initial))
+	require.Len(t, initial, 1)
+	require.Equal(t, float64(common.RequestStateInitial), initial[0]["state"])
+	require.Equal(t, d.TransactionHash, initial[0]["transaction_hash"])
+	require.Equal(t, float64(d.OutputIndex), initial[0]["output_index"])
 	require.JSONEq(t, `[]`, get("/deposits?chain="+chain, false).Body.String())
+	require.NoError(t, f.node.store.WritePendingDepositRecord(ctx, d))
 	require.NoError(t, f.node.store.ConfirmPendingDeposit(ctx, d.TransactionHash, d.OutputIndex, deposit.RequestId, d.Chain))
 	// A slow or restarted scanner must not recreate a confirmed observation.
 	require.NoError(t, f.node.store.WritePendingDepositRecord(ctx, d))
@@ -98,6 +110,9 @@ func TestPendingDepositConfirmationAndHTTP(t *testing.T) {
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &confirmed))
 	require.Len(t, confirmed, 1)
 	require.Equal(t, "done", confirmed[0]["state"])
+	for _, key := range []string{"chain", "transaction_hash", "output_index"} {
+		require.Equal(t, initial[0][key], confirmed[0][key])
+	}
 	remaining, err := f.node.store.ListPendingDeposits(ctx, int(otherChain.Chain), "", 0)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1, "confirmation does not delete an observation on another chain")
