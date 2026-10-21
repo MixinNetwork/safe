@@ -231,9 +231,9 @@ func readTransaction(ctx context.Context, client *mixin.Client, id string) (*mix
 	return nil, err
 }
 
-func SafeReadAssetUntilSufficient(ctx context.Context, id string) (*bot.AssetNetwork, error) {
+func SafeReadAssetUntilSufficient(ctx context.Context, id string, su *bot.SafeUser) (*bot.AssetNetwork, error) {
 	for {
-		asset, err := bot.ReadAsset(ctx, id)
+		asset, err := bot.ReadAsset(ctx, id, su)
 		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)
 		if err == nil || util.IsErrorCodes(err, 404) {
 			return asset, nil

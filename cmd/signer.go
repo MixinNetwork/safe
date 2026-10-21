@@ -142,7 +142,7 @@ func SignerSignRequest(c *cli.Context) error {
 	}
 	if op.Curve == common.CurveEdwards25519Mixin {
 		mask, err := crypto.KeyFromString(c.String("mask"))
-		if err != nil || !mask.CheckKey() {
+		if err != nil || !mask.CheckPublicKey() {
 			return fmt.Errorf("mixin mask %s %v", c.String("mask"), err)
 		}
 		op.Extra = binary.BigEndian.AppendUint16(mask[:], uint16(c.Int("index")))

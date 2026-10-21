@@ -19,7 +19,7 @@ func CheckEd25519ValidChildPath(path []byte) bool {
 
 func DeriveEd25519Child(public string, path []byte) ed25519.PublicKey {
 	master, err := crypto.KeyFromString(public)
-	if err != nil || !master.CheckKey() {
+	if err != nil || !master.CheckPublicKey() {
 		panic(err)
 	}
 	if !CheckEd25519ValidChildPath(path) {
