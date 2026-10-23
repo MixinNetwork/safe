@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -272,47 +271,11 @@ func (node *Node) httpListPendingDeposits(w http.ResponseWriter, r *http.Request
 	}
 	holder := r.URL.Query().Get("holder")
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
-	deposits, err := node.store.ListPendingDeposits(r.Context(), int(chain), holder, offset)
+	deposits, err := node.listPendingDeposits(r.Context(), byte(chain), holder, offset)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
-	initial, err := node.store.ListDeposits(r.Context(), int(chain), holder, common.RequestStateInitial, offset)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-	type depositKey struct {
-		hash  string
-		index int64
-	}
-	seen := make(map[depositKey]bool, len(deposits))
-	for _, d := range deposits {
-		seen[depositKey{d.TransactionHash, d.OutputIndex}] = true
-	}
-	for _, d := range initial {
-		key := depositKey{d.TransactionHash, d.OutputIndex}
-		if seen[key] {
-			continue
-		}
-		deposits = append(deposits, &PendingDeposit{
-			TransactionHash: d.TransactionHash, OutputIndex: d.OutputIndex,
-			AssetId: d.AssetId, AssetAddress: d.AssetAddress, Amount: d.Amount,
-			Receiver: d.Receiver, Sender: d.Sender, State: d.State,
-			Chain: d.Chain, Holder: d.Holder, CreatedAt: d.CreatedAt,
-		})
-		seen[key] = true
-	}
-	sort.Slice(deposits, func(i, j int) bool {
-		a, b := deposits[i], deposits[j]
-		if !a.CreatedAt.Equal(b.CreatedAt) {
-			return a.CreatedAt.Before(b.CreatedAt)
-		}
-		if a.TransactionHash != b.TransactionHash {
-			return a.TransactionHash < b.TransactionHash
-		}
-		return a.OutputIndex < b.OutputIndex
-	})
 	common.RenderJSON(w, r, http.StatusOK, deposits)
 }
 

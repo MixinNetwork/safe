@@ -584,6 +584,7 @@ func TestEthereumPendingScansLatestBlockAndRetries(t *testing.T) {
 			}, Data: ec.LeftPadBytes(big.NewInt(1234567890123456789).Bytes(), 32), BlockNumber: uint64(height),
 				TxHash: ec.HexToHash(hash), BlockHash: blockHash, Index: 2}
 			failLogs := true
+			readFailure := ""
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/network/assets/") {
 					id := strings.TrimPrefix(r.URL.Path, "/network/assets/")
@@ -605,21 +606,55 @@ func TestEthereumPendingScansLatestBlockAndRetries(t *testing.T) {
 						"error": map[string]any{"code": -32000, "message": "backend unavailable"}}))
 					return
 				}
+				if q.Method == "eth_getBlockByNumber" && string(q.Params[1]) == "false" && readFailure == "header error" {
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": q.ID,
+						"error": map[string]any{"code": -32000, "message": "header unavailable"}}))
+					return
+				}
 				var result any
 				switch q.Method {
 				case "eth_blockNumber":
 					result = fmt.Sprintf("0x%x", height)
-				case "debug_traceBlockByNumber":
-					require.JSONEq(t, fmt.Sprintf(`"0x%x"`, height), string(q.Params[0]))
-					result = []*ethereum.RPCBlockCallTrace{{Result: &ethereum.RPCTransactionCallTrace{
+				case "debug_traceBlockByHash":
+					require.JSONEq(t, fmt.Sprintf("%q", blockHash.Hex()), string(q.Params[0]))
+					traces := []*ethereum.RPCBlockCallTrace{{TxHash: hash, Result: &ethereum.RPCTransactionCallTrace{
 						Type: "CALL", To: f.address, From: "0x2222222222222222222222222222222222222222", Value: "0xde0b6b3a7640000",
 						Calls: []*ethereum.RPCTransactionCallTrace{{Type: "CALL", To: f.address, Value: "0x1", Error: "execution reverted"}},
 					}}}
+					switch readFailure {
+					case "trace hash":
+						traces[0].TxHash = blockHash.Hex()
+					case "trace count":
+						traces = append(traces, traces[0])
+					case "null traces":
+						traces = nil
+					case "missing trace result":
+						traces[0].Result = nil
+					}
+					result = traces
 				case "eth_getBlockByNumber":
 					result = map[string]any{"number": fmt.Sprintf("0x%x", height), "hash": blockHash.Hex(),
 						"transactions": []any{map[string]any{"hash": hash}}}
+					if string(q.Params[1]) == "false" {
+						currentHash := blockHash.Hex()
+						if readFailure == "reorg" {
+							currentHash = "0x" + strings.Repeat("c", 64)
+						}
+						result = map[string]any{"number": fmt.Sprintf("0x%x", height), "hash": currentHash,
+							"timestamp": "0x1", "transactions": []string{hash}}
+					}
 				case "eth_getLogs":
-					result = []types.Log{log}
+					var filter map[string]any
+					require.NoError(t, json.Unmarshal(q.Params[0], &filter))
+					require.Equal(t, blockHash.Hex(), filter["blockHash"])
+					require.NotContains(t, filter, "fromBlock")
+					require.NotContains(t, filter, "toBlock")
+					entry := log
+					if readFailure == "log hash" {
+						entry.BlockHash = ec.HexToHash(hash)
+					}
+					entry.Removed = readFailure == "removed log"
+					result = []types.Log{entry}
 				case "eth_call":
 					var call struct{ Input, Data string }
 					require.NoError(t, json.Unmarshal(q.Params[0], &call))
@@ -653,6 +688,19 @@ func TestEthereumPendingScansLatestBlockAndRetries(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, height-1, checkpoint, "failed blocks do not advance the cursor")
 			failLogs = false
+			for _, failure := range []string{"trace hash", "trace count", "null traces", "missing trace result", "log hash", "removed log", "reorg", "header error"} {
+				t.Run(failure, func(t *testing.T) {
+					readFailure = failure
+					require.Error(t, f.node.scanEthereumPendingDeposits(ctx, chain))
+					checkpoint, err := f.node.readPendingDepositCheckpoint(ctx, chain)
+					require.NoError(t, err)
+					require.Equal(t, height-1, checkpoint)
+					pending, err := f.node.store.ListPendingDeposits(ctx, int(chain), "", 0)
+					require.NoError(t, err)
+					require.Empty(t, pending, "do not write observations from inconsistent block reads")
+				})
+			}
+			readFailure = ""
 			err = f.node.scanEthereumPendingDeposits(ctx, chain)
 			require.NoError(t, err)
 			pending, err := f.node.store.ListPendingDeposits(ctx, int(chain), "", 0)

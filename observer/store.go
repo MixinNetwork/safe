@@ -1205,6 +1205,38 @@ func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holde
 	return deposits, rows.Err()
 }
 
+// The pending API uses creation time; ListDeposits keeps its update-time cursor.
+// after continues an internal batch when change filtering removes candidate rows.
+func (s *SQLite3Store) listInitialDepositsByCreatedAt(ctx context.Context, chain int, holder string, offset int64, after *Deposit) ([]*Deposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? AND created_at>=?", strings.Join(depositsCols, ","))
+	params := []any{chain, common.RequestStateInitial, time.Unix(0, offset).UTC()}
+	if holder != "" {
+		query += " AND holder=?"
+		params = append(params, holder)
+	}
+	if after != nil {
+		query += " AND (created_at, transaction_hash, CAST(output_index AS INTEGER)) > (?, ?, ?)"
+		params = append(params, after.CreatedAt, after.TransactionHash, after.OutputIndex)
+	}
+	// output_index is stored as VARCHAR in deposits, but the API sorts it numerically.
+	query += " ORDER BY created_at ASC, transaction_hash ASC, CAST(output_index AS INTEGER) ASC LIMIT 100"
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(rows)
+	var deposits []*Deposit
+	for rows.Next() {
+		var d Deposit
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		deposits = append(deposits, &d)
+	}
+	return deposits, rows.Err()
+}
+
 func (s *SQLite3Store) deleteExpiredEthereumPendingDeposits(ctx context.Context, chain byte, cutoff time.Time) error {
 	switch chain {
 	case common.SafeChainEthereum, common.SafeChainPolygon:

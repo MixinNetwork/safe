@@ -75,8 +75,11 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 		return nil, nil, fmt.Errorf("invalid output index %d", index)
 	}
 	tx, err := RPCGetTransaction(chain, rpc, hash)
-	if err != nil || tx == nil {
+	if err != nil {
 		return nil, nil, err
+	}
+	if tx == nil {
+		return nil, nil, fmt.Errorf("transaction not found: %s", hash)
 	}
 	if int64(len(tx.Vout)) <= index {
 		return nil, nil, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -15,6 +16,78 @@ import (
 
 const bitcoinPendingDepositGracePeriod = time.Minute * 5
 const ethereumPendingDepositTTL = 24 * time.Hour
+
+func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder string, offset int64) ([]*PendingDeposit, error) {
+	deposits, err := node.store.ListPendingDeposits(ctx, int(chain), holder, offset)
+	if err != nil {
+		return nil, err
+	}
+	type depositKey struct {
+		hash  string
+		index int64
+	}
+	seen := make(map[depositKey]bool, len(deposits))
+	for _, d := range deposits {
+		seen[depositKey{d.TransactionHash, d.OutputIndex}] = true
+	}
+
+	var after *Deposit
+	for added := 0; added < 100; {
+		initial, err := node.store.listInitialDepositsByCreatedAt(ctx, int(chain), holder, offset, after)
+		if err != nil {
+			return nil, err
+		}
+		var sent map[string]string
+		switch chain {
+		case common.SafeChainBitcoin, common.SafeChainLitecoin:
+			sent, err = node.store.QueryDepositSentHashes(ctx, initial)
+			if err != nil {
+				return nil, err
+			}
+		}
+		for _, d := range initial {
+			key := depositKey{d.TransactionHash, d.OutputIndex}
+			if seen[key] {
+				continue
+			}
+			switch chain {
+			case common.SafeChainBitcoin, common.SafeChainLitecoin:
+				if node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash]) {
+					continue
+				}
+			}
+			deposits = append(deposits, &PendingDeposit{
+				TransactionHash: d.TransactionHash, OutputIndex: d.OutputIndex,
+				AssetId: d.AssetId, AssetAddress: d.AssetAddress, Amount: d.Amount,
+				Receiver: d.Receiver, Sender: d.Sender, State: d.State,
+				Chain: d.Chain, Holder: d.Holder, CreatedAt: d.CreatedAt,
+			})
+			seen[key] = true
+			added++
+			if added == 100 {
+				break
+			}
+		}
+		if len(initial) < 100 {
+			break
+		}
+		after = initial[len(initial)-1]
+	}
+	sort.Slice(deposits, func(i, j int) bool {
+		a, b := deposits[i], deposits[j]
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			return a.CreatedAt.Before(b.CreatedAt)
+		}
+		if a.TransactionHash != b.TransactionHash {
+			return a.TransactionHash < b.TransactionHash
+		}
+		return a.OutputIndex < b.OutputIndex
+	})
+	if len(deposits) > 100 {
+		deposits = deposits[:100]
+	}
+	return deposits, nil
+}
 
 func (node *Node) bitcoinPendingDepositsLoop(ctx context.Context, chain byte) {
 	seen := make(map[string]bool)
@@ -209,9 +282,6 @@ func (node *Node) ethereumPendingDepositsLoop(ctx context.Context, chain byte) {
 		time.Sleep(time.Second)
 		err := node.scanEthereumPendingDeposits(ctx, chain)
 		logger.Printf("node.scanEthereumPendingDeposits(%d) => %v", chain, err)
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
@@ -260,7 +330,7 @@ func (node *Node) scanEthereumPendingDeposits(ctx context.Context, chain byte) e
 }
 
 func (node *Node) ethereumRecordPendingBlock(ctx context.Context, height int64, chain byte) error {
-	_, transfers, err := node.ethereumReadBlockTransfers(ctx, height, chain)
+	transfers, err := node.ethereumReadPendingBlockTransfers(ctx, height, chain)
 	if err != nil {
 		return err
 	}
@@ -271,6 +341,43 @@ func (node *Node) ethereumRecordPendingBlock(ctx context.Context, height int64, 
 		}
 	}
 	return nil
+}
+
+func (node *Node) ethereumReadPendingBlockTransfers(ctx context.Context, height int64, chain byte) ([]*ethereum.Transfer, error) {
+	rpc, assetID, _ := node.ethereumParams(chain)
+	block, err := ethereum.RPCGetBlockWithTransactions(rpc, height)
+	if err != nil {
+		return nil, err
+	}
+	if block.Hash == "" || int64(block.Height) != height {
+		return nil, fmt.Errorf("invalid pending block at %d", height)
+	}
+	// Bind execution results to the transaction list, even if this height reorgs.
+	traces, err := ethereum.RPCDebugTraceBlockByHash(rpc, block.Hash)
+	if err != nil {
+		return nil, err
+	}
+	if len(traces) > len(block.Tx) || (chain != common.SafeChainPolygon && len(traces) != len(block.Tx)) {
+		return nil, fmt.Errorf("pending block trace count mismatch at %d", height)
+	}
+	for i, trace := range traces {
+		if block.Tx[i] == nil || block.Tx[i].Hash == "" || (trace.TxHash != "" && trace.TxHash != block.Tx[i].Hash) {
+			return nil, fmt.Errorf("pending block trace transaction mismatch at %d", height)
+		}
+	}
+	logs, err := ethereum.GetERC20TransferLogFromBlockHash(ctx, rpc, int64(chain), block.Hash)
+	if err != nil {
+		return nil, err
+	}
+	// Reject a branch change observed during the reads before interpreting transfers.
+	current, err := ethereum.RPCGetBlockByHeight(rpc, height)
+	if err != nil {
+		return nil, err
+	}
+	if current.Hash != block.Hash || current.Height != block.Height {
+		return nil, fmt.Errorf("pending block changed while reading at %d", height)
+	}
+	return append(ethereum.LoopBlockTraces(chain, assetID, traces, block), logs...), nil
 }
 
 func (node *Node) ethereumRecordPendingTransfer(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {

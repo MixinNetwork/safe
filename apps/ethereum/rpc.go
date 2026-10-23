@@ -63,6 +63,7 @@ type RPCTransaction struct {
 
 type RPCBlockCallTrace struct {
 	Result *RPCTransactionCallTrace `json:"result"`
+	TxHash string                   `json:"txHash"`
 }
 type RPCTransactionCallTrace struct {
 	Calls   []*RPCTransactionCallTrace `json:"calls"`
@@ -245,6 +246,26 @@ func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace,
 	return txs, err
 }
 
+func RPCDebugTraceBlockByHash(rpc, hash string) ([]*RPCBlockCallTrace, error) {
+	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByHash", []any{hash, map[string]any{"tracer": "callTracer"}})
+	if err != nil {
+		return nil, err
+	}
+	var traces []*RPCBlockCallTrace
+	if err := json.Unmarshal(res, &traces); err != nil {
+		return nil, err
+	}
+	if traces == nil {
+		return nil, fmt.Errorf("missing block traces %s", hash)
+	}
+	for _, trace := range traces {
+		if trace == nil || trace.Result == nil {
+			return nil, fmt.Errorf("missing transaction trace in block %s", hash)
+		}
+	}
+	return traces, nil
+}
+
 func RPCGetAssetBalanceAtBlock(rpc, address, asset string, blockNumber uint64) (*big.Int, error) {
 	if asset == EthereumEmptyAddress {
 		return rpcGetEtherBalanceAtBlock(rpc, address, blockNumber)
@@ -298,6 +319,17 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 }
 
 func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
+	return getERC20TransferLogs(ctx, rpc, chain, ethereum.FilterQuery{
+		FromBlock: big.NewInt(height), ToBlock: big.NewInt(height),
+	})
+}
+
+func GetERC20TransferLogFromBlockHash(ctx context.Context, rpc string, chain int64, hash string) ([]*Transfer, error) {
+	blockHash := common.HexToHash(hash)
+	return getERC20TransferLogs(ctx, rpc, chain, ethereum.FilterQuery{BlockHash: &blockHash})
+}
+
+func getERC20TransferLogs(ctx context.Context, rpc string, chain int64, query ethereum.FilterQuery) ([]*Transfer, error) {
 	client, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, err
@@ -306,11 +338,7 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 
 	logTransferSig := []byte("Transfer(address,address,uint256)")
 	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(height),
-		ToBlock:   big.NewInt(height),
-		Topics:    [][]common.Hash{{logTransferSigHash}},
-	}
+	query.Topics = [][]common.Hash{{logTransferSigHash}}
 	contractAbi, err := ga.JSON(strings.NewReader(abi.AssetABI))
 	if err != nil {
 		log.Fatal(err)
@@ -322,6 +350,9 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 
 	ts := []*Transfer{}
 	for _, vLog := range logs {
+		if query.BlockHash != nil && (vLog.BlockHash != *query.BlockHash || vLog.Removed) {
+			return nil, fmt.Errorf("log does not belong to block %s", query.BlockHash.Hex())
+		}
 		switch {
 		case len(vLog.Topics) == 3 && vLog.Topics[0].Hex() == logTransferSigHash.Hex() && len(vLog.Data) == 32:
 			var event abi.AssetTransfer
