@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,6 +29,56 @@ type bitcoinRPCTestResponse struct {
 	Result  any             `json:"result,omitempty"`
 	Error   any             `json:"error,omitempty"`
 	ID      json.RawMessage `json:"id"`
+}
+
+func TestBitcoinRPCGetTransactionNotFound(t *testing.T) {
+	for _, chain := range []byte{ChainBitcoin, ChainLitecoin} {
+		for _, status := range []int{http.StatusOK, http.StatusInternalServerError} {
+			t.Run(fmt.Sprintf("chain_%d_http_%d", chain, status), func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var request bitcoinRPCTestRequest
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+					require.Equal(t, "getrawtransaction", request.Method)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(status)
+					require.NoError(t, json.NewEncoder(w).Encode(bitcoinRPCTestResponse{
+						JSONRPC: "2.0", ID: request.ID,
+						Error: map[string]any{"code": -5, "message": "No such mempool or blockchain transaction"},
+					}))
+				}))
+				t.Cleanup(server.Close)
+
+				tx, err := RPCGetTransaction(chain, server.URL, "missing-hash")
+				require.NoError(t, err)
+				require.Nil(t, tx)
+				tx, output, err := RPCGetTransactionOutput(chain, server.URL, "missing-hash", 0)
+				require.ErrorContains(t, err, "transaction not found: missing-hash")
+				require.Nil(t, tx)
+				require.Nil(t, output)
+				_, err = RPCGetTransactionSender(chain, server.URL, &RPCTransaction{
+					Vin: []*rpcIn{{TxId: "missing-parent", VOUT: 0}},
+				})
+				require.ErrorContains(t, err, "missing-parent")
+			})
+		}
+	}
+}
+
+func TestBitcoinRPCGetTransactionPreservesOtherErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewEncoder(w).Encode(bitcoinRPCTestResponse{
+			JSONRPC: "2.0", Error: map[string]any{"code": -32601, "message": "method not found"},
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	tx, err := RPCGetTransaction(ChainBitcoin, server.URL, "hash")
+	require.Nil(t, tx)
+	require.ErrorContains(t, err, "method not found")
+	tx, output, err := RPCGetTransactionOutput(ChainBitcoin, server.URL, "hash", 0)
+	require.Nil(t, tx)
+	require.Nil(t, output)
+	require.ErrorContains(t, err, "method not found")
 }
 
 func TestBitcoinRPCClientParsesResultsAndRejectsErrors(t *testing.T) {

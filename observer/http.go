@@ -104,6 +104,7 @@ func (node *Node) StartHTTP(version, readme string) {
 	router.GET("/chains", node.httpListChains)
 	router.GET("/signers", node.httpListSigners)
 	router.GET("/keepers", node.httpListKeepers)
+	router.GET("/pending_deposits", node.httpListPendingDeposits)
 	router.GET("/deposits", node.httpListDeposits)
 	router.GET("/recoveries", node.httpListRecoveries)
 	router.GET("/recoveries/:id", node.httpGetRecovery)
@@ -260,6 +261,24 @@ func (node *Node) httpListNodes(w http.ResponseWriter, r *http.Request, typ stri
 	common.RenderJSON(w, r, http.StatusOK, ns)
 }
 
+func (node *Node) httpListPendingDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 32)
+	switch chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin, common.SafeChainEthereum, common.SafeChainPolygon:
+	default:
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "chain"})
+		return
+	}
+	holder := r.URL.Query().Get("holder")
+	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
+	deposits, err := node.listPendingDeposits(r.Context(), byte(chain), holder, offset)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+	common.RenderJSON(w, r, http.StatusOK, deposits)
+}
+
 func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	holder := r.URL.Query().Get("holder")
 	chain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 32)
@@ -268,7 +287,7 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
-	deposits, err := node.store.ListDeposits(r.Context(), int(chain), holder, 0, offset)
+	deposits, err := node.store.listDeposits(r.Context(), int(chain), holder, common.RequestStateDone, offset, true)
 	if err != nil {
 		common.RenderError(w, r, err)
 		return
@@ -279,7 +298,7 @@ func (node *Node) httpListDeposits(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 
-	common.RenderJSON(w, r, http.StatusOK, node.viewDeposits(r.Context(), deposits, sent))
+	common.RenderJSON(w, r, http.StatusOK, node.viewDeposits(deposits, sent))
 }
 
 func (node *Node) httpListRecoveries(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -847,7 +866,7 @@ func (node *Node) listPendingBitcoinUTXOsForHolder(ctx context.Context, holder s
 	return node.keeperStore.ListPendingBitcoinUTXOsForHolder(ctx, holder)
 }
 
-func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent map[string]string) []map[string]any {
+func (node *Node) viewDeposits(deposits []*Deposit, sent map[string]string) []map[string]any {
 	view := make([]map[string]any, 0)
 	for _, d := range deposits {
 		state := "done"
@@ -863,18 +882,13 @@ func (node *Node) viewDeposits(ctx context.Context, deposits []*Deposit, sent ma
 			"receiver":         d.Receiver,
 			"sent_hash":        sent[d.TransactionHash],
 			"chain":            d.Chain,
-			"change":           false,
+			"change":           d.IsChange,
 			"state":            state,
 			"updated_at":       d.UpdatedAt,
 			"created_at":       d.CreatedAt,
 		}
 		if dm["sent_hash"] == "" {
 			dm["sent_hash"] = d.TransactionHash
-		} else {
-			switch d.Chain {
-			case common.SafeChainBitcoin, common.SafeChainLitecoin:
-				dm["change"] = node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash])
-			}
 		}
 		view = append(view, dm)
 	}

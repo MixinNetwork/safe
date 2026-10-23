@@ -164,6 +164,9 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	if err != nil {
 		panic(fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err))
 	}
+	if btx == nil {
+		return node.failRequest(ctx, req, "")
+	}
 
 	amount := decimal.NewFromBigInt(deposit.Amount, -int32(asset.Decimals))
 	change, err := node.checkBitcoinChange(ctx, deposit, btx)

@@ -52,8 +52,23 @@ type Deposit struct {
 	Holder          string
 	Category        byte
 	RequestId       string
+	IsChange        bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type PendingDeposit struct {
+	TransactionHash string    `json:"transaction_hash"`
+	OutputIndex     int64     `json:"output_index"`
+	AssetId         string    `json:"asset_id"`
+	AssetAddress    string    `json:"asset_address"`
+	Amount          string    `json:"amount"`
+	Receiver        string    `json:"receiver"`
+	Sender          string    `json:"sender"`
+	State           int       `json:"state"`
+	Chain           byte      `json:"chain"`
+	Holder          string    `json:"holder"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type Transaction struct {
@@ -114,10 +129,16 @@ var accountCols = []string{"address", "created_at", "signature", "approved_at", 
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
-var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "request_id", "created_at", "updated_at"}
+var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "request_id", "is_change", "created_at", "updated_at"}
+
+var pendingDepositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "created_at"}
 
 func (d *Deposit) values() []any {
-	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.RequestId, d.CreatedAt, d.UpdatedAt}
+	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.RequestId, d.IsChange, d.CreatedAt, d.UpdatedAt}
+}
+
+func (d *PendingDeposit) values() []any {
+	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.CreatedAt}
 }
 
 var transactionCols = []string{"transaction_hash", "raw_transaction", "chain", "holder", "signer", "state", "spent_hash", "spent_raw", "created_at", "updated_at"}
@@ -371,8 +392,15 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 }
 
 func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder string, state int, offset int64) ([]*Deposit, error) {
+	return s.listDeposits(ctx, chain, holder, state, offset, false)
+}
+
+func (s *SQLite3Store) listDeposits(ctx context.Context, chain int, holder string, state int, offset int64, excludeChange bool) ([]*Deposit, error) {
 	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND updated_at>=?", strings.Join(depositsCols, ","))
-	params := []any{chain, time.Unix(0, offset)}
+	params := []any{chain, time.Unix(0, offset).UTC()}
+	if excludeChange {
+		query += " AND is_change=FALSE"
+	}
 	if state > 0 {
 		query += " AND state=?"
 		params = append(params, state)
@@ -382,7 +410,35 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 		params = append(params, holder)
 	}
 	query += " ORDER BY updated_at ASC LIMIT 100"
-	rows, err := s.db.QueryContext(ctx, query, params...)
+	return s.queryDeposits(ctx, nil, query, params)
+}
+
+func (s *SQLite3Store) listDepositsByCreatedAt(ctx context.Context, tx *sql.Tx, chain int, holder string, state int, offset int64, excludeChange bool) ([]*Deposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND created_at>=?", strings.Join(depositsCols, ","))
+	params := []any{chain, time.Unix(0, offset).UTC()}
+	if state > 0 {
+		query += " AND state=?"
+		params = append(params, state)
+	}
+	if holder != "" {
+		query += " AND holder=?"
+		params = append(params, holder)
+	}
+	if excludeChange {
+		query += " AND is_change=FALSE"
+	}
+	query += " ORDER BY created_at ASC, transaction_hash ASC, CAST(output_index AS INTEGER) ASC LIMIT 100"
+	return s.queryDeposits(ctx, tx, query, params)
+}
+
+func (s *SQLite3Store) queryDeposits(ctx context.Context, tx *sql.Tx, query string, params []any) ([]*Deposit, error) {
+	var rows *sql.Rows
+	var err error
+	if tx != nil {
+		rows, err = tx.QueryContext(ctx, query, params...)
+	} else {
+		rows, err = s.db.QueryContext(ctx, query, params...)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -391,13 +447,13 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	var deposits []*Deposit
 	for rows.Next() {
 		var d Deposit
-		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.IsChange, &d.CreatedAt, &d.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
 		deposits = append(deposits, &d)
 	}
-	return deposits, nil
+	return deposits, rows.Err()
 }
 
 func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Context, holder, assetId string, offset time.Time) (bool, error) {
@@ -414,10 +470,19 @@ func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Con
 }
 
 func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
+	return s.queryDepositSentHashes(ctx, nil, deposits)
+}
+
+func (s *SQLite3Store) queryDepositSentHashes(ctx context.Context, tx *sql.Tx, deposits []*Deposit) (map[string]string, error) {
 	sent := make(map[string]string)
 	for _, d := range deposits {
 		query := "SELECT transaction_hash FROM transactions WHERE spent_hash=?"
-		row := s.db.QueryRowContext(ctx, query, d.TransactionHash)
+		var row *sql.Row
+		if tx != nil {
+			row = tx.QueryRowContext(ctx, query, d.TransactionHash)
+		} else {
+			row = s.db.QueryRowContext(ctx, query, d.TransactionHash)
+		}
 
 		var hash string
 		err := row.Scan(&hash)
@@ -477,7 +542,7 @@ func (s *SQLite3Store) UpdateDepositRequestId(ctx context.Context, transactionHa
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64, rid string) error {
+func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHash string, outputIndex int64, rid string, chain byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -487,10 +552,16 @@ func (s *SQLite3Store) ConfirmPendingDeposit(ctx context.Context, transactionHas
 	}
 	defer common.Rollback(tx)
 
-	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND state=?"
-	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, common.RequestStateInitial)
+	query := "UPDATE deposits SET state=?, updated_at=? WHERE transaction_hash=? AND output_index=? AND request_id=? AND chain=? AND state=?"
+	err = s.execOne(ctx, tx, query, common.RequestStateDone, time.Now().UTC(), transactionHash, outputIndex, rid, chain, common.RequestStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE deposits %v", err)
+	}
+
+	query = "UPDATE pending_deposits SET state=?, missing_since=NULL WHERE transaction_hash=? AND output_index=? AND chain=? AND state=?"
+	_, err = tx.ExecContext(ctx, query, common.RequestStateDone, transactionHash, outputIndex, chain, common.RequestStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE pending_deposits %v", err)
 	}
 
 	return tx.Commit()
@@ -1071,4 +1142,125 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 
 func (s SQLite3Store) writeBlockCheckpoint(ctx context.Context, chain byte, checkpoint int64) error {
 	return s.WriteProperty(ctx, depositCheckpointKey(chain), fmt.Sprint(checkpoint))
+}
+
+func (s *SQLite3Store) WritePendingDepositRecord(ctx context.Context, d *PendingDeposit) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer common.Rollback(tx)
+
+	if d.State != common.RequestStateInitial {
+		panic(d.State)
+	}
+
+	existed, err := s.checkExistence(ctx, tx, "SELECT amount FROM pending_deposits WHERE chain=? AND transaction_hash=? AND output_index=?", d.Chain, d.TransactionHash, d.OutputIndex)
+	if err != nil || existed {
+		return err
+	}
+
+	existed, err = s.checkExistence(ctx, tx, "SELECT amount FROM deposits WHERE transaction_hash=? AND output_index=? AND chain=? AND state=?", d.TransactionHash, d.OutputIndex, d.Chain, common.RequestStateDone)
+	if err != nil || existed {
+		return err
+	}
+
+	err = s.execOne(ctx, tx, buildInsertionSQL("pending_deposits", pendingDepositsCols), d.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT pending_deposits %v", err)
+	}
+
+	return tx.Commit()
+}
+
+type pendingDepositObservation struct {
+	TransactionHash string
+	OutputIndex     int64
+	MissingSince    sql.NullTime
+}
+
+// Reconciliation must include records beyond the public API's first 100 rows.
+func (s *SQLite3Store) listPendingDepositObservations(ctx context.Context, chain byte) ([]pendingDepositObservation, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT transaction_hash, output_index, missing_since FROM pending_deposits WHERE chain=? AND state=?", chain, common.RequestStateInitial)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(rows)
+
+	var observations []pendingDepositObservation
+	for rows.Next() {
+		var d pendingDepositObservation
+		if err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.MissingSince); err != nil {
+			return nil, err
+		}
+		observations = append(observations, d)
+	}
+	return observations, rows.Err()
+}
+
+func (s *SQLite3Store) updatePendingDepositMissingSince(ctx context.Context, chain byte, d pendingDepositObservation, since sql.NullTime) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	_, err := s.db.ExecContext(ctx, "UPDATE pending_deposits SET missing_since=? WHERE chain=? AND transaction_hash=? AND output_index=? AND state=? AND missing_since IS ?",
+		since, chain, d.TransactionHash, d.OutputIndex, common.RequestStateInitial, d.MissingSince)
+	return err
+}
+
+func (s *SQLite3Store) deleteMissingPendingDeposit(ctx context.Context, chain byte, d pendingDepositObservation) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Do not delete an observation confirmed or refreshed during the RPC lookup,
+	// or one already picked up by the independent formal deposit scanner.
+	_, err := s.db.ExecContext(ctx, `DELETE FROM pending_deposits
+		WHERE chain=? AND transaction_hash=? AND output_index=? AND state=? AND missing_since=?
+		AND NOT EXISTS (SELECT 1 FROM deposits WHERE chain=? AND transaction_hash=? AND output_index=?)`,
+		chain, d.TransactionHash, d.OutputIndex, common.RequestStateInitial, d.MissingSince,
+		chain, d.TransactionHash, d.OutputIndex)
+	return err
+}
+
+func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holder string, offset int64) ([]*PendingDeposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM pending_deposits WHERE chain=? AND state=? AND created_at>=?", strings.Join(pendingDepositsCols, ","))
+	params := []any{chain, common.RequestStateInitial, time.Unix(0, offset).UTC()}
+	if holder != "" {
+		query += " AND holder=?"
+		params = append(params, holder)
+	}
+	query += " ORDER BY created_at ASC, transaction_hash ASC, output_index ASC LIMIT 100"
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseOrPanic(rows)
+
+	deposits := make([]*PendingDeposit, 0)
+	for rows.Next() {
+		var d PendingDeposit
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		deposits = append(deposits, &d)
+	}
+	return deposits, rows.Err()
+}
+
+func (s *SQLite3Store) deleteExpiredEthereumPendingDeposits(ctx context.Context, chain byte, cutoff time.Time) error {
+	switch chain {
+	case common.SafeChainEthereum, common.SafeChainPolygon:
+	default:
+		return fmt.Errorf("invalid EVM pending deposit chain %d", chain)
+	}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Expiry only ends the observation; it does not invalidate a formal deposit.
+	_, err := s.db.ExecContext(ctx, "DELETE FROM pending_deposits WHERE chain=? AND state=? AND created_at<=?",
+		chain, common.RequestStateInitial, cutoff.UTC())
+	return err
 }

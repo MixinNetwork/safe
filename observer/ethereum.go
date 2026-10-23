@@ -177,30 +177,34 @@ func (node *Node) processEthereumRPCBlock(ctx context.Context, num int64, chain 
 }
 
 func (node *Node) doProcessEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {
-	rpc, ethAssetId, _ := node.ethereumParams(chain)
-	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
+	block, transfers, err := node.ethereumReadBlockTransfers(ctx, num, chain)
 	if err != nil {
 		return err
 	}
-	if len(blockTraces) == 0 {
-		return nil
-	}
-	block, err := ethereum.RPCGetBlockWithTransactions(rpc, num)
-	if err != nil {
-		return err
-	}
-	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
-	if err != nil {
-		return err
-	}
-	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block)
-	transfers = append(transfers, erc20Transfers...)
-
 	return node.ethereumProcessBlock(ctx, chain, block, transfers)
 }
 
+func (node *Node) ethereumReadBlockTransfers(ctx context.Context, num int64, chain byte) (*ethereum.RPCBlockWithTransactions, []*ethereum.Transfer, error) {
+	rpc, ethAssetId, _ := node.ethereumParams(chain)
+	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
+	if err != nil {
+		return nil, nil, err
+	}
+	block, err := ethereum.RPCGetBlockWithTransactions(rpc, num)
+	if err != nil {
+		return nil, nil, err
+	}
+	erc20Transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), num)
+	if err != nil {
+		return nil, nil, err
+	}
+	transfers := ethereum.LoopBlockTraces(chain, ethAssetId, blockTraces, block)
+	transfers = append(transfers, erc20Transfers...)
+	return block, transfers, nil
+}
+
 func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *ethereum.Transfer, chain byte) error {
-	rpc, chainAssetId, params := node.ethereumParams(chain)
+	_, _, params := node.ethereumParams(chain)
 	minimum := decimal.RequireFromString(params.TransactionMinimum)
 	old, err := node.keeperStore.ReadDeposit(ctx, transfer.Hash, transfer.Index)
 	logger.Printf("keeperStore.ReadDeposit(%s, %d, %s, %s) => %v %v", transfer.Hash, transfer.Index, transfer.AssetId, transfer.Receiver, old, err)
@@ -232,19 +236,10 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return nil
 	}
 
-	var amount decimal.Decimal
-	switch transfer.AssetId {
-	case chainAssetId:
-		amount = decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
-	default:
-		asset, err := ethereum.FetchAsset(chain, rpc, transfer.TokenAddress)
-		logger.Printf("ethereum.FetchAsset(%s, %s) => %v %v", transfer.Hash, transfer.TokenAddress, asset, err)
-		if err != nil {
-			return nil
-		}
-		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
+	amount, err := node.ethereumDepositAmount(transfer, chain)
+	if err != nil {
+		return nil
 	}
-	amount = amount.RoundFloor(8)
 	if amount.Cmp(minimum) < 0 {
 		return nil
 	}
@@ -283,6 +278,20 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		return fmt.Errorf("store.WritePendingDeposit(%v) => %v", deposit, err)
 	}
 	return nil
+}
+
+func (node *Node) ethereumDepositAmount(transfer *ethereum.Transfer, chain byte) (decimal.Decimal, error) {
+	rpc, chainAssetId, _ := node.ethereumParams(chain)
+	precision := int32(ethereum.ValuePrecision)
+	if transfer.AssetId != chainAssetId {
+		asset, err := ethereum.FetchAsset(chain, rpc, transfer.TokenAddress)
+		logger.Printf("ethereum.FetchAsset(%s, %s) => %v %v", transfer.Hash, transfer.TokenAddress, asset, err)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		precision = int32(asset.Decimals)
+	}
+	return decimal.NewFromBigInt(transfer.Value, -precision).RoundFloor(8), nil
 }
 
 func (node *Node) ethereumConfirmPendingDeposit(ctx context.Context, deposit *Deposit) error {
@@ -378,7 +387,7 @@ func (node *Node) sendKeeperDepositTransaction(ctx context.Context, deposit *Dep
 	case common.RequestStateInitial:
 		return nil
 	case common.RequestStateDone:
-		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId)
+		err = node.store.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, deposit.Chain)
 		if err != nil {
 			return fmt.Errorf("store.ConfirmPendingDeposit(%v) => %v", deposit, err)
 		}

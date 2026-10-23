@@ -222,6 +222,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		State:           common.RequestStateInitial,
 		Chain:           chain,
 		RequestId:       id,
+		IsChange:        change,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
 	}
@@ -380,9 +381,12 @@ func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkp
 	return node.store.WriteCache(ctx, key, "processed")
 }
 
-func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
-	for index := range tx.Vout {
-		out := tx.Vout[index]
+func bitcoinDepositOutputIndexes(tx *bitcoin.RPCTransaction) []int {
+	var indexes []int
+	for index, out := range tx.Vout {
+		if out.ScriptPubKey == nil {
+			continue
+		}
 		skt := out.ScriptPubKey.Type
 		if skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash && skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash {
 			continue
@@ -390,7 +394,14 @@ func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPC
 		if out.N != int64(index) {
 			panic(tx.TxId)
 		}
+		indexes = append(indexes, index)
+	}
+	return indexes
+}
 
+func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
+	for _, index := range bitcoinDepositOutputIndexes(tx) {
+		out := tx.Vout[index]
 		err := node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx, out.N, out.Value, chain)
 		if err != nil {
 			panic(err)

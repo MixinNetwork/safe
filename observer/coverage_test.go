@@ -153,11 +153,11 @@ func TestCoverageObserverDepositsAndTransactions(t *testing.T) {
 
 	newRequestID := uuid.Must(uuid.NewV4()).String()
 	require.NoError(t, s.UpdateDepositRequestId(ctx, deposit.TransactionHash, deposit.OutputIndex, deposit.RequestId, newRequestID))
-	require.NoError(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID))
+	require.NoError(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID, deposit.Chain))
 	deposits, err = s.ListDeposits(ctx, int(deposit.Chain), deposit.Holder, common.RequestStateDone, 0)
 	require.NoError(t, err)
 	require.Len(t, deposits, 1)
-	require.Error(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID))
+	require.Error(t, s.ConfirmPendingDeposit(ctx, deposit.TransactionHash, deposit.OutputIndex, newRequestID, deposit.Chain))
 
 	sent := coverageObserverTransaction("sent", common.RequestStateDone, common.SafeChainBitcoin, now)
 	sent.SpentHash = sql.NullString{Valid: true, String: deposit.TransactionHash}
@@ -525,7 +525,7 @@ func TestCoverageObserverPureHelpersAndCheckpoints(t *testing.T) {
 	require.Equal(t, "0102", views[0].Script)
 	recoveryViews := node.viewRecoveries(ctx, []*Recovery{{Address: "address", State: common.RequestStateDone}})
 	require.Equal(t, "done", recoveryViews[0]["state"])
-	depositViews := node.viewDeposits(ctx, []*Deposit{{TransactionHash: "hash", State: common.RequestStateInitial, Chain: common.SafeChainEthereum}}, nil)
+	depositViews := node.viewDeposits([]*Deposit{{TransactionHash: "hash", State: common.RequestStateInitial, Chain: common.SafeChainEthereum}}, nil)
 	require.Equal(t, "pending", depositViews[0]["state"])
 	require.Equal(t, "hash", depositViews[0]["sent_hash"])
 }

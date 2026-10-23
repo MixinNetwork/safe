@@ -57,6 +57,11 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
+	err := node.Migrate(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	for _, chain := range []byte{
 		common.SafeChainBitcoin,
 		common.SafeChainLitecoin,
@@ -72,12 +77,14 @@ func (node *Node) Boot(ctx context.Context) {
 		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			go node.bitcoinNetworkInfoLoop(ctx, chain)
 			go node.bitcoinRPCBlocksLoop(ctx, chain)
+			go node.bitcoinPendingDepositsLoop(ctx, chain)
 			go node.bitcoinDepositConfirmLoop(ctx, chain)
 			go node.bitcoinTransactionApprovalLoop(ctx, chain)
 			go node.bitcoinTransactionSpendLoop(ctx, chain)
 		case common.SafeChainPolygon, common.SafeChainEthereum:
 			go node.ethereumNetworkInfoLoop(ctx, chain)
 			go node.ethereumRPCBlocksLoop(ctx, chain)
+			go node.ethereumPendingDepositsLoop(ctx, chain)
 			go node.ethereumDepositConfirmLoop(ctx, chain)
 			go node.ethereumTransactionApprovalLoop(ctx, chain)
 			go node.ethereumTransactionSpendLoop(ctx, chain)
@@ -440,6 +447,18 @@ func (node *Node) readDepositCheckpoint(ctx context.Context, chain byte) (int64,
 	return checkpoint, nil
 }
 
+func (node *Node) readPendingDepositCheckpoint(ctx context.Context, chain byte) (int64, error) {
+	value, err := node.store.ReadProperty(ctx, pendingDepositCheckpointKey(chain))
+	if err != nil || value == "" {
+		return depositCheckpointDefault(chain), err
+	}
+	checkpoint, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return max(checkpoint, depositCheckpointDefault(chain)), nil
+}
+
 func (node *Node) getStuckTxHash(ctx context.Context, hash string) string {
 	tx, err := node.keeperStore.ReadTransaction(ctx, hash)
 	if err != nil {
@@ -504,6 +523,15 @@ func depositCheckpointKey(chain byte) string {
 		return fmt.Sprintf("bitcoin-deposit-checkpoint-%d", chain)
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		return fmt.Sprintf("ethereum-deposit-checkpoint-%d", chain)
+	default:
+		panic(chain)
+	}
+}
+
+func pendingDepositCheckpointKey(chain byte) string {
+	switch chain {
+	case common.SafeChainEthereum, common.SafeChainPolygon:
+		return fmt.Sprintf("ethereum-pending-deposit-checkpoint-%d", chain)
 	default:
 		panic(chain)
 	}
