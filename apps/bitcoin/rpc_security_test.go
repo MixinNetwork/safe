@@ -52,7 +52,7 @@ func TestBitcoinRPCGetTransactionNotFound(t *testing.T) {
 				require.NoError(t, err)
 				require.Nil(t, tx)
 				tx, output, err := RPCGetTransactionOutput(chain, server.URL, "missing-hash", 0)
-				require.NoError(t, err)
+				require.ErrorContains(t, err, "transaction not found: missing-hash")
 				require.Nil(t, tx)
 				require.Nil(t, output)
 				_, err = RPCGetTransactionSender(chain, server.URL, &RPCTransaction{
@@ -74,6 +74,10 @@ func TestBitcoinRPCGetTransactionPreservesOtherErrors(t *testing.T) {
 
 	tx, err := RPCGetTransaction(ChainBitcoin, server.URL, "hash")
 	require.Nil(t, tx)
+	require.ErrorContains(t, err, "method not found")
+	tx, output, err := RPCGetTransactionOutput(ChainBitcoin, server.URL, "hash", 0)
+	require.Nil(t, tx)
+	require.Nil(t, output)
 	require.ErrorContains(t, err, "method not found")
 }
 
