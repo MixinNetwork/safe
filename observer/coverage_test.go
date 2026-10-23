@@ -525,7 +525,7 @@ func TestCoverageObserverPureHelpersAndCheckpoints(t *testing.T) {
 	require.Equal(t, "0102", views[0].Script)
 	recoveryViews := node.viewRecoveries(ctx, []*Recovery{{Address: "address", State: common.RequestStateDone}})
 	require.Equal(t, "done", recoveryViews[0]["state"])
-	depositViews := node.viewDeposits(ctx, []*Deposit{{TransactionHash: "hash", State: common.RequestStateInitial, Chain: common.SafeChainEthereum}}, nil)
+	depositViews := node.viewDeposits([]*Deposit{{TransactionHash: "hash", State: common.RequestStateInitial, Chain: common.SafeChainEthereum}}, nil)
 	require.Equal(t, "pending", depositViews[0]["state"])
 	require.Equal(t, "hash", depositViews[0]["sent_hash"])
 }

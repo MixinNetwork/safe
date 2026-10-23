@@ -31,47 +31,23 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 		seen[depositKey{d.TransactionHash, d.OutputIndex}] = true
 	}
 
-	var after *Deposit
-	for added := 0; added < 100; {
-		initial, err := node.store.listInitialDepositsByCreatedAt(ctx, int(chain), holder, offset, after)
-		if err != nil {
-			return nil, err
+	// The first 100 rows of each source contain the first 100 of their deduplicated union.
+	initial, err := node.store.listDepositsByCreatedAt(ctx, nil, int(chain), holder, common.RequestStateInitial, offset, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range initial {
+		key := depositKey{d.TransactionHash, d.OutputIndex}
+		if seen[key] {
+			continue
 		}
-		var sent map[string]string
-		switch chain {
-		case common.SafeChainBitcoin, common.SafeChainLitecoin:
-			sent, err = node.store.QueryDepositSentHashes(ctx, initial)
-			if err != nil {
-				return nil, err
-			}
-		}
-		for _, d := range initial {
-			key := depositKey{d.TransactionHash, d.OutputIndex}
-			if seen[key] {
-				continue
-			}
-			switch chain {
-			case common.SafeChainBitcoin, common.SafeChainLitecoin:
-				if node.bitcoinCheckDepositChange(ctx, d.TransactionHash, d.OutputIndex, sent[d.TransactionHash]) {
-					continue
-				}
-			}
-			deposits = append(deposits, &PendingDeposit{
-				TransactionHash: d.TransactionHash, OutputIndex: d.OutputIndex,
-				AssetId: d.AssetId, AssetAddress: d.AssetAddress, Amount: d.Amount,
-				Receiver: d.Receiver, Sender: d.Sender, State: d.State,
-				Chain: d.Chain, Holder: d.Holder, CreatedAt: d.CreatedAt,
-			})
-			seen[key] = true
-			added++
-			if added == 100 {
-				break
-			}
-		}
-		if len(initial) < 100 {
-			break
-		}
-		after = initial[len(initial)-1]
+		deposits = append(deposits, &PendingDeposit{
+			TransactionHash: d.TransactionHash, OutputIndex: d.OutputIndex,
+			AssetId: d.AssetId, AssetAddress: d.AssetAddress, Amount: d.Amount,
+			Receiver: d.Receiver, Sender: d.Sender, State: d.State,
+			Chain: d.Chain, Holder: d.Holder, CreatedAt: d.CreatedAt,
+		})
+		seen[key] = true
 	}
 	sort.Slice(deposits, func(i, j int) bool {
 		a, b := deposits[i], deposits[j]

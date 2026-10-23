@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   holder             VARCHAR NOT NULL,
   category           INTEGER NOT NULL,
   request_id         VARCHAR NOT NULL,
+  is_change          BOOLEAN NOT NULL DEFAULT FALSE,
   created_at         TIMESTAMP NOT NULL,
   updated_at         TIMESTAMP NOT NULL,
   PRIMARY KEY ('transaction_hash', 'output_index')
@@ -103,6 +104,11 @@ CREATE INDEX IF NOT EXISTS deposits_by_chain_state_created ON deposits(chain, st
 CREATE INDEX IF NOT EXISTS deposits_by_holder_asset_state_created ON deposits(holder, asset_id, state, created_at);
 CREATE INDEX IF NOT EXISTS deposits_by_chain_state_updated ON deposits(chain, state, updated_at);
 CREATE INDEX IF NOT EXISTS deposits_by_holder_asset_state_updated ON deposits(holder, asset_id, state, updated_at);
+-- CREATE INDEX IF NOT EXISTS deposits_by_chain_created ON deposits(chain, created_at);
+-- CREATE INDEX IF NOT EXISTS deposits_by_chain_state_change_created ON deposits(chain, state, is_change, created_at);
+-- CREATE INDEX IF NOT EXISTS deposits_by_chain_state_change_updated ON deposits(chain, state, is_change, updated_at);
+-- CREATE INDEX IF NOT EXISTS deposits_by_holder_chain_state_change_created ON deposits(holder, chain, state, is_change, created_at);
+-- CREATE INDEX IF NOT EXISTS deposits_by_holder_chain_state_change_updated ON deposits(holder, chain, state, is_change, updated_at);
 
 
 
@@ -122,6 +128,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 CREATE INDEX IF NOT EXISTS transactions_by_chain_state_created ON transactions(chain, state, created_at);
+CREATE INDEX IF NOT EXISTS transactions_by_spent_hash ON transactions(spent_hash);
 
 
 

@@ -57,7 +57,7 @@ func NewNode(db *SQLite3Store, kd *store.SQLite3Store, conf *Configuration, keep
 }
 
 func (node *Node) Boot(ctx context.Context) {
-	err := node.store.migratePendingDepositCheckpoints(ctx)
+	err := node.Migrate(ctx)
 	if err != nil {
 		panic(err)
 	}

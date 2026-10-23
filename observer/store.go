@@ -52,6 +52,7 @@ type Deposit struct {
 	Holder          string
 	Category        byte
 	RequestId       string
+	IsChange        bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -128,12 +129,12 @@ var accountCols = []string{"address", "created_at", "signature", "approved_at", 
 
 var assetCols = []string{"asset_id", "mixin_id", "asset_key", "symbol", "name", "decimals", "chain", "created_at"}
 
-var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "request_id", "created_at", "updated_at"}
+var depositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "category", "request_id", "is_change", "created_at", "updated_at"}
 
 var pendingDepositsCols = []string{"transaction_hash", "output_index", "asset_id", "asset_address", "amount", "receiver", "sender", "state", "chain", "holder", "created_at"}
 
 func (d *Deposit) values() []any {
-	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.RequestId, d.CreatedAt, d.UpdatedAt}
+	return []any{d.TransactionHash, d.OutputIndex, d.AssetId, d.AssetAddress, d.Amount, d.Receiver, d.Sender, d.State, d.Chain, d.Holder, d.Category, d.RequestId, d.IsChange, d.CreatedAt, d.UpdatedAt}
 }
 
 func (d *PendingDeposit) values() []any {
@@ -391,8 +392,15 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 }
 
 func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder string, state int, offset int64) ([]*Deposit, error) {
+	return s.listDeposits(ctx, chain, holder, state, offset, false)
+}
+
+func (s *SQLite3Store) listDeposits(ctx context.Context, chain int, holder string, state int, offset int64, excludeChange bool) ([]*Deposit, error) {
 	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND updated_at>=?", strings.Join(depositsCols, ","))
 	params := []any{chain, time.Unix(0, offset).UTC()}
+	if excludeChange {
+		query += " AND is_change=FALSE"
+	}
 	if state > 0 {
 		query += " AND state=?"
 		params = append(params, state)
@@ -402,7 +410,35 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 		params = append(params, holder)
 	}
 	query += " ORDER BY updated_at ASC LIMIT 100"
-	rows, err := s.db.QueryContext(ctx, query, params...)
+	return s.queryDeposits(ctx, nil, query, params)
+}
+
+func (s *SQLite3Store) listDepositsByCreatedAt(ctx context.Context, tx *sql.Tx, chain int, holder string, state int, offset int64, excludeChange bool) ([]*Deposit, error) {
+	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND created_at>=?", strings.Join(depositsCols, ","))
+	params := []any{chain, time.Unix(0, offset).UTC()}
+	if state > 0 {
+		query += " AND state=?"
+		params = append(params, state)
+	}
+	if holder != "" {
+		query += " AND holder=?"
+		params = append(params, holder)
+	}
+	if excludeChange {
+		query += " AND is_change=FALSE"
+	}
+	query += " ORDER BY created_at ASC, transaction_hash ASC, CAST(output_index AS INTEGER) ASC LIMIT 100"
+	return s.queryDeposits(ctx, tx, query, params)
+}
+
+func (s *SQLite3Store) queryDeposits(ctx context.Context, tx *sql.Tx, query string, params []any) ([]*Deposit, error) {
+	var rows *sql.Rows
+	var err error
+	if tx != nil {
+		rows, err = tx.QueryContext(ctx, query, params...)
+	} else {
+		rows, err = s.db.QueryContext(ctx, query, params...)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -411,13 +447,13 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 	var deposits []*Deposit
 	for rows.Next() {
 		var d Deposit
-		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
+		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.IsChange, &d.CreatedAt, &d.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
 		deposits = append(deposits, &d)
 	}
-	return deposits, nil
+	return deposits, rows.Err()
 }
 
 func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Context, holder, assetId string, offset time.Time) (bool, error) {
@@ -434,10 +470,19 @@ func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Con
 }
 
 func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
+	return s.queryDepositSentHashes(ctx, nil, deposits)
+}
+
+func (s *SQLite3Store) queryDepositSentHashes(ctx context.Context, tx *sql.Tx, deposits []*Deposit) (map[string]string, error) {
 	sent := make(map[string]string)
 	for _, d := range deposits {
 		query := "SELECT transaction_hash FROM transactions WHERE spent_hash=?"
-		row := s.db.QueryRowContext(ctx, query, d.TransactionHash)
+		var row *sql.Row
+		if tx != nil {
+			row = tx.QueryRowContext(ctx, query, d.TransactionHash)
+		} else {
+			row = s.db.QueryRowContext(ctx, query, d.TransactionHash)
+		}
 
 		var hash string
 		err := row.Scan(&hash)
@@ -1197,38 +1242,6 @@ func (s *SQLite3Store) ListPendingDeposits(ctx context.Context, chain int, holde
 	for rows.Next() {
 		var d PendingDeposit
 		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		deposits = append(deposits, &d)
-	}
-	return deposits, rows.Err()
-}
-
-// The pending API uses creation time; ListDeposits keeps its update-time cursor.
-// after continues an internal batch when change filtering removes candidate rows.
-func (s *SQLite3Store) listInitialDepositsByCreatedAt(ctx context.Context, chain int, holder string, offset int64, after *Deposit) ([]*Deposit, error) {
-	query := fmt.Sprintf("SELECT %s FROM deposits WHERE chain=? AND state=? AND created_at>=?", strings.Join(depositsCols, ","))
-	params := []any{chain, common.RequestStateInitial, time.Unix(0, offset).UTC()}
-	if holder != "" {
-		query += " AND holder=?"
-		params = append(params, holder)
-	}
-	if after != nil {
-		query += " AND (created_at, transaction_hash, CAST(output_index AS INTEGER)) > (?, ?, ?)"
-		params = append(params, after.CreatedAt, after.TransactionHash, after.OutputIndex)
-	}
-	// output_index is stored as VARCHAR in deposits, but the API sorts it numerically.
-	query += " ORDER BY created_at ASC, transaction_hash ASC, CAST(output_index AS INTEGER) ASC LIMIT 100"
-	rows, err := s.db.QueryContext(ctx, query, params...)
-	if err != nil {
-		return nil, err
-	}
-	defer util.CloseOrPanic(rows)
-	var deposits []*Deposit
-	for rows.Next() {
-		var d Deposit
-		err := rows.Scan(&d.TransactionHash, &d.OutputIndex, &d.AssetId, &d.AssetAddress, &d.Amount, &d.Receiver, &d.Sender, &d.State, &d.Chain, &d.Holder, &d.Category, &d.RequestId, &d.CreatedAt, &d.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

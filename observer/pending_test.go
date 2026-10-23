@@ -422,6 +422,18 @@ func TestBitcoinPendingMempoolExcludesChange(t *testing.T) {
 			deposits, err := f.node.store.ListDeposits(t.Context(), int(chain), "", 0, 0)
 			require.NoError(t, err)
 			require.Empty(t, deposits, "mempool scanning does not enter the confirmation queue")
+			tx, err := bitcoin.RPCGetTransaction(chain, server.URL, "mempool-hash")
+			require.NoError(t, err)
+			for i := range 2 {
+				out := tx.Vout[i]
+				require.NoError(t, f.node.bitcoinWritePendingDeposit(t.Context(), f.address, tx, out.N, out.Value, chain))
+			}
+			deposits, err = f.node.store.ListDeposits(t.Context(), int(chain), "", common.RequestStateInitial, 0)
+			require.NoError(t, err)
+			require.Len(t, deposits, 2)
+			for _, d := range deposits {
+				require.Equal(t, d.OutputIndex == 1, d.IsChange, "persist the output classification for confirmation and listing")
+			}
 		})
 	}
 }

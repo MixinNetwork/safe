@@ -222,6 +222,7 @@ func (node *Node) bitcoinWritePendingDeposit(ctx context.Context, receiver strin
 		State:           common.RequestStateInitial,
 		Chain:           chain,
 		RequestId:       id,
+		IsChange:        change,
 		CreatedAt:       createdAt,
 		UpdatedAt:       createdAt,
 	}
