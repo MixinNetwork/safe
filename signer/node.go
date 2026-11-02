@@ -231,11 +231,11 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 			case common.OperationTypeKeygenInput:
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 			case common.OperationTypeSignInput:
-				holder, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Curve, op.Public)
+				_, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Curve, op.Public)
 				if err != nil || crv != op.Curve {
 					panic(err)
 				}
-				signed, sig := node.verifySessionSignature(ctx, op.Curve, holder, op.Extra, share, path)
+				signed, sig := node.verifySessionSignature(ctx, op.Curve, op.Extra, share, path)
 				if signed {
 					op.Extra = sig
 				} else {
@@ -371,7 +371,12 @@ func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionI
 
 func (node *Node) loopMultiPartySession(ctx context.Context, mps *MultiPartySession, h protocol.Handler, roundTimeout time.Duration) (any, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case msg, ok := <-h.Listen():
 			if !ok {
 				return h.Result()

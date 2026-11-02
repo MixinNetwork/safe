@@ -6,9 +6,11 @@ Mixin Safe is composed of two networks, Mixin Safe Signer and Mixin Safe Keeper,
 
 Mixin Safe Signer is a computation intensive software, and utilizes parallelization a lot. It's recommended to use a CPU of at least 8 cores, and the RAM must be 8GB+.
 
-Mixin Safe Keeper consumes much less computation resources, thus a 2 cores CPU is well enough.
+Mixin Safe Keeper requires less computation, so a CPU with 2 cores is sufficient.
 
-For software environment, both Mixin Safe Signer and Safe Keeper are tested on Ubuntu 22.04 and Go 1.20+.
+For software environment, both Mixin Safe Signer and Safe Keeper are tested on Ubuntu 22.04 and the Go version required by [`go.mod`](go.mod) (currently 1.27.3).
+
+The configuration and MVM examples below describe an older deployment. For current configuration fields, use [`config/example.toml`](config/example.toml); mainnet and testnet membership and contract settings are validated in [`config/reader.go`](config/reader.go).
 
 ## Preparation
 
@@ -23,11 +25,11 @@ Both Signer and Keeper MTG rely on some external blockchain RPC nodes to operate
 
 Get Bitcoin Core 25.0+, and enable `txindex=1` for `getrawtransaction` RPC.
 
-Then boot bitcoind and wait for it to fully synchronized.
+Then boot bitcoind and wait for it to fully synchronize.
 
 ### Litecoin
 
-Same to Bitcoin.
+Follow the same steps as for Bitcoin.
 
 ### Mixin Virtual Machine
 
@@ -166,11 +168,11 @@ safe signer -c /var/mixin/safe/signer/config.toml
 
 ## Mixin Safe Keeper
 
-Mixin Safe Signer network only accepts MPC requets carried by a specific Mixin Kernel asset, this asset is managed by Mixin Safe Keeper network.
+Mixin Safe Signer network only accepts MPC requests carried by a specific Mixin Kernel asset, this asset is managed by Mixin Safe Keeper network.
 
 Mixin Safe Keeper network doesn't store any MPC private keys, but it's still important to keep the node isolated from the Internet as much as possible.
 
-It's recommended to keep Mixin Safe Keeper node isolabed from the Mixin Safe Signer node as well, and follow the same backup procedure.
+It's recommended to keep Mixin Safe Keeper node isolated from the Mixin Safe Signer node as well, and follow the same backup procedure.
 
 The node needs a similar configuration file as the Signer node, just modify the template below.
 

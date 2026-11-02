@@ -77,7 +77,8 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	}
 	defer util.CloseOrPanic(rows)
 
-	return rows.Next(), nil
+	exists := rows.Next()
+	return exists, rows.Err()
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {

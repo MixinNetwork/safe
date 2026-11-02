@@ -49,6 +49,9 @@ func ExtraLimit(tx mixinnet.Transaction) int {
 
 func CreateObjectStorageUntilSufficient(ctx context.Context, mw *MixinWallet, client *mixin.Client, recipients []*bot.TransactionRecipient, extra []byte, sTraceId string, su bot.SafeUser) (crypto.Hash, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return crypto.Hash{}, err
+		}
 		old, err := SafeReadTransactionRequestUntilSufficient(ctx, client, sTraceId)
 		if err != nil {
 			return crypto.Hash{}, err
@@ -80,6 +83,9 @@ func CreateObjectStorageUntilSufficient(ctx context.Context, mw *MixinWallet, cl
 
 func SendTransactionUntilSufficient(ctx context.Context, mw *MixinWallet, client *mixin.Client, receivers []string, receiversThreshold int, amount decimal.Decimal, traceId, assetId, memo string, references []crypto.Hash, spendPrivateKey string) (*mixin.SafeTransactionRequest, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		req, err := sendTransaction(ctx, mw, client, receivers, receiversThreshold, amount, traceId, assetId, memo, references, spendPrivateKey)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
@@ -161,6 +167,9 @@ func checkTransactionRequestRaw(req *mixin.SafeTransactionRequest, raw string) e
 
 func listUnspentUTXOsUntilSufficient(ctx context.Context, client *mixin.Client, members []string, threshold uint8, assetId string, offset uint64) ([]*mixin.SafeUtxo, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		utxos, err := client.SafeListUtxos(ctx, mixin.SafeListUtxoOption{
 			Members:   members,
 			Threshold: threshold,
@@ -213,6 +222,9 @@ func signTransaction(ctx context.Context, client *mixin.Client, requestId, raw s
 
 func SafeReadTransactionRequestUntilSufficient(ctx context.Context, client *mixin.Client, id string) (*mixin.SafeTransactionRequest, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		req, err := readTransaction(ctx, client, id)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Second)
@@ -234,6 +246,9 @@ func readTransaction(ctx context.Context, client *mixin.Client, id string) (*mix
 func SafeReadAssetUntilSufficient(ctx context.Context, id string, su *bot.SafeUser) (*bot.AssetNetwork, error) {
 	for {
 		asset, err := bot.ReadAsset(ctx, id, su)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		logger.Verbosef("common.mixin.SafeReadAsset(%s) => %v %v", id, asset, err)
 		if err == nil || util.IsErrorCodes(err, 404) {
 			return asset, nil
@@ -248,6 +263,9 @@ func SafeReadAssetUntilSufficient(ctx context.Context, id string, su *bot.SafeUs
 
 func SafeReadAssetsUntilSufficient(ctx context.Context, ids []string, su *bot.SafeUser) ([]*bot.Asset, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		as, err := bot.FetchAssets(ctx, ids, su)
 		logger.Verbosef("common.mixin.FetchAssets(%s) => %d %v", strings.Join(ids, ","), len(as), err)
 		if err == nil {
@@ -263,6 +281,9 @@ func SafeReadAssetsUntilSufficient(ctx context.Context, ids []string, su *bot.Sa
 
 func SafeReadWithdrawalFeeUntilSufficient(ctx context.Context, su *bot.SafeUser, assetId, feeAssetId, destination string) (*bot.AssetFee, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		fees, err := bot.ReadAssetFee(ctx, assetId, destination, su)
 		logger.Verbosef("common.mixin.ReadAssetFee(%s %s) => %v %v", assetId, destination, fees, err)
 		if err == nil {
@@ -289,6 +310,9 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 		return "jmHyRpKEuc1PgDjDaqaQqo9GpSM3pp9PhLgwzqpfa2uUbtRYJmbKtWp4onfNFsbk47paBjxz1d6s9n56Y8Na9Hp", nil
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		req, err := bot.GetTransactionByIdWithSafeUser(ctx, id, su)
 		logger.Verbosef("bot.GetTransactionByIdWithSafeUser(%s) => %v %v", id, req, err)
 		if err == nil {
@@ -337,6 +361,9 @@ func ReadUsers(ctx context.Context, client *mixin.Client, ids []string) ([]*mixi
 		return us, nil
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		us, err := client.ReadUsers(ctx, ids...)
 		logger.Verbosef("common.mixin.ReadUsers(%v) => %v %v\n", ids, us, err)
 		if CheckRetryableError(err) {

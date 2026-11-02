@@ -13,11 +13,11 @@ func IsErrorCodes(err error, codes ...int) bool {
 		return true
 	}
 
-	e := &bot.Error{}
-	if errors.As(err, e) {
-		return slices.ContainsFunc(codes, func(c int) bool {
-			return c == e.Code
-		})
+	if value, ok := errors.AsType[bot.Error](err); ok {
+		return slices.Contains(codes, value.Code)
+	}
+	if pointer, ok := errors.AsType[*bot.Error](err); ok && pointer != nil {
+		return slices.Contains(codes, pointer.Code)
 	}
 	return false
 }

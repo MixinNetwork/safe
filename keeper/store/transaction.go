@@ -137,7 +137,7 @@ func (s *SQLite3Store) ReadUnfinishedTransactionsByHolder(ctx context.Context, h
 		}
 		txs = append(txs, &tx)
 	}
-	return txs, nil
+	return txs, rows.Err()
 }
 
 func (s *SQLite3Store) CloseAccountByTransactionWithRequest(ctx context.Context, trx *Transaction, utxos []*TransactionInput, utxoState int, txs []*mtg.Transaction, req *common.Request) error {

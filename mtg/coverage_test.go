@@ -90,7 +90,7 @@ func TestCoverageGroupConfigurationAndAccessors(t *testing.T) {
 	invalid.Genesis.Members = []string{uuid.Must(uuid.NewV4()).String()}
 	invalid.App.AppId = uuid.Must(uuid.NewV4()).String()
 	_, err = BuildGroup(ctx, nil, &invalid)
-	req.ErrorContains(err, "not belongs to the group")
+	req.ErrorContains(err, "does not belong to the group")
 
 	confA := &Configuration{}
 	confA.Genesis.Members = []string{"b", "a"}

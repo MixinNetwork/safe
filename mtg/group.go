@@ -28,8 +28,8 @@ const (
 type Worker interface {
 	// process the action in a queue and return transactions
 	// need to ensure enough balance with CheckAssetBalanceAt(ctx, a)
-	// before return any transactions, otherwise the transactions
-	// will be ignored when issuficient balance
+	// before returning any transactions; otherwise transactions
+	// will be ignored when the balance is insufficient
 	//
 	// if we want to make a multi process worker, it's possible that
 	// we pass some RPC handle to the process, or we could build a
@@ -60,8 +60,15 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}
-	if !strings.Contains(strings.Join(conf.Genesis.Members, ","), conf.App.AppId) {
-		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.AppId)
+	if !slices.Contains(conf.Genesis.Members, conf.App.AppId) {
+		return nil, fmt.Errorf("app %s does not belong to the group", conf.App.AppId)
+	}
+	membersSeen := make(map[string]bool)
+	for _, member := range conf.Genesis.Members {
+		if membersSeen[member] {
+			return nil, fmt.Errorf("duplicate group member %s", member)
+		}
+		membersSeen[member] = true
 	}
 
 	client, err := mixin.NewFromKeystore(&mixin.Keystore{
@@ -318,7 +325,7 @@ func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, extra []by
 
 	amount := getStorageTransactionAmount(extra)
 	total := act.CheckAssetBalanceAt(ctx, StorageAssetId)
-	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0
+	return common.NewIntegerFromString(total.String()).Cmp(amount) >= 0
 }
 
 func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {
@@ -388,6 +395,9 @@ func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
 		logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)
 		if err != nil {
 			return err
+		}
+		if req == nil || len(req.Receivers) == 0 || req.Receivers[0] == nil {
+			return fmt.Errorf("invalid withdrawal transaction response for %s", tx.TraceId)
 		}
 		if req.TransactionHash != tx.Hash.String() || req.Receivers[0].Destination != tx.Destination.String {
 			panic(tx.TraceId)

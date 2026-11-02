@@ -141,7 +141,7 @@ func GetRecoveryRequestId(address, destination string) string {
 	return util.UniqueId(requestID, destination)
 }
 
-// TODO cross-chain deposits might be lost, which are sent from emtpy address
+// TODO cross-chain deposits might be lost, which are sent from empty address
 // and not included in the block traces in polygon pos
 //
 // 1. in trace, which has empty from
@@ -608,6 +608,7 @@ func SignerInit(ctx context.Context, conn *ethclient.Client, key string, evmChai
 
 	signer.GasFeeCap = suggestMaxFeePerGas(ctx, conn)
 	signer.GasTipCap = suggestMaxPriorityFeePerGas(ctx, conn)
+	signer.Context = ctx
 	return signer
 }
 
@@ -641,9 +642,9 @@ func safeInit(ctx context.Context, chainId int64, rpc, address string) (*ethclie
 		conn.Close()
 		return nil, nil, err
 	}
-	if id.Int64() != chainId {
+	if id.Cmp(big.NewInt(chainId)) != 0 {
 		conn.Close()
-		return nil, nil, fmt.Errorf("safeInit(%d, %s) => %d", chainId, rpc, id.Int64())
+		return nil, nil, fmt.Errorf("safeInit(%d, %s) => %s", chainId, rpc, id)
 	}
 
 	abi, err := abi.NewGnosisSafe(common.HexToAddress(address), conn)

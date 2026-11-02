@@ -73,7 +73,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	keeper := keeper.NewNode(kd, group, mc.Keeper, mc.Signer.MTG, client)
 	keeper.Boot(ctx)
 
-	if mc.Keeper.MonitorConversaionId != "" {
+	if mc.Keeper.MonitorConversationId != "" {
 		go MonitorKeeper(ctx, db, kd, mc.Keeper, group, version)
 	}
 

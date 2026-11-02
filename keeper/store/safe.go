@@ -299,5 +299,5 @@ func (s *SQLite3Store) ListSafesWithState(ctx context.Context, state int) ([]*Sa
 		s.Receivers = util.SplitIds(receivers, ";")
 		safes = append(safes, &s)
 	}
-	return safes, nil
+	return safes, rows.Err()
 }

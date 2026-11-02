@@ -17,23 +17,26 @@ func GetKernelTransaction(rpc, hash string) (*common.VersionedTransaction, strin
 	if err != nil || raw == nil {
 		return nil, "", err
 	}
-	var signed map[string]any
+	var signed struct {
+		Hex      string `json:"hex"`
+		Snapshot string `json:"snapshot"`
+	}
 	err = json.Unmarshal(raw, &signed)
 	if err != nil {
-		panic(string(raw))
+		return nil, "", err
 	}
-	hex, err := hex.DecodeString(signed["hex"].(string))
+	b, err := hex.DecodeString(signed.Hex)
 	if err != nil {
-		panic(string(raw))
+		return nil, "", err
 	}
-	ver, err := common.UnmarshalVersionedTransaction(hex)
+	ver, err := common.UnmarshalVersionedTransaction(b)
 	if err != nil {
-		panic(string(raw))
+		return nil, "", err
 	}
-	if signed["snapshot"] == nil {
-		return ver, "", nil
+	if actual := ver.PayloadHash().String(); actual != hash {
+		return nil, "", fmt.Errorf("unexpected kernel transaction hash %s, expected %s", actual, hash)
 	}
-	return ver, signed["snapshot"].(string), nil
+	return ver, signed.Snapshot, nil
 }
 
 func callMixinRPC(node, method string, params []any) ([]byte, error) {

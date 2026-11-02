@@ -61,7 +61,7 @@ func (node *Node) frostSign(ctx context.Context, members []party.ID, public stri
 		P = conf.PublicPoint()
 	}
 	if variant == sign.ProtocolMixinPublic {
-		if len(m) < 32 {
+		if len(m) != 64 {
 			return nil, fmt.Errorf("invalid message %d", len(m))
 		}
 		r := group.NewScalar()

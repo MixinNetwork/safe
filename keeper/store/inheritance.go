@@ -89,7 +89,7 @@ func (s *SQLite3Store) ListInheritanceLocksByHolder(ctx context.Context, holder 
 	defer common.Rollback(tx)
 
 	query := fmt.Sprintf("SELECT %s FROM inheritance_locks WHERE holder=?", strings.Join(inheritanceLockCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, holder)
+	rows, err := tx.QueryContext(ctx, query, holder)
 	if err != nil {
 		return nil, err
 	}
@@ -104,5 +104,5 @@ func (s *SQLite3Store) ListInheritanceLocksByHolder(ctx context.Context, holder 
 		}
 		ls = append(ls, &lock)
 	}
-	return ls, nil
+	return ls, rows.Err()
 }

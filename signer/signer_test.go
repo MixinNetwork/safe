@@ -75,18 +75,18 @@ func TestKeeperRequestOriginAuthentication(t *testing.T) {
 	conf.Genesis.Threshold = 2
 	node := &Node{keeper: conf}
 
-	valid := &mtg.Action{UnifiedOutput: mtg.UnifiedOutput{
+	valid := &mtg.Action{
 		Senders:          []string{"keeper-b", "keeper-c", "keeper-a"},
 		SendersThreshold: 2,
-	}}
+	}
 	require.True(node.validateKeeperActionOrigin(valid))
 
 	tests := []*mtg.Action{
-		{UnifiedOutput: mtg.UnifiedOutput{Senders: []string{"attacker"}, SendersThreshold: 1}},
-		{UnifiedOutput: mtg.UnifiedOutput{Senders: []string{"keeper-a", "keeper-b"}, SendersThreshold: 2}},
-		{UnifiedOutput: mtg.UnifiedOutput{Senders: []string{"keeper-a", "keeper-b", "attacker"}, SendersThreshold: 2}},
-		{UnifiedOutput: mtg.UnifiedOutput{Senders: []string{"keeper-a", "keeper-a", "keeper-c"}, SendersThreshold: 2}},
-		{UnifiedOutput: mtg.UnifiedOutput{Senders: []string{"keeper-a", "keeper-b", "keeper-c"}, SendersThreshold: 1}},
+		{Senders: []string{"attacker"}, SendersThreshold: 1},
+		{Senders: []string{"keeper-a", "keeper-b"}, SendersThreshold: 2},
+		{Senders: []string{"keeper-a", "keeper-b", "attacker"}, SendersThreshold: 2},
+		{Senders: []string{"keeper-a", "keeper-a", "keeper-c"}, SendersThreshold: 2},
+		{Senders: []string{"keeper-a", "keeper-b", "keeper-c"}, SendersThreshold: 1},
 	}
 	for _, action := range tests {
 		require.False(node.validateKeeperActionOrigin(action), action.UnifiedOutput)
@@ -107,10 +107,10 @@ func TestUnknownSignerSessionResponsesAreIgnored(t *testing.T) {
 		Type:  common.OperationTypeSignInput,
 		Curve: common.CurveSecp256k1ECDSABitcoin,
 	}
-	out := &mtg.Action{UnifiedOutput: mtg.UnifiedOutput{
+	out := &mtg.Action{
 		Senders:            []string{"member-id-0"},
 		SequencerCreatedAt: time.Now(),
-	}}
+	}
 
 	prepare := *operation
 	prepare.Extra = []byte(PrepareExtra)
@@ -151,18 +151,16 @@ func testCMPKeyGen(ctx context.Context, require *require.Assertions, nodes []*No
 		memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptOperation(op))
 		memo = hex.EncodeToString([]byte(memo))
 		out := &mtg.Action{
-			UnifiedOutput: mtg.UnifiedOutput{
-				OutputId:           uuid.Must(uuid.NewV4()).String(),
-				TransactionHash:    crypto.Sha256Hash([]byte(op.Id)).String(),
-				AppId:              node.conf.AppId,
-				AssetId:            node.conf.KeeperAssetId,
-				Senders:            node.GetKeepers(),
-				SendersThreshold:   int64(node.keeper.Genesis.Threshold),
-				Extra:              memo,
-				Amount:             decimal.NewFromInt(1),
-				SequencerCreatedAt: time.Now(),
-				Sequence:           uint64(sequence + i),
-			},
+			OutputId:           uuid.Must(uuid.NewV4()).String(),
+			TransactionHash:    crypto.Sha256Hash([]byte(op.Id)).String(),
+			AppId:              node.conf.AppId,
+			AssetId:            node.conf.KeeperAssetId,
+			Senders:            node.GetKeepers(),
+			SendersThreshold:   int64(node.keeper.Genesis.Threshold),
+			Extra:              memo,
+			Amount:             decimal.NewFromInt(1),
+			SequencerCreatedAt: time.Now(),
+			Sequence:           uint64(sequence + i),
 		}
 
 		msg := common.MarshalJSONOrPanic(out)

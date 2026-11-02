@@ -12,7 +12,7 @@ type Configuration struct {
 	PrivateKey                  string      `toml:"private-key"`
 	Timestamp                   int64       `toml:"timestamp"`
 	KeeperStoreDir              string      `toml:"keeper-store-dir"`
-	MonitorConversaionId        string      `toml:"monitor-conversation-id"`
+	MonitorConversationId       string      `toml:"monitor-conversation-id"`
 	KeeperPublicKey             string      `toml:"keeper-public-key"`
 	AssetId                     string      `toml:"asset-id"`
 	CustomKeyPriceAssetId       string      `toml:"custom-key-price-asset-id"`
@@ -49,14 +49,17 @@ type ChainParams struct {
 }
 
 func (c *Configuration) Validate() error {
-	if decimal.RequireFromString(c.CustomKeyPriceAmount).Sign() <= 0 {
+	amount, err := decimal.NewFromString(c.CustomKeyPriceAmount)
+	if err != nil || amount.Sign() <= 0 {
 		return fmt.Errorf("Configuration.Validate(observer) price %s", c.CustomKeyPriceAmount)
 	}
 	for _, p := range []ChainParams{c.Bitcoin, c.Litecoin, c.Ethereum, c.Polygon} {
-		if decimal.RequireFromString(p.OperationPriceAmount).Sign() <= 0 {
+		amount, err := decimal.NewFromString(p.OperationPriceAmount)
+		if err != nil || amount.Sign() <= 0 {
 			return fmt.Errorf("Configuration.Validate(operation) price %s", p.OperationPriceAmount)
 		}
-		if decimal.RequireFromString(p.TransactionMinimum).Sign() <= 0 {
+		minimum, err := decimal.NewFromString(p.TransactionMinimum)
+		if err != nil || minimum.Sign() <= 0 {
 			return fmt.Errorf("Configuration.Validate(transaction) minimum %s", p.TransactionMinimum)
 		}
 	}

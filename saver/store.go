@@ -93,7 +93,7 @@ func (s *SQLite3Store) WriteItemIfNotExist(ctx context.Context, id, nodeId, data
 
 	var old string
 	timestamp := time.Now().UTC()
-	row := s.db.QueryRowContext(ctx, "SELECT data FROM items WHERE id=?", id)
+	row := tx.QueryRowContext(ctx, "SELECT data FROM items WHERE id=?", id)
 	err = row.Scan(&old)
 	if err == sql.ErrNoRows {
 		err = s.execOne(ctx, tx, "INSERT INTO items (id, node_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
@@ -131,7 +131,7 @@ func (s *SQLite3Store) ListItemsForNode(ctx context.Context, nodeId string) ([]*
 		}
 		items = append(items, &item)
 	}
-	return items, nil
+	return items, rows.Err()
 }
 
 func (s *SQLite3Store) execOne(ctx context.Context, tx *sql.Tx, sql string, params ...any) error {

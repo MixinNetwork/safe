@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -25,8 +24,11 @@ type Configuration struct {
 
 func ReadConfiguration(path, role string) (*Configuration, error) {
 	if strings.HasPrefix(path, "~/") {
-		usr, _ := user.Current()
-		path = filepath.Join(usr.HomeDir, (path)[2:])
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		path = filepath.Join(homeDir, path[2:])
 	}
 	f, err := os.ReadFile(path)
 	if err != nil {
@@ -37,6 +39,20 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 	if err != nil {
 		return nil, err
 	}
+	switch role {
+	case "signer", "keeper", "observer":
+	default:
+		return nil, fmt.Errorf("invalid role %q", role)
+	}
+	if conf.Keeper == nil || conf.Keeper.MTG == nil {
+		return nil, fmt.Errorf("missing keeper MTG configuration")
+	}
+	if role != "observer" && (conf.Signer == nil || conf.Signer.MTG == nil) {
+		return nil, fmt.Errorf("missing signer MTG configuration")
+	}
+	if role == "observer" && conf.Observer == nil {
+		return nil, fmt.Errorf("missing observer configuration")
+	}
 	if conf.Dev == nil {
 		conf.Dev = &DevConfig{LogLevel: logger.INFO}
 	}
@@ -44,7 +60,9 @@ func ReadConfiguration(path, role string) (*Configuration, error) {
 	conf.checkMainnet(role)
 	conf.checkTestnet(role)
 	sort.Strings(conf.Keeper.MTG.Genesis.Members)
-	sort.Strings(conf.Signer.MTG.Genesis.Members)
+	if conf.Signer != nil && conf.Signer.MTG != nil {
+		sort.Strings(conf.Signer.MTG.Genesis.Members)
+	}
 	return &conf, nil
 }
 

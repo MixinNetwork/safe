@@ -146,10 +146,11 @@ func (s *SQLite3Store) writeSignatureRequestsWithRequest(ctx context.Context, tx
 	}
 
 	if len(requests) == 0 {
-		return tx.Commit()
+		return nil
 	}
 
-	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?", requests[0].RequestId, common.RequestStateInitial)
+	existed, err := s.checkExistence(ctx, tx, "SELECT request_id FROM signature_requests WHERE request_id=? AND state=?",
+		requests[0].RequestId, common.RequestStateInitial)
 	if err != nil || existed {
 		return err
 	}
@@ -329,7 +330,7 @@ func (s *SQLite3Store) ListAllSignaturesForTransaction(ctx context.Context, tran
 		rm[r.InputIndex] = &r
 	}
 
-	return rm, nil
+	return rm, rows.Err()
 }
 
 func (s *SQLite3Store) CountCollectedUniqueSignatures(ctx context.Context, transactionHash string) (int, error) {

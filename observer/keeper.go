@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -13,19 +14,23 @@ import (
 )
 
 func (node *Node) deriveBIP32WithKeeperPath(ctx context.Context, public, path string) (string, error) {
-	path8 := common.DecodeHexOrPanic(path)
-	if path8[0] > 3 {
-		panic(path8[0])
+	path8, err := hex.DecodeString(path)
+	if err != nil || len(path8) != 4 || path8[0] > 3 {
+		return "", fmt.Errorf("invalid keeper derivation path: %s", path)
 	}
 	path32 := make([]uint32, path8[0])
 	for i := range path8[0] {
 		path32[i] = uint32(path8[1+i])
 	}
 	sk, err := node.keeperStore.ReadKey(ctx, public)
-	if err != nil {
-		return "", fmt.Errorf("keeperStore.ReadKey(%s) => %v", public, err)
+	if err != nil || sk == nil {
+		return "", fmt.Errorf("keeperStore.ReadKey(%s) => %v %v", public, sk, err)
 	}
-	_, sdk, err := bitcoin.DeriveBIP32(public, common.DecodeHexOrPanic(sk.Extra), path32...)
+	code, err := hex.DecodeString(sk.Extra)
+	if err != nil {
+		return "", err
+	}
+	_, sdk, err := bitcoin.DeriveBIP32(public, code, path32...)
 	return sdk, err
 }
 

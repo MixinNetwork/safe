@@ -381,23 +381,29 @@ func (node *Node) processBitcoinRPCBlock(ctx context.Context, chain byte, checkp
 }
 
 func (node *Node) bitcoinProcessTransaction(ctx context.Context, tx *bitcoin.RPCTransaction, chain byte) error {
+	if tx == nil {
+		return fmt.Errorf("missing bitcoin transaction")
+	}
 	for index := range tx.Vout {
 		out := tx.Vout[index]
+		if out == nil || out.ScriptPubKey == nil {
+			return fmt.Errorf("missing output script %s:%d", tx.TxId, index)
+		}
 		skt := out.ScriptPubKey.Type
 		if skt != bitcoin.ScriptPubKeyTypeWitnessScriptHash && skt != bitcoin.ScriptPubKeyTypeWitnessKeyHash {
 			continue
 		}
 		if out.N != int64(index) {
-			panic(tx.TxId)
+			return fmt.Errorf("unexpected output index %s:%d, expected %d", tx.TxId, out.N, index)
 		}
 
 		err := node.bitcoinWritePendingDeposit(ctx, out.ScriptPubKey.Address, tx, out.N, out.Value, chain)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		err = node.bitcoinWriteFeeOutput(ctx, out.ScriptPubKey.Address, tx, out.N, out.Value, chain)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -669,12 +675,18 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		return err
 	}
 
-	rb := common.DecodeHexOrPanic(raw)
+	rb, err := hex.DecodeString(raw)
+	if err != nil {
+		return err
+	}
 	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
 	msgTx := psTx.UnsignedTx
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 	txHash := psTx.Hash()
 	if txHash != hash {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
@@ -735,19 +747,12 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		if err != nil {
 			return err
 		}
-		if bo.Height+100 >= info.Height || bo.Height <= 0 {
-			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-		}
-		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if duration <= safe.Timelock {
+		if bo == nil || !bitcoin.CheckTimelock(safe.Chain, info.Height, bo.Height, safe.Timelock) {
 			return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 		}
 		balance = balance + bo.Satoshi
 	}
 	if msgTx.TxOut[0].Value != balance {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
-	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
@@ -770,10 +775,6 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 			CreatedAt:       time.Now().UTC(),
 			UpdatedAt:       time.Now().UTC(),
 		}
-		err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
-		if err != nil {
-			return err
-		}
 	}
 
 	r := &Recovery{
@@ -787,7 +788,7 @@ func (node *Node) httpCreateBitcoinAccountRecoveryRequest(ctx context.Context, s
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	return node.store.WriteInitialRecovery(ctx, r)
+	return node.store.WriteInitialRecoveryWithApproval(ctx, r, approval)
 }
 
 func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
@@ -812,12 +813,18 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 	if !bitcoin.CheckTransactionPartiallySignedBy(raw, opk) {
 		return fmt.Errorf("bitcoin.CheckTransactionPartiallySignedBy(%s, %s) observer", raw, opk)
 	}
-	rb := common.DecodeHexOrPanic(raw)
+	rb, err := hex.DecodeString(raw)
+	if err != nil {
+		return err
+	}
 	psTx, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return err
 	}
 	msgTx := psTx.UnsignedTx
+	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
+		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
+	}
 	signedRaw := psTx.Marshal()
 	txHash := psTx.Hash()
 	if txHash != hash {
@@ -838,15 +845,15 @@ func (node *Node) httpSignBitcoinAccountRecoveryRequest(ctx context.Context, saf
 		if err != nil {
 			return err
 		}
+		if bo == nil {
+			return fmt.Errorf("missing recovery input: %s:%d", pop.Hash, pop.Index)
+		}
 		balance = balance + bo.Satoshi
 	}
 	if msgTx.TxOut[0].Value != balance {
 		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
 	}
 
-	if len(msgTx.TxOut) != 2 || msgTx.TxOut[1].Value != 0 {
-		return fmt.Errorf("HTTP: %d", http.StatusNotAcceptable)
-	}
 	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
 	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
 	if err != nil {
@@ -1050,7 +1057,10 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 	if bitcoin.CheckTransactionPartiallySignedBy(raw, safe.Holder) {
 		return nil, fmt.Errorf("invalid inheritance tx signer: holder")
 	}
-	rb := common.DecodeHexOrPanic(raw)
+	rb, err := hex.DecodeString(raw)
+	if err != nil {
+		return nil, err
+	}
 	psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
 	if err != nil {
 		return nil, err
@@ -1072,6 +1082,9 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		return nil, fmt.Errorf("non-existed inheritance tx signer: observer")
 	}
 	msgTx := psbt.UnsignedTx
+	if len(msgTx.TxOut) != 2 || !bitcoin.CheckTransactionReturnId(msgTx, lock.LockId) {
+		return nil, fmt.Errorf("invalid inheritance transaction outputs")
+	}
 
 	receiver, err := bitcoin.ExtractPkScriptAddr(msgTx.TxOut[0].PkScript, safe.Chain)
 	logger.Printf("bitcoin.ExtractPkScriptAddr(%x) => %s %v", msgTx.TxOut[0].PkScript, receiver, err)
@@ -1084,8 +1097,11 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 
 	approval, err := node.store.ReadTransactionApproval(ctx, txHash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", txHash, approval, err)
-	if err != nil || approval != nil {
+	if err != nil {
 		return nil, err
+	}
+	if approval != nil {
+		return nil, fmt.Errorf("inheritance transaction already exists: %s", txHash)
 	}
 	if err := node.validateBitcoinTransactionInputs(ctx, safe.Holder, msgTx); err != nil {
 		return nil, err
@@ -1105,22 +1121,14 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		if err != nil {
 			return nil, err
 		}
-		if bo.Height+100 >= info.Height || bo.Height <= 0 {
-			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
-				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
-		}
-		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if duration <= lock.Duration {
-			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %d %d",
-				pop.Hash.String(), int64(pop.Index), bo.Height, info.Height)
+		if bo == nil || !bitcoin.CheckTimelock(safe.Chain, info.Height, bo.Height, lock.Duration) {
+			return nil, fmt.Errorf("invalid safe inheritance sequence: %s %d %v %d",
+				pop.Hash.String(), int64(pop.Index), bo, info.Height)
 		}
 		balance = balance + bo.Satoshi
 	}
 	if msgTx.TxOut[0].Value != balance {
 		return nil, fmt.Errorf("invalid inheritance tx amount: %d %d", msgTx.TxOut[0].Value, balance)
-	}
-	if len(msgTx.TxOut) != 2 || !bitcoin.CheckTransactionReturnId(msgTx, lock.LockId) {
-		return nil, fmt.Errorf("invalid inheritance tx: %d %d", len(msgTx.TxOut), msgTx.TxOut[1].Value)
 	}
 
 	approval = &Transaction{
@@ -1132,10 +1140,6 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		State:           common.RequestStateInitial,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
-	}
-	err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
-	if err != nil {
-		return nil, err
 	}
 	r := &Recovery{
 		Address:         safe.Address,
@@ -1149,5 +1153,5 @@ func (node *Node) httpCreateBitcoinInheritanceTransaction(ctx context.Context, s
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	return approval, node.store.WriteInitialRecovery(ctx, r)
+	return approval, node.store.WriteInitialRecoveryWithApproval(ctx, r, approval)
 }

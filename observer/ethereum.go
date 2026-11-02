@@ -888,10 +888,6 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 			CreatedAt:       time.Now().UTC(),
 			UpdatedAt:       time.Now().UTC(),
 		}
-		err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
-		if err != nil {
-			return err
-		}
 	}
 
 	r := &Recovery{
@@ -905,7 +901,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	return node.store.WriteInitialRecovery(ctx, r)
+	return node.store.WriteInitialRecoveryWithApproval(ctx, r, approval)
 }
 
 func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, safe *store.Safe, raw, hash string) error {
@@ -1197,8 +1193,11 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 
 	approval, err := node.store.ReadTransactionApproval(ctx, hash)
 	logger.Verbosef("store.ReadTransactionApproval(%s) => %v %v", hash, approval, err)
-	if err != nil || approval != nil {
+	if err != nil {
 		return nil, err
+	}
+	if approval != nil {
+		return nil, fmt.Errorf("inheritance transaction already exists: %s", hash)
 	}
 
 	rpc, _, _ := node.ethereumParams(safe.Chain)
@@ -1245,10 +1244,6 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	err = node.store.WriteTransactionApprovalIfNotExists(ctx, approval)
-	if err != nil {
-		return nil, err
-	}
 	r := &Recovery{
 		Address:         safe.Address,
 		Chain:           safe.Chain,
@@ -1261,5 +1256,5 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
-	return approval, node.store.WriteInitialRecovery(ctx, r)
+	return approval, node.store.WriteInitialRecoveryWithApproval(ctx, r, approval)
 }

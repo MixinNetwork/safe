@@ -232,6 +232,9 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 	if err != nil || r == nil || r.State != SafeUtxoStateSpent {
 		return r, err
 	}
+	if len(r.Receivers) == 0 || r.Receivers[0] == nil {
+		return nil, fmt.Errorf("missing transaction receivers for %s", id)
+	}
 	if rr := r.Receivers[0]; rr != nil && rr.Destination != "" && rr.WithdrawalHash == "" {
 		return r, nil
 	}
@@ -292,6 +295,9 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 		}, nil
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		var req SafeTransactionRequest
 		err := grp.mixin.Get(ctx, "/safe/transactions/"+id, nil, &req)
 		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
@@ -342,10 +348,11 @@ func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Tra
 		}
 	}
 
-	change := total.Sub(target)
-	if change.Sign() < 0 {
+	if total.Cmp(target) < 0 {
 		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
-	} else if change.Sign() > 0 {
+	}
+	change := total.Sub(target)
+	if change.Sign() > 0 {
 		ma, uuidMember, err := NewMixAddress(ctx, grp.GetMembers(), byte(grp.GetThreshold()))
 		if err != nil {
 			return nil, nil, err
@@ -430,13 +437,25 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	}
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.GetMembers()...)
 		logger.Verbosef("Group.SafeCreateGhostKeys(%s) => %v %v\n", tx.TraceId, keys, err)
 		if CheckRetryableError(err) {
 			time.Sleep(time.Millisecond * 100)
 			continue
 		}
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) != len(uuidGkrs) {
+			return nil, fmt.Errorf("invalid ghost keys count %d != %d", len(keys), len(uuidGkrs))
+		}
 		for i, g := range keys {
+			if g == nil || len(g.Keys) != len(uuidGkrs[i].Receivers) {
+				return nil, fmt.Errorf("invalid ghost keys for output %d", uuidGkrs[i].Index)
+			}
 			index := uuidGkrs[i].Index
 			gkm[int(index)] = g
 		}

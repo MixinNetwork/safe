@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"slices"
 
@@ -47,6 +48,9 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		deposit.Hash = hex.EncodeToString(extra[0:32])
 		deposit.Index = binary.BigEndian.Uint64(extra[32:40])
+		if deposit.Index > math.MaxUint32 {
+			return nil, fmt.Errorf("invalid deposit output index %d", deposit.Index)
+		}
 		deposit.Amount = new(big.Int).SetBytes(extra[40:])
 		if !deposit.Amount.IsInt64() {
 			return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount.String())
@@ -58,11 +62,17 @@ func parseDepositExtra(req *common.Request) (*Deposit, error) {
 		deposit.Hash = "0x" + hex.EncodeToString(extra[0:32])
 		deposit.AssetAddress = gc.BytesToAddress(extra[32:52]).Hex()
 		deposit.Index = binary.BigEndian.Uint64(extra[52:60])
+		if deposit.Index > math.MaxInt64 {
+			return nil, fmt.Errorf("invalid deposit output index %d", deposit.Index)
+		}
 		deposit.Amount = new(big.Int).SetBytes(extra[60:])
 	default:
 		return nil, fmt.Errorf("invalid deposit chain %d", deposit.Chain)
 	}
 
+	if deposit.Amount.Sign() <= 0 || deposit.Amount.BitLen() > 256 {
+		return nil, fmt.Errorf("invalid deposit amount %s", deposit.Amount)
+	}
 	return deposit, nil
 }
 

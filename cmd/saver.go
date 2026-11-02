@@ -7,6 +7,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/saver"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/urfave/cli/v2"
 )
@@ -17,6 +18,7 @@ func SaverBootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	defer util.CloseOrPanic(store)
 	return saver.StartHTTP(store, c.Int("port"))
 }
 
@@ -30,6 +32,7 @@ func AddSaverNodeToken(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	defer util.CloseOrPanic(store)
 	seed := make([]byte, 64)
 	crypto.ReadRand(seed)
 	priv := crypto.NewKeyFromSeed(seed)

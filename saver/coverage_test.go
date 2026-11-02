@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,17 @@ func TestSaverStoreRoundTripAndConflicts(t *testing.T) {
 	require.NoError(t, tx.Rollback())
 }
 
+func TestSaverWriteUsesItsTransactionConnection(t *testing.T) {
+	store, err := OpenSQLite3Store(t.TempDir() + "/saver.sqlite3")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	store.db.SetMaxOpenConns(1)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	require.NoError(t, store.WriteItemIfNotExist(ctx, "item", "node", "data"))
+	require.NoError(t, store.WriteItemIfNotExist(ctx, "item", "node", "data"))
+}
+
 func TestSaverStoreInvalidKeyAndOpenFailure(t *testing.T) {
 	_, err := OpenSQLite3Store(t.TempDir())
 	require.Error(t, err)
@@ -97,6 +109,7 @@ func TestSaverHTTPCreateItemValidation(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.JSONEq(t, `{"error":"unexpected EOF"}`, response.Body.String())
 
 	unknown := coverageCreateItemBody{Id: "unknown", NodeId: "missing"}
 	response = saverCoveragePost(t, handler, unknown)
@@ -127,7 +140,7 @@ func TestSaverHTTPRootSessionAndListenError(t *testing.T) {
 	var gotStore *SQLite3Store
 	wantStore := &SQLite3Store{}
 	handler := handleSession(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotStore = r.Context().Value("store").(*SQLite3Store)
+		gotStore = r.Context().Value(storeContextKey{}).(*SQLite3Store)
 		w.WriteHeader(http.StatusNoContent)
 	}), wantStore)
 	response = httptest.NewRecorder()
@@ -151,7 +164,6 @@ func saverCoveragePost(t *testing.T, handler http.Handler, body coverageCreateIt
 	raw, err := json.Marshal(body)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(raw))
-	request = request.WithContext(context.WithValue(request.Context(), "coverage", true))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response

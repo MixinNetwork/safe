@@ -142,8 +142,13 @@ func TestBitcoinRPCTransactionOutputBindsRawTransaction(t *testing.T) {
 		if request.Method != "getrawtransaction" {
 			t.Errorf("unexpected method %q", request.Method)
 		}
+		var requestedHash string
+		if err := json.Unmarshal(request.Params[0], &requestedHash); err != nil {
+			t.Error(err)
+			return
+		}
 		result := map[string]any{
-			"txid": txHash,
+			"txid": requestedHash,
 			"hex":  hex.EncodeToString(raw),
 			"vin":  []any{map[string]any{"coinbase": "01"}},
 			"vout": []any{map[string]any{

@@ -101,7 +101,7 @@ func (node *Node) Blaze(ctx context.Context) {
 }
 
 func (node *Node) handleMessage(ctx context.Context, bm bot.MessageView) error {
-	if bm.ConversationId != node.conf.MonitorConversaionId {
+	if bm.ConversationId != node.conf.MonitorConversationId {
 		return nil
 	}
 	if bm.Category != bot.MessageCategoryEncryptedText {
@@ -142,7 +142,7 @@ func parseNodeStats(dataBase64 string) *StatsInfo {
 		if line == "" {
 			continue
 		}
-		items := strings.Split(line, ":")
+		items := strings.SplitN(line, ":", 2)
 		if len(items) != 2 {
 			continue
 		}

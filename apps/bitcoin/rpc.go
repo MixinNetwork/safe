@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -167,13 +166,19 @@ func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	var tx RPCTransaction
+	var tx *RPCTransaction
 	err = json.Unmarshal(res, &tx)
 	if err != nil {
 		return nil, err
 	}
-	fixLitecoinLegacyScriptPubKeyRPC(chain, &tx)
-	return &tx, err
+	if tx == nil {
+		return nil, fmt.Errorf("missing transaction %s", hash)
+	}
+	if tx.TxId != hash {
+		return nil, fmt.Errorf("unexpected transaction hash %s, expected %s", tx.TxId, hash)
+	}
+	fixLitecoinLegacyScriptPubKeyRPC(chain, tx)
+	return tx, nil
 }
 
 func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
@@ -226,10 +231,16 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 	if err != nil {
 		return nil, err
 	}
-	var b RPCBlockWithTransactions
+	var b *RPCBlockWithTransactions
 	err = json.Unmarshal(res, &b)
 	if err != nil {
 		return nil, err
+	}
+	if b == nil {
+		return nil, fmt.Errorf("missing block %s", hash)
+	}
+	if b.Hash != hash {
+		return nil, fmt.Errorf("unexpected block hash %s, expected %s", b.Hash, hash)
 	}
 	for _, tx := range b.Tx {
 		if tx == nil {
@@ -238,7 +249,7 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 		fixLitecoinLegacyScriptPubKeyRPC(chain, tx)
 		tx.BlockHash = hash
 	}
-	return &b, err
+	return b, nil
 }
 
 func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
@@ -310,9 +321,18 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	var b RPCBlock
+	var b *RPCBlock
 	err = json.Unmarshal(res, &b)
-	return &b, err
+	if err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, fmt.Errorf("missing block %s", hash)
+	}
+	if b.Hash != hash {
+		return nil, fmt.Errorf("unexpected block hash %s, expected %s", b.Hash, hash)
+	}
+	return b, nil
 }
 
 func RPCGetBlockHash(rpc string, num int64) (string, error) {
@@ -331,10 +351,16 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 		return 0, err
 	}
 	var info struct {
-		Blocks int64 `json:"blocks"`
+		Blocks *int64 `json:"blocks"`
 	}
 	err = json.Unmarshal(res, &info)
-	return info.Blocks, err
+	if err != nil {
+		return 0, err
+	}
+	if info.Blocks == nil || *info.Blocks < 0 {
+		return 0, fmt.Errorf("missing or invalid block height")
+	}
+	return *info.Blocks, nil
 }
 
 func EstimateAvgFee(chain byte, rpc string) (int64, error) {
@@ -350,7 +376,7 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 	if mempoolTopAvgFee.Cmp(blockAvgFee) > 0 {
 		maxFee = mempoolTopAvgFee
 	}
-	if maxFee.Cmp(big.NewInt(0)) <= 0 {
+	if maxFee.Sign() <= 0 || !maxFee.IsInt64() {
 		return 0, fmt.Errorf("EstimateAvgFee(%d) => %s", chain, maxFee.String())
 	}
 
@@ -358,9 +384,7 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 	if !CheckFeeRange(fvb, chain) {
 		return 0, fmt.Errorf("CheckFeeRange(%d) => %d", chain, fvb)
 	}
-	if fvb < 5 {
-		fvb = 5
-	}
+	fvb = max(fvb, 5)
 	return fvb, nil
 }
 
@@ -394,13 +418,7 @@ func callBitcoinRPCUntilSufficient(rpc, method string, params []any) ([]byte, er
 			return res, nil
 		}
 		logger.Printf("callBitcoinRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		case strings.Contains(reason, "invalid character"):
-		default:
+		if !util.CheckRetryableRPCError(err) {
 			return res, err
 		}
 		time.Sleep(time.Second)
@@ -436,21 +454,26 @@ func callBitcoinRPC(rpc, method string, params []any) ([]byte, error) {
 	if err != nil {
 		return nil, buildRPCError(rpc, method, params, err)
 	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, buildRPCError(rpc, method, params, &util.RPCResponseError{StatusCode: resp.StatusCode, Body: string(body)})
+	}
 	var result struct {
-		Data  any `json:"result"`
-		Error any `json:"error"`
+		Data  json.RawMessage `json:"result"`
+		Error any             `json:"error"`
 	}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
 	}
 	if result.Error != nil {
-		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
+		return nil, buildRPCError(rpc, method, params, &util.RPCResponseError{StatusCode: resp.StatusCode, Body: string(body)})
 	}
-
-	return json.Marshal(result.Data)
+	if len(result.Data) == 0 {
+		return nil, buildRPCError(rpc, method, params, fmt.Errorf("missing RPC result"))
+	}
+	return result.Data, nil
 }
 
 func buildRPCError(rpc, method string, params []any, err error) error {
-	return fmt.Errorf("callBitcoinRPC(%s, %s, %v) => %v", rpc, method, params, err)
+	return fmt.Errorf("callBitcoinRPC(%s, %s, %v) => %w", rpc, method, params, err)
 }

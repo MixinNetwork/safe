@@ -2,8 +2,10 @@ package bitcoin
 
 import (
 	"encoding/hex"
+	"math"
 	"testing"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/chainhash/v2"
 	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/btcsuite/btcd/wire/v2"
@@ -120,4 +122,21 @@ func testTransactionWithInputs(t *testing.T, inputs ...*Input) *wire.MsgTx {
 		msgTx.AddTxIn(wire.NewTxIn(outpoint, nil, nil))
 	}
 	return msgTx
+}
+
+func TestBitcoinRejectsWrongNetworkOutput(t *testing.T) {
+	added, err := addOutput(wire.NewMsgTx(2), "1BoatSLRHtKNngkdXEeobR76b53LETtpyT", 10_000, ChainLitecoin)
+	require.Error(t, err)
+	require.False(t, added)
+}
+
+func TestBitcoinRejectsInvalidInputAmounts(t *testing.T) {
+	_, public := btcec.PrivKeyFromBytes([]byte{1})
+	input := func(amount int64) *Input {
+		return &Input{TransactionHash: "01", Script: public.SerializeCompressed(), Satoshi: amount}
+	}
+	for _, inputs := range [][]*Input{{nil}, {input(0)}, {input(-1)}, {input(math.MaxInt64), input(1)}} {
+		_, _, err := addInputs(wire.NewMsgTx(2), inputs, ChainBitcoin)
+		require.Error(t, err)
+	}
 }

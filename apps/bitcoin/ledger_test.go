@@ -108,7 +108,7 @@ func TestLedgerBitcoin(t *testing.T) {
 	_, signerDerivePub, _ = DeriveBIP32(signerPub, chainCode, 0, 1)
 	chainCode, _ = hex.DecodeString(observerChainCode)
 	_, observerDerivePub, _ = DeriveBIP32(observerPub, chainCode, 0, 1)
-	wsa, _ = BuildWitnessScriptAccount(holder, signerDerivePub, observerDerivePub, time.Hour*24*3, ChainBitcoin)
+	wsa, err = BuildWitnessScriptAccount(holder, signerDerivePub, observerDerivePub, time.Hour*24*3, ChainBitcoin)
 	require.Nil(err)
 	require.Equal("bc1qdj9sa2fa49rw77s468zfzsrmpdh805m98ctyypydnnt0ppxy802qaxd028", wsa.Address)
 }

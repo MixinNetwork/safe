@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -13,8 +14,8 @@ import (
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
+	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/util"
-	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/psbt/v2"
 	"github.com/gofrs/uuid/v5"
@@ -29,26 +30,38 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 	default:
 		return fmt.Errorf("invalid chain %d", chain)
 	}
+	amount, err := decimal.NewFromString(c.String("amount"))
+	if err != nil || amount.Sign() <= 0 || amount.GreaterThan(decimal.New(math.MaxInt64, -bitcoin.ValuePrecision)) || !amount.Equal(amount.Truncate(bitcoin.ValuePrecision)) {
+		return fmt.Errorf("invalid bitcoin amount %q", c.String("amount"))
+	}
 
-	kb, err := hex.DecodeString(c.String("key"))
+	private, err := parseBitcoinPrivateKey(c.String("key"))
 	if err != nil {
 		return err
 	}
-	private, _ := btcec.PrivKeyFromBytes(kb)
 	holder := testPublicKey(hex.EncodeToString(private.Serialize()))
 
-	receiver, err := bitcoin.ParseAddress(c.String("address"), byte(chain))
+	_, err = bitcoin.ParseAddress(c.String("address"), byte(chain))
 	if err != nil {
 		return err
 	}
 
-	addr := abi.GetFactoryAssetAddress("0x11EC02748116A983deeD59235302C3139D6e8cdD", common.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
+	head, err := uuid.FromString(c.String("head"))
+	if err != nil || head.IsNil() {
+		return fmt.Errorf("invalid network info request id")
+	}
+	mc, err := config.ReadConfiguration(c.String("config"), "keeper")
+	if err != nil {
+		return err
+	}
+	abi.InitFactoryContractAddress(mc.Keeper.PolygonFactoryAddress)
+	addr := abi.GetFactoryAssetAddress(mc.Keeper.PolygonKeeperDepositEntry, common.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
 	bondId := fetchAssetId(ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
 
-	extra := []byte(receiver)
+	extra := append([]byte{common.FlagProposeNormalTransaction}, head.Bytes()...)
+	extra = append(extra, c.String("address")...)
 	sid := uuid.Must(uuid.NewV4()).String()
-	amount := decimal.NewFromFloat(c.Float64("amount"))
 
 	memo := testBuildHolderRequest(sid, holder, common.ActionBitcoinSafeProposeTransaction, extra)
 	return makeKeeperPaymentRequest(c.String("config"), bondId, amount, sid, memo)
@@ -62,11 +75,10 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 		return fmt.Errorf("invalid chain %d", chain)
 	}
 
-	kb, err := hex.DecodeString(c.String("key"))
+	holder, err := parseBitcoinPrivateKey(c.String("key"))
 	if err != nil {
 		return err
 	}
-	holder, _ := btcec.PrivKeyFromBytes(kb)
 
 	rb, err := hex.DecodeString(c.String("psbt"))
 	if err != nil {

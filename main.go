@@ -317,6 +317,11 @@ func main() {
 				Usage:  "Approve a safe account",
 				Action: cmd.GenerateTestSafeApproval,
 				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "id",
+						Usage:    "The account proposal request id",
+						Required: true,
+					},
 					&cli.IntFlag{
 						Name:  "chain",
 						Usage: "The chain type of public keys",
@@ -337,6 +342,11 @@ func main() {
 				Action: cmd.GenerateTestTransactionProposal,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
+						Name:     "head",
+						Usage:    "The network info request id from the observer's /chains response",
+						Required: true,
+					},
+					&cli.StringFlag{
 						Name:    "config",
 						Aliases: []string{"c"},
 						Value:   "~/.mixin/safe/config.toml",
@@ -354,9 +364,10 @@ func main() {
 						Name:  "address",
 						Usage: "The receiver address",
 					},
-					&cli.Float64Flag{
-						Name:  "amount",
-						Usage: "The amount",
+					&cli.StringFlag{
+						Name:     "amount",
+						Usage:    "The decimal amount, with at most eight decimal places",
+						Required: true,
 					},
 				},
 			},
@@ -423,6 +434,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

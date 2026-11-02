@@ -134,12 +134,8 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 		if err != nil {
 			panic(err)
 		}
-		if bo.Height+100 >= info.Height || bo.Height <= 0 {
-			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
-		}
-		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if duration <= lock.Duration {
-			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		if bo == nil || !bitcoin.CheckTimelock(safe.Chain, info.Height, bo.Height, lock.Duration) {
+			panic(fmt.Errorf("invalid timelock sequence to close account %v %d", bo, info.Height))
 		}
 		total = total + bo.Satoshi
 
@@ -337,12 +333,8 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 		if err != nil {
 			panic(err)
 		}
-		if bo.Height+100 >= info.Height || bo.Height <= 0 {
-			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
-		}
-		duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-		if duration <= safe.Timelock {
-			panic(fmt.Errorf("invalid timelock sequence to close account %d %d", bo.Height, info.Height))
+		if bo == nil || !bitcoin.CheckTimelock(safe.Chain, info.Height, bo.Height, safe.Timelock) {
+			panic(fmt.Errorf("invalid timelock sequence to close account %v %d", bo, info.Height))
 		}
 		total = total + bo.Satoshi
 
@@ -678,7 +670,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
-		panic(fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err))
+		panic(fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err))
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.Bytes()))
 	if id.String() != assetId {
@@ -731,11 +723,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 			if err != nil {
 				panic(err)
 			}
-			if bo.Height+100 >= info.Height || bo.Height <= 0 {
-				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
-			}
-			duration := bitcoin.BlocksDuration(safe.Chain, info.Height-bo.Height-100)
-			if duration <= safe.Timelock {
+			if bo == nil || !bitcoin.CheckTimelock(safe.Chain, info.Height, bo.Height, safe.Timelock) {
 				return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 			}
 		}

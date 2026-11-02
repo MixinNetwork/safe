@@ -52,7 +52,7 @@ type RPCTransaction struct {
 	GasPrice         string `json:"gasPrice"`
 	Hash             string `json:"hash"`
 	Input            string `json:"input"`
-	Nonce            string `json:"Nonce"`
+	Nonce            string `json:"nonce"`
 	To               string `json:"to"`
 	TransactionIndex string `json:"transactionIndex"`
 	Type             string `json:"type"`
@@ -82,10 +82,16 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	var b RPCBlock
+	var b *RPCBlock
 	err = json.Unmarshal(res, &b)
 	if err != nil {
 		return nil, err
+	}
+	if b == nil {
+		return nil, ethereum.NotFound
+	}
+	if b.Hash != hash {
+		return nil, fmt.Errorf("unexpected block hash %s, expected %s", b.Hash, hash)
 	}
 	blockHeight, err := ethereumNumberToUint64(b.Number)
 	if err != nil {
@@ -96,8 +102,11 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
+	if timestamp > math.MaxInt64 {
+		return nil, fmt.Errorf("invalid block timestamp %s", b.Timestamp)
+	}
 	b.Time = time.Unix(int64(timestamp), 0)
-	return &b, err
+	return b, nil
 }
 
 func RPCGetBlockHeight(rpc string) (int64, error) {
@@ -114,10 +123,16 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int64(height), err
+	if height > math.MaxInt64 {
+		return 0, fmt.Errorf("invalid block height %s", h)
+	}
+	return int64(height), nil
 }
 
 func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
+	if height < 0 {
+		return nil, fmt.Errorf("invalid block height %d", height)
+	}
 	h := fmt.Sprintf("0x%x", height)
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, false})
 	if err != nil {
@@ -135,38 +150,53 @@ func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
 	if err != nil {
 		return nil, err
 	}
+	if b.Height != uint64(height) {
+		return nil, fmt.Errorf("unexpected block height %d, expected %d", b.Height, height)
+	}
 
 	timestamp, err := ethereumNumberToUint64(b.Timestamp)
 	if err != nil {
 		return nil, err
+	}
+	if timestamp > math.MaxInt64 {
+		return nil, fmt.Errorf("invalid block timestamp %s", b.Timestamp)
 	}
 	b.Time = time.Unix(int64(timestamp), 0)
 	return b, err
 }
 
 func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransactions, error) {
+	if height < 0 {
+		return nil, fmt.Errorf("invalid block height %d", height)
+	}
 	h := fmt.Sprintf("0x%x", height)
 	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, true})
 	if err != nil {
 		return nil, err
 	}
-	var b RPCBlockWithTransactions
+	var b *RPCBlockWithTransactions
 	err = json.Unmarshal(res, &b)
 	if err != nil {
 		return nil, err
+	}
+	if b == nil {
+		return nil, ethereum.NotFound
 	}
 	blockHeight, err := ethereumNumberToUint64(b.Number)
 	if err != nil {
 		return nil, err
 	}
 	b.Height = blockHeight
+	if b.Height != uint64(height) {
+		return nil, fmt.Errorf("unexpected block height %d, expected %d", b.Height, height)
+	}
 	for _, tx := range b.Tx {
 		if tx == nil {
 			return nil, fmt.Errorf("missing transaction in block %d", height)
 		}
 		tx.BlockHash = b.Hash
 	}
-	return &b, err
+	return b, nil
 }
 
 func RPCGetGasPrice(rpc string) (*big.Int, error) {
@@ -223,12 +253,15 @@ func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace,
 	if err != nil {
 		return nil, err
 	}
-	var t RPCTransactionCallTrace
+	var t *RPCTransactionCallTrace
 	err = json.Unmarshal(res, &t)
 	if err != nil {
 		return nil, err
 	}
-	return &t, err
+	if err := validateCallTrace(t); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace, error) {
@@ -242,7 +275,35 @@ func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace,
 	if err != nil {
 		return nil, err
 	}
-	return txs, err
+	if txs == nil {
+		return nil, ethereum.NotFound
+	}
+	for i, tx := range txs {
+		if tx == nil {
+			return nil, fmt.Errorf("missing transaction trace %d in block %d", i, height)
+		}
+		if err := validateCallTrace(tx.Result); err != nil {
+			return nil, fmt.Errorf("invalid transaction trace %d in block %d: %w", i, height, err)
+		}
+	}
+	return txs, nil
+}
+
+func validateCallTrace(trace *RPCTransactionCallTrace) error {
+	if trace == nil {
+		return fmt.Errorf("missing call trace")
+	}
+	if trace.Value != "" {
+		if _, err := hexutil.DecodeBig(trace.Value); err != nil {
+			return fmt.Errorf("invalid call trace value %q: %w", trace.Value, err)
+		}
+	}
+	for _, child := range trace.Calls {
+		if err := validateCallTrace(child); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func RPCGetAssetBalanceAtBlock(rpc, address, asset string, blockNumber uint64) (*big.Int, error) {
@@ -354,13 +415,7 @@ func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, e
 			return res, nil
 		}
 		logger.Printf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
-		reason := strings.ToLower(err.Error())
-		switch {
-		case strings.Contains(reason, "timeout"):
-		case strings.Contains(reason, "eof"):
-		case strings.Contains(reason, "handshake"):
-		case strings.Contains(reason, "invalid character"):
-		default:
+		if !util.CheckRetryableRPCError(err) {
 			return res, err
 		}
 		time.Sleep(time.Second)
@@ -396,6 +451,9 @@ func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
 	if err != nil {
 		return nil, buildRPCError(rpc, method, params, err)
 	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, buildRPCError(rpc, method, params, &util.RPCResponseError{StatusCode: resp.StatusCode, Body: string(body)})
+	}
 	var result struct {
 		Data  any `json:"result"`
 		Error any `json:"error"`
@@ -405,14 +463,14 @@ func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
 		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
 	}
 	if result.Error != nil {
-		return nil, fmt.Errorf("%v (%s)", buildRPCError(rpc, method, params, err), string(body))
+		return nil, buildRPCError(rpc, method, params, &util.RPCResponseError{StatusCode: resp.StatusCode, Body: string(body)})
 	}
 
 	return json.Marshal(result.Data)
 }
 
 func buildRPCError(rpc, method string, params []any, err error) error {
-	return fmt.Errorf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
+	return fmt.Errorf("callEthereumRPC(%s, %s, %v) => %w", rpc, method, params, err)
 }
 
 func ethereumNumberToUint64(hex string) (uint64, error) {

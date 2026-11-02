@@ -736,7 +736,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
-		panic(fmt.Errorf("api.CheckFatoryAssetDeployed(%s) => %v", meta.AssetKey, err))
+		panic(fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err))
 	}
 	id := uuid.Must(uuid.FromBytes(deployed.FillBytes(make([]byte, 16))))
 

@@ -221,11 +221,15 @@ func TestCoverageObserverRecoveriesKeysAndBitcoinOutputs(t *testing.T) {
 	readRecovery, err := s.ReadRecoveryByHash(ctx, "missing")
 	require.NoError(t, err)
 	require.Nil(t, readRecovery)
-	require.NoError(t, s.WriteInitialRecovery(ctx, recovery))
+	recoveryTx := coverageObserverTransaction("recovery", common.RequestStateInitial, recovery.Chain, now)
+	recoveryTx.Holder = recovery.Holder
+	require.NoError(t, s.WriteInitialRecoveryWithApproval(ctx, recovery, recoveryTx))
 	readRecovery, err = s.ReadRecovery(ctx, recovery.Address, recovery.TransactionHash)
 	require.NoError(t, err)
 	require.Equal(t, "initial", readRecovery.getState())
-	require.Panics(t, func() { _, _ = s.ReadRecovery(ctx, "wrong-address", recovery.TransactionHash) })
+	readRecovery, err = s.ReadRecovery(ctx, "wrong-address", recovery.TransactionHash)
+	require.Error(t, err)
+	require.Nil(t, readRecovery)
 	recoveries, err := s.ListInitialRecoveries(ctx, 0)
 	require.NoError(t, err)
 	require.Len(t, recoveries, 1)
@@ -244,10 +248,10 @@ func TestCoverageObserverRecoveriesKeysAndBitcoinOutputs(t *testing.T) {
 		Address: "closed-address", Chain: common.SafeChainBitcoin, Holder: "holder", Observer: "observer", RawTransaction: "raw",
 		TransactionHash: crypto.Sha256Hash([]byte("closed-recovery")).String(), State: common.RequestStateInitial, CreatedAt: now, UpdatedAt: now,
 	}
-	require.NoError(t, s.WriteInitialRecovery(ctx, closed))
 	closedTx := coverageObserverTransaction("closed-recovery", common.RequestStateInitial, common.SafeChainBitcoin, now)
 	closedTx.TransactionHash = closed.TransactionHash
-	require.NoError(t, s.WriteTransactionApprovalIfNotExists(ctx, closedTx))
+	closedTx.Holder = closed.Holder
+	require.NoError(t, s.WriteInitialRecoveryWithApproval(ctx, closed, closedTx))
 	require.NoError(t, s.CloseRecoveryWithObserverKey(ctx, closed.Address, closed.TransactionHash, "observer-signature"))
 	readRecovery, err = s.ReadRecoveryByHash(ctx, closed.TransactionHash)
 	require.NoError(t, err)
@@ -258,10 +262,10 @@ func TestCoverageObserverRecoveriesKeysAndBitcoinOutputs(t *testing.T) {
 		Address: "atomic-address", Chain: common.SafeChainEthereum, Holder: "holder", Observer: "observer", RawTransaction: "initial",
 		TransactionHash: atomicHash, State: common.RequestStateInitial, CreatedAt: now, UpdatedAt: now,
 	}
-	require.NoError(t, s.WriteInitialRecovery(ctx, atomicRecovery))
-	require.NoError(t, s.UpdateRecoveryState(ctx, atomicRecovery.Address, atomicHash, "pending", common.RequestStatePending))
 	atomicTx := coverageObserverTransaction("atomic-finish", common.RequestStatePending, common.SafeChainEthereum, now)
-	require.NoError(t, s.WriteTransactionApprovalIfNotExists(ctx, atomicTx))
+	atomicTx.Holder = atomicRecovery.Holder
+	require.NoError(t, s.WriteInitialRecoveryWithApproval(ctx, atomicRecovery, atomicTx))
+	require.NoError(t, s.UpdateRecoveryState(ctx, atomicRecovery.Address, atomicHash, "pending", common.RequestStatePending))
 	require.NoError(t, s.FinishTransactionSignatures(ctx, atomicHash, "finished-atomically"))
 	readRecovery, err = s.ReadRecoveryByHash(ctx, atomicHash)
 	require.NoError(t, err)
@@ -276,7 +280,9 @@ func TestCoverageObserverRecoveriesKeysAndBitcoinOutputs(t *testing.T) {
 		Address: "orphan-address", Chain: common.SafeChainEthereum, Holder: "holder", Observer: "observer", RawTransaction: "initial",
 		TransactionHash: orphanHash, State: common.RequestStateInitial, CreatedAt: now, UpdatedAt: now,
 	}
-	require.NoError(t, s.WriteInitialRecovery(ctx, orphan))
+	// Seed an orphan directly to test rollback when its approval is missing.
+	_, err = s.db.ExecContext(ctx, buildInsertionSQL("recoveries", recoveryCols), orphan.values()...)
+	require.NoError(t, err)
 	require.NoError(t, s.UpdateRecoveryState(ctx, orphan.Address, orphanHash, "pending", common.RequestStatePending))
 	require.Error(t, s.FinishTransactionSignatures(ctx, orphanHash, "must-rollback"))
 	readRecovery, err = s.ReadRecoveryByHash(ctx, orphanHash)

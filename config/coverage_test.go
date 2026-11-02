@@ -108,6 +108,23 @@ func TestReadConfigurationDefaultsOmittedDevToMainnet(t *testing.T) {
 	require.Equal(t, logger.INFO, got.Dev.LogLevel)
 }
 
+func TestReadConfigurationRejectsMissingRoleSections(t *testing.T) {
+	for _, role := range []string{"signer", "keeper", "observer", "unknown"} {
+		path := filepath.Join(t.TempDir(), "empty.toml")
+		require.NoError(t, os.WriteFile(path, nil, 0o600))
+		_, err := ReadConfiguration(path, role)
+		require.Error(t, err)
+	}
+	configuration := coverageConfiguration(MainNetworkName)
+	configuration.Signer = nil
+	raw, err := toml.Marshal(configuration)
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "observer.toml")
+	require.NoError(t, os.WriteFile(path, raw, 0o600))
+	_, err = ReadConfiguration(path, "observer")
+	require.NoError(t, err)
+}
+
 func coverageConfiguration(network string) *Configuration {
 	signerMembers := coverageSignerMembers(network)
 	keeperMembers := append(slices.Clone(signerMembers), coverageKeeperMember(network))

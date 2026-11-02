@@ -34,7 +34,7 @@ var GUIDE = `
     <meta charset="utf-8" />
     <title>Mixin Safe Developers</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Mixin Safe is an advanced non-custody solution for securing BTC using the native Bitcoin multisig and timelock script. The 2/3 multisig comprises three keys: the holder, signer, and observer. The BTC locked in the script can only be spent when the holder and signer keys sign a transaction, provided that the timelock of one year is in effect. In the event of key loss by the holder or signer, the observer can act as rescuer after one year.">
+    <meta name="description" content="Mixin Safe secures BTC using native Bitcoin multisig and timelock scripts. The holder and signer can spend funds together at any time. After the configured timelock expires, the observer can help recover funds with either the holder or signer.">
     <link href="/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
 		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -170,6 +170,9 @@ func (node *Node) httpListChains(w http.ResponseWriter, r *http.Request, params 
 		if err != nil {
 			common.RenderError(w, r, err)
 			return
+		}
+		if plan == nil {
+			continue
 		}
 		id := common.SafeChainAssetId(c)
 		head := make(map[string]any)
@@ -437,7 +440,7 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 	safe, err := node.keeperStore.ReadSafeProposal(r.Context(), params["id"])
@@ -467,13 +470,13 @@ func (node *Node) httpApproveAccount(w http.ResponseWriter, r *http.Request, par
 		}
 		err = node.httpApproveSafeAccount(r.Context(), body.Address, body.Signature)
 		if err != nil {
-			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err.Error()})
 			return
 		}
 	case "close":
 		err = node.httpCreateSafeAccountRecoveryRequest(r.Context(), body.Address, body.Raw, body.Hash)
 		if err != nil {
-			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err.Error()})
 			return
 		}
 	default:
@@ -494,7 +497,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 	safe, err := node.keeperStore.ReadSafeProposalByAddress(r.Context(), params["id"])
@@ -519,7 +522,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		}
 		err = node.httpSignAccountRecoveryRequest(r.Context(), safe.Address, body.Raw, body.Hash)
 		if err != nil {
-			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err.Error()})
 			return
 		}
 	case "close":
@@ -533,7 +536,7 @@ func (node *Node) httpSignRecovery(w http.ResponseWriter, r *http.Request, param
 		}
 		err = node.httpCloseAccountRecoveryRequest(r.Context(), safe.Address, body.Id, body.Signature, body.Hash)
 		if err != nil {
-			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err})
+			common.RenderJSON(w, r, http.StatusUnprocessableEntity, map[string]any{"error": err.Error()})
 			return
 		}
 	default:
@@ -625,7 +628,7 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 
@@ -636,6 +639,10 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	}
 	if tx == nil {
 		common.RenderJSON(w, r, http.StatusNotFound, map[string]any{"error": "transaction"})
+		return
+	}
+	if body.Chain != int(tx.Chain) {
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "chain"})
 		return
 	}
 	approval, err := node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
@@ -663,6 +670,10 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 
 	switch body.Action {
 	case "approve":
+		if err := validateApprovalTransaction(tx, body.Raw); err != nil {
+			common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
 		err = node.httpApproveSafeTransaction(r.Context(), byte(body.Chain), body.Raw)
 		if err != nil {
 			common.RenderError(w, r, err)
@@ -675,7 +686,12 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	default:
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "chain"})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": "action"})
+		return
+	}
+	approval, err = node.store.ReadTransactionApproval(r.Context(), tx.TransactionHash)
+	if err != nil || approval == nil {
+		common.RenderError(w, r, fmt.Errorf("read updated approval: %v", err))
 		return
 	}
 
@@ -695,6 +711,40 @@ func (node *Node) httpApproveTransaction(w http.ResponseWriter, r *http.Request,
 	common.RenderJSON(w, r, http.StatusOK, data)
 }
 
+func validateApprovalTransaction(tx *store.Transaction, raw string) error {
+	rb, err := hex.DecodeString(raw)
+	if err != nil {
+		return err
+	}
+	var hash string
+	switch tx.Chain {
+	case common.SafeChainBitcoin, common.SafeChainLitecoin:
+		psbt, err := bitcoin.UnmarshalPartiallySignedTransaction(rb)
+		if err != nil {
+			return err
+		}
+		hash = psbt.Hash()
+	case common.SafeChainEthereum, common.SafeChainPolygon:
+		st, err := ethereum.UnmarshalSafeTransaction(rb)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(st.Message, st.GetTransactionHash()) {
+			return fmt.Errorf("invalid transaction signing message")
+		}
+		hash = st.GetRequestHash(tx.RequestId)
+		if st.RequestHash != hash {
+			return fmt.Errorf("invalid transaction request hash")
+		}
+	default:
+		return fmt.Errorf("invalid chain %d", tx.Chain)
+	}
+	if hash != tx.TransactionHash {
+		return fmt.Errorf("transaction does not match the requested approval")
+	}
+	return nil
+}
+
 func (node *Node) httpCreateInheritanceTransaction(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	var body struct {
 		Hash   string `json:"hash"`
@@ -703,7 +753,7 @@ func (node *Node) httpCreateInheritanceTransaction(w http.ResponseWriter, r *htt
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 

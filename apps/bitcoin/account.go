@@ -228,6 +228,9 @@ func parseBitcoinCompressedPublicKey(public string) (*address.AddressPubKey, err
 	if err != nil {
 		return nil, err
 	}
+	if len(pub) != 33 || (pub[0] != 2 && pub[0] != 3) {
+		return nil, fmt.Errorf("invalid compressed public key %s", public)
+	}
 	return address.NewAddressPubKey(pub, NetConfig(ChainBitcoin))
 }
 
@@ -285,7 +288,7 @@ func NetConfig(chain byte) *chaincfg.Params {
 
 func checkScriptType(script []byte) int {
 	if len(script) == 33 {
-		return InputTypeP2WPKHAccoutant
+		return InputTypeP2WPKHAccountant
 	}
 	if len(script) > 100 {
 		return InputTypeP2WSHMultisigHolderSigner

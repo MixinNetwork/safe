@@ -12,7 +12,7 @@ type Configuration struct {
 	KeeperAppId             string             `toml:"keeper-app-id"`
 	StoreDir                string             `toml:"store-dir"`
 	MessengerConversationId string             `toml:"messenger-conversation-id"`
-	MonitorConversaionId    string             `toml:"monitor-conversation-id"`
+	MonitorConversationId   string             `toml:"monitor-conversation-id"`
 	ObserverUserId          string             `toml:"observer-user-id"`
 	Threshold               int                `toml:"threshold"`
 	SharedKey               string             `toml:"shared-key"`

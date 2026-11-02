@@ -12,6 +12,8 @@ import (
 	"github.com/dimfeld/httptreemux/v5"
 )
 
+type storeContextKey struct{}
+
 func StartHTTP(store *SQLite3Store, port int) error {
 	router := httptreemux.New()
 	router.PanicHandler = common.HandlePanic
@@ -39,14 +41,14 @@ func createItem(w http.ResponseWriter, r *http.Request, params map[string]string
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 
-	store := r.Context().Value("store").(*SQLite3Store)
+	store := r.Context().Value(storeContextKey{}).(*SQLite3Store)
 	pub, err := store.ReadNodePublicKey(r.Context(), body.NodeId)
 	if err != nil {
-		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err})
+		common.RenderJSON(w, r, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 	msg := body.Id + body.NodeId + body.SessionId + body.Public + body.Share
@@ -67,7 +69,7 @@ func createItem(w http.ResponseWriter, r *http.Request, params map[string]string
 
 func handleSession(handler http.Handler, store *SQLite3Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), "store", store)
+		ctx := context.WithValue(r.Context(), storeContextKey{}, store)
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

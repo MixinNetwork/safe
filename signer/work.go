@@ -42,7 +42,7 @@ func (s *SQLite3Store) CountDailyWorks(ctx context.Context, members []party.ID, 
 	works := make([]int, len(members))
 	for i, id := range members {
 		var work int
-		sql := "SELECT COUNT(*) FROM session_works WHERE signer_id=? AND created_at>? AND created_at<?"
+		sql := "SELECT COUNT(*) FROM session_works WHERE signer_id=? AND created_at>=? AND created_at<?"
 		row := tx.QueryRowContext(ctx, sql, id, begin, end)
 		err = row.Scan(&work)
 		if err != nil {

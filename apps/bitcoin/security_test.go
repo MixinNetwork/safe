@@ -57,12 +57,18 @@ func TestBitcoinCustodySignatureCommitsToSpend(t *testing.T) {
 		{"missing witness UTXO", func(p *PartiallySignedTransaction) { p.Inputs[0].WitnessUtxo = nil }},
 		{"missing witness script", func(p *PartiallySignedTransaction) { p.Inputs[0].WitnessScript = nil }},
 		{"invalid witness script", func(p *PartiallySignedTransaction) { p.Inputs[0].WitnessScript = []byte{txscript.OP_PUSHDATA4} }},
+		{"different sighash type", func(p *PartiallySignedTransaction) { p.Inputs[0].SighashType = txscript.SigHashNone }},
+		{"missing sighash type", func(p *PartiallySignedTransaction) { p.Inputs[0].SighashType = 0 }},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			candidate, err := UnmarshalPartiallySignedTransaction(packet.Marshal())
-			require.NoError(err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			mutation.apply(candidate)
-			require.False(CheckTransactionPartiallySignedBy(hex.EncodeToString(candidate.Marshal()), holderHex))
+			if CheckTransactionPartiallySignedBy(hex.EncodeToString(candidate.Marshal()), holderHex) {
+				t.Fatal("invalid transaction accepted as partially signed")
+			}
 		})
 	}
 
@@ -71,6 +77,13 @@ func TestBitcoinCustodySignatureCommitsToSpend(t *testing.T) {
 	custodyPkScript, err := ParseAddress(account.Address, ChainBitcoin)
 	require.NoError(err)
 	require.NoError(securityTestExecuteBitcoinInput(tx, 0, custodyPkScript, input.Satoshi))
+	for _, hashType := range []txscript.SigHashType{0, txscript.SigHashAll, txscript.SigHashNone, txscript.SigHashSingle} {
+		candidate, err := UnmarshalPartiallySignedTransaction(packet.Marshal())
+		require.NoError(err)
+		candidate.Inputs[0].SighashType = hashType
+		_, err = candidate.SignedTransaction(holderHex, signerHex, observerHex)
+		require.Error(err, "cannot finalize signatures with sighash type %d", hashType)
+	}
 
 	// The Safe signatures use SIGHASH_ALL|ANYONECANPAY. A fee payer may add
 	// and sign an input, but cannot change any existing input or output.

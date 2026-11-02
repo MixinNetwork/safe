@@ -33,7 +33,12 @@ func TestBitcoinRPCRejectsMissingInputsAndOutputs(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				_ = json.NewEncoder(w).Encode(bitcoinRPCTestResponse{JSONRPC: "2.0", ID: request.ID, Result: &RPCTransaction{Vout: tc.outputs}})
+				var hash string
+				if err := json.Unmarshal(request.Params[0], &hash); err != nil {
+					t.Error(err)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(bitcoinRPCTestResponse{JSONRPC: "2.0", ID: request.ID, Result: &RPCTransaction{TxId: hash, Vout: tc.outputs}})
 			}))
 			t.Cleanup(server.Close)
 			_, err := RPCGetTransactionSender(ChainLitecoin, server.URL, &RPCTransaction{Vin: []*rpcIn{{TxId: "previous", VOUT: tc.index}}})

@@ -93,7 +93,7 @@ func SignerBootCmd(c *cli.Context) error {
 	mw.Boot(ctx)
 	node.Boot(ctx)
 
-	if mc.Signer.MonitorConversaionId != "" {
+	if mc.Signer.MonitorConversationId != "" {
 		go MonitorSigner(ctx, db, kd, mc.Signer, group, version)
 	}
 

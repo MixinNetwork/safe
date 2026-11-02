@@ -58,6 +58,9 @@ func (grp *Group) readOutputDepositUntilSufficient(ctx context.Context, id strin
 
 func (grp *Group) readOutputDepositUntilSufficientImpl(ctx context.Context, id string) (*SafeDepositView, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		var deposit *SafeDepositView
 		err := grp.mixin.Get(ctx, fmt.Sprintf("/safe/outputs/%s/deposit", id), nil, &deposit)
 		logger.Verbosef("Group.readOutputDeposit(%s) => %v %v\n", id, deposit, err)

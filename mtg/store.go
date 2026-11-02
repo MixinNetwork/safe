@@ -35,7 +35,7 @@ func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit
 		}
 		as = append(as, a)
 	}
-	return as, nil
+	return as, rows.Err()
 }
 
 func (s *SQLite3Store) readOutput(ctx context.Context, tx *sql.Tx, id string) (*UnifiedOutput, error) {
@@ -267,7 +267,7 @@ func (s *SQLite3Store) listOutputs(ctx context.Context, ids []string) ([]*Unifie
 		}
 		os = append(os, o)
 	}
-	return os, nil
+	return os, rows.Err()
 }
 
 func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*UnifiedOutput, error) {
@@ -286,7 +286,7 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 		}
 		os = append(os, o)
 	}
-	return os, nil
+	return os, rows.Err()
 }
 
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, consumedUntil, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
@@ -308,7 +308,7 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 		}
 		os = append(os, o)
 	}
-	return os, nil
+	return os, rows.Err()
 }
 
 func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput, change common.Integer) error {
@@ -452,7 +452,7 @@ func (s *SQLite3Store) ListIterations(ctx context.Context) ([]*Iteration, error)
 		}
 		irs = append(irs, i)
 	}
-	return irs, nil
+	return irs, rows.Err()
 }
 
 func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error {
@@ -541,7 +541,7 @@ func (s *SQLite3Store) transactionsFromQuery(ctx context.Context, query string, 
 		}
 		ts = append(ts, t)
 	}
-	return ts, nil
+	return ts, rows.Err()
 }
 
 func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Hash) (*Transaction, error) {

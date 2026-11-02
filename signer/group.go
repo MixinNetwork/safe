@@ -129,12 +129,12 @@ func (node *Node) processAction(ctx context.Context, out *mtg.Action) (string, [
 			return sessionId, nil, ""
 		}
 		sessionId = op.Id
-		needsCommittment := op.Type == common.OperationTypeSignInput
+		needsCommitment := op.Type == common.OperationTypeSignInput
 		hash, err := crypto.HashFromString(out.TransactionHash)
 		if err != nil {
 			panic(err)
 		}
-		err = node.store.WriteSessionIfNotExist(ctx, op, hash, out.OutputIndex, out.SequencerCreatedAt, needsCommittment)
+		err = node.store.WriteSessionIfNotExist(ctx, op, hash, out.OutputIndex, out.SequencerCreatedAt, needsCommitment)
 		if err != nil {
 			panic(err)
 		}
@@ -276,11 +276,11 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	case common.OperationTypeSignInput:
 		extra := common.DecodeHexOrPanic(session.Extra)
 		if !node.checkSignatureAppended(extra) {
-			// this could happen after resync, crash or not commited
+			// this could happen after a resync, a crash, or an uncommitted write
 			extra = node.concatMessageAndSignature(extra, sig)
 		}
 		if session.State == common.RequestStateInitial && session.PreparedAt.Valid {
-			// this could happend only after crash or not commited
+			// this could happen only after a crash or an uncommitted write
 			err = node.store.MarkSessionPending(ctx, session.Id, session.Curve, session.Public, extra)
 			logger.Printf("store.MarkSessionPending(%v, processSignerResult) => %x %v\n", session, extra, err)
 			if err != nil {
@@ -296,7 +296,7 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 		if crv != op.Curve {
 			panic(session.Id)
 		}
-		valid, vsig := node.verifySessionSignature(ctx, op.Curve, holder, extra, share, path)
+		valid, vsig := node.verifySessionSignature(ctx, op.Curve, extra, share, path)
 		logger.Printf("node.verifySessionSignature(%v, %s, %x, %v) => %t", session, holder, extra, path, valid)
 		if !valid || !bytes.Equal(sig, vsig) {
 			panic(hex.EncodeToString(vsig))
@@ -447,7 +447,7 @@ func (node *Node) checkSignatureAppended(extra []byte) bool {
 	return len(extra) > int(el)+32
 }
 
-func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder string, extra, share, path []byte) (bool, []byte) {
+func (node *Node) verifySessionSignature(ctx context.Context, crv byte, extra, share, path []byte) (bool, []byte) {
 	if !node.checkSignatureAppended(extra) {
 		return false, nil
 	}
@@ -466,7 +466,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		logger.Printf("ethereum.VerifyHashSignature(%x, %x, %x) => %v", public, msg, sig, err)
 		return err == nil, sig
 	case common.CurveEdwards25519Mixin:
-		if len(msg) < 32 || len(sig) != 64 {
+		if len(msg) != 64 || len(sig) != 64 {
 			return false, nil
 		}
 		group := curve.Edwards25519{}
@@ -475,9 +475,8 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		if err != nil {
 			return false, nil
 		}
-		pub, _ := hex.DecodeString(holder)
 		P := group.NewPoint()
-		err = P.UnmarshalBinary(pub)
+		err = P.UnmarshalBinary(public)
 		if err != nil {
 			return false, nil
 		}
@@ -485,7 +484,7 @@ func (node *Node) verifySessionSignature(ctx context.Context, crv byte, holder s
 		var msig crypto.Signature
 		copy(msig[:], sig)
 		var mpub crypto.Key
-		pub, _ = P.MarshalBinary()
+		pub, _ := P.MarshalBinary()
 		copy(mpub[:], pub)
 		var hash crypto.Hash
 		copy(hash[:], msg[32:])
@@ -518,19 +517,19 @@ func (node *Node) verifySessionSignerResults(_ context.Context, session *Session
 		exact := len(members)
 		return signed >= exact, nil
 	case common.OperationTypeSignInput:
-		var signed int
-		var sig []byte
+		counts := make(map[string]int)
 		for _, id := range members {
-			extra, found := sessionSigners[id]
-			if sig == nil && found {
-				sig = common.DecodeHexOrPanic(extra)
+			extra := sessionSigners[id]
+			if extra == "" {
+				continue
 			}
-			if found && extra != "" && hex.EncodeToString(sig) == extra {
-				signed = signed + 1
+			counts[extra]++
+			if counts[extra] >= node.threshold+1 {
+				sig, err := hex.DecodeString(extra)
+				return err == nil, sig
 			}
 		}
-		exact := node.threshold + 1
-		return signed >= exact, sig
+		return false, nil
 	default:
 		panic(session.Id)
 	}

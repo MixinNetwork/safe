@@ -40,6 +40,10 @@ func TestIsErrorCodesSupportsBothMixinClients(t *testing.T) {
 	botError := fmt.Errorf("wrapped: %w", bot.Error{Code: 7000})
 	require.True(t, IsErrorCodes(botError, 7000))
 	require.False(t, IsErrorCodes(botError, 7001))
+	var pointerError error = &bot.Error{Code: 7000}
+	botPointer := fmt.Errorf("wrapped: %w", pointerError)
+	require.True(t, IsErrorCodes(botPointer, 7000))
+	require.False(t, IsErrorCodes(botPointer, 7001))
 }
 
 func TestCloseOrPanic(t *testing.T) {

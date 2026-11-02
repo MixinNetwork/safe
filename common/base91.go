@@ -1,4 +1,4 @@
-// Package base91 implements base91 encoding, fork from https://github.com/mtraver/base91
+// Base91 encoding, forked from https://github.com/mtraver/base91.
 package common
 
 import (
@@ -12,10 +12,8 @@ type Encoding struct {
 	decodeMap [256]byte
 }
 
-// encodeStd is the standard base91 encoding alphabet (that is, the one specified
-// at http://base91.sourceforge.net). Of the 95 printable ASCII characters, the
-// following four are omitted: space (0x20), apostrophe (0x27), hyphen (0x2d),
-// and backslash (0x5c).
+// encodeStd is Safe's base91 alphabet, which replaces the standard alphabet's
+// double quote with a hyphen. It omits space, double quote, apostrophe, and backslash.
 const encodeStd = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~-"
 
 func Base91Encode(src []byte) string {
@@ -49,10 +47,7 @@ func newEncoding(encoder string) *Encoding {
 	return e
 }
 
-// StdEncoding is the standard base91 encoding (that is, the one specified
-// at http://base91.sourceforge.net). Of the 95 printable ASCII characters,
-// the following four are omitted: space (0x20), apostrophe (0x27),
-// hyphen (0x2d), and backslash (0x5c).
+// std uses Safe's base91 alphabet.
 var std = newEncoding(encodeStd)
 
 // Encode encodes src using the encoding enc, writing bytes to dst.
@@ -107,15 +102,15 @@ func (enc *Encoding) EncodedLen(n int) int {
 	return int(math.Ceil(float64(n) * 16.0 / 13.0))
 }
 
-// A invalidCharacterError is returned if invalid base91 data is encountered during decoding.
+// invalidCharacterError reports invalid base91 data encountered during decoding.
 
 var invalidCharacterError = func() error {
-	return fmt.Errorf("base91: invalid character, the he character is not in the encoding alphabet")
+	return fmt.Errorf("base91: character is not in the encoding alphabet")
 }
 
 // Decode decodes src using the encoding enc. It writes at most DecodedLen(len(src))
 // bytes to dst and returns the number of bytes written. If src contains invalid base91
-// data, it will return the number of bytes successfully written and CorruptInputError.
+// data, it returns the number of bytes successfully written and an error.
 func (enc *Encoding) Decode(dst, src []byte) (int, error) {
 	var queue, numBits uint
 	var v = -1

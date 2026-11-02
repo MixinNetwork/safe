@@ -59,6 +59,12 @@ func TestFROSTMixinSign(t *testing.T) {
 	require.Len(fsb, 64)
 	copy(sig1[:], fsb)
 
+	// A derived spend key must be used by both signing and verification.
+	public = testFROSTKeyGen(ctx, require, nodes, CurveEdwards25519Mixin)
+	path = []byte{1, 0, 0, 0, 0, 0, 0, 0}
+	fsb = testFROSTSign(ctx, require, nodes, public, msk, path, CurveEdwards25519Mixin)
+	require.Len(fsb, 64)
+
 	ver.SignaturesMap = []map[uint16]*crypto.Signature{{
 		0: &sig0,
 	}, {

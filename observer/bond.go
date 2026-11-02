@@ -185,6 +185,9 @@ func (node *Node) fetchAssetMeta(ctx context.Context, id string) (*Asset, error)
 	}
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		meta, err = node.fetchMixinAsset(ctx, id)
 		if common.CheckRetryableError(err) {
 			time.Sleep(2 * time.Second)

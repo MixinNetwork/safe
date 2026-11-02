@@ -9,13 +9,13 @@ import (
 // Error is a custom error for protocols which contains information about the responsible round in which it occurred,
 // and the party responsible.
 type Error struct {
-	// Culprit is empty if the identity of the misbehaving party cannot be known.
+	// Culprits is empty if the identity of the misbehaving party cannot be known.
 	Culprits []party.ID
 	// Err is the underlying error.
 	Err error
 }
 
-// Error implement error.
+// Error implements error.
 func (e Error) Error() string {
 	if e.Culprits == nil {
 		return e.Err.Error()
@@ -23,7 +23,7 @@ func (e Error) Error() string {
 	return fmt.Sprintf("culprits: %v: %s", e.Culprits, e.Err)
 }
 
-// Unwrap implement errors.Wrapper.
+// Unwrap returns the underlying error.
 func (e Error) Unwrap() error {
 	return e.Err
 }

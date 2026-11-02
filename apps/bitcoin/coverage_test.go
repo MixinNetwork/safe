@@ -100,7 +100,7 @@ func TestWitnessAccountRejectsKeysLocksAndUnsupportedNetworks(t *testing.T) {
 	require.Equal(t, "bc", NetConfig(ChainBitcoin).Bech32HRPSegwit)
 	require.Equal(t, "ltc", NetConfig(ChainLitecoin).Bech32HRPSegwit)
 	require.Panics(t, func() { NetConfig(0xff) })
-	require.Equal(t, InputTypeP2WPKHAccoutant, checkScriptType(make([]byte, 33)))
+	require.Equal(t, InputTypeP2WPKHAccountant, checkScriptType(make([]byte, 33)))
 	require.Equal(t, InputTypeP2WSHMultisigHolderSigner, checkScriptType(make([]byte, 101)))
 	require.Panics(t, func() { checkScriptType([]byte{1}) })
 }
@@ -125,10 +125,10 @@ func TestBitcoinAmountsTimingFeesAndMessages(t *testing.T) {
 	require.Equal(t, 5*time.Minute, BlocksDuration(ChainLitecoin, 2))
 	require.Panics(t, func() { BlocksDuration(0xff, 1) })
 
-	for _, fee := range []int64{2, 1_000} {
+	for _, fee := range []int64{1, 2, 1_000} {
 		require.True(t, CheckFeeRange(fee, ChainBitcoin))
 	}
-	require.False(t, CheckFeeRange(1, ChainBitcoin))
+	require.False(t, CheckFeeRange(0, ChainBitcoin))
 	require.False(t, CheckFeeRange(1_001, ChainBitcoin))
 	for _, fee := range []int64{1, 20} {
 		require.True(t, CheckFeeRange(fee, ChainLitecoin))

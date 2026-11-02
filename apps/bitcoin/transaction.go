@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/btcsuite/btcd/address/v2"
@@ -97,6 +98,9 @@ func (psbt *PartiallySignedTransaction) SigHash(idx int) []byte {
 func (psbt *PartiallySignedTransaction) sigHash(idx int) ([]byte, error) {
 	tx := psbt.UnsignedTx
 	pin := psbt.Inputs[idx]
+	if pin.SighashType != SigHashType {
+		return nil, fmt.Errorf("invalid sighash type for input %d: %d", idx, pin.SighashType)
+	}
 	satoshi := pin.WitnessUtxo.Value
 	pof := txscript.NewCannedPrevOutputFetcher(pin.WitnessScript, satoshi)
 	tsh := txscript.NewTxSigHashes(tx, pof)
@@ -108,6 +112,9 @@ func (psbt *PartiallySignedTransaction) SignedTransaction(holder, signer, observ
 	isRecoveryTransaction := psbt.IsRecoveryTransaction()
 	for idx := range msgTx.TxIn {
 		pin := psbt.Inputs[idx]
+		if pin.SighashType != SigHashType {
+			return nil, fmt.Errorf("invalid sighash type for input %d: %d", idx, pin.SighashType)
+		}
 		sigs := make(map[string][]byte, 2)
 		for _, ps := range pin.PartialSigs {
 			pub := hex.EncodeToString(ps.PubKey)
@@ -316,6 +323,9 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 
 	var outputSatoshi int64
 	for _, out := range outputs {
+		if out == nil || out.Satoshi <= 0 || out.Satoshi > math.MaxInt64-outputSatoshi {
+			return nil, fmt.Errorf("invalid output amount")
+		}
 		added, err := addOutput(msgTx, out.Address, out.Satoshi, chain)
 		if err != nil || !added {
 			return nil, fmt.Errorf("addOutput(%s, %d) => %t %v", out.Address, out.Satoshi, added, err)
@@ -410,6 +420,9 @@ func addInputs(tx *wire.MsgTx, inputs []*Input, chain byte) (string, int64, erro
 	var address string
 	var inputSatoshi int64
 	for _, input := range inputs {
+		if input == nil || input.Satoshi <= 0 || input.Satoshi > math.MaxInt64-inputSatoshi {
+			return "", 0, fmt.Errorf("invalid input amount")
+		}
 		addr, err := addInput(tx, input, chain)
 		if err != nil {
 			return "", 0, err
@@ -442,7 +455,7 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 		typ = InputTypeP2WSHMultisigObserverSigner
 	}
 	switch typ {
-	case InputTypeP2WPKHAccoutant:
+	case InputTypeP2WPKHAccountant:
 		in.Script = address.Hash160(in.Script)
 		wpkh, err := address.NewAddressWitnessPubKeyHash(in.Script, NetConfig(chain))
 		if err != nil {
@@ -485,11 +498,7 @@ func addInput(tx *wire.MsgTx, in *Input, chain byte) (string, error) {
 }
 
 func addOutput(tx *wire.MsgTx, receiver string, satoshi int64, chain byte) (bool, error) {
-	addr, err := address.DecodeAddress(receiver, NetConfig(chain))
-	if err != nil {
-		return false, err
-	}
-	script, err := txscript.PayToAddrScript(addr)
+	script, err := ParseAddress(receiver, chain)
 	if err != nil {
 		return false, err
 	}

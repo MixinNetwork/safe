@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -63,4 +64,47 @@ func TestCheckTransactionPartiallySignedByRejectsWalletRecoveryId(t *testing.T) 
 	tx.Signatures[0] = flippedSig
 	raw = hex.EncodeToString(tx.Marshal())
 	require.False(CheckTransactionPartiallySignedBy(raw, holder))
+}
+
+func TestEnableGuardRejectsInvalidTimelocks(t *testing.T) {
+	for _, lock := range []*big.Int{nil, big.NewInt(0), big.NewInt(-1), new(big.Int).Lsh(big.NewInt(1), 256)} {
+		_, err := CreateEnableGuardTransaction(t.Context(), 1, securityTestRequestID, securityTestSafe, securityTestReceiver, lock)
+		require.Error(t, err)
+	}
+}
+
+func TestTransactionConstructorsRejectInvalidAddressesAndChains(t *testing.T) {
+	for _, bad := range []string{"", "0x1", "0x" + strings.Repeat("g", 40), "0x" + strings.Repeat("1", 42)} {
+		for _, field := range []string{"safe", "destination", "token"} {
+			t.Run(field+"/"+bad, func(t *testing.T) {
+				safe, receiver, token := securityTestSafe, securityTestReceiver, EthereumEmptyAddress
+				switch field {
+				case "safe":
+					safe = bad
+				case "destination":
+					receiver = bad
+				case "token":
+					token = bad
+				}
+				_, err := CreateTransaction(t.Context(), TypeETHTx, 1, securityTestRequestID, safe, receiver, token, "1", big.NewInt(0))
+				require.Error(t, err)
+				_, err = CreateMultiSendTransaction(t.Context(), 1, securityTestRequestID, safe,
+					[]*Output{{TokenAddress: token, Destination: receiver, Amount: big.NewInt(1)}}, big.NewInt(0))
+				require.Error(t, err)
+				if field != "token" {
+					_, err = CreateEnableGuardTransaction(t.Context(), 1, securityTestRequestID, safe, receiver, big.NewInt(3600))
+					require.Error(t, err)
+				}
+			})
+		}
+	}
+	for _, chain := range []int64{0, -1} {
+		_, err := CreateTransaction(t.Context(), TypeETHTx, chain, securityTestRequestID, securityTestSafe, securityTestReceiver, EthereumEmptyAddress, "1", big.NewInt(0))
+		require.Error(t, err)
+		_, err = CreateMultiSendTransaction(t.Context(), chain, securityTestRequestID, securityTestSafe,
+			[]*Output{{TokenAddress: EthereumEmptyAddress, Destination: securityTestReceiver, Amount: big.NewInt(1)}}, big.NewInt(0))
+		require.Error(t, err)
+		_, err = CreateEnableGuardTransaction(t.Context(), chain, securityTestRequestID, securityTestSafe, securityTestReceiver, big.NewInt(3600))
+		require.Error(t, err)
+	}
 }

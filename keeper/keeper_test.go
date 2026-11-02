@@ -45,7 +45,7 @@ const (
 	testBitcoinKeyHolderPrivate      = "52250bb9b9edc5d54466182778a6470a5ee34033c215c92dd250b9c2ce543556"
 	testBitcoinKeyObserverPrivate    = "35fe01cbdc659810854615319b51899b78966c513f0515ee9d77ef6016090221"
 	testBitcoinKeyObserverChainCode  = "0619f13c84e1d2bfd6f20ca75a03bee058a95024338c583e1aa8761348dbb249"
-	testBitcoinKeyAccountantPriate   = "c663c88aab70d1539b22f475cb8febc714dc61b9a43b472dc1ef970786cf31f9"
+	testBitcoinKeyAccountantPrivate  = "c663c88aab70d1539b22f475cb8febc714dc61b9a43b472dc1ef970786cf31f9"
 	testBitcoinKeyDummyHolderPrivate = "75d5f311c8647e3a1d84a0d975b6e50b8c6d3d7f195365320077f41c6a165155"
 	testSafeAddress                  = "bc1qm7qaucdjwzpapugfvmzp2xduzs7p0jd3zq7yxpvuf9dp5nml3pesx57a9x"
 	testTransactionReceiver          = "bc1ql0up0wwazxt6xlj84u9fnvhnagjjetcn7h4z5xxvd0kf5xuczjgqq2aehc"
@@ -127,6 +127,7 @@ func TestBitcoinKeeper(t *testing.T) {
 	require.Nil(err)
 	require.Len(pendings, 2)
 	signedRaw := testSafeApproveTransaction(ctx, require, node, transactionHash, signers)
+	outputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
 	require.Nil(err)
 	require.Len(outputs, 0)
 	pendings, err = node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
@@ -713,7 +714,7 @@ func testAccountantSpentTransaction(_ context.Context, require *require.Assertio
 		Index:           0,
 		Satoshi:         50000,
 	}}
-	tx, err := bitcoin.SpendSignedTransaction(raw, feeInputs, testBitcoinKeyAccountantPriate, bitcoin.ChainBitcoin)
+	tx, err := bitcoin.SpendSignedTransaction(raw, feeInputs, testBitcoinKeyAccountantPrivate, bitcoin.ChainBitcoin)
 	require.Nil(err)
 	rb, err := bitcoin.MarshalWiredTransaction(tx, wire.WitnessEncoding, bitcoin.ChainBitcoin)
 	require.Nil(err)
@@ -1458,15 +1459,21 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 }
 
 func testDeployBondContract(ctx context.Context, require *require.Assertions, node *Node, addr, assetId string) string {
-	safe, _ := node.store.ReadSafeByAddress(ctx, addr)
-	asset, _ := node.fetchAssetMeta(ctx, assetId)
-	err := abi.GetOrDeployFactoryAsset(ctx, node.conf.PolygonRPC, os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, node.conf.PolygonKeeperDepositEntry, safe.Holder)
+	safe, err := node.store.ReadSafeByAddress(ctx, addr)
+	require.NoError(err)
+	require.NotNil(safe)
+	asset, err := node.fetchAssetMeta(ctx, assetId)
+	require.NoError(err)
+	require.NotNil(asset)
+	err = abi.GetOrDeployFactoryAsset(ctx, node.conf.PolygonRPC, os.Getenv("MVM_DEPLOYER"), asset.AssetId, asset.Symbol, asset.Name, node.conf.PolygonKeeperDepositEntry, safe.Holder)
 	require.Nil(err)
 	bond := abi.GetFactoryAssetAddress(node.conf.PolygonKeeperDepositEntry, assetId, asset.Symbol, asset.Name, safe.Holder)
 	assetKey := strings.ToLower(bond.String())
 	err = ethereum.VerifyAssetKey(assetKey)
 	require.Nil(err)
-	asset, _ = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
+	asset, err = node.fetchAssetMeta(ctx, ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
+	require.NoError(err)
+	require.NotNil(asset)
 	return asset.AssetId
 }
 

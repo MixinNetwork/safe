@@ -9,7 +9,7 @@ type Configuration struct {
 	AppId                       string             `toml:"app-id"`
 	SignerAppId                 string             `toml:"signer-app-id"`
 	StoreDir                    string             `toml:"store-dir"`
-	MonitorConversaionId        string             `toml:"monitor-conversation-id"`
+	MonitorConversationId       string             `toml:"monitor-conversation-id"`
 	SharedKey                   string             `toml:"shared-key"`
 	SignerPublicKey             string             `toml:"signer-public-key"`
 	AssetId                     string             `toml:"asset-id"`

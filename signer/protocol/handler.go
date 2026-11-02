@@ -40,7 +40,7 @@ type MultiHandler struct {
 	mtx             sync.Mutex
 }
 
-// NewMultiHandler expects a StartFunc for the desired protocol. It returns a handler that the user can interact with.
+// NewMultiHandler starts the supplied protocol session.
 func NewMultiHandler(startSession round.Session) (*MultiHandler, error) {
 	r := startSession
 	h := &MultiHandler{
@@ -70,15 +70,21 @@ func (h *MultiHandler) Result() (any, error) {
 
 // Listen returns a channel with outgoing messages that must be sent to other parties.
 // The message received should be _reliably_ broadcast if msg.Broadcast is true.
-// The channel is closed when either an error occurs or the protocol detects an error.
+// The channel is closed when the protocol completes or an error occurs.
 func (h *MultiHandler) Listen() <-chan *Message {
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
 	return h.out
 }
 
-// CanAccept returns true if the message is designated for this protocol protocol execution.
+// CanAccept returns true if the message is designated for this protocol execution.
 func (h *MultiHandler) CanAccept(msg *Message) bool {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
+	return h.canAccept(msg)
+}
+
+func (h *MultiHandler) canAccept(msg *Message) bool {
 	r := h.currentRound
 	if msg == nil {
 		return false
@@ -114,7 +120,7 @@ func (h *MultiHandler) CanAccept(msg *Message) bool {
 		return false
 	}
 
-	// data is cannot be nil
+	// data cannot be nil
 	if msg.Data == nil {
 		return false
 	}
@@ -140,7 +146,7 @@ func (h *MultiHandler) Accept(msg *Message) bool {
 	defer h.mtx.Unlock()
 
 	// exit early if the message is bad, or if we are already done
-	if !h.CanAccept(msg) || h.err != nil || h.result != nil || h.duplicate(msg) {
+	if !h.canAccept(msg) || h.err != nil || h.result != nil || h.duplicate(msg) {
 		return false
 	}
 
@@ -511,5 +517,7 @@ func newQueue(senders []party.ID, rounds round.Number) map[round.Number]map[part
 }
 
 func (h *MultiHandler) String() string {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	return fmt.Sprintf("party: %s, protocol: %s", h.currentRound.SelfID(), h.currentRound.ProtocolID())
 }

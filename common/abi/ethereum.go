@@ -109,6 +109,7 @@ func factoryInit(rpc string) (*ethclient.Client, *FactoryContract, error) {
 
 	abi, err := NewFactoryContract(common.HexToAddress(factoryContractAddress), conn)
 	if err != nil {
+		conn.Close()
 		return nil, nil, err
 	}
 

@@ -131,7 +131,7 @@ func (s *SQLite3Store) ReadAllEthereumTokenBalances(ctx context.Context, address
 	defer common.Rollback(tx)
 
 	query := "SELECT address,asset_id,asset_address,safe_asset_id,balance,latest_tx_hash,updated_at FROM ethereum_balances WHERE address=?"
-	rows, err := s.db.QueryContext(ctx, query, address)
+	rows, err := tx.QueryContext(ctx, query, address)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (s *SQLite3Store) ReadAllEthereumTokenBalances(ctx context.Context, address
 		}
 		sbs = append(sbs, &b)
 	}
-	return sbs, nil
+	return sbs, rows.Err()
 }
 
 func (s *SQLite3Store) ReadAllEthereumTokenBalancesMap(ctx context.Context, address string) (map[string]*SafeBalance, error) {

@@ -33,7 +33,7 @@ const (
 	ScriptPubKeyTypeWitnessScriptHash = "witness_v0_scripthash"
 	SigHashType                       = txscript.SigHashAll | txscript.SigHashAnyOneCanPay
 
-	InputTypeP2WPKHAccoutant             = 1
+	InputTypeP2WPKHAccountant            = 1
 	InputTypeP2WSHMultisigHolderSigner   = 2
 	InputTypeP2WSHMultisigObserverSigner = 3
 
@@ -103,10 +103,20 @@ func BlocksDuration(chain byte, count uint64) time.Duration {
 	return time.Duration(count) * blockDuration
 }
 
+// CheckTimelock requires the output to have aged past the lock plus the
+// recovery confirmation buffer. Compare heights before subtracting so an
+// unconfirmed output's MaxUint64 height cannot wrap into an old output.
+func CheckTimelock(chain byte, height, outputHeight uint64, lock time.Duration) bool {
+	if lock < 0 || outputHeight == 0 || outputHeight >= height || height-outputHeight <= 100 {
+		return false
+	}
+	return height-outputHeight-100 > uint64(lock/BlocksDuration(chain, 1))
+}
+
 func CheckFeeRange(fvb int64, chain byte) bool {
 	switch chain {
 	case ChainBitcoin:
-		return fvb >= 2 && fvb <= 1000
+		return fvb >= 1 && fvb <= 1000
 	case ChainLitecoin:
 		return fvb >= 1 && fvb <= 20
 	default:

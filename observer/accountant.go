@@ -541,7 +541,7 @@ func (s *SQLite3Store) ReadBitcoinUTXOs(ctx context.Context, chain byte) ([]*Out
 		}
 		outputs = append(outputs, &o)
 	}
-	return outputs, nil
+	return outputs, rows.Err()
 }
 
 func (s *SQLite3Store) WriteBitcoinFeeOutput(ctx context.Context, msgTx *wire.MsgTx, receiver string, tx *Transaction) error {

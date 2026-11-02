@@ -112,18 +112,16 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptOperation(sop))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            node.conf.KeeperAssetId,
-			Senders:            node.GetKeepers(),
-			SendersThreshold:   int64(node.keeper.Genesis.Threshold),
-			Extra:              memo,
-			Amount:             decimal.NewFromInt(1),
-			Sequence:           sequence,
-			SequencerCreatedAt: time.Now(),
-		},
+		OutputId:           uuid.Must(uuid.NewV4()).String(),
+		TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
+		AppId:              node.conf.AppId,
+		AssetId:            node.conf.KeeperAssetId,
+		Senders:            node.GetKeepers(),
+		SendersThreshold:   int64(node.keeper.Genesis.Threshold),
+		Extra:              memo,
+		Amount:             decimal.NewFromInt(1),
+		Sequence:           sequence,
+		SequencerCreatedAt: time.Now(),
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
 	require.True(node.store.CheckActionResultsBySessionId(ctx, sid))
@@ -138,7 +136,7 @@ func testFROSTSign(ctx context.Context, require *require.Assertions, nodes []*No
 	require.Nil(err)
 	require.NotNil(share)
 	extra := node.concatMessageAndSignature(msg, op.Extra)
-	res, _ := node.verifySessionSignature(ctx, crv, public, extra, share, path)
+	res, _ := node.verifySessionSignature(ctx, crv, extra, share, path)
 	require.True(res)
 
 	return op.Extra

@@ -609,8 +609,8 @@ func TestEthereumKeeperSetInheritanceLocks(t *testing.T) {
 		switch b.AssetId {
 		case common.SafePolygonChainId:
 			require.Equal(int64(1000100000000000000), b.BigBalance().Int64())
-		case testEthereumUSDTBondAssetId:
-			require.Equal(100, b.BigBalance().Int64())
+		case testEthereumUSDTAssetId:
+			require.Equal(int64(100), b.BigBalance().Int64())
 		}
 	}
 

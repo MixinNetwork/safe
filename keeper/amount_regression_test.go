@@ -25,8 +25,8 @@ func TestTransactionAmountsRejectRoundingAndOverflow(t *testing.T) {
 		{"1.000000000000000001", 18, 256, "1000000000000000001"},
 		{"0", 8, 63, ""},
 		{"-1", 8, 63, ""},
-		{"1e2147483647", 8, 63, ""},
-		{"1e-2147483648", 8, 63, ""},
+		{"1e10000", 8, 63, ""},
+		{"1e-10000", 8, 63, ""},
 	} {
 		t.Run(tc.amount, func(t *testing.T) {
 			value, err := parseTransactionAmount(decimal.RequireFromString(tc.amount), tc.precision, tc.bits)

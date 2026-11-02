@@ -1,8 +1,11 @@
 package keeper
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -139,5 +142,35 @@ func TestVerifyPolygonDepositRequiresFinalization(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestDepositRejectsTruncatedIndexesAndInvalidAmounts(t *testing.T) {
+	for _, chain := range []byte{common.SafeChainBitcoin, common.SafeChainEthereum} {
+		header, maximum := 57, uint64(math.MaxUint32)
+		if chain == common.SafeChainEthereum {
+			header, maximum = 77, math.MaxInt64
+		}
+		for _, test := range []struct {
+			index  uint64
+			amount *big.Int
+			valid  bool
+		}{
+			{maximum, big.NewInt(1), true},
+			{maximum + 1, big.NewInt(1), false},
+			{0, big.NewInt(0), false},
+			{0, new(big.Int).Lsh(big.NewInt(1), 256), false},
+		} {
+			extra := make([]byte, header)
+			extra[0] = chain
+			binary.BigEndian.PutUint64(extra[header-8:], test.index)
+			extra = append(extra, test.amount.Bytes()...)
+			_, err := parseDepositExtra(&common.Request{Curve: common.SafeChainCurve(chain), ExtraHEX: hex.EncodeToString(extra)})
+			if test.valid {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		}
 	}
 }

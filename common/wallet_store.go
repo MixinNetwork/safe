@@ -62,8 +62,11 @@ func outputFromRow(row Row) (*Output, error) {
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
 	o.Senders = util.SplitIds(senders, ",")
-	return &o, err
+	return &o, nil
 }
 
 func (s *SQLite3Store) WriteOutputsIfNotExists(ctx context.Context, outputs []*mixin.SafeUtxo) error {
@@ -189,5 +192,5 @@ func (s *SQLite3Store) listOutputsByQuery(ctx context.Context, tx *sql.Tx, query
 		}
 		os = append(os, o)
 	}
-	return os, nil
+	return os, rows.Err()
 }

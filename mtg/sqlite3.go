@@ -43,10 +43,12 @@ func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 	}
 	_, err = db.Exec(SCHEMA)
 	if err != nil {
+		closeOrPanic(db)
 		return nil, err
 	}
 	err = db.Ping()
 	if err != nil {
+		closeOrPanic(db)
 		return nil, err
 	}
 	return &SQLite3Store{
@@ -88,7 +90,8 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	}
 	defer closeOrPanic(rows)
 
-	return rows.Next(), nil
+	exists := rows.Next()
+	return exists, rows.Err()
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {

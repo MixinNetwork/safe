@@ -444,17 +444,20 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 }
 
 func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest, change common.Integer) (*common.VersionedTransaction, error) {
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	ver, err := common.UnmarshalVersionedTransaction(rb)
+	if err != nil {
+		return nil, err
+	}
 	for _, out := range outputs {
 		out.TraceId = tx.TraceId
 		out.State = SafeUtxoStateSigned
 		out.SignedBy = req.TransactionHash
 	}
 
-	rb, err := hex.DecodeString(req.RawTransaction)
-	if err != nil {
-		return nil, err
-	}
-	ver, _ := common.UnmarshalVersionedTransaction(rb)
 	tx.Raw = rb
 	tx.Hash = ver.PayloadHash()
 	tx.UpdatedAt = time.Now().UTC()
@@ -497,6 +500,9 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 		}, nil
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		req, err := grp.mixin.SafeCreateMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      id,
 			RawTransaction: raw,
@@ -525,6 +531,9 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 // foreign raw transaction would spend the group outputs to arbitrary
 // recipients, so it must be rejected before any signature is made.
 func CheckMultisigRequestRawTransaction(req *mixin.SafeMultisigRequest, ver *common.VersionedTransaction) (*common.VersionedTransaction, error) {
+	if req == nil || ver == nil {
+		return nil, fmt.Errorf("missing multisig transaction")
+	}
 	rb, err := hex.DecodeString(req.RawTransaction)
 	if err != nil {
 		return nil, err
@@ -563,6 +572,14 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 	if err != nil {
 		return nil, err
 	}
+	if len(input.Views) != len(ver.Inputs) {
+		return nil, fmt.Errorf("invalid view keys count %d != %d", len(input.Views), len(ver.Inputs))
+	}
+	for _, view := range input.Views {
+		if _, err := view.ToScalar(); err != nil {
+			return nil, fmt.Errorf("invalid view key: %w", err)
+		}
+	}
 	err = mixin.SafeSignTransaction(ver, key, input.Views, uint16(grp.Index()))
 	if err != nil {
 		return nil, err
@@ -572,6 +589,9 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 		return nil, err
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		req, err := grp.mixin.SafeSignMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      input.RequestID,
 			RawTransaction: signedRaw,

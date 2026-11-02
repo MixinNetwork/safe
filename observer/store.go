@@ -240,7 +240,8 @@ func (s *SQLite3Store) CheckAccountProposed(ctx context.Context, addr string) (b
 	}
 	defer util.CloseOrPanic(rows)
 
-	return rows.Next(), nil
+	exists := rows.Next()
+	return exists, rows.Err()
 }
 
 func (s *SQLite3Store) ReadAccount(ctx context.Context, addr string) (*Account, error) {
@@ -367,7 +368,7 @@ func (s *SQLite3Store) ListProposedAccountsWithSig(ctx context.Context) ([]*Acco
 		}
 		accounts = append(accounts, &a)
 	}
-	return accounts, nil
+	return accounts, rows.Err()
 }
 
 func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder string, state int, offset int64) ([]*Deposit, error) {
@@ -397,7 +398,7 @@ func (s *SQLite3Store) ListDeposits(ctx context.Context, chain int, holder strin
 		}
 		deposits = append(deposits, &d)
 	}
-	return deposits, nil
+	return deposits, rows.Err()
 }
 
 func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Context, holder, assetId string, offset time.Time) (bool, error) {
@@ -410,7 +411,8 @@ func (s *SQLite3Store) CheckUnconfirmedDepositsForAssetAndHolder(ctx context.Con
 	}
 	defer util.CloseOrPanic(rows)
 
-	return rows.Next(), nil
+	exists := rows.Next()
+	return exists, rows.Err()
 }
 
 func (s *SQLite3Store) QueryDepositSentHashes(ctx context.Context, deposits []*Deposit) (map[string]string, error) {
@@ -542,7 +544,7 @@ func (s *SQLite3Store) ListFullySignedTransactionApprovals(ctx context.Context, 
 		}
 		approvals = append(approvals, &t)
 	}
-	return approvals, nil
+	return approvals, rows.Err()
 }
 
 func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chain byte) ([]*Transaction, error) {
@@ -562,7 +564,7 @@ func (s *SQLite3Store) ListPendingTransactionApprovals(ctx context.Context, chai
 		}
 		approvals = append(approvals, &t)
 	}
-	return approvals, nil
+	return approvals, rows.Err()
 }
 
 func (s *SQLite3Store) CountUnfinishedTransactionApprovalsForHolder(ctx context.Context, holder string) (int, error) {
@@ -587,6 +589,13 @@ func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, 
 	}
 	defer common.Rollback(tx)
 
+	if err := s.writeTransactionApprovalIfNotExists(ctx, tx, approval); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) writeTransactionApprovalIfNotExists(ctx context.Context, tx *sql.Tx, approval *Transaction) error {
 	existed, err := s.checkExistence(ctx, tx, "SELECT raw_transaction FROM transactions WHERE transaction_hash=?", approval.TransactionHash)
 	if err != nil || existed {
 		return err
@@ -597,7 +606,7 @@ func (s *SQLite3Store) WriteTransactionApprovalIfNotExists(ctx context.Context, 
 		return fmt.Errorf("INSERT transactions %v", err)
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (s *SQLite3Store) RevokeTransactionApproval(ctx context.Context, transactionHash string, sigBase64 string) error {
@@ -782,7 +791,11 @@ func (s *SQLite3Store) ReadObserverKey(ctx context.Context, crv byte) (string, [
 	if err == sql.ErrNoRows {
 		return "", nil, nil
 	}
-	return public, common.DecodeHexOrPanic(chainCode), err
+	if err != nil {
+		return "", nil, err
+	}
+	code, err := hex.DecodeString(chainCode)
+	return public, code, err
 }
 
 func (s *SQLite3Store) DeleteObserverKey(ctx context.Context, pub string) error {
@@ -833,7 +846,10 @@ func (s *SQLite3Store) WriteAssetMeta(ctx context.Context, asset *Asset) error {
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recovery) error {
+func (s *SQLite3Store) WriteInitialRecoveryWithApproval(ctx context.Context, recovery *Recovery, approval *Transaction) error {
+	if recovery == nil || approval == nil || recovery.TransactionHash != approval.TransactionHash || recovery.Chain != approval.Chain || recovery.Holder != approval.Holder {
+		return fmt.Errorf("mismatched recovery and approval")
+	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -843,6 +859,9 @@ func (s *SQLite3Store) WriteInitialRecovery(ctx context.Context, recovery *Recov
 	}
 	defer common.Rollback(tx)
 
+	if err := s.writeTransactionApprovalIfNotExists(ctx, tx, approval); err != nil {
+		return err
+	}
 	vals := recovery.values()
 	err = s.execOne(ctx, tx, buildInsertionSQL("recoveries", recoveryCols), vals...)
 	if err != nil {
@@ -917,7 +936,7 @@ func (s *SQLite3Store) ReadRecovery(ctx context.Context, address, hash string) (
 		return nil, err
 	}
 	if r.Address != address {
-		panic(r.Address)
+		return nil, fmt.Errorf("recovery %s does not belong to address %s", hash, address)
 	}
 	return r, nil
 }
@@ -951,7 +970,7 @@ func (s *SQLite3Store) ListInitialRecoveries(ctx context.Context, offset int64) 
 		}
 		recoveries = append(recoveries, &r)
 	}
-	return recoveries, nil
+	return recoveries, rows.Err()
 }
 
 func (s *SQLite3Store) UpsertNodeStats(ctx context.Context, appId, typ, stats string) error {
@@ -1009,7 +1028,7 @@ func (s *SQLite3Store) ListNodeStats(ctx context.Context, typ string) ([]*NodeSt
 		}
 		nodes = append(nodes, &n)
 	}
-	return nodes, nil
+	return nodes, rows.Err()
 }
 
 func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration) (string, error) {

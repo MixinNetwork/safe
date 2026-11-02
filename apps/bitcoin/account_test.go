@@ -10,6 +10,7 @@ import (
 	"github.com/MixinNetwork/multi-party-sig/pkg/ecdsa"
 	"github.com/MixinNetwork/multi-party-sig/pkg/math/curve"
 	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg/v2"
 	"github.com/stretchr/testify/require"
@@ -169,4 +170,10 @@ func TestBitcoinCompactSignatureValidation(t *testing.T) {
 			require.Nil(t, canonical)
 		})
 	}
+}
+
+func TestBitcoinRejectsUncompressedHolder(t *testing.T) {
+	_, public := btcec.PrivKeyFromBytes([]byte{1})
+	require.NoError(t, VerifyHolderKey(hex.EncodeToString(public.SerializeCompressed())))
+	require.Error(t, VerifyHolderKey(hex.EncodeToString(public.SerializeUncompressed())))
 }

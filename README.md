@@ -2,7 +2,7 @@
 
 Mixin Safe is an advanced non-custodial solution that specializes in providing a multiplex cold wallet. The platform places strong emphasis on the significance of securing crypto keys, with its firm belief in the principle of "not your keys, not your coins". Mixin Safe leverages mature technologies such as multisig and MPC to offer its users the most secure and convenient solution for securing crypto keys.
 
-Through the native Bitcoin multisig and timelock script, Mixin Safe offers a 2/3 multisig that comprises three keys, namely owner, members, and recovery. The BTC locked within the script can be spent only when both the owner and members keys sign a transaction, provided that the timelock of one year is in effect. In case of key loss by the owner or members, the recovery key can act as a rescuer after the timelock expired.
+Through the native Bitcoin multisig and timelock script, Mixin Safe offers a 2/3 multisig that comprises three keys, namely owner, members, and recovery. The owner and members keys can spend BTC together at any time. After the configured timelock expires, the recovery key can spend BTC together with either the owner or members key. The script below uses a one-year timelock.
 
 A Mixin Safe account is represented by the miniscript below. Miniscript is a language for writing (a subset of) Bitcoin Scripts in a structured way, enabling analysis, composition, generic signing and more. Thus Mixin Safe is able to work with all popular Bitcoin software wallets and hardware wallets, e.g. Bitcoin Core, Ledger.
 
@@ -35,7 +35,7 @@ public: 039c2f5ebdd4eae6d69e7a98b737beeb78e0a8d42c7b957a0fbe0c41658d16ab40
 private: 1b639e995830c253eb38780480440a72919f5448be345a574c545329f2df4d76
 ```
 
-After generating the key pair, you will need to create a random UUID as the session ID. As example, the UUID `2e78d04a-e61a-442d-a014-dec19bd61cfe` will be used.
+After generating the key pair, you will need to create a random UUID as the session ID. As an example, the UUID `2e78d04a-e61a-442d-a014-dec19bd61cfe` will be used.
 
 ## Fees and Transaction Minimums
 
@@ -108,7 +108,7 @@ op := &Operation {
 }
 ```
 
-All above four fields above are mandatory for all safe network transactions, now to propose a safe account with 7 days timelock, we need to make the extra:
+All four fields above are mandatory for all safe network transactions, now to propose a safe account with 7 days timelock, we need to make the extra:
 
 ```golang
 timelock := binary.BigEndian.AppendUint16(nil, 24*7)
@@ -132,7 +132,7 @@ input := mixin.TransferInput{
   TraceID: op.Id,
   Memo:    memo,
 }
-input.OpponentMultisig.Receivers = []{
+input.OpponentMultisig.Receivers = []string{
   "a4930d3e-4783-4ccd-ae3e-f6651b5583c7",
   "2cf5645b-5c52-42e4-8c67-ed5164cfe8eb",
   "335654a7-986d-4600-ab89-b624e9998f36",
@@ -211,7 +211,7 @@ Now we can deposit BTC to the address above, and you will receive safeBTC to the
 
 ## Propose Safe Transaction
 
-After depositing some BTC to both the safe address, we now want to send 0.000123 BTC to `bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e`. To initiate the transaction, we require the latest Bitcoin chain head ID from the Safe network, which can be obtained by running the following command:
+After depositing some BTC to the safe address, we now want to send 0.000123 BTC to `bc1qevu9qqpfqp4s9jq3xxulfh08rgyjy8rn76aj7e`. To initiate the transaction, we require the latest Bitcoin chain head ID from the Safe network, which can be obtained by running the following command:
 
 ```
 curl https://observer.mixin.one/chains
@@ -267,7 +267,7 @@ input := mixin.TransferInput{
   TraceID: op.Id,
   Memo:    memo,
 }
-input.OpponentMultisig.Receivers = []{
+input.OpponentMultisig.Receivers = []string{
   "a4930d3e-4783-4ccd-ae3e-f6651b5583c7",
   "2cf5645b-5c52-42e4-8c67-ed5164cfe8eb",
   "335654a7-986d-4600-ab89-b624e9998f36",
@@ -320,19 +320,24 @@ curl https://observer.mixin.one/transactions/36c2075c-5af0-4593-b156-e72f58f9f42
 With the transaction proposed in previous step, we can decode the raw response to get the partially signed bitcoin transaction for the owner key to sign. Then with the decoded PSBT, we can parse it to see all its inputs and outputs, and verify it's correct as we proposed. Then we sign all signature hashes with our owner private key:
 
 ```golang
-script := theSafeAccountScript()
-psbtBytes, _ := hex.DecodeString(raw)
-pkt, _ = psbt.NewFromRawBytes(bytes.NewReader(psbtBytes), false)
+psbtBytes, err := hex.DecodeString(raw)
+if err != nil {
+	panic(err)
+}
+pkt, err := bitcoin.UnmarshalPartiallySignedTransaction(psbtBytes)
+if err != nil {
+	panic(err)
+}
 for idx := range pkt.UnsignedTx.TxIn {
-	hash := sigHash(pkt, idx)
+	hash := pkt.SigHash(idx)
 	sig := ecdsa.Sign(owner, hash).Serialize()
 	pkt.Inputs[idx].PartialSigs = []*psbt.PartialSig{{
 		PubKey:    owner.PubKey().SerializeCompressed(),
 		Signature: sig,
 	}}
 }
-raw := marshal(hash, pkt, fee)
-fmt.Printf("raw: %x\n", raw)
+signedRaw := pkt.Marshal()
+fmt.Printf("raw: %x\n", signedRaw)
 ```
 
 After we have the PSBT signed by owner private key, then we can send them to safe API:

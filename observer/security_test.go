@@ -76,6 +76,9 @@ func TestObserverBitcoinBroadcastRequiresExpectedHash(t *testing.T) {
 				if sentRaw != hex.EncodeToString(raw) {
 					t.Errorf("sent raw %q", sentRaw)
 				}
+				if test.rpcError != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
 				_ = json.NewEncoder(w).Encode(observerRPCTestResponse{
 					JSONRPC: "2.0",
 					Result:  test.result,

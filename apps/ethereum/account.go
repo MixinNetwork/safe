@@ -311,6 +311,9 @@ func ParseEthereumCompressedPublicKey(public string) (*common.Address, error) {
 }
 
 func FetchSafeNonce(ctx context.Context, chainId int64, rpc, address string, height int64) (int64, error) {
+	if height < 0 {
+		return 0, fmt.Errorf("invalid block height %d", height)
+	}
 	conn, abi, err := safeInit(ctx, chainId, rpc, address)
 	if err != nil {
 		return 0, err
@@ -322,16 +325,19 @@ func FetchSafeNonce(ctx context.Context, chainId int64, rpc, address string, hei
 		return 0, err
 	}
 	if now < uint64(height) {
-		panic(now)
+		return 0, fmt.Errorf("block height %d exceeds node height %d", height, now)
 	}
 
-	opt := &bind.CallOpts{}
+	opt := &bind.CallOpts{Context: ctx}
 	if height > 0 {
 		opt.BlockNumber = big.NewInt(height)
 	}
 	nonce, err := abi.Nonce(opt)
 	if err != nil {
 		return 0, err
+	}
+	if !nonce.IsInt64() || nonce.Sign() < 0 {
+		return 0, fmt.Errorf("safe nonce exceeds int64: %s", nonce)
 	}
 	return nonce.Int64(), nil
 }

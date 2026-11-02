@@ -60,6 +60,9 @@ func CreateTransactionFromOutputs(ctx context.Context, typ int, chainId int64, i
 		return CreateMultiSendTransaction(ctx, chainId, id, safeAddress, outputs, nonce)
 	case len(outputs) == 1:
 		o := outputs[0]
+		if o == nil || o.Amount == nil {
+			return nil, fmt.Errorf("invalid ethereum transaction output amount")
+		}
 		return CreateTransaction(ctx, typ, chainId, id, safeAddress, o.Destination, o.TokenAddress, o.Amount.String(), nonce)
 	default:
 		return nil, fmt.Errorf("invalid outputs to create safe transaction")
@@ -67,11 +70,14 @@ func CreateTransactionFromOutputs(ctx context.Context, typ int, chainId int64, i
 }
 
 func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddress, destination, tokenAddress, amount string, nonce *big.Int) (*SafeTransaction, error) {
-	if nonce == nil || tokenAddress == "" {
+	if chainID <= 0 || !common.IsHexAddress(safeAddress) || !common.IsHexAddress(destination) || !common.IsHexAddress(tokenAddress) {
+		return nil, fmt.Errorf("invalid ethereum transaction chain or address")
+	}
+	if nonce == nil || nonce.Sign() < 0 || nonce.BitLen() > 256 || tokenAddress == "" {
 		return nil, fmt.Errorf("invalid ethereum transaction nonce or token address %s %s", nonce, tokenAddress)
 	}
 	value, ok := new(big.Int).SetString(amount, 10)
-	if !ok || value.Sign() <= 0 {
+	if !ok || value.Sign() <= 0 || value.BitLen() > 256 {
 		return nil, fmt.Errorf("invalid ethereum amount %s", amount)
 	}
 	tx := &SafeTransaction{
@@ -91,7 +97,7 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 	switch typ {
 	case TypeETHTx:
 	case TypeERC20Tx:
-		norm := NormalizeAddress(tokenAddress)
+		norm := common.HexToAddress(tokenAddress).Hex()
 		if norm == EthereumEmptyAddress {
 			return nil, fmt.Errorf("invalid ERC20 address %s for TypeERC20Tx", tokenAddress)
 		}
@@ -107,8 +113,22 @@ func CreateTransaction(ctx context.Context, typ int, chainID int64, id, safeAddr
 }
 
 func CreateMultiSendTransaction(ctx context.Context, chainID int64, id, safeAddress string, outputs []*Output, nonce *big.Int) (*SafeTransaction, error) {
-	if nonce == nil {
+	if chainID <= 0 || !common.IsHexAddress(safeAddress) {
+		return nil, fmt.Errorf("invalid ethereum transaction chain or safe address")
+	}
+	if nonce == nil || nonce.Sign() < 0 || nonce.BitLen() > 256 {
 		return nil, fmt.Errorf("invalid ethereum transaction nonce")
+	}
+	if len(outputs) == 0 {
+		return nil, fmt.Errorf("missing ethereum transaction outputs")
+	}
+	for _, output := range outputs {
+		if output == nil || output.Amount == nil || output.Amount.Sign() <= 0 || output.Amount.BitLen() > 256 {
+			return nil, fmt.Errorf("invalid ethereum transaction output amount")
+		}
+		if !common.IsHexAddress(output.Destination) || !common.IsHexAddress(output.TokenAddress) {
+			return nil, fmt.Errorf("invalid ethereum transaction output address")
+		}
 	}
 	tx := &SafeTransaction{
 		ChainID:        chainID,
@@ -131,7 +151,10 @@ func CreateMultiSendTransaction(ctx context.Context, chainID int64, id, safeAddr
 }
 
 func CreateEnableGuardTransaction(ctx context.Context, chainID int64, id, safeAddress, observerAddress string, timelock *big.Int) (*SafeTransaction, error) {
-	if timelock == nil {
+	if chainID <= 0 || !common.IsHexAddress(safeAddress) || !common.IsHexAddress(observerAddress) {
+		return nil, fmt.Errorf("invalid ethereum guard chain or address")
+	}
+	if timelock == nil || timelock.Sign() <= 0 || timelock.BitLen() > 256 {
 		return nil, fmt.Errorf("invalid timelock: %d", timelock)
 	}
 	zero := big.NewInt(0)
@@ -224,6 +247,9 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(valueByte) > 32 {
+		return nil, fmt.Errorf("safe transaction value exceeds uint256")
+	}
 	data, err := dec.ReadBytes()
 	if err != nil {
 		return nil, err
@@ -231,6 +257,9 @@ func UnmarshalSafeTransaction(b []byte) (*SafeTransaction, error) {
 	nonce, err := dec.ReadBytes()
 	if err != nil {
 		return nil, err
+	}
+	if len(nonce) > 32 {
+		return nil, fmt.Errorf("safe transaction nonce exceeds uint256")
 	}
 	msg, err := dec.ReadBytes()
 	if err != nil {
@@ -637,7 +666,7 @@ func buildMultiSendData(outputs []*Output) []byte {
 			panic(o.Amount.String())
 		}
 		destination, amount, data := o.Destination, o.Amount, []byte{}
-		tokenAddress := NormalizeAddress(o.TokenAddress)
+		tokenAddress := common.HexToAddress(o.TokenAddress).Hex()
 		if tokenAddress != EthereumEmptyAddress {
 			destination = tokenAddress
 			amount = big.NewInt(0)

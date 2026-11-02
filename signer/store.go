@@ -350,7 +350,7 @@ func (s *SQLite3Store) ListSessionPreparedMembers(ctx context.Context, sessionId
 		}
 		signers = append(signers, party.ID(signer))
 	}
-	return signers, nil
+	return signers, rows.Err()
 }
 
 func (s *SQLite3Store) ListSessionSignerResults(ctx context.Context, sessionId string) (map[string]string, error) {
@@ -373,10 +373,10 @@ func (s *SQLite3Store) ListSessionSignerResults(ctx context.Context, sessionId s
 		}
 		signers[signer] = extra
 	}
-	return signers, nil
+	return signers, rows.Err()
 }
 
-func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Operation, transaction crypto.Hash, outputIndex int, createdAt time.Time, needsCommittment bool) error {
+func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Operation, transaction crypto.Hash, outputIndex int, createdAt time.Time, needsCommitment bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -395,7 +395,7 @@ func (s *SQLite3Store) WriteSessionIfNotExist(ctx context.Context, op *common.Op
 		"extra", "state", "created_at", "updated_at"}
 	vals := []any{op.Id, transaction.String(), outputIndex, op.Type, op.Curve, op.Public,
 		hex.EncodeToString(op.Extra), common.RequestStateInitial, createdAt, createdAt}
-	if !needsCommittment {
+	if !needsCommitment {
 		cols = append(cols, "committed_at", "prepared_at")
 		vals = append(vals, createdAt, createdAt)
 	}
@@ -551,6 +551,7 @@ func (s *SQLite3Store) CheckActionResultsBySessionId(ctx context.Context, sessio
 	if err != nil {
 		panic(err)
 	}
+	defer util.CloseOrPanic(rows)
 	var ts, compaction string
 	for rows.Next() {
 		err = rows.Scan(&ts, &compaction)
@@ -652,7 +653,7 @@ func (s *SQLite3Store) listSessionsByQuery(ctx context.Context, sql string, stat
 		}
 		sessions = append(sessions, &r)
 	}
-	return sessions, nil
+	return sessions, rows.Err()
 }
 
 type State struct {
@@ -724,7 +725,8 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 	}
 	defer util.CloseOrPanic(rows)
 
-	return rows.Next(), nil
+	exists := rows.Next()
+	return exists, rows.Err()
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {

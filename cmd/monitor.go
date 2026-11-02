@@ -26,11 +26,11 @@ type UserStore interface {
 }
 
 func MonitorSigner(ctx context.Context, mdb *mtg.SQLite3Store, store *signer.SQLite3Store, conf *signer.Configuration, group *mtg.Group, version string) {
-	logger.Printf("MonitorSigner(%s, %s, %s)", group.GenesisId(), conf.MonitorConversaionId, conf.ObserverUserId)
+	logger.Printf("MonitorSigner(%s, %s, %s)", group.GenesisId(), conf.MonitorConversationId, conf.ObserverUserId)
 	startedAt := time.Now()
 
 	app := conf.MTG.App
-	conv, err := bot.ConversationShow(ctx, conf.MonitorConversaionId, &bot.SafeUser{
+	conv, err := bot.ConversationShow(ctx, conf.MonitorConversationId, &bot.SafeUser{
 		UserId:            app.AppId,
 		SessionId:         app.SessionId,
 		SessionPrivateKey: app.SessionPrivateKey,
@@ -108,11 +108,11 @@ func bundleSignerState(ctx context.Context, mdb *mtg.SQLite3Store, store *signer
 }
 
 func MonitorKeeper(ctx context.Context, mdb *mtg.SQLite3Store, store *kstore.SQLite3Store, conf *keeper.Configuration, group *mtg.Group, version string) {
-	logger.Printf("MonitorKeeper(%s, %s, %s)", group.GenesisId(), conf.MonitorConversaionId, conf.ObserverUserId)
+	logger.Printf("MonitorKeeper(%s, %s, %s)", group.GenesisId(), conf.MonitorConversationId, conf.ObserverUserId)
 	startedAt := time.Now()
 
 	app := conf.MTG.App
-	conv, err := bot.ConversationShow(ctx, conf.MonitorConversaionId, &bot.SafeUser{
+	conv, err := bot.ConversationShow(ctx, conf.MonitorConversationId, &bot.SafeUser{
 		UserId:            app.AppId,
 		SessionId:         app.SessionId,
 		SessionPrivateKey: app.SessionPrivateKey,
@@ -237,7 +237,7 @@ func postMessages(ctx context.Context, store UserStore, sessionStore bot.Session
 			continue
 		}
 		u, err := fetchConversationUser(ctx, store, s.UserId, conf)
-		if err != nil || checkBot(u, observer) {
+		if err != nil || u == nil || checkBot(u, observer) {
 			logger.Verbosef("Monitor.fetchConversationUser(%s) => %v %v", s.UserId, u, err)
 			continue
 		}

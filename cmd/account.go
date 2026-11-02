@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/common"
@@ -28,12 +30,16 @@ func GenerateTestSafeApproval(c *cli.Context) error {
 		return fmt.Errorf("invalid chain %d", chain)
 	}
 
-	hash := bitcoin.HashMessageForSignature(c.String("address"), byte(chain))
-	kb, err := hex.DecodeString(c.String("key"))
+	id, err := uuid.FromString(c.String("id"))
+	if err != nil || id.IsNil() {
+		return fmt.Errorf("invalid account proposal request id")
+	}
+	message := fmt.Sprintf("APPROVE:%s:%s", id.String(), c.String("address"))
+	hash := bitcoin.HashMessageForSignature(message, byte(chain))
+	private, err := parseBitcoinPrivateKey(c.String("key"))
 	if err != nil {
 		return err
 	}
-	private, _ := btcec.PrivKeyFromBytes(kb)
 	sig := ecdsa.Sign(private, hash)
 	fmt.Println(base64.RawURLEncoding.EncodeToString(sig.Serialize()))
 	return nil
@@ -58,7 +64,8 @@ func GenerateTestSafeProposal(c *cli.Context) error {
 	threshold := byte(1)
 	total := byte(1)
 	receivers := []string{"fcb87491-4fa0-4c2f-b387-262b63cbc112"}
-	extra := []byte{threshold, total}
+	extra := binary.BigEndian.AppendUint16(nil, uint16(bitcoin.TimeLockMaximum/time.Hour))
+	extra = append(extra, threshold, total)
 	uid := uuid.Must(uuid.FromString(receivers[0]))
 	extra = append(extra, uid.Bytes()...)
 
@@ -75,6 +82,18 @@ func testPublicKey(priv string) string {
 	seed, _ := hex.DecodeString(priv)
 	_, dk := btcec.PrivKeyFromBytes(seed)
 	return hex.EncodeToString(dk.SerializeCompressed())
+}
+
+func parseBitcoinPrivateKey(value string) (*btcec.PrivateKey, error) {
+	kb, err := hex.DecodeString(value)
+	if err != nil || len(kb) != btcec.PrivKeyBytesLen {
+		return nil, fmt.Errorf("private key must be 32 bytes of hex")
+	}
+	var scalar btcec.ModNScalar
+	if scalar.SetByteSlice(kb) || scalar.IsZero() {
+		return nil, fmt.Errorf("private key is outside the secp256k1 scalar range")
+	}
+	return btcec.PrivKeyFromScalar(&scalar), nil
 }
 
 func testBuildHolderRequest(id, public string, action byte, extra []byte) string {

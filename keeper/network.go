@@ -174,7 +174,7 @@ func (node *Node) verifyEthereumNetworkInfo(info, old *store.NetworkInfo) (bool,
 	}
 	if old != nil && old.Hash == info.Hash {
 		if old.Height != info.Height {
-			return false, fmt.Errorf("malicious bitcoin block %s", info.Hash)
+			return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
 		}
 	} else {
 		rpc, _ := node.ethereumParams(info.Chain)

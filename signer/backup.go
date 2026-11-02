@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -13,7 +14,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-func (node *Node) sendKeygenBackup(_ context.Context, op *common.Operation, share []byte) (bool, error) {
+func (node *Node) sendKeygenBackup(ctx context.Context, op *common.Operation, share []byte) (bool, error) {
 	sid := uuid.Must(uuid.NewV4())
 	secret := crypto.Sha256Hash([]byte(node.saverKey.String() + sid.String()))
 	secret = crypto.Sha256Hash(secret[:])
@@ -36,11 +37,19 @@ func (node *Node) sendKeygenBackup(_ context.Context, op *common.Operation, shar
 
 	msg = string(common.MarshalJSONOrPanic(data))
 	reader := strings.NewReader(msg)
-	resp, err := node.backupClient.Post(node.conf.SaverAPI, "application/json", reader)
-	if err != nil || resp.StatusCode != 200 {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, node.conf.SaverAPI, reader)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := node.backupClient.Do(req)
+	if err != nil {
 		return false, fmt.Errorf("backupClient.Post(%s, %v) => %v %v", node.conf.SaverAPI, op, resp, err)
 	}
 	defer util.CloseOrPanic(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("backupClient.Post(%s, %v) => %s", node.conf.SaverAPI, op, resp.Status)
+	}
 
 	var body struct {
 		Id   string `json:"id"`

@@ -9,8 +9,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -97,29 +100,44 @@ func ObserverBootCmd(c *cli.Context) error {
 
 func ObserverFillAccountants(c *cli.Context) error {
 	ctx := context.Background()
-	chain := byte(c.Int("chain"))
-	switch chain {
+	chainValue := c.Int("chain")
+	switch chainValue {
 	case bitcoin.ChainBitcoin:
 	case bitcoin.ChainLitecoin:
 	default:
-		return fmt.Errorf("invalid chain %d", chain)
+		return fmt.Errorf("invalid chain %d", chainValue)
 	}
+	chain := byte(chainValue)
 	satoshi, count := c.Int64("satoshi"), c.Int64("count")
-	if satoshi <= 0 || count <= 0 {
+	if satoshi <= 0 || count <= 0 || count > (bitcoin.MaxStandardTxWeight-448)/128 {
 		return fmt.Errorf("invalid satoshi %d or count %d", satoshi, count)
 	}
 
-	fee := c.Int64("fee") * int64(320+(count+1)*128) / 4
-	if fee <= 0 || (satoshi-fee)/count < 5000 {
+	weight := int64(320 + (count+1)*128)
+	rate := c.Int64("fee")
+	if rate <= 0 || rate > math.MaxInt64/weight {
+		return fmt.Errorf("invalid fee %d", rate)
+	}
+	fee := rate * weight / 4
+	if fee >= satoshi || (satoshi-fee)/count < 5000 {
 		return fmt.Errorf("invalid fee %d", c.Int64("fee"))
 	}
 	amount := (satoshi - fee) / count
 
-	kb, err := hex.DecodeString(c.String("key"))
+	priv, err := parseBitcoinPrivateKey(c.String("key"))
 	if err != nil {
-		return fmt.Errorf("invalid private key hex %s", c.String("key"))
+		return err
 	}
-	priv, pub := btcec.PrivKeyFromBytes(kb)
+	pub := priv.PubKey()
+	input, indexString, found := strings.Cut(c.String("input"), ":")
+	hash, err := hex.DecodeString(input)
+	if !found || err != nil || len(hash) != 32 {
+		return fmt.Errorf("invalid input transaction hash")
+	}
+	index, err := strconv.ParseUint(indexString, 10, 32)
+	if err != nil {
+		return fmt.Errorf("invalid input output index: %w", err)
+	}
 
 	mc, err := config.ReadConfiguration(c.String("config"), "observer")
 	if err != nil {
@@ -131,8 +149,6 @@ func ObserverFillAccountants(c *cli.Context) error {
 	}
 	defer util.CloseOrPanic(db)
 
-	input := util.SplitIds(c.String("input"), ":")[0]
-	index, _ := strconv.ParseUint(util.SplitIds(c.String("input"), ":")[1], 10, 32)
 	inputs := []*bitcoin.Input{{
 		TransactionHash: input,
 		Index:           uint32(index),
@@ -160,9 +176,10 @@ func ObserverFillAccountants(c *cli.Context) error {
 		return err
 	}
 	msgTx := pst.UnsignedTx
-	if int64(len(msgTx.TxOut)) != count+1 {
+	if int64(len(msgTx.TxOut)) != count && int64(len(msgTx.TxOut)) != count+1 {
 		return fmt.Errorf("invalid outputs %d", len(msgTx.TxOut))
 	}
+	// A fee below the dust threshold is already omitted from the outputs.
 	msgTx.TxOut = msgTx.TxOut[:count]
 
 	for idx := range msgTx.TxIn {
@@ -248,7 +265,7 @@ func scanKeyList(path string, chain int) (map[string]string, error) {
 		}
 		publics[pub] = code
 	}
-	return publics, nil
+	return publics, scanner.Err()
 }
 
 func generateAccountantKey(chain byte) (*btcec.PrivateKey, string, error) {
@@ -273,22 +290,17 @@ func GenerateObserverKeys(c *cli.Context) error {
 		return fmt.Errorf("invalid chain %d", chain)
 	}
 
-	pubF, err := os.Create(c.String("list") + ".pub")
-	if err != nil {
-		return err
-	}
-	defer util.CloseOrPanic(pubF)
-
 	const harden = uint(0x80000000)
 	seed := c.String("seed")
 
 	offset, count := c.Uint("offset"), c.Uint("count")
 	if offset <= 0 || offset >= harden/1024 {
-		panic(offset)
+		return fmt.Errorf("invalid account offset %d", offset)
 	}
 	if count <= 0 || count >= 1024*16 {
-		panic(count)
+		return fmt.Errorf("invalid account count %d", count)
 	}
+	var content strings.Builder
 	for i := range count {
 		index := uint32(offset + i)
 		if index > uint32(harden/2) {
@@ -296,18 +308,29 @@ func GenerateObserverKeys(c *cli.Context) error {
 		}
 		account, err := generateObserverAccount(byte(chain), index, seed)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		line := fmt.Sprintf("%x:%x:%s", account.Public, account.ChainCode, account.Fingerprint)
 		if c.Bool("private") {
 			line = fmt.Sprintf("%s:%x", line, account.Private)
 		}
-		_, err = pubF.WriteString(line + "\n")
-		if err != nil {
-			panic(err)
-		}
+		content.WriteString(line + "\n")
 	}
-	return nil
+	path := c.String("list") + ".pub"
+	file, err := os.CreateTemp(filepath.Dir(path), ".observer-keys-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	_, err = file.WriteString(content.String())
+	closeErr := file.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(file.Name(), path)
 }
 
 type Account struct {
@@ -321,13 +344,13 @@ type Account struct {
 func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Account, error) {
 	seed, err := hex.DecodeString(masterSeed)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// important to always use the bitcoin params for any chains
 	master, err := hdkeychain.NewMaster(seed, bitcoin.NetConfig(bitcoin.ChainBitcoin))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	if !master.IsPrivate() {
 		panic(master.String())
@@ -336,11 +359,11 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 	base := uint32(hdkeychain.HardenedKeyStart)
 	priv44, err := master.Derive(base + 1396786757)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	privCoin, err := priv44.Derive(base + uint32(chain))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	privAcc, err := privCoin.Derive(base + account)
 	if err != nil {
@@ -349,7 +372,7 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 
 	epriv, err := privAcc.ECPrivKey()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	ash := crypto.Blake3Hash(epriv.Serialize())
@@ -376,12 +399,12 @@ func generateObserverAccount(chain byte, account uint32, masterSeed string) (*Ac
 		res.Public = publicKey.SerializeCompressed()
 		err = bitcoin.CheckDerivation(hex.EncodeToString(res.Public), res.ChainCode, 100)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	case ethereum.ChainEthereum:
 		privateKey, err := gc.ToECDSA(res.Private)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		publicKey := privateKey.Public()
 		publicKeyECDSA, ok := publicKey.(*ce.PublicKey)

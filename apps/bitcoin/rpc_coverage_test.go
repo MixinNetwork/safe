@@ -151,10 +151,13 @@ func TestBitcoinEstimateAverageFeeBoundaries(t *testing.T) {
 		want        int64
 		wantError   string
 	}{
+		{name: "below minimum relay floor", blockRate: 1, mempoolRate: 1, chain: ChainBitcoin, want: 5},
 		{name: "minimum relay floor", blockRate: 2, mempoolRate: 2, chain: ChainBitcoin, want: 5},
 		{name: "mempool wins", blockRate: 3, mempoolRate: 6, chain: ChainBitcoin, want: 6},
 		{name: "litecoin range", blockRate: 4, mempoolRate: 6, chain: ChainLitecoin, want: 6},
 		{name: "outside range", blockRate: 1_001, mempoolRate: 2, chain: ChainBitcoin, wantError: "CheckFeeRange"},
+		{name: "zero estimates", blockRate: 0, mempoolRate: 0, chain: ChainBitcoin, wantError: "EstimateAvgFee"},
+		{name: "negative estimates", blockRate: -1, mempoolRate: -1, chain: ChainBitcoin, wantError: "EstimateAvgFee"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -300,7 +303,7 @@ func bitcoinCoverageFeeServer(t *testing.T, blockRate, mempoolRate int64) *httpt
 		case "getblockhash":
 			result = strings.Repeat("a", 64)
 		case "getblock":
-			result = map[string]any{"tx": []any{map[string]any{"fee": fee(blockRate), "vsize": vsize}}}
+			result = map[string]any{"hash": strings.Repeat("a", 64), "tx": []any{map[string]any{"fee": fee(blockRate), "vsize": vsize}}}
 		case "getrawmempool":
 			result = map[string]any{"transaction": map[string]any{"fees": map[string]any{"base": fee(mempoolRate)}, "vsize": vsize}}
 		default:

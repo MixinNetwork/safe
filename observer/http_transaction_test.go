@@ -252,3 +252,54 @@ func (fixture *transactionHTTPFixture) get(t *testing.T) *httptest.ResponseRecor
 	fixture.node.httpGetTransaction(response, request, map[string]string{"id": fixture.requestID})
 	return response
 }
+
+func TestApprovalBindsRequestedTransactionAndReturnsUpdatedSignatures(t *testing.T) {
+	for _, name := range []string{"signed", "different transaction", "wrapped chain", "malformed", "tampered message"} {
+		t.Run(name, func(t *testing.T) {
+			f := newTransactionHTTPFixture(t)
+			var unsigned string
+			require.NoError(t, f.keeperDB.QueryRowContext(t.Context(), "SELECT raw_transaction FROM transactions WHERE transaction_hash=?", f.hash).Scan(&unsigned))
+			_, err := f.node.store.db.ExecContext(t.Context(), "UPDATE transactions SET state=?, raw_transaction=?", common.RequestStateInitial, unsigned)
+			require.NoError(t, err)
+			raw, chain := f.raw, int(common.SafeChainEthereum)
+			switch name {
+			case "different transaction":
+				other, err := ethereum.CreateTransaction(t.Context(), ethereum.TypeETHTx, 1, f.requestID, f.address,
+					"0x2222222222222222222222222222222222222222", ethereum.EthereumEmptyAddress, "2", big.NewInt(0))
+				require.NoError(t, err)
+				raw = hex.EncodeToString(other.Marshal())
+			case "wrapped chain":
+				chain += 256
+			case "malformed":
+				raw = "invalid hex"
+			case "tampered message":
+				data, err := hex.DecodeString(raw)
+				require.NoError(t, err)
+				st, err := ethereum.UnmarshalSafeTransaction(data)
+				require.NoError(t, err)
+				st.Message[0] ^= 1
+				raw = hex.EncodeToString(st.Marshal())
+			}
+			body := fmt.Sprintf(`{"chain":%d,"action":"approve","raw":%q}`, chain, raw)
+			r := httptest.NewRequest(http.MethodPost, "/transactions/"+f.requestID, strings.NewReader(body)).WithContext(t.Context())
+			w := httptest.NewRecorder()
+			f.node.httpApproveTransaction(w, r, map[string]string{"id": f.requestID})
+			approval, err := f.node.store.ReadTransactionApproval(t.Context(), f.hash)
+			require.NoError(t, err)
+			if name != "signed" {
+				require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+				require.Equal(t, unsigned, approval.RawTransaction)
+				return
+			}
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			require.Equal(t, f.raw, approval.RawTransaction)
+			var response struct {
+				Raw     string   `json:"raw"`
+				Signers []string `json:"signers"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			require.Equal(t, f.raw, response.Raw)
+			require.Equal(t, []string{"holder"}, response.Signers)
+		})
+	}
+}

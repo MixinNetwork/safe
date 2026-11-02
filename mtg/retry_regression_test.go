@@ -182,3 +182,37 @@ func TestKernelTransactionStopsOnPermanentHTTPError(t *testing.T) {
 		})
 	}
 }
+
+func TestTransactionAPIRetriesStopOnExpiredContext(t *testing.T) {
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+	group := &Group{}
+	t.Run("read deposit", func(t *testing.T) {
+		_, err := group.readOutputDepositUntilSufficientImpl(ctx, "request")
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+	t.Run("create multisig", func(t *testing.T) {
+		_, err := group.createMultisigUntilSufficient(ctx, "request", "")
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+	t.Run("sign multisig", func(t *testing.T) {
+		_, err := group.signMultisigUntilSufficient(ctx, nil)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+	// An expired request must return before touching the API client.
+	t.Run("read transaction", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			_, err := group.readTransactionUntilSufficientImpl(ctx, "request")
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	})
+	t.Run("create ghost keys", func(t *testing.T) {
+		address, err := mixin.NewMixAddress([]string{"0ca34767-3a70-4a28-afd9-51c9bce4ecf5"}, 1)
+		require.NoError(t, err)
+		require.NotPanics(t, func() {
+			_, err := group.createGhostKeysUntilSufficient(ctx, &Transaction{TraceId: "request"},
+				[]*TransactionRecipient{{MixAddress: address, UuidMember: true}})
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	})
+}
