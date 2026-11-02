@@ -37,7 +37,9 @@ func TestEthereumRPCHTTPRetries(t *testing.T) {
 		{"unsupported method", http.StatusNotImplemented, "not implemented", false},
 		{"RPC rejection", http.StatusInternalServerError, `{"result":null,"error":{"code":-5,"message":"transaction not found"}}`, false},
 		{"already mined", http.StatusInternalServerError, `{"result":null,"error":{"code":-27,"message":"Transaction already in block chain"}}`, false},
-		{"RPC rejection with timeout message", http.StatusOK, `{"result":null,"error":{"code":-5,"message":"session timeout"}}`, false},
+		{"RPC timeout", http.StatusOK, `{"result":null,"error":{"code":-32000,"message":"execution timeout"}}`, true},
+		{"RPC timeout over HTTP 500", http.StatusInternalServerError, `{"result":null,"error":{"code":-32000,"message":"execution timeout"}}`, true},
+		{"RPC rate limit", http.StatusOK, `{"result":null,"error":{"code":-32005,"message":"Too Many Requests"}}`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			previous := http.DefaultTransport
@@ -70,4 +72,30 @@ func TestEthereumRPCHTTPRetries(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEthereumTraceRetriesExecutionTimeout(t *testing.T) {
+	previous := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = previous })
+	calls := 0
+	http.DefaultTransport = retryRPCTransport(func(r *http.Request) (*http.Response, error) {
+		defer r.Body.Close()
+		calls++
+		body := `{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"execution timeout"}}`
+		if calls > 1 {
+			body = `{"jsonrpc":"2.0","id":1,"result":{"type":"CALL","value":"0x0"}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})
+
+	trace, err := RPCDebugTraceTransactionByHash("http://rpc.invalid", "0x"+strings.Repeat("a", 64))
+	require.NoError(t, err)
+	require.NotNil(t, trace)
+	require.Equal(t, "CALL", trace.Type)
+	require.Equal(t, 2, calls)
 }

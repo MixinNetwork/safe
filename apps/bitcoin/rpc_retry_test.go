@@ -37,7 +37,9 @@ func TestBitcoinRPCHTTPRetries(t *testing.T) {
 		{"unsupported method", http.StatusNotImplemented, "not implemented", false},
 		{"RPC rejection", http.StatusInternalServerError, `{"result":null,"error":{"code":-5,"message":"transaction not found"}}`, false},
 		{"already mined", http.StatusInternalServerError, `{"result":null,"error":{"code":-27,"message":"Transaction already in block chain"}}`, false},
-		{"RPC rejection with timeout message", http.StatusOK, `{"result":null,"error":{"code":-5,"message":"session timeout"}}`, false},
+		{"RPC timeout", http.StatusOK, `{"result":null,"error":{"code":-32000,"message":"request timeout"}}`, true},
+		{"RPC timeout over HTTP 500", http.StatusInternalServerError, `{"result":null,"error":{"code":-32000,"message":"request timeout"}}`, true},
+		{"RPC rate limit", http.StatusOK, `{"result":null,"error":{"code":-32005,"message":"Too Many Requests"}}`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			previous := http.DefaultTransport

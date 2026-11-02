@@ -1,14 +1,12 @@
 package util
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 )
 
-// RPCResponseError preserves the HTTP status and body for retry decisions.
+// RPCResponseError includes the HTTP status and body in the error message.
 type RPCResponseError struct {
 	StatusCode int
 	Body       string
@@ -18,38 +16,34 @@ func (e *RPCResponseError) Error() string {
 	return fmt.Sprintf("RPC error: HTTP %d %s (%s)", e.StatusCode, http.StatusText(e.StatusCode), e.Body)
 }
 
-// CheckRetryableRPCError distinguishes HTTP failures from JSON-RPC rejections
-// before falling back to the transient transport and decoding errors.
+// CheckRetryableRPCError matches transient failures in the error message.
 func CheckRetryableRPCError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if response, ok := errors.AsType[*RPCResponseError](err); ok {
-		// Nodes can return a JSON-RPC rejection with HTTP 500. Such a response
-		// must not be retried just because of its status or message text.
-		var result struct {
-			Error *struct {
-				Code    *int    `json:"code"`
-				Message *string `json:"message"`
-			} `json:"error"`
-		}
-		if json.Unmarshal([]byte(response.Body), &result) == nil &&
-			result.Error != nil && result.Error.Code != nil && result.Error.Message != nil {
-			return false
-		}
-		switch response.StatusCode {
-		case http.StatusRequestTimeout, http.StatusTooManyRequests,
-			http.StatusInternalServerError, http.StatusBadGateway,
-			http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			return true
-		default:
+	reason := strings.ToLower(err.Error())
+	// These failures remain terminal even when their messages mention a
+	// timeout or the node returns them with HTTP 500.
+	for _, permanent := range []string{
+		"http 400 ", "http 401 ", "http 403 ", "http 404 ",
+		"transaction not found", "no such mempool or blockchain transaction",
+		"transaction already in block chain", "mandatory-script-verify-flag-failed",
+		"method not found", "invalid request", "invalid params", "execution reverted",
+	} {
+		if strings.Contains(reason, permanent) {
 			return false
 		}
 	}
-
-	reason := strings.ToLower(err.Error())
-	return strings.Contains(reason, "timeout") ||
-		strings.Contains(reason, "eof") ||
-		strings.Contains(reason, "handshake") ||
-		strings.Contains(reason, "invalid character")
+	for _, transient := range []string{
+		"timeout", "timed out", "context deadline exceeded", "eof", "handshake", "invalid character",
+		"connection refused", "connection reset by peer", "connection abort",
+		"network is down", "network is unreachable", "no route to host", "broken pipe",
+		"failure in name resolution", "server misbehaving",
+		"too many requests", "internal server error", "bad gateway", "service unavailable",
+	} {
+		if strings.Contains(reason, transient) {
+			return true
+		}
+	}
+	return false
 }
