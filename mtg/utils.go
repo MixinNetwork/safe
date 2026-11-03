@@ -232,7 +232,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 	if err != nil || r == nil || r.State != SafeUtxoStateSpent {
 		return r, err
 	}
-	if len(r.Receivers) == 0 || r.Receivers[0] == nil {
+	if len(r.Receivers) == 0 {
 		return nil, fmt.Errorf("missing transaction receivers for %s", id)
 	}
 	if rr := r.Receivers[0]; rr != nil && rr.Destination != "" && rr.WithdrawalHash == "" {

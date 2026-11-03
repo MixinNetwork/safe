@@ -365,3 +365,17 @@ memo := base64.RawURLEncoding.EncodeToString(extra)
 ```
 
 After your own recovery key successfully added to Safe Network, you can start proposing a safe account as before, the only modification is appending the recovery public key bytes to the operation extra.
+
+
+## Inheritance
+
+The Safe owner can configure an inheritance event with a delay beyond the recovery timelock. A hash committing to the inheritance documents is recorded on Mixin Kernel. After the required delay, a trusted recovery observer verifies the documents and handles the inheritance process manually using the recovery key. The protocol leaves the choice of hashing algorithm and inheritance procedure to the participants, so heirs do not need to understand cryptocurrency or operate Mixin Safe themselves.
+
+
+## Security Boundaries
+
+Mixin Safe is a non-custodial wallet in which each Safe holds its assets independently. Custody is enforced by the underlying Bitcoin script or Ethereum Safe contract. Published security audits include [Wizardsardine's Bitcoin review](https://github.com/MixinNetwork/audits/blob/main/mixin-safe-bitcoin-wizardsardine.pdf), [Ackee Blockchain's Ethereum review](https://github.com/MixinNetwork/audits/blob/main/mixin-safe-ethereum-ackee.pdf), and [Trail of Bits' Mixin Safe review](https://github.com/MixinNetwork/audits/blob/main/mixin-safe-trail-of-bits.pdf).
+
+Safe certificates, such as safeBTC and safeETH, are specific to each Safe: creating additional certificates does not create underlying assets or grant access to another Safe's funds.
+
+Unbacked certificates, observer fee losses, and service outages do not by themselves constitute permanent loss of custody assets. Users can recover funds through the on-chain spending paths as long as the required keys remain available and the applicable spending conditions, including timelocks, are satisfied. An observer acting alone cannot spend a Safe's funds.
