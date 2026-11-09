@@ -35,7 +35,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/MixinNetwork/go-number v0.2.0 // indirect
 	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20261102051857-a4d47079b45e // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.29.0 // indirect
 	github.com/btcsuite/btclog v1.0.0 // indirect
