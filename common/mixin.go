@@ -313,8 +313,8 @@ func SafeReadWithdrawalHashUntilSufficient(ctx context.Context, su *bot.SafeUser
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		req, err := bot.GetTransactionByIdWithSafeUser(ctx, id, su)
-		logger.Verbosef("bot.GetTransactionByIdWithSafeUser(%s) => %v %v", id, req, err)
+		req, err := bot.GetTransactionById(ctx, id, su)
+		logger.Verbosef("bot.GetTransactionById(%s) => %v %v", id, req, err)
 		if err == nil {
 			r := req.Receivers[0]
 			if r.Destination == "" {

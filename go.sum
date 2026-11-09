@@ -4,6 +4,8 @@ github.com/Microsoft/go-winio v0.6.4 h1:kJF2pamtYCWXf0xAT8sAkwKC0pMl2HYBrRPHAqyU
 github.com/Microsoft/go-winio v0.6.4/go.mod h1:1xl5JXG4ze/m74GH6Dc4Mwxfc3VL5siRVQjIAlHH07U=
 github.com/MixinNetwork/bot-api-go-client/v3 v3.25.10 h1:l8oWovCh6IHd0QSYm3aUs0nfQRUFTM8n6WdnlnMByn0=
 github.com/MixinNetwork/bot-api-go-client/v3 v3.25.10/go.mod h1:SLmnoEBLSwdnoFWscIwccJYqE5aQvpjO1PojJeouwAs=
+github.com/MixinNetwork/bot-api-go-client/v3 v3.26.1 h1:IudFHNJbfb5tJ50uX9VXdCn45YuTNmXkJxtBBh0tnS0=
+github.com/MixinNetwork/bot-api-go-client/v3 v3.26.1/go.mod h1:SLmnoEBLSwdnoFWscIwccJYqE5aQvpjO1PojJeouwAs=
 github.com/MixinNetwork/go-number v0.2.0 h1:1TJtC3LuKeBqrlVQ5KymNy1gc6O9i1UgY0/8wH20p/M=
 github.com/MixinNetwork/go-number v0.2.0/go.mod h1:xn7WHrhI1Ra8irldx2YQVmL8SerzJZNHX92AWyI3Ars=
 github.com/MixinNetwork/mixin v0.19.11 h1:qOhfTAjBwZao4ViTtwZvSFzYu78RqmJONGoNVzV26nA=
