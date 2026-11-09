@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/mtg"
@@ -24,6 +25,7 @@ func KeeperBootCmd(c *cli.Context) error {
 	resty := mixin.GetRestyClient()
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
+	bot.SetUserAgent(ua)
 
 	mc, err := config.ReadConfiguration(c.String("config"), "keeper")
 	if err != nil {

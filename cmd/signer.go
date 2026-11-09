@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client/v3"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/config"
@@ -31,6 +32,7 @@ func SignerBootCmd(c *cli.Context) error {
 	resty := mixin.GetRestyClient()
 	resty.SetTimeout(time.Second * 30)
 	resty.SetHeader("User-Agent", ua)
+	bot.SetUserAgent(ua)
 
 	mc, err := config.ReadConfiguration(c.String("config"), "signer")
 	if err != nil {
