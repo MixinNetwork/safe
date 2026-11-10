@@ -68,6 +68,7 @@ func (node *Node) Boot(ctx context.Context) {
 			panic(err)
 		}
 
+		go node.pendingDepositsLoop(ctx, chain)
 		switch chain {
 		case common.SafeChainBitcoin, common.SafeChainLitecoin:
 			go node.bitcoinNetworkInfoLoop(ctx, chain)
