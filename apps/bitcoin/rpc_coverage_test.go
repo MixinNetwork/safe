@@ -62,14 +62,10 @@ func TestBitcoinRPCAggregatesMempoolBlocksAndSenders(t *testing.T) {
 				}
 			}
 		case "getrawmempool":
-			if len(request.Params) == 1 && string(request.Params[0]) == "true" {
-				response.Result = map[string]any{
-					"high": map[string]any{"fees": map[string]any{"base": 0.00001}, "vsize": 100},
-					"low":  map[string]any{"fees": map[string]any{"base": 0.0000002}, "vsize": 10},
-					"zero": map[string]any{"fees": map[string]any{"base": 1.0}, "vsize": 0},
-				}
-			} else {
-				response.Result = []string{"mempool-good", "mempool-error", "mempool-malformed"}
+			response.Result = map[string]any{
+				"high": map[string]any{"fees": map[string]any{"base": 0.00001}, "vsize": 100},
+				"low":  map[string]any{"fees": map[string]any{"base": 0.0000002}, "vsize": 10},
+				"zero": map[string]any{"fees": map[string]any{"base": 1.0}, "vsize": 0},
 			}
 		case "getrawtransaction":
 			var hash string
@@ -80,12 +76,6 @@ func TestBitcoinRPCAggregatesMempoolBlocksAndSenders(t *testing.T) {
 					"txid": previous,
 					"vout": []any{map[string]any{"scriptPubKey": map[string]any{"address": witnessAddress.EncodeAddress()}}},
 				}
-			case "mempool-good":
-				response.Result = map[string]any{"txid": hash}
-			case "mempool-error":
-				response.Error = map[string]any{"code": -5, "message": "not found"}
-			case "mempool-malformed":
-				response.Result = "not-a-transaction"
 			default:
 				response.Error = map[string]any{"code": -5, "message": "unknown transaction"}
 			}
@@ -97,34 +87,29 @@ func TestBitcoinRPCAggregatesMempoolBlocksAndSenders(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	coinbase, err := RPCGetTransactionSender(ChainBitcoin, server.URL, &RPCTransaction{
+	coinbase, err := RPCGetTransactionSender(t.Context(), ChainBitcoin, server.URL, &RPCTransaction{
 		Vin: []*rpcIn{{Coinbase: "coinbase-data"}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "coinbase-data", coinbase)
-	sender, err := RPCGetTransactionSender(ChainBitcoin, server.URL, &RPCTransaction{
+	sender, err := RPCGetTransactionSender(t.Context(), ChainBitcoin, server.URL, &RPCTransaction{
 		Vin: []*rpcIn{{TxId: previous, VOUT: 0}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, witnessAddress.EncodeAddress(), sender)
-	_, err = RPCGetTransactionSender(ChainBitcoin, server.URL, &RPCTransaction{
+	_, err = RPCGetTransactionSender(t.Context(), ChainBitcoin, server.URL, &RPCTransaction{
 		Vin: []*rpcIn{{TxId: "unknown", VOUT: 0}},
 	})
 	require.ErrorContains(t, err, "unknown transaction")
 
-	mempool, err := RPCGetRawMempool(ChainBitcoin, server.URL)
-	require.NoError(t, err)
-	require.Len(t, mempool, 1)
-	require.Equal(t, "mempool-good", mempool[0].TxId)
-
-	verboseMempool, err := RPCGetRawMempoolWithTransactions(server.URL)
+	verboseMempool, err := RPCGetRawMempoolWithTransactions(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Len(t, verboseMempool, 3)
-	average, err := RPCGetMempoolAverageFeePerBytes(server.URL)
+	average, err := RPCGetMempoolAverageFeePerBytes(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Equal(t, int64(6), average.Int64())
 
-	block, err := RPCGetBlockWithTransactions(ChainLitecoin, server.URL, blockHash)
+	block, err := RPCGetBlockWithTransactions(t.Context(), ChainLitecoin, server.URL, blockHash)
 	require.NoError(t, err)
 	require.Len(t, block.Tx, 2)
 	require.Equal(t, blockHash, block.Tx[0].BlockHash)
@@ -134,10 +119,10 @@ func TestBitcoinRPCAggregatesMempoolBlocksAndSenders(t *testing.T) {
 	fixLitecoinLegacyScriptPubKeyRPC(ChainBitcoin, plain)
 	require.Empty(t, plain.Vout[0].ScriptPubKey.Address)
 
-	blockAverage, err := RPCGetBlockAverageFeePerBytes(ChainBitcoin, server.URL)
+	blockAverage, err := RPCGetBlockAverageFeePerBytes(t.Context(), ChainBitcoin, server.URL)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), blockAverage.Int64())
-	blockInfo, err := RPCGetBlock(server.URL, blockHash)
+	blockInfo, err := RPCGetBlock(t.Context(), server.URL, blockHash)
 	require.NoError(t, err)
 	require.Equal(t, uint64(10), blockInfo.Height)
 }
@@ -162,7 +147,7 @@ func TestBitcoinEstimateAverageFeeBoundaries(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := bitcoinCoverageFeeServer(t, test.blockRate, test.mempoolRate)
-			fee, err := EstimateAvgFee(test.chain, server.URL)
+			fee, err := EstimateAvgFee(t.Context(), test.chain, server.URL)
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
 				return
@@ -210,10 +195,10 @@ func TestBitcoinRPCTransactionOutputConfirmedAndBoundaryRejections(t *testing.T)
 	}))
 	t.Cleanup(server.Close)
 
-	_, output, err := RPCGetTransactionOutput(ChainBitcoin, server.URL, hash, 0)
+	_, output, err := RPCGetTransactionOutput(t.Context(), ChainBitcoin, server.URL, hash, 0)
 	require.NoError(t, err)
 	require.Equal(t, uint64(99), output.Height)
-	_, output, err = RPCGetTransactionOutput(ChainBitcoin, server.URL, hash, 1)
+	_, output, err = RPCGetTransactionOutput(t.Context(), ChainBitcoin, server.URL, hash, 1)
 	require.NoError(t, err)
 	require.Nil(t, output)
 }
@@ -230,19 +215,17 @@ func TestBitcoinRPCWrapperDecodeAndTransportFailures(t *testing.T) {
 	}))
 	t.Cleanup(wrong.Close)
 
-	_, err := RPCGetRawMempool(ChainBitcoin, wrong.URL)
+	_, err := RPCGetRawMempoolWithTransactions(t.Context(), wrong.URL)
 	require.Error(t, err)
-	_, err = RPCGetRawMempoolWithTransactions(wrong.URL)
+	_, err = RPCGetBlockWithTransactions(t.Context(), ChainBitcoin, wrong.URL, "hash")
 	require.Error(t, err)
-	_, err = RPCGetBlockWithTransactions(ChainBitcoin, wrong.URL, "hash")
+	_, err = RPCGetBlock(t.Context(), wrong.URL, "hash")
 	require.Error(t, err)
-	_, err = RPCGetBlock(wrong.URL, "hash")
+	_, err = RPCGetBlockHash(t.Context(), wrong.URL, 1)
 	require.Error(t, err)
-	_, err = RPCGetBlockHash(wrong.URL, 1)
+	_, err = RPCGetBlockHeight(t.Context(), wrong.URL)
 	require.Error(t, err)
-	_, err = RPCGetBlockHeight(wrong.URL)
-	require.Error(t, err)
-	_, err = RPCSendRawTransaction(wrong.URL, "raw")
+	_, err = RPCSendRawTransaction(t.Context(), wrong.URL, "raw")
 	require.Error(t, err)
 
 	rejected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -255,35 +238,33 @@ func TestBitcoinRPCWrapperDecodeAndTransportFailures(t *testing.T) {
 		})
 	}))
 	t.Cleanup(rejected.Close)
-	_, err = RPCGetRawMempool(ChainBitcoin, rejected.URL)
+	_, err = RPCGetRawMempoolWithTransactions(t.Context(), rejected.URL)
 	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetRawMempoolWithTransactions(rejected.URL)
+	_, err = RPCGetBlockWithTransactions(t.Context(), ChainBitcoin, rejected.URL, "hash")
 	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetBlockWithTransactions(ChainBitcoin, rejected.URL, "hash")
+	_, err = RPCGetBlockAverageFeePerBytes(t.Context(), ChainBitcoin, rejected.URL)
 	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetBlockAverageFeePerBytes(ChainBitcoin, rejected.URL)
+	_, err = RPCGetMempoolAverageFeePerBytes(t.Context(), rejected.URL)
 	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetMempoolAverageFeePerBytes(rejected.URL)
+	_, err = EstimateAvgFee(t.Context(), ChainBitcoin, rejected.URL)
 	require.ErrorContains(t, err, "rejected")
-	_, err = EstimateAvgFee(ChainBitcoin, rejected.URL)
+	_, err = RPCGetBlock(t.Context(), rejected.URL, "hash")
 	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetBlock(rejected.URL, "hash")
+	_, err = RPCGetBlockHash(t.Context(), rejected.URL, 1)
 	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetBlockHash(rejected.URL, 1)
-	require.ErrorContains(t, err, "rejected")
-	_, err = RPCGetBlockHeight(rejected.URL)
+	_, err = RPCGetBlockHeight(t.Context(), rejected.URL)
 	require.ErrorContains(t, err, "rejected")
 
-	_, err = callBitcoinRPC("://invalid", "method", nil)
+	_, err = callBitcoinRPCWithContext(t.Context(), "://invalid", "method", nil)
 	require.Error(t, err)
 	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	closedURL := closed.URL
 	closed.Close()
-	_, err = callBitcoinRPC(closedURL, "method", nil)
+	_, err = callBitcoinRPCWithContext(t.Context(), closedURL, "method", nil)
 	require.Error(t, err)
 	require.Contains(t, buildRPCError("rpc", "method", []any{1}, errors.New("failure")).Error(), "failure")
 	require.Panics(t, func() {
-		_, _ = callBitcoinRPC("http://unused", "method", []any{func() {}})
+		_, _ = callBitcoinRPCWithContext(t.Context(), "http://unused", "method", []any{func() {}})
 	})
 }
 

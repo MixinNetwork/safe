@@ -62,7 +62,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 	switch info.Chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		info.Hash = hex.EncodeToString(extra[17:])
-		valid, err := node.verifyBitcoinNetworkInfo(info, old)
+		valid, err := node.verifyBitcoinNetworkInfo(ctx, info, old)
 		logger.Printf("node.verifyBitcoinNetworkInfo(%s, %v) => %t", req.Id, info, valid)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyBitcoinNetworkInfo(%v) => %v", info, err))
@@ -131,7 +131,7 @@ func (node *Node) writeOperationParams(ctx context.Context, req *common.Request)
 	return nil, ""
 }
 
-func (node *Node) verifyBitcoinNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info, old *store.NetworkInfo) (bool, error) {
 	var badLitecoinForks = []string{
 		"579ae05733b2ce28843a75ca39e6d5c6b5e95e7366f927381871fd34e36fb088",
 		"52a268e68fc0d7599c48d0e7ab6863036d1e33520cbf70c54b3d1a16c51c9182",
@@ -151,7 +151,7 @@ func (node *Node) verifyBitcoinNetworkInfo(info, old *store.NetworkInfo) (bool, 
 		}
 	} else {
 		rpc, _ := node.bitcoinParams(info.Chain)
-		block, err := bitcoin.RPCGetBlock(rpc, info.Hash)
+		block, err := bitcoin.RPCGetBlock(ctx, rpc, info.Hash)
 		if err != nil || block == nil {
 			return false, fmt.Errorf("malicious bitcoin block or node not in sync? %s %v", info.Hash, err)
 		}

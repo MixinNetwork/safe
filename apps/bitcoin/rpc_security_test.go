@@ -73,19 +73,19 @@ func TestBitcoinRPCClientParsesResultsAndRejectsErrors(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	height, err := RPCGetBlockHeight(server.URL)
+	height, err := RPCGetBlockHeight(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Equal(t, int64(42), height)
 
-	hash, err := RPCGetBlockHash(server.URL, height)
+	hash, err := RPCGetBlockHash(t.Context(), server.URL, height)
 	require.NoError(t, err)
 	require.Equal(t, blockHash, hash)
 
-	hash, err = RPCSendRawTransaction(server.URL, "accepted")
+	hash, err = RPCSendRawTransaction(t.Context(), server.URL, "accepted")
 	require.NoError(t, err)
 	require.Equal(t, transactionHash, hash)
 
-	_, err = RPCSendRawTransaction(server.URL, "rejected")
+	_, err = RPCSendRawTransaction(t.Context(), server.URL, "rejected")
 	require.ErrorContains(t, err, "mandatory-script-verify-flag-failed")
 }
 
@@ -110,7 +110,7 @@ func TestBitcoinRPCRetriesTransientMalformedResponse(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	height, err := RPCGetBlockHeight(server.URL)
+	height, err := RPCGetBlockHeight(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Equal(t, int64(99), height)
 	require.Equal(t, int32(2), calls.Load())
@@ -168,7 +168,7 @@ func TestBitcoinRPCTransactionOutputBindsRawTransaction(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, output, err := RPCGetTransactionOutput(ChainBitcoin, server.URL, txHash, 0)
+	_, output, err := RPCGetTransactionOutput(t.Context(), ChainBitcoin, server.URL, txHash, 0)
 	require.NoError(t, err)
 	require.NotNil(t, output)
 	require.Equal(t, amount, output.Satoshi)
@@ -176,7 +176,7 @@ func TestBitcoinRPCTransactionOutputBindsRawTransaction(t *testing.T) {
 	require.True(t, output.Coinbase)
 
 	wrongHash := strings.Repeat("0", 64)
-	_, output, err = RPCGetTransactionOutput(ChainBitcoin, server.URL, wrongHash, 0)
+	_, output, err = RPCGetTransactionOutput(t.Context(), ChainBitcoin, server.URL, wrongHash, 0)
 	require.NoError(t, err)
 	require.Nil(t, output, "RPC metadata must not substitute a different raw transaction")
 }

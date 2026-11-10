@@ -17,11 +17,11 @@ func TestBitcoinRPCRejectsMismatchedAndMissingResults(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "result": result})
 		}))
 		t.Cleanup(server.Close)
-		_, err := RPCGetBlock(server.URL, "expected")
+		_, err := RPCGetBlock(t.Context(), server.URL, "expected")
 		require.Error(t, err)
-		_, err = RPCGetBlockWithTransactions(ChainBitcoin, server.URL, "expected")
+		_, err = RPCGetBlockWithTransactions(t.Context(), ChainBitcoin, server.URL, "expected")
 		require.Error(t, err)
-		_, err = RPCGetTransaction(ChainBitcoin, server.URL, "expected")
+		_, err = RPCGetTransaction(t.Context(), ChainBitcoin, server.URL, "expected")
 		require.Error(t, err)
 	}
 }
@@ -32,7 +32,7 @@ func TestBitcoinRPCRejectsHTTPFailureWithSuccessfulBody(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "result": "hash"})
 	}))
 	defer server.Close()
-	_, err := callBitcoinRPC(server.URL, "getblockhash", []any{42})
+	_, err := callBitcoinRPCWithContext(t.Context(), server.URL, "getblockhash", []any{42})
 	require.ErrorContains(t, err, "503")
 }
 
@@ -56,7 +56,7 @@ func TestBitcoinRPCBlockHeightsPreserveIntegers(t *testing.T) {
 				fmt.Fprintf(w, `{"result":%s}`, test.result)
 			}))
 			defer server.Close()
-			height, err := RPCGetBlockHeight(server.URL)
+			height, err := RPCGetBlockHeight(t.Context(), server.URL)
 			if test.valid {
 				require.NoError(t, err)
 				require.Equal(t, test.want, height)

@@ -129,7 +129,7 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 			continue
 		}
 
-		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		_, bo, err := bitcoin.RPCGetTransactionOutput(ctx, safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
 		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
 		if err != nil {
 			panic(err)
@@ -328,7 +328,7 @@ func (node *Node) processBitcoinSafeCloseAccount(ctx context.Context, req *commo
 			continue
 		}
 
-		_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
+		_, bo, err := bitcoin.RPCGetTransactionOutput(ctx, safe.Chain, rpc, pop.Hash.String(), int64(pop.Index))
 		logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", pop.Hash.String(), pop.Index, bo, err)
 		if err != nil {
 			panic(err)
@@ -718,7 +718,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 
 		for _, input := range mainInputs {
 			input.RouteBackup = true
-			_, bo, err := bitcoin.RPCGetTransactionOutput(safe.Chain, rpc, input.TransactionHash, int64(input.Index))
+			_, bo, err := bitcoin.RPCGetTransactionOutput(ctx, safe.Chain, rpc, input.TransactionHash, int64(input.Index))
 			logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", input.TransactionHash, input.Index, bo, err)
 			if err != nil {
 				panic(err)

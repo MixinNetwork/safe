@@ -246,22 +246,22 @@ func TestCoverageKeeperDepositAndNetworkParsing(t *testing.T) {
 	require.Panics(t, func() { node.ethereumParams(0xff) })
 
 	badFork := &store.NetworkInfo{Chain: common.SafeChainLitecoin, Hash: "579ae05733b2ce28843a75ca39e6d5c6b5e95e7366f927381871fd34e36fb088"}
-	valid, err := node.verifyBitcoinNetworkInfo(badFork, nil)
+	valid, err := node.verifyBitcoinNetworkInfo(t.Context(), badFork, nil)
 	require.NoError(t, err)
 	require.True(t, valid)
 	info := &store.NetworkInfo{Chain: common.SafeChainBitcoin, Hash: hash.String(), Height: 10, Fee: 10}
-	valid, err = node.verifyBitcoinNetworkInfo(info, &store.NetworkInfo{Hash: info.Hash, Height: info.Height})
+	valid, err = node.verifyBitcoinNetworkInfo(t.Context(), info, &store.NetworkInfo{Hash: info.Hash, Height: info.Height})
 	require.NoError(t, err)
 	require.True(t, valid)
 	info.Fee = 0
-	valid, err = node.verifyBitcoinNetworkInfo(info, &store.NetworkInfo{Hash: info.Hash, Height: info.Height})
+	valid, err = node.verifyBitcoinNetworkInfo(t.Context(), info, &store.NetworkInfo{Hash: info.Hash, Height: info.Height})
 	require.NoError(t, err)
 	require.False(t, valid)
 	info.Fee = 10
-	_, err = node.verifyBitcoinNetworkInfo(info, &store.NetworkInfo{Hash: info.Hash, Height: info.Height + 1})
+	_, err = node.verifyBitcoinNetworkInfo(t.Context(), info, &store.NetworkInfo{Hash: info.Hash, Height: info.Height + 1})
 	require.Error(t, err)
 	info.Hash = "short"
-	valid, err = node.verifyBitcoinNetworkInfo(info, nil)
+	valid, err = node.verifyBitcoinNetworkInfo(t.Context(), info, nil)
 	require.NoError(t, err)
 	require.False(t, valid)
 

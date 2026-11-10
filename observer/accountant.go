@@ -204,7 +204,7 @@ func (node *Node) bitcoinTransactionSpendLoop(ctx context.Context, chain byte) {
 			if err != nil {
 				panic(err)
 			}
-			tx, err := bitcoin.RPCGetTransaction(chain, rpc, spentHash)
+			tx, err := bitcoin.RPCGetTransaction(ctx, chain, rpc, spentHash)
 			if err != nil || tx == nil {
 				panic(fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", spentHash, tx, err))
 			}
@@ -244,7 +244,7 @@ func (node *Node) bitcoinSpendFullySignedTransaction(ctx context.Context, tx *Tr
 	}
 
 	virtualSize := psbt.EstimateVirtualSize() + 160
-	fvb, err := bitcoin.EstimateAvgFee(tx.Chain, rpc)
+	fvb, err := bitcoin.EstimateAvgFee(ctx, tx.Chain, rpc)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (node *Node) bitcoinRetrieveFeeInputsForTransaction(ctx context.Context, fe
 		if err != nil {
 			panic(utxo.TransactionHash)
 		}
-		node.bitcoinEnsureFeeOutputValid(utxo, tx.Chain)
+		node.bitcoinEnsureFeeOutputValid(ctx, utxo, tx.Chain)
 		txIn := &wire.TxIn{
 			PreviousOutPoint: wire.OutPoint{
 				Hash:  *hash,
@@ -598,11 +598,11 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 	if feeInput.RawTransaction.String != "" {
 		hash := feeInput.TransactionHash
 		raw := common.DecodeHexOrPanic(feeInput.RawTransaction.String)
-		err := node.bitcoinBroadcastTransaction(hash, raw, chain)
+		err := node.bitcoinBroadcastTransaction(ctx, hash, raw, chain)
 		if err != nil {
 			return fmt.Errorf("node.bitcoinBroadcastTransaction(%s, %x) => %v", hash, raw, err)
 		}
-		tx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
+		tx, err := bitcoin.RPCGetTransaction(ctx, chain, rpc, hash)
 		if err != nil || tx == nil {
 			return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
 		}
@@ -613,11 +613,11 @@ func (node *Node) bitcoinBroadcastTransactionAndWriteDeposit(ctx context.Context
 		return err
 	}
 	hash := msgTx.TxHash().String()
-	err = node.bitcoinBroadcastTransaction(hash, raw, chain)
+	err = node.bitcoinBroadcastTransaction(ctx, hash, raw, chain)
 	if err != nil {
 		return fmt.Errorf("node.bitcoinBroadcastTransaction(%s, %x) => %v", hash, raw, err)
 	}
-	tx, err := bitcoin.RPCGetTransaction(chain, rpc, hash)
+	tx, err := bitcoin.RPCGetTransaction(ctx, chain, rpc, hash)
 	if err != nil || tx == nil {
 		return fmt.Errorf("bitcoin.RPCGetTransaction(%s) => %v %v", hash, tx, err)
 	}
@@ -780,10 +780,10 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 	return nonce == st.Nonce.Int64()
 }
 
-func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
+func (node *Node) bitcoinEnsureFeeOutputValid(ctx context.Context, utxo *Output, chain byte) {
 	rpc, _, _ := node.bitcoinParams(chain)
 	for {
-		_, ro, err := bitcoin.RPCGetTransactionOutput(chain, rpc, utxo.TransactionHash, int64(utxo.Index))
+		_, ro, err := bitcoin.RPCGetTransactionOutput(ctx, chain, rpc, utxo.TransactionHash, int64(utxo.Index))
 		if err != nil {
 			panic(err)
 		}
@@ -794,7 +794,7 @@ func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
 			break
 		}
 		rb, _ := hex.DecodeString(utxo.RawTransaction.String)
-		err = node.bitcoinBroadcastTransaction(utxo.TransactionHash, rb, chain)
+		err = node.bitcoinBroadcastTransaction(ctx, utxo.TransactionHash, rb, chain)
 		if err != nil {
 			panic(err)
 		}
@@ -802,9 +802,9 @@ func (node *Node) bitcoinEnsureFeeOutputValid(utxo *Output, chain byte) {
 	}
 }
 
-func (node *Node) bitcoinBroadcastTransaction(hash string, raw []byte, chain byte) error {
+func (node *Node) bitcoinBroadcastTransaction(ctx context.Context, hash string, raw []byte, chain byte) error {
 	rpc, _, _ := node.bitcoinParams(chain)
-	id, err := bitcoin.RPCSendRawTransaction(rpc, hex.EncodeToString(raw))
+	id, err := bitcoin.RPCSendRawTransaction(ctx, rpc, hex.EncodeToString(raw))
 	if err != nil {
 		switch {
 		case strings.Contains(err.Error(), "Transaction already in block chain"):

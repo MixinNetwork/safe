@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -21,7 +22,15 @@ type cachedPendingDeposit struct {
 	View   json.RawMessage `json:"view"`
 }
 
+// The cache belongs to one chain's refresh goroutine. Nil entries mark inspected
+// transactions without safe outputs, so their full bodies need not be retained.
+type pendingBitcoinMempool struct {
+	transactions map[string]*bitcoin.RPCTransaction
+	safes        map[string]*store.Safe
+}
+
 func (node *Node) pendingDepositsLoop(ctx context.Context, chain byte) {
+	mempool := new(pendingBitcoinMempool)
 	interval := 5 * time.Second
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
@@ -37,14 +46,14 @@ func (node *Node) pendingDepositsLoop(ctx context.Context, chain byte) {
 			return
 		case <-timer.C:
 		}
-		if err := node.cachePendingDeposits(ctx, chain); err != nil {
+		if err := node.cachePendingDeposits(ctx, chain, mempool); err != nil {
 			logger.Printf("node.cachePendingDeposits(%d) => %v", chain, err)
 		}
 		timer.Reset(interval)
 	}
 }
 
-func (node *Node) cachePendingDeposits(ctx context.Context, chain byte) (err error) {
+func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool *pendingBitcoinMempool) (err error) {
 	// RPC parsers may panic on inconsistent snapshots. A failed cache refresh
 	// must not stop normal deposit processing.
 	defer func() {
@@ -52,7 +61,7 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte) (err err
 			err = fmt.Errorf("pending deposits for chain %d: %v", chain, r)
 		}
 	}()
-	deposits, sent, err := node.listPendingDeposits(ctx, chain, "")
+	deposits, sent, err := node.listPendingDeposits(ctx, chain, "", mempool)
 	if err != nil {
 		return err
 	}
@@ -61,7 +70,11 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte) (err err
 	for i, d := range deposits {
 		snapshot[i] = cachedPendingDeposit{Holder: d.Holder, View: common.MarshalJSONOrPanic(views[i])}
 	}
-	return node.store.WriteCache(ctx, fmt.Sprintf("pending-deposits:%d", chain), string(common.MarshalJSONOrPanic(snapshot)))
+	err = node.store.WriteCache(ctx, fmt.Sprintf("pending-deposits:%d", chain), string(common.MarshalJSONOrPanic(snapshot)))
+	if err == nil {
+		logger.Printf("node.cachePendingDeposits(%d) => %d deposits", chain, len(snapshot))
+	}
+	return err
 }
 
 func (node *Node) readPendingDeposits(ctx context.Context, chain byte, holder string) ([]json.RawMessage, error) {
@@ -86,7 +99,7 @@ func (node *Node) readPendingDeposits(ctx context.Context, chain byte, holder st
 
 // listPendingDeposits returns a live snapshot, without writing deposits, caches,
 // checkpoints or bonds. Normal deposit processing still verifies these transfers.
-func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder string) ([]*Deposit, map[string]string, error) {
+func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder string, mempool *pendingBitcoinMempool) ([]*Deposit, map[string]string, error) {
 	ss, err := node.keeperStore.ListSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
 		return nil, nil, err
@@ -109,19 +122,19 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		var assetID string
 		rpc, assetID, params = node.bitcoinParams(chain)
-		txs, err := bitcoin.RPCGetRawMempool(chain, rpc)
+		txs, err := readPendingBitcoinMempool(ctx, chain, rpc, safes, mempool)
 		if err != nil {
 			return nil, nil, err
 		}
-		height, err := bitcoin.RPCGetBlockHeight(rpc)
+		height, err := bitcoin.RPCGetBlockHeight(ctx, rpc)
 		if err != nil {
 			return nil, nil, err
 		}
-		hash, err := bitcoin.RPCGetBlockHash(rpc, height)
+		hash, err := bitcoin.RPCGetBlockHash(ctx, rpc, height)
 		if err != nil {
 			return nil, nil, err
 		}
-		block, err := bitcoin.RPCGetBlockWithTransactions(chain, rpc, hash)
+		block, err := bitcoin.RPCGetBlockWithTransactions(ctx, chain, rpc, hash)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -216,7 +229,7 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 		if tx := bitcoinTransactions[d.TransactionHash]; tx != nil {
 			sender, ok := senders[tx.TxId]
 			if !ok {
-				sender, err = bitcoin.RPCGetTransactionSender(chain, rpc, tx)
+				sender, err = bitcoin.RPCGetTransactionSender(ctx, chain, rpc, tx)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -231,4 +244,107 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 		pending = append(pending, d)
 	}
 	return pending, sent, nil
+}
+
+func readPendingBitcoinMempool(ctx context.Context, chain byte, rpc string, safes map[string]*store.Safe, mempool *pendingBitcoinMempool) ([]*bitcoin.RPCTransaction, error) {
+	// Publish the transactions found so far even if a large mempool takes several
+	// refreshes to inspect. Each refresh prioritizes new arrivals and retries misses.
+	scanCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	ids, err := bitcoin.RPCGetMempoolTransactionIDs(scanCtx, rpc)
+	if err != nil {
+		return nil, err
+	}
+	if mempool == nil {
+		mempool = new(pendingBitcoinMempool)
+	}
+	reset := len(mempool.safes) != len(safes)
+	for address := range safes {
+		if mempool.safes[address] == nil {
+			reset = true
+		}
+	}
+	if reset || mempool.transactions == nil {
+		mempool.transactions = make(map[string]*bitcoin.RPCTransaction)
+	}
+	mempool.safes = safes
+	current := make(map[string]bool, len(ids))
+	var missing []string
+	for _, id := range ids {
+		current[id] = true
+		if _, ok := mempool.transactions[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	for id := range mempool.transactions {
+		if !current[id] {
+			delete(mempool.transactions, id)
+		}
+	}
+
+	type result struct {
+		id  string
+		tx  *bitcoin.RPCTransaction
+		err error
+	}
+	const workers = 32
+	jobs := make(chan string)
+	results := make(chan result, workers)
+	var wg sync.WaitGroup
+	for range min(workers, len(missing)) {
+		wg.Go(func() {
+			for id := range jobs {
+				readCtx, readCancel := context.WithTimeout(scanCtx, 5*time.Second)
+				tx, err := bitcoin.RPCGetTransactionOnce(readCtx, chain, rpc, id)
+				readCancel()
+				select {
+				case results <- result{id: id, tx: tx, err: err}:
+				case <-scanCtx.Done():
+					return
+				}
+			}
+		})
+	}
+	go func() {
+		defer close(jobs)
+		for _, id := range missing {
+			select {
+			case jobs <- id:
+			case <-scanCtx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	var firstError error
+	for r := range results {
+		if r.err != nil {
+			if firstError == nil {
+				firstError = r.err
+			}
+			continue
+		}
+		mempool.transactions[r.id] = nil
+		for _, out := range r.tx.Vout {
+			if out != nil && out.ScriptPubKey != nil && safes[out.ScriptPubKey.Address] != nil {
+				mempool.transactions[r.id] = r.tx
+				break
+			}
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var transactions []*bitcoin.RPCTransaction
+	for _, id := range ids {
+		if tx := mempool.transactions[id]; tx != nil {
+			transactions = append(transactions, tx)
+		}
+	}
+	logger.Printf("readPendingBitcoinMempool(%d) => %d total, %d inspected, %d remaining, %d matching, first error %v", chain,
+		len(ids), len(mempool.transactions), len(ids)-len(mempool.transactions), len(transactions), firstError)
+	return transactions, nil
 }

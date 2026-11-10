@@ -36,7 +36,7 @@ func TestMempoolAverageFeeHandlesNoUsableTransactions(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(bitcoinRPCTestResponse{JSONRPC: "2.0", ID: request.ID, Result: tc.mempool})
 			}))
 			t.Cleanup(server.Close)
-			fee, err := RPCGetMempoolAverageFeePerBytes(server.URL)
+			fee, err := RPCGetMempoolAverageFeePerBytes(t.Context(), server.URL)
 			require.NoError(t, err)
 			require.Equal(t, big.NewInt(tc.want), fee)
 		})

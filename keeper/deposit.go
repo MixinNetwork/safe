@@ -170,7 +170,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 	}
 
 	rpc, _ := node.bitcoinParams(deposit.Chain)
-	btx, err := bitcoin.RPCGetTransaction(deposit.Chain, rpc, deposit.Hash)
+	btx, err := bitcoin.RPCGetTransaction(ctx, deposit.Chain, rpc, deposit.Hash)
 	if err != nil {
 		panic(fmt.Errorf("bitcoin.RPCTransaction(%s) => %v", deposit.Hash, err))
 	}
@@ -207,7 +207,7 @@ func (node *Node) doBitcoinHolderDeposit(ctx context.Context, req *common.Reques
 		txs = append(txs, tx)
 	}
 
-	sender, err := bitcoin.RPCGetTransactionSender(safe.Chain, rpc, btx)
+	sender, err := bitcoin.RPCGetTransactionSender(ctx, safe.Chain, rpc, btx)
 	if err != nil {
 		panic(fmt.Errorf("bitcoin.RPCGetTransactionSender(%s) => %v", btx.TxId, err))
 	}
@@ -352,7 +352,7 @@ func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Requ
 		return nil, fmt.Errorf("malicious bitcoin network info %v", info)
 	}
 
-	tx, output, err := bitcoin.RPCGetTransactionOutput(deposit.Chain, rpc, deposit.Hash, int64(deposit.Index))
+	tx, output, err := bitcoin.RPCGetTransactionOutput(ctx, deposit.Chain, rpc, deposit.Hash, int64(deposit.Index))
 	logger.Printf("bitcoin.RPCGetTransactionOutput(%s, %d) => %v %v", deposit.Hash, deposit.Index, output, err)
 	if err != nil || output == nil || output.Height < 1 {
 		return nil, fmt.Errorf("malicious bitcoin deposit or node not in sync? %s %v", deposit.Hash, err)

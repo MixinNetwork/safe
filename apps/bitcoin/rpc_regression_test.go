@@ -11,10 +11,10 @@ import (
 
 func TestBitcoinRPCRejectsMissingInputsAndOutputs(t *testing.T) {
 	for _, tx := range []*RPCTransaction{nil, {}, {Vin: []*rpcIn{nil}}} {
-		_, err := RPCGetTransactionSender(ChainBitcoin, "", tx)
+		_, err := RPCGetTransactionSender(t.Context(), ChainBitcoin, "", tx)
 		require.Error(t, err)
 	}
-	_, _, err := RPCGetTransactionOutput(ChainBitcoin, "", "hash", -1)
+	_, _, err := RPCGetTransactionOutput(t.Context(), ChainBitcoin, "", "hash", -1)
 	require.Error(t, err)
 	for _, tc := range []struct {
 		name    string
@@ -41,10 +41,10 @@ func TestBitcoinRPCRejectsMissingInputsAndOutputs(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(bitcoinRPCTestResponse{JSONRPC: "2.0", ID: request.ID, Result: &RPCTransaction{TxId: hash, Vout: tc.outputs}})
 			}))
 			t.Cleanup(server.Close)
-			_, err := RPCGetTransactionSender(ChainLitecoin, server.URL, &RPCTransaction{Vin: []*rpcIn{{TxId: "previous", VOUT: tc.index}}})
+			_, err := RPCGetTransactionSender(t.Context(), ChainLitecoin, server.URL, &RPCTransaction{Vin: []*rpcIn{{TxId: "previous", VOUT: tc.index}}})
 			require.Error(t, err)
 			if tc.index == 0 && len(tc.outputs) > 0 {
-				_, _, err = RPCGetTransactionOutput(ChainLitecoin, server.URL, "hash", 0)
+				_, _, err = RPCGetTransactionOutput(t.Context(), ChainLitecoin, server.URL, "hash", 0)
 				require.Error(t, err)
 			}
 		})
@@ -85,7 +85,7 @@ func TestBlockAverageFeeHandlesNoUsableTransactions(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(bitcoinRPCTestResponse{JSONRPC: "2.0", ID: request.ID, Result: result})
 			}))
 			t.Cleanup(server.Close)
-			fee, err := RPCGetBlockAverageFeePerBytes(ChainBitcoin, server.URL)
+			fee, err := RPCGetBlockAverageFeePerBytes(t.Context(), ChainBitcoin, server.URL)
 			if tc.wantError {
 				require.Error(t, err)
 				return

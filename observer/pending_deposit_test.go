@@ -61,9 +61,9 @@ func TestHTTPPendingBitcoinDeposits(t *testing.T) {
 				case "getrawmempool":
 					mempoolCalls.Add(1)
 					if empty.Load() {
-						return []string{}
+						return map[string]any{}
 					}
-					return []string{"mempool"}
+					return map[string]any{"mempool": map[string]any{"time": 1}}
 				case "getrawtransaction":
 					var hash string
 					assert.NoError(t, json.Unmarshal(params[0], &hash))
@@ -91,7 +91,7 @@ func TestHTTPPendingBitcoinDeposits(t *testing.T) {
 			f.node.conf.BitcoinRPC, f.node.conf.LitecoinRPC = rpc, rpc
 			before := getPendingDepositsHTTP(t, f, chain, "", false)
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
-			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain))
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			deposits := getPendingDepositsHTTP(t, f, chain, "", true)
 			require.Len(t, deposits, 3)
 			for i, amount := range []string{"1", "2", "3"} {
@@ -105,7 +105,7 @@ func TestHTTPPendingBitcoinDeposits(t *testing.T) {
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "unknown-holder", true))
 			empty.Store(true)
 			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, "", true))
-			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain))
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
 			require.Equal(t, int32(2), mempoolCalls.Load())
 			require.Equal(t, int32(2), blockCalls.Load())
@@ -174,7 +174,7 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 			f.node.conf.EthereumRPC, f.node.conf.PolygonRPC = rpc, rpc
 			before := getPendingDepositsHTTP(t, f, chain, "", false)
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
-			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain))
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			safe, err := f.node.keeperStore.ReadSafeByAddress(t.Context(), f.address)
 			require.NoError(t, err)
 			deposits := getPendingDepositsHTTP(t, f, chain, safe.Holder, true)
@@ -190,7 +190,7 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "unknown-holder", true))
 			empty.Store(true)
 			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, "", true))
-			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain))
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
 			require.Equal(t, before, getPendingDepositsHTTP(t, f, chain, "", false))
 		})
@@ -206,14 +206,14 @@ func TestPendingDepositsCachePreservedOnRPCFailure(t *testing.T) {
 		f := newPendingDepositsHTTPFixture(t, chain)
 		f.node.conf.BitcoinRPC, f.node.conf.LitecoinRPC = server.URL, server.URL
 		f.node.conf.EthereumRPC, f.node.conf.PolygonRPC = server.URL, server.URL
-		require.Error(t, f.node.cachePendingDeposits(t.Context(), chain))
+		require.Error(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 		require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
 		key := fmt.Sprintf("pending-deposits:%d", chain)
 		value := `[{"holder":"holder","view":{"transaction_hash":"cached","state":"pending"}}]`
 		require.NoError(t, f.node.store.WriteCache(t.Context(), key, value))
 		before := getPendingDepositsHTTP(t, f, chain, "", true)
 		require.Len(t, before, 1)
-		require.Error(t, f.node.cachePendingDeposits(t.Context(), chain))
+		require.Error(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 		require.Equal(t, before, getPendingDepositsHTTP(t, f, chain, "", true))
 	}
 }
@@ -268,7 +268,7 @@ func TestPendingDepositsLoopRefreshesImmediatelyAndStops(t *testing.T) {
 	f.node.conf.BitcoinRPC = pendingDepositsRPC(t, func(method string, params []json.RawMessage) any {
 		switch method {
 		case "getrawmempool":
-			return []string{}
+			return map[string]any{}
 		case "getblockchaininfo":
 			return map[string]any{"blocks": 100}
 		case "getblockhash":
@@ -319,7 +319,7 @@ func TestPendingDepositsCachePreservedOnParserPanic(t *testing.T) {
 	value := `[{"holder":"holder","view":{"transaction_hash":"cached"}}]`
 	require.NoError(t, f.node.store.WriteCache(t.Context(), key, value))
 	var err error
-	require.NotPanics(t, func() { err = f.node.cachePendingDeposits(t.Context(), common.SafeChainEthereum) })
+	require.NotPanics(t, func() { err = f.node.cachePendingDeposits(t.Context(), common.SafeChainEthereum, nil) })
 	require.Error(t, err)
 	cached, err := f.node.store.ReadCache(t.Context(), key, pendingDepositsCacheTTL)
 	require.NoError(t, err)

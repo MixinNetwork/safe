@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -52,6 +53,7 @@ type MemPoolTransaction struct {
 		Base float64 `json:"base"`
 	} `json:"fees"`
 	VSize int64 `json:"vsize"`
+	Time  int64 `json:"time"`
 }
 
 type RPCBlock struct {
@@ -67,11 +69,11 @@ type RPCBlockWithTransactions struct {
 	Tx     []*RPCTransaction `json:"tx"`
 }
 
-func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
+func RPCGetTransactionOutput(ctx context.Context, chain byte, rpc, hash string, index int64) (*RPCTransaction, *Output, error) {
 	if index < 0 {
 		return nil, nil, fmt.Errorf("invalid output index %d", index)
 	}
-	tx, err := RPCGetTransaction(chain, rpc, hash)
+	tx, err := RPCGetTransaction(ctx, chain, rpc, hash)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,7 +105,7 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	if tx.BlockHash == "" { // mempool
 		output.Height = ^uint64(0)
 	} else {
-		block, err := RPCGetBlock(rpc, tx.BlockHash)
+		block, err := RPCGetBlock(ctx, rpc, tx.BlockHash)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -143,14 +145,14 @@ func RPCGetTransactionOutput(chain byte, rpc, hash string, index int64) (*RPCTra
 	return tx, output, nil
 }
 
-func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string, error) {
+func RPCGetTransactionSender(ctx context.Context, chain byte, rpc string, tx *RPCTransaction) (string, error) {
 	if tx == nil || len(tx.Vin) == 0 || tx.Vin[0] == nil {
 		return "", fmt.Errorf("missing transaction input")
 	}
 	if tx.Vin[0].Coinbase != "" {
 		return tx.Vin[0].Coinbase, nil
 	}
-	itx, err := RPCGetTransaction(chain, rpc, tx.Vin[0].TxId)
+	itx, err := RPCGetTransaction(ctx, chain, rpc, tx.Vin[0].TxId)
 	if err != nil {
 		return "", err
 	}
@@ -161,13 +163,27 @@ func RPCGetTransactionSender(chain byte, rpc string, tx *RPCTransaction) (string
 	return itx.Vout[index].ScriptPubKey.Address, nil
 }
 
-func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawtransaction", []any{hash, 1})
+func RPCGetTransaction(ctx context.Context, chain byte, rpc, hash string) (*RPCTransaction, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "getrawtransaction", []any{hash, 1})
 	if err != nil {
 		return nil, err
 	}
+	return parseRPCTransaction(chain, hash, res)
+}
+
+// RPCGetTransactionOnce performs one attempt so optional background scans
+// can stop at their deadline without changing normal deposit retry behavior.
+func RPCGetTransactionOnce(ctx context.Context, chain byte, rpc, hash string) (*RPCTransaction, error) {
+	res, err := callBitcoinRPCWithContext(ctx, rpc, "getrawtransaction", []any{hash, 1})
+	if err != nil {
+		return nil, err
+	}
+	return parseRPCTransaction(chain, hash, res)
+}
+
+func parseRPCTransaction(chain byte, hash string, res []byte) (*RPCTransaction, error) {
 	var tx *RPCTransaction
-	err = json.Unmarshal(res, &tx)
+	err := json.Unmarshal(res, &tx)
 	if err != nil {
 		return nil, err
 	}
@@ -181,31 +197,35 @@ func RPCGetTransaction(chain byte, rpc, hash string) (*RPCTransaction, error) {
 	return tx, nil
 }
 
-func RPCGetRawMempool(chain byte, rpc string) ([]*RPCTransaction, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawmempool", []any{})
+// RPCGetMempoolTransactionIDs lists the newest transactions first, without
+// fetching their bodies. getrawmempool's verbose result is metadata only.
+func RPCGetMempoolTransactionIDs(ctx context.Context, rpc string) ([]string, error) {
+	res, err := callBitcoinRPCWithContext(ctx, rpc, "getrawmempool", []any{true})
 	if err != nil {
 		return nil, err
 	}
-	var txs []string
-	err = json.Unmarshal(res, &txs)
-	if err != nil {
+	var entries map[string]MemPoolTransaction
+	if err := json.Unmarshal(res, &entries); err != nil {
 		return nil, err
 	}
-
-	var transactions []*RPCTransaction
-	for _, id := range txs {
-		tx, err := RPCGetTransaction(chain, rpc, id)
-		if err != nil || tx == nil {
-			logger.Printf("bitcoin.RPCGetRawMempool(%s) => %v %v", id, tx, err)
-			continue
+	if entries == nil {
+		return nil, fmt.Errorf("missing mempool")
+	}
+	ids := make([]string, 0, len(entries))
+	for id := range entries {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		if entries[ids[i]].Time == entries[ids[j]].Time {
+			return ids[i] < ids[j]
 		}
-		transactions = append(transactions, tx)
-	}
-	return transactions, nil
+		return entries[ids[i]].Time > entries[ids[j]].Time
+	})
+	return ids, nil
 }
 
-func RPCGetRawMempoolWithTransactions(rpc string) ([]*RPCTransaction, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getrawmempool", []any{true})
+func RPCGetRawMempoolWithTransactions(ctx context.Context, rpc string) ([]*RPCTransaction, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "getrawmempool", []any{true})
 	if err != nil {
 		return nil, err
 	}
@@ -226,8 +246,8 @@ func RPCGetRawMempoolWithTransactions(rpc string) ([]*RPCTransaction, error) {
 	return transactions, nil
 }
 
-func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTransactions, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getblock", []any{hash, 2})
+func RPCGetBlockWithTransactions(ctx context.Context, chain byte, rpc, hash string) (*RPCBlockWithTransactions, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "getblock", []any{hash, 2})
 	if err != nil {
 		return nil, err
 	}
@@ -252,16 +272,16 @@ func RPCGetBlockWithTransactions(chain byte, rpc, hash string) (*RPCBlockWithTra
 	return b, nil
 }
 
-func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
-	height, err := RPCGetBlockHeight(rpc)
+func RPCGetBlockAverageFeePerBytes(ctx context.Context, chain byte, rpc string) (*big.Int, error) {
+	height, err := RPCGetBlockHeight(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}
-	hash, err := RPCGetBlockHash(rpc, height)
+	hash, err := RPCGetBlockHash(ctx, rpc, height)
 	if err != nil {
 		return nil, err
 	}
-	block, err := RPCGetBlockWithTransactions(chain, rpc, hash)
+	block, err := RPCGetBlockWithTransactions(ctx, chain, rpc, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +304,8 @@ func RPCGetBlockAverageFeePerBytes(chain byte, rpc string) (*big.Int, error) {
 	return sum.Ceil().BigInt(), nil
 }
 
-func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
-	txs, err := RPCGetRawMempoolWithTransactions(rpc)
+func RPCGetMempoolAverageFeePerBytes(ctx context.Context, rpc string) (*big.Int, error) {
+	txs, err := RPCGetRawMempoolWithTransactions(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}
@@ -316,8 +336,8 @@ func RPCGetMempoolAverageFeePerBytes(rpc string) (*big.Int, error) {
 	return avg.Ceil().BigInt(), nil
 }
 
-func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getblock", []any{hash, 1})
+func RPCGetBlock(ctx context.Context, rpc, hash string) (*RPCBlock, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "getblock", []any{hash, 1})
 	if err != nil {
 		return nil, err
 	}
@@ -335,8 +355,8 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	return b, nil
 }
 
-func RPCGetBlockHash(rpc string, num int64) (string, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getblockhash", []any{num})
+func RPCGetBlockHash(ctx context.Context, rpc string, num int64) (string, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "getblockhash", []any{num})
 	if err != nil {
 		return "", err
 	}
@@ -345,8 +365,8 @@ func RPCGetBlockHash(rpc string, num int64) (string, error) {
 	return hash, err
 }
 
-func RPCGetBlockHeight(rpc string) (int64, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "getblockchaininfo", []any{})
+func RPCGetBlockHeight(ctx context.Context, rpc string) (int64, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "getblockchaininfo", []any{})
 	if err != nil {
 		return 0, err
 	}
@@ -363,12 +383,12 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	return *info.Blocks, nil
 }
 
-func EstimateAvgFee(chain byte, rpc string) (int64, error) {
-	blockAvgFee, err := RPCGetBlockAverageFeePerBytes(chain, rpc)
+func EstimateAvgFee(ctx context.Context, chain byte, rpc string) (int64, error) {
+	blockAvgFee, err := RPCGetBlockAverageFeePerBytes(ctx, chain, rpc)
 	if err != nil {
 		return 0, err
 	}
-	mempoolTopAvgFee, err := RPCGetMempoolAverageFeePerBytes(rpc)
+	mempoolTopAvgFee, err := RPCGetMempoolAverageFeePerBytes(ctx, rpc)
 	if err != nil {
 		return 0, err
 	}
@@ -388,8 +408,8 @@ func EstimateAvgFee(chain byte, rpc string) (int64, error) {
 	return fvb, nil
 }
 
-func RPCSendRawTransaction(rpc, raw string) (string, error) {
-	res, err := callBitcoinRPCUntilSufficient(rpc, "sendrawtransaction", []any{raw})
+func RPCSendRawTransaction(ctx context.Context, rpc, raw string) (string, error) {
+	res, err := callBitcoinRPCUntilSufficient(ctx, rpc, "sendrawtransaction", []any{raw})
 	if err != nil {
 		return "", err
 	}
@@ -411,21 +431,31 @@ func fixLitecoinLegacyScriptPubKeyRPC(chain byte, tx *RPCTransaction) {
 	}
 }
 
-func callBitcoinRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {
+func callBitcoinRPCUntilSufficient(ctx context.Context, rpc, method string, params []any) ([]byte, error) {
 	for {
-		res, err := callBitcoinRPC(rpc, method, params)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		res, err := callBitcoinRPCWithContext(ctx, rpc, method, params)
 		if err == nil {
 			return res, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
 		logger.Printf("callBitcoinRPC(%s, %s, %v) => %v", rpc, method, params, err)
 		if !util.CheckRetryableRPCError(err) {
 			return res, err
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
 	}
 }
 
-func callBitcoinRPC(rpc, method string, params []any) ([]byte, error) {
+func callBitcoinRPCWithContext(ctx context.Context, rpc, method string, params []any) ([]byte, error) {
 	client := &http.Client{Timeout: 20 * time.Second}
 
 	body, err := json.Marshal(map[string]any{
@@ -438,7 +468,7 @@ func callBitcoinRPC(rpc, method string, params []any) ([]byte, error) {
 		panic(err)
 	}
 
-	req, err := http.NewRequest("POST", rpc, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", rpc, bytes.NewReader(body))
 	if err != nil {
 		return nil, buildRPCError(rpc, method, params, err)
 	}

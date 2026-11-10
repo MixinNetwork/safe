@@ -89,7 +89,7 @@ func TestObserverBitcoinBroadcastRequiresExpectedHash(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			node := &Node{conf: &Configuration{BitcoinRPC: server.URL}}
-			err := node.bitcoinBroadcastTransaction(expectedHash, raw, common.SafeChainBitcoin)
+			err := node.bitcoinBroadcastTransaction(t.Context(), expectedHash, raw, common.SafeChainBitcoin)
 			if test.wantError == "" {
 				require.NoError(t, err)
 			} else {
