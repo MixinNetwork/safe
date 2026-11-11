@@ -1044,7 +1044,7 @@ func (s *SQLite3Store) ReadCache(ctx context.Context, k string, d time.Duration)
 	} else if err != nil {
 		return "", err
 	}
-	if time.Since(createdAt) > d {
+	if d > 0 && time.Since(createdAt) > d {
 		return "", nil
 	}
 	return value, nil

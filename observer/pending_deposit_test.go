@@ -103,12 +103,25 @@ func TestHTTPPendingBitcoinDeposits(t *testing.T) {
 			require.Equal(t, deposits[0]["transaction_hash"], deposits[1]["transaction_hash"])
 			require.NotEqual(t, deposits[0]["output_index"], deposits[1]["output_index"])
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "unknown-holder", true))
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
+			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, "", true), "rediscovery must preserve timestamps and avoid duplicates")
 			empty.Store(true)
 			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, "", true))
+			restarted := *f.node
+			require.NoError(t, restarted.cachePendingDeposits(t.Context(), chain, nil))
+			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, "", true), "retain deposits after they leave the mempool and latest block")
+			addProcessedPendingDeposit(t, f, chain, "mempool", 0)
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
+			require.Equal(t, deposits[1:], getPendingDepositsHTTP(t, f, chain, "", true), "keeper confirms individual outputs")
+			addProcessedPendingDeposit(t, f, chain, "mempool", 1)
+			addProcessedPendingDeposit(t, f, chain, "block", 0)
 			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
-			require.Equal(t, int32(2), mempoolCalls.Load())
-			require.Equal(t, int32(2), blockCalls.Load())
+			empty.Store(false)
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
+			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true), "confirmed deposits must not reappear")
+			require.Equal(t, int32(6), mempoolCalls.Load())
+			require.Equal(t, int32(6), blockCalls.Load())
 			require.Equal(t, before, getPendingDepositsHTTP(t, f, chain, "", false))
 		})
 	}
@@ -188,10 +201,23 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 			require.Equal(t, ethereum.GenerateAssetId(chain, token), deposits[2]["asset_id"])
 			require.Equal(t, float64(math.MaxInt32+2), deposits[2]["output_index"])
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "unknown-holder", true))
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
+			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, safe.Holder, true), "rediscovery must preserve timestamps and avoid duplicates")
 			empty.Store(true)
 			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, "", true))
+			restarted := *f.node
+			require.NoError(t, restarted.cachePendingDeposits(t.Context(), chain, nil))
+			require.Equal(t, deposits, getPendingDepositsHTTP(t, f, chain, safe.Holder, true), "retain native and token deposits after the latest block changes")
+			addProcessedPendingDeposit(t, f, chain, hash, 0)
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
+			require.Equal(t, deposits[1:], getPendingDepositsHTTP(t, f, chain, safe.Holder, true), "keeper confirms individual transfers")
+			addProcessedPendingDeposit(t, f, chain, hash, 2)
+			addProcessedPendingDeposit(t, f, chain, hash, math.MaxInt32+2)
 			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true))
+			empty.Store(false)
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
+			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true), "confirmed deposits must not reappear")
 			require.Equal(t, before, getPendingDepositsHTTP(t, f, chain, "", false))
 		})
 	}
@@ -233,7 +259,7 @@ func TestHTTPPendingDepositsReadsOnlyCache(t *testing.T) {
 		{name: "holder", value: snapshot, holder: "alice", chain: common.SafeChainBitcoin, want: `[{"transaction_hash":"a","change":true}]`},
 		{name: "unknown holder", value: snapshot, holder: "unknown", chain: common.SafeChainBitcoin, want: `[]`},
 		{name: "other chain", value: snapshot, chain: common.SafeChainLitecoin, want: `[]`},
-		{name: "expired", value: snapshot, chain: common.SafeChainBitcoin, expired: true, want: `[]`},
+		{name: "expired cache cleaned up", value: snapshot, chain: common.SafeChainBitcoin, expired: true, want: `[]`},
 		{name: "corrupt", value: `{`, chain: common.SafeChainBitcoin, status: http.StatusInternalServerError, want: `{"error":"500"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -244,8 +270,9 @@ func TestHTTPPendingDepositsReadsOnlyCache(t *testing.T) {
 				require.NoError(t, node.store.WriteCache(t.Context(), key, tc.value))
 			}
 			if tc.expired {
-				_, err := node.store.db.ExecContext(t.Context(), "UPDATE caches SET created_at=? WHERE key=?", time.Now().Add(-2*pendingDepositsCacheTTL), key)
+				_, err := node.store.db.ExecContext(t.Context(), "UPDATE caches SET created_at=? WHERE key=?", time.Now().Add(-2*cacheTTL), key)
 				require.NoError(t, err)
+				require.NoError(t, node.store.WriteCache(t.Context(), "unrelated", "value"))
 			}
 			node.store.db.SetMaxOpenConns(1)
 			_, err := node.store.db.ExecContext(t.Context(), "PRAGMA query_only=ON")
@@ -295,7 +322,7 @@ func TestPendingDepositsLoopRefreshesImmediatelyAndStops(t *testing.T) {
 		}
 	})
 	require.Eventually(t, func() bool {
-		value, err := f.node.store.ReadCache(t.Context(), "pending-deposits:1", pendingDepositsCacheTTL)
+		value, err := f.node.store.ReadCache(t.Context(), "pending-deposits:1", 0)
 		return err == nil && value == "[]"
 	}, time.Second, 10*time.Millisecond)
 }
@@ -321,7 +348,7 @@ func TestPendingDepositsCachePreservedOnParserPanic(t *testing.T) {
 	var err error
 	require.NotPanics(t, func() { err = f.node.cachePendingDeposits(t.Context(), common.SafeChainEthereum, nil) })
 	require.Error(t, err)
-	cached, err := f.node.store.ReadCache(t.Context(), key, pendingDepositsCacheTTL)
+	cached, err := f.node.store.ReadCache(t.Context(), key, 0)
 	require.NoError(t, err)
 	require.Equal(t, value, cached)
 }

@@ -15,8 +15,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const pendingDepositsCacheTTL = 5 * time.Minute
-
 type cachedPendingDeposit struct {
 	Holder string          `json:"holder"`
 	View   json.RawMessage `json:"view"`
@@ -65,10 +63,38 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool 
 	if err != nil {
 		return err
 	}
+	cached, err := node.readPendingDepositsCache(ctx, chain)
+	if err != nil {
+		return err
+	}
 	views := node.viewDeposits(ctx, deposits, sent)
-	snapshot := make([]cachedPendingDeposit, len(deposits))
 	for i, d := range deposits {
-		snapshot[i] = cachedPendingDeposit{Holder: d.Holder, View: common.MarshalJSONOrPanic(views[i])}
+		cached = append(cached, cachedPendingDeposit{Holder: d.Holder, View: common.MarshalJSONOrPanic(views[i])})
+	}
+	// A transfer can leave the latest block long before keeper processes it.
+	// Retain the first discovery, including its timestamps, until keeper records it.
+	type depositKey struct {
+		Hash  string `json:"transaction_hash"`
+		Index int64  `json:"output_index"`
+	}
+	seen := make(map[depositKey]bool)
+	snapshot := make([]cachedPendingDeposit, 0, len(cached))
+	for _, d := range cached {
+		var key depositKey
+		if err := json.Unmarshal(d.View, &key); err != nil {
+			return err
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		confirmed, err := node.keeperStore.ReadDeposit(ctx, key.Hash, key.Index)
+		if err != nil {
+			return err
+		} else if confirmed != nil {
+			continue
+		}
+		snapshot = append(snapshot, d)
 	}
 	err = node.store.WriteCache(ctx, fmt.Sprintf("pending-deposits:%d", chain), string(common.MarshalJSONOrPanic(snapshot)))
 	if err == nil {
@@ -77,8 +103,8 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool 
 	return err
 }
 
-func (node *Node) readPendingDeposits(ctx context.Context, chain byte, holder string) ([]json.RawMessage, error) {
-	value, err := node.store.ReadCache(ctx, fmt.Sprintf("pending-deposits:%d", chain), pendingDepositsCacheTTL)
+func (node *Node) readPendingDepositsCache(ctx context.Context, chain byte) ([]cachedPendingDeposit, error) {
+	value, err := node.store.ReadCache(ctx, fmt.Sprintf("pending-deposits:%d", chain), 0)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +113,14 @@ func (node *Node) readPendingDeposits(ctx context.Context, chain byte, holder st
 		if err := json.Unmarshal([]byte(value), &snapshot); err != nil {
 			return nil, err
 		}
+	}
+	return snapshot, nil
+}
+
+func (node *Node) readPendingDeposits(ctx context.Context, chain byte, holder string) ([]json.RawMessage, error) {
+	snapshot, err := node.readPendingDepositsCache(ctx, chain)
+	if err != nil {
+		return nil, err
 	}
 	views := make([]json.RawMessage, 0, len(snapshot))
 	for _, d := range snapshot {
