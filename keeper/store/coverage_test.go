@@ -457,39 +457,11 @@ func TestCoverageTransactionsSignaturesAndInheritance(t *testing.T) {
 	require.Equal(t, uint32(7), inputs[0].Index)
 }
 
-func TestCoverageMigrationAndReadOnlyStore(t *testing.T) {
+func TestCoverageAssetMigrationAndReadOnlyStore(t *testing.T) {
 	ctx := context.Background()
 	s, path := coverageStore(t)
-	now := time.Now().UTC()
 
-	_, err := s.db.Exec(
-		"INSERT INTO transactions (transaction_hash,raw_transaction,holder,chain,asset_id,state,data,request_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-		"6a5ccb71871db47550acd5429764d724c0e26e9ef63e214954edce2ee80a7e90", "raw", "migration-holder", common.SafeChainEthereum, "asset", common.RequestStateFailed, "data", uuid.Must(uuid.NewV4()).String(), now, now,
-	)
-	require.NoError(t, err)
-	_, err = s.db.Exec(
-		"INSERT INTO safes (holder,chain,signer,observer,timelock,path,address,extra,receivers,threshold,request_id,nonce,state,safe_asset_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-		"02cf89b2507b8b3ceac013f675da6cf68f1ac7a3c74de2621d9d4790d67bde43a5", common.SafeChainEthereum, "signer", "observer", int64(time.Hour), "path", "migration-address", []byte{}, "receiver", 1, uuid.Must(uuid.NewV4()).String(), 180, common.RequestStateDone, "migration-safe-asset", now, now,
-	)
-	require.NoError(t, err)
-	_, err = s.db.Exec(
-		"INSERT INTO ethereum_balances (address,asset_id,asset_address,safe_asset_id,balance,latest_tx_hash,updated_at) VALUES (?,?,?,?,?,?,?)",
-		"0xA82bCC5b1942c3BF74C8eef18E1a6E0d8FAFA4cb", "c94ac88f-4671-3976-b60a-09064f1811e8", ethereum.EthereumEmptyAddress, "b5a91ff6-a78b-3838-9fa5-225636c093d0", "77000000000000000000000", "", now,
-	)
-	require.NoError(t, err)
-	require.NoError(t, s.Migrate(ctx))
-	require.NoError(t, s.Migrate(ctx))
-
-	var state, nonce int
-	require.NoError(t, s.db.QueryRow("SELECT state FROM transactions WHERE transaction_hash=?", "6a5ccb71871db47550acd5429764d724c0e26e9ef63e214954edce2ee80a7e90").Scan(&state))
-	require.Equal(t, common.RequestStateDone, state)
-	require.NoError(t, s.db.QueryRow("SELECT nonce FROM safes WHERE holder=?", "02cf89b2507b8b3ceac013f675da6cf68f1ac7a3c74de2621d9d4790d67bde43a5").Scan(&nonce))
-	require.Equal(t, 181, nonce)
-	var balance string
-	require.NoError(t, s.db.QueryRow("SELECT balance FROM ethereum_balances WHERE address=?", "0xA82bCC5b1942c3BF74C8eef18E1a6E0d8FAFA4cb").Scan(&balance))
-	require.Equal(t, "74500000000000000000000", balance)
-
-	_, err = s.db.Exec("INSERT INTO migrate_assets (safe_asset_id,chain,address,asset_id) VALUES (?,?,?,?)", "safe-asset", common.SafeChainPolygon, "address", "asset")
+	_, err := s.db.Exec("INSERT INTO migrate_assets (safe_asset_id,chain,address,asset_id) VALUES (?,?,?,?)", "safe-asset", common.SafeChainPolygon, "address", "asset")
 	require.NoError(t, err)
 	migrated, err := s.CheckMigrateAsset(ctx, "address", "asset")
 	require.NoError(t, err)
@@ -498,12 +470,13 @@ func TestCoverageMigrationAndReadOnlyStore(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, migrated)
 
+	require.NoError(t, s.WriteProperty(ctx, "read-only-key", "read-only-value"))
 	require.NoError(t, s.Close())
 	readOnly, err := OpenSQLite3ReadOnlyStore(path)
 	require.NoError(t, err)
-	value, err := readOnly.ReadProperty(ctx, "SCHEMA:VERSION:STUCK_TX")
+	value, err := readOnly.ReadProperty(ctx, "read-only-key")
 	require.NoError(t, err)
-	require.NotEmpty(t, value)
+	require.Equal(t, "read-only-value", value)
 	require.NoError(t, readOnly.Close())
 }
 

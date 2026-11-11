@@ -110,11 +110,12 @@ func (s *SQLite3Store) AssignSignerAndObserverToHolder(ctx context.Context, req 
 		panic(req.Holder)
 	}
 
-	signer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleSigner, common.NormalizeCurve(req.Curve), maturity, "")
+	cutoff := req.CreatedAt.Add(-maturity)
+	signer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleSigner, common.NormalizeCurve(req.Curve), cutoff, "")
 	if err != nil {
 		return "", "", err
 	}
-	observer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleObserver, common.NormalizeCurve(req.Curve), maturity, observerPref)
+	observer, err = readKeyWithRoleAndCurve(ctx, tx, common.RequestRoleObserver, common.NormalizeCurve(req.Curve), cutoff, observerPref)
 	if err != nil {
 		return "", "", err
 	}
@@ -146,10 +147,10 @@ func readKeyWithRoleAndHolder(ctx context.Context, tx *sql.Tx, holder string, ro
 	return public, err
 }
 
-func readKeyWithRoleAndCurve(ctx context.Context, tx *sql.Tx, role int, crv byte, maturity time.Duration, pref string) (string, error) {
+func readKeyWithRoleAndCurve(ctx context.Context, tx *sql.Tx, role int, crv byte, cutoff time.Time, pref string) (string, error) {
 	var public string
 	query := "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND flags=? AND created_at<? ORDER BY created_at ASC, public_key ASC LIMIT 1"
-	params := []any{role, crv, common.RequestFlagNone, time.Now().Add(-maturity)}
+	params := []any{role, crv, common.RequestFlagNone, cutoff}
 	if pref != "" {
 		query = "SELECT public_key FROM keys WHERE holder IS NULL AND role=? AND curve=? AND flags=? AND public_key=? LIMIT 1"
 		params = []any{role, crv, common.RequestFlagCustomObserverKey, pref}

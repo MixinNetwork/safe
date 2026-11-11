@@ -184,10 +184,10 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 	a := Action{
 		ActionState:     state,
 		restoreSequence: 0,
+		Sequence:        out.Sequence,
+		OutputId:        out.OutputId,
+		TransactionHash: out.TransactionHash,
 	}
-	a.Sequence = out.Sequence
-	a.OutputId = out.OutputId
-	a.TransactionHash = out.TransactionHash
 	err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT actions %v", err)

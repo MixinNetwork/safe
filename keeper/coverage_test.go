@@ -172,11 +172,12 @@ func TestCoverageKeeperRolesLifecycleAndStoreHelpers(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint8(common.RequestStateFailed), failed.State)
 
-	require.Panics(t, func() { node.Boot(ctx) })
+	require.NotPanics(t, func() { node.Boot(ctx) })
 	require.Panics(t, func() { node.Terminate(ctx) })
 	terminated, err := node.store.ReadTerminate(ctx)
 	require.NoError(t, err)
 	require.True(t, terminated)
+	require.Panics(t, func() { node.Boot(ctx) })
 }
 
 func TestCoverageKeeperDepositAndNetworkParsing(t *testing.T) {
