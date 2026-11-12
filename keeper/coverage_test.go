@@ -92,7 +92,7 @@ func TestCoverageKeeperRequestParsing(t *testing.T) {
 func TestCoverageKeeperRolesLifecycleAndStoreHelpers(t *testing.T) {
 	node, closeNode := coverageKeeperNode(t)
 	defer closeNode()
-	ctx := common.EnableTestEnvironment(context.Background())
+	ctx := common.EnableTestEnvironment(t.Context())
 
 	roleCases := map[byte]byte{
 		common.OperationTypeKeygenOutput:                   common.RequestRoleSigner,
@@ -157,9 +157,9 @@ func TestCoverageKeeperRolesLifecycleAndStoreHelpers(t *testing.T) {
 
 	require.False(t, node.checkKernelDepositTransaction(ctx, out))
 	out.DepositHash = sqlNullString("deposit")
-	require.True(t, node.checkKernelDepositTransaction(context.Background(), out))
+	require.True(t, node.checkKernelDepositTransaction(t.Context(), out))
 	out.DepositHash = sqlNullString("")
-	require.False(t, node.checkKernelDepositTransaction(context.Background(), out))
+	require.False(t, node.checkKernelDepositTransaction(t.Context(), out))
 	handled, err := node.handleBondAsset(ctx, out)
 	require.NoError(t, err)
 	require.False(t, handled)
@@ -281,7 +281,6 @@ func TestCoverageKeeperDepositAndNetworkParsing(t *testing.T) {
 func TestCoverageKeeperOperationParamsRemainIsolatedByChain(t *testing.T) {
 	node, closeNode := coverageKeeperNode(t)
 	defer closeNode()
-	ctx := common.EnableTestEnvironment(context.Background())
 
 	tests := []struct {
 		name          string
@@ -299,6 +298,7 @@ func TestCoverageKeeperOperationParamsRemainIsolatedByChain(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := common.EnableTestEnvironment(t.Context())
 			id := uuid.Must(uuid.NewV4()).String()
 			extra := []byte{test.chain}
 			extra = append(extra, uuid.Must(uuid.FromString(test.asset)).Bytes()...)

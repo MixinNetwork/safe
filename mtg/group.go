@@ -328,10 +328,8 @@ func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, extra []by
 	return common.NewIntegerFromString(total.String()).Cmp(amount) >= 0
 }
 
-func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {
+func (grp *Group) signTransactionWithAsset(ctx context.Context, asset string, txs []*Transaction) {
 	logger.Verbosef("Group.signTransactionWithAsset(%s)", asset)
-	defer wg.Done()
-
 	for _, tx := range txs {
 		ver := grp.signTransaction(ctx, tx)
 		if ver == nil {
@@ -349,8 +347,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	for asset, txs := range assetTxMap {
-		wg.Add(1)
-		go grp.signTransactionWithAsset(ctx, &wg, asset, txs)
+		wg.Go(func() { grp.signTransactionWithAsset(ctx, asset, txs) })
 	}
 	wg.Wait()
 	return nil

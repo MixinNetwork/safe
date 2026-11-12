@@ -2,13 +2,17 @@ package signer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -34,31 +38,46 @@ const partyContextKey = partyContextTyp("party")
 
 var sequence uint64 = 5000000
 
-func TestPrepare(require *require.Assertions) (context.Context, []*Node, *saver.SQLite3Store) {
+func TestPrepare(t testing.TB) (context.Context, []*Node, *saver.SQLite3Store) {
+	t.Helper()
+	require := require.New(t)
 	logger.SetLevel(logger.INFO)
-	ctx := context.Background()
-	ctx = common.EnableTestEnvironment(ctx)
+	ctx := common.EnableTestEnvironment(t.Context())
 
-	saverStore, port := testStartSaver(require)
+	saverStore, port := testStartSaver(t)
 
 	nodes := make([]*Node, 4)
 	mds := make([]*mtg.SQLite3Store, 4)
 	for i := range 4 {
-		dir := fmt.Sprintf("safe-signer-test-%d", i)
-		root, err := os.MkdirTemp("", dir)
-		require.Nil(err)
+		root := t.TempDir()
 		nodes[i], mds[i] = testBuildNode(ctx, require, root, i, saverStore, port)
+		t.Cleanup(func() {
+			require.NoError(nodes[i].store.Close())
+			require.NoError(mds[i].Close())
+		})
 	}
 
 	network := newTestNetwork(nodes[0].GetPartySlice())
+	var workers sync.WaitGroup
+	t.Cleanup(func() {
+		workers.Wait()
+		for _, node := range nodes {
+			node.operationWorkers.Wait()
+		}
+	})
 	for i := range 4 {
 		nodes[i].network = network
 		ctx = context.WithValue(ctx, partyContextKey, string(nodes[i].id))
-		go network.mtgLoop(ctx, nodes[i])
-		go nodes[i].loopInitialSessions(ctx)
-		go nodes[i].loopPreparedSessions(ctx)
-		go nodes[i].loopPendingSessions(ctx)
-		go nodes[i].acceptIncomingMessages(ctx)
+		workerCtx := ctx
+		for _, run := range []func(context.Context){
+			func(ctx context.Context) { network.mtgLoop(ctx, nodes[i]) },
+			nodes[i].loopInitialSessions,
+			nodes[i].loopPreparedSessions,
+			nodes[i].loopPendingSessions,
+			nodes[i].acceptIncomingMessages,
+		} {
+			workers.Go(func() { testRunWorker(workerCtx, run) })
+		}
 
 		id := common.UniqueId("initial-outputs", "1")
 		_, err := testWriteOutput(ctx, mds[i], id, nodes[i].conf.AppId, nodes[i].conf.KeeperAssetId, "", sequence, decimal.NewFromInt(1))
@@ -167,17 +186,15 @@ func testCMPSignWithPath(ctx context.Context, require *require.Assertions, nodes
 	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptOperation(sop))
 	memo = hex.EncodeToString([]byte(memo))
 	out := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
-			AppId:              node.conf.AppId,
-			AssetId:            node.conf.KeeperAssetId,
-			Senders:            node.GetKeepers(),
-			SendersThreshold:   int64(node.keeper.Genesis.Threshold),
-			Extra:              memo,
-			Amount:             decimal.NewFromInt(1),
-			SequencerCreatedAt: time.Now(),
-		},
+		OutputId:           uuid.Must(uuid.NewV4()).String(),
+		TransactionHash:    crypto.Sha256Hash([]byte(sop.Id)).String(),
+		AppId:              node.conf.AppId,
+		AssetId:            node.conf.KeeperAssetId,
+		Senders:            node.GetKeepers(),
+		SendersThreshold:   int64(node.keeper.Genesis.Threshold),
+		Extra:              memo,
+		Amount:             decimal.NewFromInt(1),
+		SequencerCreatedAt: time.Now(),
 	}
 	op := TestProcessOutput(ctx, require, nodes, out, sid)
 	require.True(node.store.CheckActionResultsBySessionId(ctx, sid))
@@ -208,10 +225,7 @@ func testWriteOutput(ctx context.Context, db *mtg.SQLite3Store, id, appId, asset
 func TestProcessOutput(ctx context.Context, require *require.Assertions, nodes []*Node, out *mtg.Action, sessionId string) *common.Operation {
 	out.TestAttachActionToGroup(nodes[0].group)
 	network := nodes[0].network.(*testNetwork)
-	for i := range 4 {
-		data := common.MarshalJSONOrPanic(out)
-		network.mtgChannel(nodes[i].id) <- data
-	}
+	require.NoError(network.QueueMTGOutput(ctx, common.MarshalJSONOrPanic(out)))
 
 	var op *common.Operation
 	for _, node := range nodes {
@@ -260,46 +274,43 @@ func testBuildNode(ctx context.Context, require *require.Assertions, root string
 }
 
 func testWaitOperation(ctx context.Context, node *Node, sessionId string) *common.Operation {
-	timeout := time.Now().Add(time.Minute * 4)
-	for ; time.Now().Before(timeout); time.Sleep(time.Second) {
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
+	defer cancel()
+	for ctx.Err() == nil {
 		val, err := node.store.ReadProperty(ctx, "KEEPER:"+sessionId)
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
 			panic(err)
 		}
-		if val == "" {
-			continue
+		if val != "" {
+			_, m := mtg.DecodeMixinExtraHEX(val)
+			b := common.AESDecrypt(node.aesKey[:], m)
+			op, _ := common.DecodeOperation(b)
+			if op != nil {
+				return op
+			}
 		}
-		_, m := mtg.DecodeMixinExtraHEX(val)
-		b := common.AESDecrypt(node.aesKey[:], m)
-		op, _ := common.DecodeOperation(b)
-		if op != nil {
-			return op
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(time.Second):
 		}
 	}
 	return nil
 }
 
-func getFreePort() int {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		panic(err)
-	}
-	defer util.CloseOrPanic(l)
-
-	return l.Addr().(*net.TCPAddr).Port
-}
-
-func testStartSaver(require *require.Assertions) (*saver.SQLite3Store, int) {
-	dir, err := os.MkdirTemp("", "safe-saver-test-")
-	require.Nil(err)
+func testStartSaver(t testing.TB) (*saver.SQLite3Store, int) {
+	t.Helper()
+	require := require.New(t)
+	dir := t.TempDir()
 	store, err := saver.OpenSQLite3Store(dir + "/data.sqlite3")
 	require.Nil(err)
-	port := getFreePort()
-	go func() { _ = saver.StartHTTP(store, port) }()
+	t.Cleanup(func() { require.NoError(store.Close()) })
+	server := httptest.NewServer(saver.NewHTTPHandler(store))
+	t.Cleanup(server.Close)
+	port := server.Listener.Addr().(*net.TCPAddr).Port
 	return store, port
 }
 
@@ -307,7 +318,7 @@ type testNetwork struct {
 	parties     party.IDSlice
 	msgChannels map[party.ID]chan []byte
 	mtgChannels map[party.ID]chan []byte
-	mtx         sync.Mutex
+	mtgQueue    chan struct{}
 }
 
 func newTestNetwork(parties party.IDSlice) *testNetwork {
@@ -315,6 +326,7 @@ func newTestNetwork(parties party.IDSlice) *testNetwork {
 		parties:     parties,
 		msgChannels: make(map[party.ID]chan []byte, 2*len(parties)),
 		mtgChannels: make(map[party.ID]chan []byte, 2*len(parties)),
+		mtgQueue:    make(chan struct{}, 1),
 	}
 	N := len(n.parties)
 	for _, id := range n.parties {
@@ -324,11 +336,32 @@ func newTestNetwork(parties party.IDSlice) *testNetwork {
 	return n
 }
 
+func testRunWorker(ctx context.Context, run func(context.Context)) {
+	// Workers report database and network errors by panicking. During fixture
+	// teardown, recover cancellation and its SQL rollback errors only.
+	defer func() {
+		if value := recover(); value != nil {
+			err, ok := value.(error)
+			if ok && ctx.Err() != nil && (errors.Is(err, ctx.Err()) || errors.Is(err, sql.ErrTxDone)) {
+				return
+			}
+			panic(value)
+		}
+	}()
+	run(ctx)
+}
+
 func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 	filter := make(map[string]bool)
 	loop := n.mtgChannels[node.id]
 	logger.Printf("loop: %s %d", node.id, len(loop))
-	for mob := range loop {
+	for ctx.Err() == nil {
+		var mob []byte
+		select {
+		case <-ctx.Done():
+			return
+		case mob = <-loop:
+		}
 		k := hex.EncodeToString(mob)
 		if filter[k] {
 			continue
@@ -359,14 +392,12 @@ func (n *testNetwork) mtgLoop(ctx context.Context, node *Node) {
 func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
 	sequence += 1
 	out := &mtg.Action{
-		UnifiedOutput: mtg.UnifiedOutput{
-			OutputId:           uuid.Must(uuid.NewV4()).String(),
-			AppId:              node.conf.AppId,
-			Senders:            []string{string(node.id)},
-			AssetId:            node.conf.AssetId,
-			Sequence:           sequence,
-			SequencerCreatedAt: time.Now(),
-		},
+		OutputId:           uuid.Must(uuid.NewV4()).String(),
+		AppId:              node.conf.AppId,
+		Senders:            []string{string(node.id)},
+		AssetId:            node.conf.AssetId,
+		Sequence:           sequence,
+		SequencerCreatedAt: time.Now(),
 	}
 	out.Extra = mtg.EncodeMixinExtraBase64(node.conf.AppId, memo)
 	out.Extra = hex.EncodeToString([]byte(out.Extra))
@@ -376,8 +407,16 @@ func (node *Node) mtgQueueTestOutput(ctx context.Context, memo []byte) error {
 }
 
 func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	id := ctx.Value(partyContextKey).(string)
-	msb := <-n.msgChannel(party.ID(id))
+	var msb []byte
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case msb = <-n.msgChannel(party.ID(id)):
+	}
 	_, msg, _ := unmarshalSessionMessage(msb)
 	return &messenger.MixinMessage{
 		Peer:      string(msg.From),
@@ -387,37 +426,49 @@ func (n *testNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessa
 }
 
 func (n *testNetwork) QueueMessage(ctx context.Context, receiver string, b []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	sessionId, msg, err := unmarshalSessionMessage(b)
 	logger.Verbosef("test.QueueMessage(%s) => %x %v %v", receiver, sessionId, msg, err)
 	if err != nil {
 		return err
 	}
-	n.msgChannel(party.ID(receiver)) <- marshalSessionMessage(sessionId, msg)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case n.msgChannel(party.ID(receiver)) <- marshalSessionMessage(sessionId, msg):
+	}
 	logger.Verbosef("test.Send(%s) => %x %v %v", receiver, sessionId, msg, err)
 	return nil
 }
 
 func (n *testNetwork) QueueMTGOutput(ctx context.Context, b []byte) error {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case n.mtgQueue <- struct{}{}:
+	}
+	defer func() { <-n.mtgQueue }()
 
 	for _, c := range n.mtgChannels {
-		c <- b
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case c <- b:
+		}
 	}
 	return nil
 }
 
 func (n *testNetwork) mtgChannel(id party.ID) chan []byte {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-
 	return n.mtgChannels[id]
 }
 
 func (n *testNetwork) msgChannel(id party.ID) chan []byte {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-
 	return n.msgChannels[id]
 }
 

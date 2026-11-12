@@ -18,7 +18,7 @@ func TestObserverJSONErrorsContainReadableMessages(t *testing.T) {
 		node.httpApproveAccount, node.httpApproveTransaction, node.httpSignRecovery, node.httpCreateInheritanceTransaction,
 	} {
 		response := httptest.NewRecorder()
-		handler(response, httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{")), nil)
+		handler(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader("{")), nil)
 		require.Equal(t, http.StatusBadRequest, response.Code)
 		var body struct {
 			Error string `json:"error"`
@@ -33,7 +33,7 @@ func TestObserverChainListWaitsForOperationParameters(t *testing.T) {
 	_, err := f.keeperDB.ExecContext(t.Context(), `INSERT INTO network_infos
 		(request_id,chain,fee,height,hash,created_at) VALUES ('head',?,1,100,'hash',?)`, common.SafeChainBitcoin, time.Now().Add(-time.Minute))
 	require.NoError(t, err)
-	r := httptest.NewRequest(http.MethodGet, "/chains", nil).WithContext(t.Context())
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/chains", nil)
 	w := httptest.NewRecorder()
 	f.node.httpListChains(w, r, nil)
 	require.Equal(t, http.StatusOK, w.Code)

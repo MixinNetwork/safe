@@ -28,7 +28,7 @@ func testSignatureTimeoutRetries(ctx context.Context, require *require.Assertion
 	bitcoin := common.NormalizeCurve(req.Curve) == common.CurveSecp256k1ECDSABitcoin
 	if bitcoin {
 		earlyID := common.UniqueId(req.Id, "before signing timeout")
-		early := testBuildObserverRequest(node, earlyID, req.Holder, req.Action, req.ExtraBytes(), req.Curve)
+		early := testBuildObserverRequest(ctx, node, earlyID, req.Holder, req.Action, req.ExtraBytes(), req.Curve)
 		early.SequencerCreatedAt = approval.SequencerCreatedAt.Add(SafeSignatureTimeout - time.Nanosecond)
 		testStep(ctx, require, node, early)
 		failed, err := node.store.ReadRequest(ctx, earlyID)
@@ -46,7 +46,7 @@ func testSignatureTimeoutRetries(ctx context.Context, require *require.Assertion
 	previousID := req.Id
 	for attempt := 1; attempt <= 2; attempt++ {
 		retryID := common.UniqueId(previousID, "signing timeout")
-		retry := testBuildObserverRequest(node, retryID, req.Holder, req.Action, req.ExtraBytes(), req.Curve)
+		retry := testBuildObserverRequest(ctx, node, retryID, req.Holder, req.Action, req.ExtraBytes(), req.Curve)
 		retry.SequencerCreatedAt = approval.SequencerCreatedAt.Add(time.Duration(attempt) * SafeSignatureTimeout)
 		testStep(ctx, require, node, retry)
 		accepted, err := node.store.ReadRequest(ctx, retryID)

@@ -26,7 +26,7 @@ import (
 func TestHTTPPendingDepositsRejectsInvalidChains(t *testing.T) {
 	node := &Node{}
 	for _, chain := range []string{"", "0", "3", "-1", "257", "262", "bitcoin", "2x"} {
-		r := httptest.NewRequest(http.MethodGet, "/deposits/pending?chain="+chain, nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/deposits/pending?chain="+chain, nil)
 		w := httptest.NewRecorder()
 		node.httpListPendingDeposits(w, r, nil)
 		require.Equal(t, http.StatusBadRequest, w.Code, chain)
@@ -277,7 +277,7 @@ func TestHTTPPendingDepositsReadsOnlyCache(t *testing.T) {
 			node.store.db.SetMaxOpenConns(1)
 			_, err := node.store.db.ExecContext(t.Context(), "PRAGMA query_only=ON")
 			require.NoError(t, err)
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deposits/pending?chain=%d&holder=%s", tc.chain, tc.holder), nil).WithContext(t.Context())
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("/deposits/pending?chain=%d&holder=%s", tc.chain, tc.holder), nil)
 			w := httptest.NewRecorder()
 			node.httpListPendingDeposits(w, r, nil)
 			status := tc.status
@@ -394,7 +394,7 @@ func getPendingDepositsHTTP(t *testing.T, f *transactionHTTPFixture, chain byte,
 	if pending {
 		path, handler = "/deposits/pending", f.node.httpListPendingDeposits
 	}
-	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s?chain=%d&holder=%s", path, chain, holder), nil).WithContext(t.Context())
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("%s?chain=%d&holder=%s", path, chain, holder), nil)
 	w := httptest.NewRecorder()
 	handler(w, r, nil)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())

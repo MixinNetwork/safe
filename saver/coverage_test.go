@@ -80,7 +80,7 @@ func TestSaverStoreInvalidKeyAndOpenFailure(t *testing.T) {
 
 	store, err := OpenSQLite3Store(t.TempDir() + "/invalid-key.sqlite3")
 	require.NoError(t, err)
-	_, err = store.db.Exec(
+	_, err = store.db.ExecContext(t.Context(),
 		"INSERT INTO tokens (node_id, public_key, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
 		"invalid", "not-a-key",
 	)
@@ -105,7 +105,7 @@ func TestSaverHTTPCreateItemValidation(t *testing.T) {
 		createItem(w, r, nil)
 	}), store)
 
-	request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString("{"))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", bytes.NewBufferString("{"))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	require.Equal(t, http.StatusBadRequest, response.Code)
@@ -124,7 +124,7 @@ func TestSaverHTTPCreateItemValidation(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Contains(t, response.Body.String(), `"id":"item-http"`)
 
-	_, err = store.db.Exec("DROP TABLE items")
+	_, err = store.db.ExecContext(t.Context(), "DROP TABLE items")
 	require.NoError(t, err)
 	failing := saverCoverageSignedBody(private, "store-error", "node-1", "session", "public", "share")
 	response = saverCoveragePost(t, handler, failing)
@@ -133,7 +133,7 @@ func TestSaverHTTPCreateItemValidation(t *testing.T) {
 
 func TestSaverHTTPRootSessionAndListenError(t *testing.T) {
 	response := httptest.NewRecorder()
-	root(response, httptest.NewRequest(http.MethodGet, "/", nil), nil)
+	root(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil), nil)
 	require.Equal(t, http.StatusOK, response.Code)
 	require.JSONEq(t, `{}`, response.Body.String())
 
@@ -144,7 +144,7 @@ func TestSaverHTTPRootSessionAndListenError(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}), wantStore)
 	response = httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	handler.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 	require.Equal(t, wantStore, gotStore)
 	require.Equal(t, http.StatusNoContent, response.Code)
 
@@ -163,7 +163,7 @@ func saverCoveragePost(t *testing.T, handler http.Handler, body coverageCreateIt
 	t.Helper()
 	raw, err := json.Marshal(body)
 	require.NoError(t, err)
-	request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(raw))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", bytes.NewReader(raw))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response

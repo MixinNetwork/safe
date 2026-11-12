@@ -63,7 +63,7 @@ func TestIncomingMessagesCheckDecodeErrorBeforeLogging(t *testing.T) {
 		stop:     errors.New("end of scripted messages"),
 	}
 	node := &Node{network: network}
-	require.PanicsWithError(t, network.stop.Error(), func() { node.acceptIncomingMessages(context.Background()) })
+	require.PanicsWithError(t, network.stop.Error(), func() { node.acceptIncomingMessages(t.Context()) })
 	require.Equal(t, len(network.messages), network.received)
 }
 

@@ -20,7 +20,7 @@ import (
 
 func TestFROSTSigner(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes, saverStore := TestPrepare(require)
+	ctx, nodes, saverStore := TestPrepare(t)
 
 	msg := []byte("mixin safe")
 	public := testFROSTKeyGen(ctx, require, nodes, common.CurveEdwards25519Default)

@@ -15,15 +15,19 @@ import (
 type storeContextKey struct{}
 
 func StartHTTP(store *SQLite3Store, port int) error {
+	listen := fmt.Sprintf(":%d", port)
+	return http.ListenAndServe(listen, NewHTTPHandler(store))
+}
+
+// NewHTTPHandler serves the saver API using store.
+func NewHTTPHandler(store *SQLite3Store) http.Handler {
 	router := httptreemux.New()
 	router.PanicHandler = common.HandlePanic
 	router.NotFoundHandler = common.HandleNotFound
 
 	router.GET("/", root)
 	router.POST("/", createItem)
-	handler := handleSession(router, store)
-	listen := fmt.Sprintf(":%d", port)
-	return http.ListenAndServe(listen, handler)
+	return handleSession(router, store)
 }
 
 func root(w http.ResponseWriter, r *http.Request, params map[string]string) {

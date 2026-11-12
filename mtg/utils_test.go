@@ -1,7 +1,6 @@
 package mtg
 
 import (
-	"context"
 	"database/sql"
 	"io"
 	"net/http"
@@ -35,7 +34,7 @@ func TestGhostKeysRejectMalformedResponses(t *testing.T) {
 			t.Cleanup(func() { resty.SetBaseURL(previous) })
 			group := &Group{mixin: mixin.NewFromAccessToken("test")}
 			address := mixin.RequireNewMixAddress([]string{"0ca34767-3a70-4a28-afd9-51c9bce4ecf5"}, 1)
-			_, err := group.createGhostKeysUntilSufficient(context.Background(), &Transaction{TraceId: "trace"}, []*TransactionRecipient{{MixAddress: address, UuidMember: true}})
+			_, err := group.createGhostKeysUntilSufficient(t.Context(), &Transaction{TraceId: "trace"}, []*TransactionRecipient{{MixAddress: address, UuidMember: true}})
 			require.ErrorContains(t, err, "ghost keys")
 		})
 	}

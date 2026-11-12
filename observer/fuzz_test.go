@@ -47,7 +47,7 @@ func FuzzObserverHTTPPostRequests(f *testing.F) {
 		if len(body) > 64<<10 || len(id) > 4<<10 {
 			t.Skip()
 		}
-		req := httptest.NewRequest(http.MethodPost, "http://observer.invalid/", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "http://observer.invalid/", bytes.NewReader(body))
 		recorder := httptest.NewRecorder()
 		params := map[string]string{"id": id}
 

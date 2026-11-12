@@ -19,7 +19,7 @@ import (
 )
 
 func TestCoveragePropertiesRequestsNetworkAndKeys(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s, _ := coverageStore(t)
 
 	value, err := s.ReadProperty(ctx, "missing")
@@ -163,7 +163,7 @@ func TestCoveragePropertiesRequestsNetworkAndKeys(t *testing.T) {
 }
 
 func TestCoverageSafesBitcoinAndEthereumDeposits(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s, _ := coverageStore(t)
 	now := time.Now().UTC()
 
@@ -268,7 +268,7 @@ func TestCoverageSafesBitcoinAndEthereumDeposits(t *testing.T) {
 	missingDeposit, err := s.ReadDeposit(ctx, "missing", 0)
 	require.NoError(t, err)
 	require.Nil(t, missingDeposit)
-	_, err = s.db.Exec("UPDATE bitcoin_outputs SET state=? WHERE transaction_hash=? AND output_index=?", common.RequestStatePending, utxo.TransactionHash, utxo.Index)
+	_, err = s.db.ExecContext(t.Context(), "UPDATE bitcoin_outputs SET state=? WHERE transaction_hash=? AND output_index=?", common.RequestStatePending, utxo.TransactionHash, utxo.Index)
 	require.NoError(t, err)
 	pendingUTXOs, err := s.ListPendingBitcoinUTXOsForHolder(ctx, bitcoinSafe.Holder)
 	require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestCoverageSafesBitcoinAndEthereumDeposits(t *testing.T) {
 }
 
 func TestCoverageTransactionsSignaturesAndInheritance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s, _ := coverageStore(t)
 	now := time.Now().UTC()
 
@@ -458,10 +458,10 @@ func TestCoverageTransactionsSignaturesAndInheritance(t *testing.T) {
 }
 
 func TestCoverageAssetMigrationAndReadOnlyStore(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s, path := coverageStore(t)
 
-	_, err := s.db.Exec("INSERT INTO migrate_assets (safe_asset_id,chain,address,asset_id) VALUES (?,?,?,?)", "safe-asset", common.SafeChainPolygon, "address", "asset")
+	_, err := s.db.ExecContext(t.Context(), "INSERT INTO migrate_assets (safe_asset_id,chain,address,asset_id) VALUES (?,?,?,?)", "safe-asset", common.SafeChainPolygon, "address", "asset")
 	require.NoError(t, err)
 	migrated, err := s.CheckMigrateAsset(ctx, "address", "asset")
 	require.NoError(t, err)

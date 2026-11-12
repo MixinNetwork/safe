@@ -52,7 +52,7 @@ func TestEmptySignatureRequestsPreserveAtomicity(t *testing.T) {
 			req := coverageRequest(common.ActionBitcoinSafeApproveTransaction)
 			require.NoError(t, s.WriteRequestIfNotExist(t.Context(), req))
 			if failAction {
-				_, err := s.db.Exec("DROP TABLE action_results")
+				_, err := s.db.ExecContext(t.Context(), "DROP TABLE action_results")
 				require.NoError(t, err)
 			}
 			err := s.WriteSignatureRequestsWithRequest(t.Context(), nil, "", "", req, nil)

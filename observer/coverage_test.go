@@ -29,7 +29,7 @@ import (
 )
 
 func TestCoverageObserverPropertiesAccountsAssetsCachesAndStats(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := coverageObserverStore(t)
 
 	value, err := s.ReadProperty(ctx, "missing")
@@ -99,7 +99,7 @@ func TestCoverageObserverPropertiesAccountsAssetsCachesAndStats(t *testing.T) {
 	value, err = s.ReadCache(ctx, "cache", time.Hour)
 	require.NoError(t, err)
 	require.Equal(t, "two", value)
-	_, err = s.db.Exec("UPDATE caches SET created_at=? WHERE key=?", time.Now().Add(-2*time.Hour), "cache")
+	_, err = s.db.ExecContext(t.Context(), "UPDATE caches SET created_at=? WHERE key=?", time.Now().Add(-2*time.Hour), "cache")
 	require.NoError(t, err)
 	value, err = s.ReadCache(ctx, "cache", time.Hour)
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestCoverageObserverPropertiesAccountsAssetsCachesAndStats(t *testing.T) {
 }
 
 func TestCoverageObserverDepositsAndTransactions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := coverageObserverStore(t)
 	now := time.Now().UTC().Add(-time.Minute)
 
@@ -210,7 +210,7 @@ func TestCoverageObserverDepositsAndTransactions(t *testing.T) {
 }
 
 func TestCoverageObserverRecoveriesKeysAndBitcoinOutputs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := coverageObserverStore(t)
 	now := time.Now().UTC()
 
@@ -368,7 +368,7 @@ func TestCoverageObserverRecoveriesKeysAndBitcoinOutputs(t *testing.T) {
 }
 
 func TestCoverageObserverBitcoinAssignmentRetryKeepsSingleReservation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := coverageObserverStore(t)
 	now := time.Now().UTC()
 	spending := coverageObserverTransaction("reserved-transaction", common.RequestStateDone, common.SafeChainBitcoin, now)
@@ -383,7 +383,7 @@ func TestCoverageObserverBitcoinAssignmentRetryKeepsSingleReservation(t *testing
 	}
 	require.NoError(t, s.WriteBitcoinUTXOIfNotExists(ctx, spare))
 	require.NoError(t, s.WriteBitcoinUTXOIfNotExists(ctx, reserved))
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(t.Context(),
 		"UPDATE bitcoin_outputs SET state=?,spent_by=? WHERE transaction_hash=? AND output_index=?",
 		common.RequestStateDone, spending.TransactionHash, reserved.TransactionHash, reserved.Index,
 	)
@@ -399,7 +399,7 @@ func TestCoverageObserverBitcoinAssignmentRetryKeepsSingleReservation(t *testing
 }
 
 func TestCoverageObserverPureHelpersAndCheckpoints(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := coverageObserverStore(t)
 	bitcoinConfig := ChainParams{OperationPriceAssetId: "bitcoin-asset", OperationPriceAmount: "1", TransactionMinimum: "2"}
 	litecoinConfig := ChainParams{OperationPriceAssetId: "litecoin-asset", OperationPriceAmount: "3", TransactionMinimum: "4"}
@@ -556,7 +556,7 @@ func TestCoverageObserverEthereumDepositUsesChainParams(t *testing.T) {
 }
 
 func TestCoverageObserverHTTPAndEarlyNodeBranches(t *testing.T) {
-	ctx := common.EnableTestEnvironment(context.Background())
+	ctx := common.EnableTestEnvironment(t.Context())
 	s := coverageObserverStore(t)
 	kd, err := keeperstore.OpenSQLite3Store(t.TempDir() + "/keeper.sqlite3")
 	require.NoError(t, err)
@@ -578,12 +578,12 @@ func TestCoverageObserverHTTPAndEarlyNodeBranches(t *testing.T) {
 	call := func(method, target, body string, handler func(http.ResponseWriter, *http.Request, map[string]string), params map[string]string) *httptest.ResponseRecorder {
 		t.Helper()
 		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(method, target, strings.NewReader(body)).WithContext(ctx)
+		request := httptest.NewRequestWithContext(ctx, method, target, strings.NewReader(body))
 		handler(recorder, request, params)
 		return recorder
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "https://safe.mixin.dev/", nil).WithContext(ctx)
+	request := httptest.NewRequestWithContext(ctx, http.MethodGet, "https://safe.mixin.dev/", nil)
 	request.Host = "safe.mixin.dev"
 	recorder := httptest.NewRecorder()
 	node.httpIndex(recorder, request, nil)

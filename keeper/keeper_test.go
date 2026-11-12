@@ -60,7 +60,7 @@ var sequence uint64 = 5000000
 
 func TestBitcoinKeeper(t *testing.T) {
 	require := require.New(t)
-	ctx, node, db, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(t)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
@@ -140,7 +140,7 @@ func TestBitcoinKeeper(t *testing.T) {
 
 func TestBitcoinKeeperCheckBitcoinChangeDoubleSpend(t *testing.T) {
 	require := require.New(t)
-	ctx, node, db, mpc, _ := testPrepare(require)
+	ctx, node, db, mpc, _ := testPrepare(t)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
@@ -205,7 +205,7 @@ func TestBitcoinKeeperCheckBitcoinChangeDoubleSpend(t *testing.T) {
 
 func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, db, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(t)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
@@ -266,7 +266,7 @@ func TestBitcoinKeeperCloseAccountWithSignerObserver(t *testing.T) {
 
 func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, db, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(t)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
@@ -319,7 +319,7 @@ func TestBitcoinKeeperCloseAccountWithHolderObserver(t *testing.T) {
 
 func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 	require := require.New(t)
-	ctx, node, db, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(t)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
@@ -466,7 +466,7 @@ func TestBitcoinKeeperSetInheritanceLocks(t *testing.T) {
 
 func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) {
 	require := require.New(t)
-	ctx, node, db, mpc, signers := testPrepare(require)
+	ctx, node, db, mpc, signers := testPrepare(t)
 
 	observer := testPublicKey(testBitcoinKeyObserverPrivate)
 	bondId := testDeployBondContract(ctx, require, node, testSafeAddress, common.SafeBitcoinChainId)
@@ -551,7 +551,7 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	err = node.store.WriteProperty(ctx, ref.String(), base64.RawURLEncoding.EncodeToString(raw))
 	require.Nil(err)
 	requestId := common.UniqueId(l.LockId, ref.String())
-	out := testBuildObserverRequest(node, requestId, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, requestId, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	pendings, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, public)
 	require.Nil(err)
@@ -571,7 +571,7 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 
 	// A retry before the signing timeout must not create another request.
 	earlyID := common.UniqueId(requestId, "early retry")
-	early := testBuildObserverRequest(node, earlyID, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
+	early := testBuildObserverRequest(ctx, node, earlyID, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
 	early.SequencerCreatedAt = out.SequencerCreatedAt.Add(SafeSignatureTimeout / 2)
 	testStep(ctx, require, node, early)
 	earlyReq, err := node.store.ReadRequest(ctx, earlyID)
@@ -594,7 +594,7 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	conflictingRef := crypto.Sha256Hash(conflictingRaw)
 	require.NoError(node.store.WriteProperty(ctx, conflictingRef.String(), base64.RawURLEncoding.EncodeToString(conflictingRaw)))
 	conflictingID := common.UniqueId(l.LockId, conflictingRef.String())
-	conflictingOut := testBuildObserverRequest(node, conflictingID, public, common.ActionBitcoinSafeCloseAccountByInheritance, conflictingRef[:], common.CurveSecp256k1ECDSABitcoin)
+	conflictingOut := testBuildObserverRequest(ctx, node, conflictingID, public, common.ActionBitcoinSafeCloseAccountByInheritance, conflictingRef[:], common.CurveSecp256k1ECDSABitcoin)
 	conflictingOut.SequencerCreatedAt = out.SequencerCreatedAt.Add(SafeSignatureTimeout)
 	testStep(ctx, require, node, conflictingOut)
 	conflictingReq, err := node.store.ReadRequest(ctx, conflictingID)
@@ -602,7 +602,7 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	require.Equal(uint8(common.RequestStateFailed), conflictingReq.State)
 
 	retryID := common.UniqueId(requestId, "timed out retry")
-	retry := testBuildObserverRequest(node, retryID, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
+	retry := testBuildObserverRequest(ctx, node, retryID, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
 	retry.SequencerCreatedAt = out.SequencerCreatedAt.Add(2 * SafeSignatureTimeout)
 	testStep(ctx, require, node, retry)
 	retryReq, err := node.store.ReadRequest(ctx, retryID)
@@ -621,9 +621,9 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 
 	// The new signing session must complete the original recovery transaction.
 	msg := common.DecodeHexOrPanic(pending.Message)
-	sign := testBuildSignerOutput(node, pending.RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
+	sign := testBuildSignerOutput(ctx, node, pending.RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 	op := signer.TestProcessOutput(ctx, require, signers, sign, pending.RequestId)
-	response := testBuildSignerOutput(node, pending.RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+	response := testBuildSignerOutput(ctx, node, pending.RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
 	response.SequencerCreatedAt = retry.SequencerCreatedAt.Add(time.Second)
 	testStep(ctx, require, node, response)
 	finished, err := node.store.ReadTransaction(ctx, psTx.Hash())
@@ -637,9 +637,11 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	require.True(completed[0].Signature.Valid)
 }
 
-func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
+func testPrepare(t *testing.T) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
+	t.Helper()
+	require := require.New(t)
 	logger.SetLevel(logger.INFO)
-	ctx, signers, _ := signer.TestPrepare(require)
+	ctx, signers, _ := signer.TestPrepare(t)
 	mpc, cc := signer.TestCMPPrepareKeys(ctx, require, signers, common.CurveSecp256k1ECDSABitcoin)
 	chainCode := common.DecodeHexOrPanic(cc)
 
@@ -655,7 +657,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLi
 	id := uuid.Must(uuid.NewV4()).String()
 	extra := append([]byte{common.RequestRoleSigner}, chainCode...)
 	extra = append(extra, common.RequestFlagNone)
-	out := testBuildSignerOutput(node, id, mpc, common.OperationTypeKeygenOutput, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildSignerOutput(ctx, node, id, mpc, common.OperationTypeKeygenOutput, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	v, err := node.store.ReadProperty(ctx, id)
 	require.Nil(err)
@@ -667,7 +669,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLi
 	occ := common.DecodeHexOrPanic(testBitcoinKeyObserverChainCode)
 	extra = append([]byte{common.RequestRoleObserver}, occ...)
 	extra = append(extra, common.RequestFlagNone)
-	out = testBuildObserverRequest(node, id, observer, common.ActionObserverAddKey, extra, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildObserverRequest(ctx, node, id, observer, common.ActionObserverAddKey, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	v, err = node.store.ReadProperty(ctx, id)
 	require.Nil(err)
@@ -677,7 +679,7 @@ func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLi
 	batch := byte(64)
 	id = uuid.Must(uuid.NewV4()).String()
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
-	out = testBuildObserverRequest(node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildObserverRequest(ctx, node, id, dummy, common.ActionObserverRequestSignerKeys, []byte{batch}, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	signerMembers := node.GetSigners()
 	for i := range byte(batch) {
@@ -718,7 +720,7 @@ func testUpdateAccountPrice(ctx context.Context, require *require.Assertions, no
 	extra = binary.BigEndian.AppendUint64(extra, testAccountPriceAmount*100000000)
 	extra = binary.BigEndian.AppendUint64(extra, 10000)
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
-	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, dummy, common.ActionObserverSetOperationParams, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
 	plan, err := node.store.ReadLatestOperationParams(ctx, common.SafeChainBitcoin, time.Now())
@@ -738,7 +740,7 @@ func testUpdateNetworkStatus(ctx context.Context, require *require.Assertions, n
 	extra = binary.BigEndian.AppendUint64(extra, height)
 	extra = append(extra, hash[:]...)
 	dummy := testPublicKey(testBitcoinKeyDummyHolderPrivate)
-	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
 	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainBitcoin, time.Now())
@@ -770,7 +772,7 @@ func testSafeRevokeTransaction(ctx context.Context, require *require.Assertions,
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	extra = append(extra, sig...)
 
-	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeRevokeTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeRevokeTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
 	require.Nil(err)
@@ -824,7 +826,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	extra = append(extra, ref[:]...)
 
-	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeApproveTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeApproveTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
 	approval := out
 	testStep(ctx, require, node, out)
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
@@ -834,9 +836,9 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	require.Equal(common.RequestStatePending, tx.State)
 
 	msg, _ := hex.DecodeString(requests[0].Message)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildSignerOutput(ctx, node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildSignerOutput(ctx, node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStatePending)
 	require.Len(requests, 1)
@@ -848,9 +850,9 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	requests = testSignatureTimeoutRetries(ctx, require, node, approval, transactionHash)
 
 	msg, _ = hex.DecodeString(requests[1].Message)
-	out = testBuildSignerOutput(node, requests[1].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildSignerOutput(ctx, node, requests[1].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 	op = signer.TestProcessOutput(ctx, require, signers, out, requests[1].RequestId)
-	out = testBuildSignerOutput(node, requests[1].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildSignerOutput(ctx, node, requests[1].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
 	out.SequencerCreatedAt = requests[1].CreatedAt.Add(time.Second)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
@@ -906,7 +908,7 @@ func testSafeApproveLockTransaction(ctx context.Context, require *require.Assert
 	extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 	extra = append(extra, ref[:]...)
 
-	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeApproveTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeApproveTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
 	require.Nil(err)
@@ -915,9 +917,9 @@ func testSafeApproveLockTransaction(ctx context.Context, require *require.Assert
 	require.Equal(common.RequestStatePending, tx.State)
 
 	msg, _ := hex.DecodeString(requests[0].Message)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildSignerOutput(ctx, node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
-	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+	out = testBuildSignerOutput(ctx, node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
 	require.Len(requests, 0)
@@ -952,7 +954,7 @@ func testSafeProposeTransaction(ctx context.Context, require *require.Assertions
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
-	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.000123))
+	out := testBuildHolderRequest(ctx, node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.000123))
 	testStep(ctx, require, node, out)
 
 	b := testReadObserverResponse(ctx, require, node, rid, common.ActionBitcoinSafeProposeTransaction)
@@ -989,7 +991,7 @@ func testSafeProposeRecoveryTransaction(ctx context.Context, require *require.As
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
-	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.001))
+	out := testBuildHolderRequest(ctx, node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.001))
 	testStep(ctx, require, node, out)
 
 	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
@@ -1038,7 +1040,7 @@ func testSafeSetInheritanceLock(ctx context.Context, require *require.Assertions
 	}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
 	extra = append(extra, []byte(testTransactionReceiver)...)
-	out := testBuildHolderRequest(node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))
+	out := testBuildHolderRequest(ctx, node, rid, holder, common.ActionBitcoinSafeProposeTransaction, bondId, extra, decimal.NewFromFloat(0.0001))
 	testStep(ctx, require, node, out)
 
 	pendings, err := node.store.ListPendingBitcoinUTXOsForHolder(ctx, holder)
@@ -1148,7 +1150,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		extra := uuid.Must(uuid.FromString(tx.RequestId)).Bytes()
 		extra = append(extra, ref[:]...)
 
-		out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
+		out := testBuildObserverRequest(ctx, node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 		testStep(ctx, require, node, out)
 		requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
 		require.Nil(err)
@@ -1159,9 +1161,9 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		requests = testSignatureTimeoutRetries(ctx, require, node, out, transactionHash)
 
 		msg, _ := hex.DecodeString(requests[0].Message)
-		out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
+		out = testBuildSignerOutput(ctx, node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 		op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
-		out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+		out = testBuildSignerOutput(ctx, node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
 		out.SequencerCreatedAt = requests[0].CreatedAt.Add(time.Second)
 		testStep(ctx, require, node, out)
 		requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStatePending)
@@ -1220,7 +1222,7 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 	extra := uuid.Nil.Bytes()
 	extra = append(extra, ref[:]...)
 	id := uuid.FromBytesOrNil(msgTx.TxOut[1].PkScript[2:]).String()
-	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeCloseAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
 	stx := node.buildStorageTransaction(ctx, &common.Request{Sequence: action.Sequence, Output: action}, []byte(common.Base91Encode(raw)))
@@ -1256,7 +1258,7 @@ func testObserverHolderDeposit(ctx context.Context, require *require.Assertions,
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	wsa, _ := node.buildBitcoinWitnessAccountWithDerivation(ctx, holder, signer, observer, bitcoinDefaultDerivationPath(), testTimelockDuration, common.SafeChainBitcoin)
 
-	out := testBuildObserverRequest(node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, holder, common.ActionObserverHolderDeposit, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 
 	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, holder)
@@ -1276,7 +1278,7 @@ func testSafeProposeAccount(ctx context.Context, require *require.Assertions, no
 	holder := testPublicKey(testBitcoinKeyHolderPrivate)
 	extra := testRecipient()
 	price := decimal.NewFromFloat(testAccountPriceAmount)
-	out := testBuildHolderRequest(node, id, holder, common.ActionBitcoinSafeProposeAccount, testAccountPriceAssetId, extra, price)
+	out := testBuildHolderRequest(ctx, node, id, holder, common.ActionBitcoinSafeProposeAccount, testAccountPriceAssetId, extra, price)
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, id, common.ActionBitcoinSafeProposeAccount)
 	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(b)
@@ -1311,7 +1313,7 @@ func testSafeApproveAccount(ctx context.Context, require *require.Assertions, no
 	signature := ecdsa.Sign(hp, hash)
 	extra := uuid.FromStringOrNil(rid).Bytes()
 	extra = append(extra, signature.Serialize()...)
-	out := testBuildObserverRequest(node, id, holder, common.ActionBitcoinSafeApproveAccount, extra, common.CurveSecp256k1ECDSABitcoin)
+	out := testBuildObserverRequest(ctx, node, id, holder, common.ActionBitcoinSafeApproveAccount, extra, common.CurveSecp256k1ECDSABitcoin)
 	testStep(ctx, require, node, out)
 	b := testReadObserverResponse(ctx, require, node, id, common.ActionBitcoinSafeApproveAccount)
 	wsa, err := bitcoin.UnmarshalWitnessScriptAccount(b)
@@ -1414,7 +1416,7 @@ func testReadObserverResponse(ctx context.Context, require *require.Assertions, 
 	return b
 }
 
-func testBuildHolderRequest(node *Node, id, public string, action byte, assetId string, extra []byte, amount decimal.Decimal) *mtg.Action {
+func testBuildHolderRequest(ctx context.Context, node *Node, id, public string, action byte, assetId string, extra []byte, amount decimal.Decimal) *mtg.Action {
 	crv := byte(common.CurveSecp256k1ECDSABitcoin)
 	switch action {
 	case common.ActionBitcoinSafeProposeAccount, common.ActionBitcoinSafeProposeTransaction:
@@ -1438,16 +1440,16 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 			AssetId:            assetId,
 			Extra:              memo,
 			Amount:             amount,
-			SequencerCreatedAt: testRequestTime(node),
+			SequencerCreatedAt: testRequestTime(ctx, node),
 			Sequence:           sequence,
 		},
 	}
 }
 
 // Keep later actions ordered after tests advance time to exercise a timeout.
-func testRequestTime(node *Node) time.Time {
+func testRequestTime(ctx context.Context, node *Node) time.Time {
 	now := time.Now()
-	latest, err := node.store.ReadLatestRequest(context.Background())
+	latest, err := node.store.ReadLatestRequest(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -1457,7 +1459,7 @@ func testRequestTime(node *Node) time.Time {
 	return now
 }
 
-func testBuildObserverRequest(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+func testBuildObserverRequest(ctx context.Context, node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
 	sequence += 10
 
 	op := &common.Operation{
@@ -1469,7 +1471,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 	}
 	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptObserverOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
-	timestamp := testRequestTime(node)
+	timestamp := testRequestTime(ctx, node)
 	if action == common.ActionObserverAddKey {
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
@@ -1488,7 +1490,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 	}
 }
 
-func testBuildSignerOutput(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
+func testBuildSignerOutput(ctx context.Context, node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
 	sequence += 10
 
 	path := bitcoinDefaultDerivationPath()
@@ -1505,7 +1507,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Curve: crv,
 		Extra: extra,
 	}
-	timestamp := testRequestTime(node)
+	timestamp := testRequestTime(ctx, node)
 	appId := node.conf.AppId
 	switch action {
 	case common.OperationTypeKeygenInput:

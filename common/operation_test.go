@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"encoding/hex"
 	"testing"
 
@@ -64,7 +63,7 @@ func TestOperation(t *testing.T) {
 
 func Test404(t *testing.T) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	asset, err := SafeReadAssetUntilSufficient(ctx, "c94ac88f-4671-3976-b60a-09064f1811e8", nil)
 	require.Nil(err)

@@ -332,16 +332,14 @@ func (node *Node) bitcoinRPCBlocksLoop(ctx context.Context, chain byte) {
 			if ckpt+delay > int64(height)+1 {
 				break
 			}
-			wg.Add(1)
 			checkpoint = ckpt
-			go func(current int64) {
-				defer wg.Done()
-				err := node.processBitcoinRPCBlock(ctx, chain, current)
-				logger.Printf("node.processBitcoinRPCBlock(%d %d) => %v", chain, current, err)
+			wg.Go(func() {
+				err := node.processBitcoinRPCBlock(ctx, chain, ckpt)
+				logger.Printf("node.processBitcoinRPCBlock(%d %d) => %v", chain, ckpt, err)
 				if err != nil {
 					panic(err)
 				}
-			}(ckpt)
+			})
 		}
 		wg.Wait()
 

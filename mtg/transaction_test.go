@@ -22,9 +22,9 @@ func TestMalformedMultisigResponseLeavesOutputsUnsigned(t *testing.T) {
 
 func TestStorageAcceptsExactRequiredBalance(t *testing.T) {
 	req := require.New(t)
-	ctx, node := testBuildGroup(req)
+	ctx, node := testBuildGroup(t.Context(), req)
 	group := node.Group
-	defer teardownTestDatabase(group.store)
+	defer teardownTestDatabase(t, group.store)
 	extra := []byte("storage")
 	amount := getStorageTransactionAmount(extra).String()
 	output := testBuildOutput(group, req, StorageAssetId, amount, "", SafeUtxoStateUnspent, group.epoch+1, "")

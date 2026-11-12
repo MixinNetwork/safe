@@ -1,7 +1,6 @@
 package mtg
 
 import (
-	"context"
 	"crypto/rand"
 	"slices"
 	"sort"
@@ -29,7 +28,7 @@ func TestGhostKeysUseOutputIndexForEveryMember(t *testing.T) {
 	}
 	// Both outputs have the same members; only the output index changes.
 	recipients := []*TransactionRecipient{{MixAddress: ma}, {MixAddress: ma}}
-	gks, err := (&Group{}).createGhostKeysUntilSufficient(context.Background(), tx, recipients)
+	gks, err := (&Group{}).createGhostKeysUntilSufficient(t.Context(), tx, recipients)
 	require.NoError(t, err)
 	for outputIndex := range recipients {
 		for memberIndex, member := range ma.Members() {
@@ -44,8 +43,8 @@ func TestGhostKeysUseOutputIndexForEveryMember(t *testing.T) {
 
 func TestBuildTransactionOwnsSortedReceivers(t *testing.T) {
 	req := require.New(t)
-	ctx, node := testBuildGroup(req)
-	t.Cleanup(func() { teardownTestDatabase(node.Group.store) })
+	ctx, node := testBuildGroup(t.Context(), req)
+	t.Cleanup(func() { teardownTestDatabase(t, node.Group.store) })
 	outputs := testDrainInitialOutputs(ctx, req, node.Group, 1, "")
 	act := &Action{UnifiedOutput: *outputs[0]}
 	act.TestAttachActionToGroup(node.Group)

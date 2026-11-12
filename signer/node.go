@@ -3,7 +3,9 @@ package signer
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -46,6 +48,7 @@ type Node struct {
 
 	derivedKeysMutex sync.RWMutex
 	derivedKeys      map[crypto.Hash][2][]byte
+	operationWorkers sync.WaitGroup
 }
 
 func NewNode(store *SQLite3Store, group *mtg.Group, network Network, conf *Configuration, keeper *mtg.Configuration, mixin *mixin.Client, mw *common.MixinWallet, version string) *Node {
@@ -98,7 +101,11 @@ func (node *Node) Boot(ctx context.Context) {
 
 func (node *Node) loopBackup(ctx context.Context) {
 	for {
-		time.Sleep(5 * time.Second)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
 		keys, err := node.store.ListUnbackupedKeys(ctx, 1000)
 		if err != nil {
 			panic(err)
@@ -128,7 +135,11 @@ func (node *Node) loopBackup(ctx context.Context) {
 
 func (node *Node) loopInitialSessions(ctx context.Context) {
 	for {
-		time.Sleep(time.Millisecond * 500)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Millisecond * 500):
+		}
 		synced := node.synced(ctx)
 		if !synced {
 			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
@@ -157,7 +168,11 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 
 func (node *Node) loopPreparedSessions(ctx context.Context) {
 	for {
-		time.Sleep(time.Millisecond * 500)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Millisecond * 500):
+		}
 		synced := node.synced(ctx)
 		if !synced {
 			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
@@ -180,7 +195,7 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 			if res == nil {
 				continue
 			}
-			if err := <-res; err != nil {
+			if err := <-res; err != nil && ctx.Err() == nil {
 				panic(err)
 			}
 		}
@@ -214,7 +229,11 @@ func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
 
 func (node *Node) loopPendingSessions(ctx context.Context) {
 	for {
-		time.Sleep(time.Millisecond * 500)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Millisecond * 500):
+		}
 		synced := node.synced(ctx)
 		if !synced {
 			logger.Printf("group.Synced(%s) => %t", node.group.GenesisId(), synced)
@@ -232,6 +251,9 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 				op.Extra = common.DecodeHexOrPanic(op.Public)
 			case common.OperationTypeSignInput:
 				_, crv, share, path, err := node.readKeyByFingerPath(ctx, op.Curve, op.Public)
+				if ctx.Err() != nil {
+					return
+				}
 				if err != nil || crv != op.Curve {
 					panic(err)
 				}
@@ -280,7 +302,7 @@ func (node *Node) synced(ctx context.Context) bool {
 }
 
 func (node *Node) acceptIncomingMessages(ctx context.Context) {
-	for {
+	for ctx.Err() == nil {
 		mm, err := node.network.ReceiveMessage(ctx)
 		if err != nil {
 			panic(err)
@@ -302,7 +324,11 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 		}
 		mps := node.getSession(sessionId)
 		// TODO verify msg signature by sender public key
-		mps.incoming <- msg
+		select {
+		case <-ctx.Done():
+			return
+		case mps.incoming <- msg:
+		}
 		if msg.RoundNumber != MPCFirstMessageRound {
 			continue
 		}
@@ -350,8 +376,26 @@ func (node *Node) queueOperation(ctx context.Context, op *common.Operation, memb
 	node.operations[op.Id] = true
 
 	res := make(chan error, 1)
-	go func() { res <- node.startOperation(ctx, op, members) }()
+	node.operationWorkers.Go(func() {
+		res <- node.runOperation(ctx, op, members)
+	})
 	return res
+}
+
+func (node *Node) runOperation(ctx context.Context, op *common.Operation, members []party.ID) (err error) {
+	// Recover in the operation's goroutine so cancellation still produces a
+	// result for the caller. Unrelated failures retain their panic behavior.
+	defer func() {
+		if value := recover(); value != nil {
+			failure, ok := value.(error)
+			if ok && ctx.Err() != nil && (errors.Is(failure, ctx.Err()) || errors.Is(failure, sql.ErrTxDone)) {
+				err = ctx.Err()
+				return
+			}
+			panic(value)
+		}
+	}()
+	return node.startOperation(ctx, op, members)
 }
 
 func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionId []byte, roundTimeout time.Duration) (any, error) {

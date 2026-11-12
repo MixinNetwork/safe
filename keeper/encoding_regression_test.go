@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -41,7 +40,7 @@ func TestDepositExtraRequiresCompleteChainHeader(t *testing.T) {
 }
 
 func TestInheritanceExtraPreservesNetworkInfoID(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	db, err := OpenSQLite3Store(filepath.Join(t.TempDir(), "safe.sqlite3"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })

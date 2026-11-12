@@ -197,7 +197,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 	}
 	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
 	if err != nil {
-		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err)
+		return fmt.Errorf("store.ListSessionSignerResults(%s) => %d %w", op.Id, len(signers), err)
 	}
 	if len(signers) <= node.threshold {
 		return nil
@@ -210,7 +210,7 @@ func (node *Node) processSignerPrepare(ctx context.Context, op *common.Operation
 func (node *Node) processSignerResult(ctx context.Context, op *common.Operation, out *mtg.Action) ([]*mtg.Transaction, string) {
 	session, err := node.store.ReadSession(ctx, op.Id)
 	if err != nil {
-		panic(fmt.Errorf("store.ReadSession(%s) => %v %v", op.Id, session, err))
+		panic(fmt.Errorf("store.ReadSession(%s) => %v %w", op.Id, session, err))
 	}
 	if session == nil {
 		logger.Printf("ignore signer result for unknown session %s", op.Id)
@@ -225,18 +225,18 @@ func (node *Node) processSignerResult(ctx context.Context, op *common.Operation,
 	case common.OperationTypeKeygenInput:
 		err = node.store.WriteSessionSignerIfNotExist(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
 		if err != nil {
-			panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %v", op, err))
+			panic(fmt.Errorf("store.WriteSessionSignerIfNotExist(%v) => %w", op, err))
 		}
 	case common.OperationTypeSignInput:
 		err = node.store.UpdateSessionSigner(ctx, op.Id, out.Senders[0], op.Extra, out.SequencerCreatedAt, self)
 		if err != nil {
-			panic(fmt.Errorf("store.UpdateSessionSigner(%v) => %v", op, err))
+			panic(fmt.Errorf("store.UpdateSessionSigner(%v) => %w", op, err))
 		}
 	}
 
 	signers, err := node.store.ListSessionSignerResults(ctx, op.Id)
 	if err != nil {
-		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %v", op.Id, len(signers), err))
+		panic(fmt.Errorf("store.ListSessionSignerResults(%s) => %d %w", op.Id, len(signers), err))
 	}
 	finished, sig := node.verifySessionSignerResults(ctx, session, signers)
 	logger.Printf("node.verifySessionSignerResults(%v, %d) => %t %x", session, len(signers), finished, sig)

@@ -57,7 +57,7 @@ func TestCloseOrPanic(t *testing.T) {
 }
 
 func TestEnvironmentContext(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require.False(t, CheckTestEnvironment(ctx))
 	require.False(t, CheckTestEnvironment(context.WithValue(ctx, contextKeyEnvironment, 1)))
 	require.False(t, CheckTestEnvironment(context.WithValue(ctx, contextKeyEnvironment, "production")))

@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
@@ -118,9 +119,9 @@ func TestMTGExtra(t *testing.T) {
 
 func TestMTGCompaction(t *testing.T) {
 	require := require.New(t)
-	ctx, node := testBuildGroup(require)
+	ctx, node := testBuildGroup(t.Context(), require)
 	require.NotNil(node)
-	defer teardownTestDatabase(node.Group.store)
+	defer teardownTestDatabase(t, node.Group.store)
 
 	count := OutputsBatchSize*5 + 1
 	amount := "0.0181"
@@ -244,9 +245,9 @@ func TestCheckMultisigRequestRawTransaction(t *testing.T) {
 
 func TestMTGCheckTxs(t *testing.T) {
 	require := require.New(t)
-	ctx, node := testBuildGroup(require)
+	ctx, node := testBuildGroup(t.Context(), require)
 	require.NotNil(node)
-	defer teardownTestDatabase(node.Group.store)
+	defer teardownTestDatabase(t, node.Group.store)
 
 	testDrainInitialOutputs(ctx, require, node.Group, OutputsBatchSize+1, "0.003,0.0008")
 
@@ -266,9 +267,9 @@ func TestMTGCheckTxs(t *testing.T) {
 
 func TestMTGStorage(t *testing.T) {
 	require := require.New(t)
-	ctx, node := testBuildGroup(require)
+	ctx, node := testBuildGroup(t.Context(), require)
 	require.NotNil(node)
-	defer teardownTestDatabase(node.Group.store)
+	defer teardownTestDatabase(t, node.Group.store)
 
 	testDrainInitialOutputs(ctx, require, node.Group, OutputsBatchSize+1, "storage,0.0001")
 
@@ -313,9 +314,9 @@ func TestMTGStorage(t *testing.T) {
 
 func TestMTGWithdrawal(t *testing.T) {
 	require := require.New(t)
-	ctx, node := testBuildGroup(require)
+	ctx, node := testBuildGroup(t.Context(), require)
 	require.NotNil(node)
-	defer teardownTestDatabase(node.Group.store)
+	defer teardownTestDatabase(t, node.Group.store)
 
 	d := decimal.RequireFromString("0.005")
 	err := node.Group.store.WriteAction(ctx, &UnifiedOutput{
@@ -527,9 +528,8 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 	}
 }
 
-func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
+func testBuildGroup(ctx context.Context, require *require.Assertions) (context.Context, *Node) {
 	logger.SetLevel(logger.INFO)
-	ctx := context.Background()
 	ctx = util.EnableTestEnvironment(ctx)
 
 	f, _ := os.ReadFile("./example.toml")
@@ -588,7 +588,11 @@ func (s *SQLite3Store) ReadAction(ctx context.Context, id string) (*Action, erro
 	return s.readAction(ctx, tx, id)
 }
 
-func teardownTestDatabase(store *SQLite3Store) {
+func teardownTestDatabase(t *testing.T, store *SQLite3Store) {
+	t.Helper()
+	// Cleanup runs after t.Context is canceled, so give the SQL teardown its own bound.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+	defer cancel()
 	dropTablesDDL := `
 		DROP TABLE IF EXISTS properties;
 		DROP TABLE IF EXISTS iterations;
@@ -596,7 +600,7 @@ func teardownTestDatabase(store *SQLite3Store) {
 		DROP TABLE IF EXISTS outputs;
 		DROP TABLE IF EXISTS transactions;
 	`
-	_, err := store.db.Exec(dropTablesDDL)
+	_, err := store.db.ExecContext(ctx, dropTablesDDL)
 	if err != nil {
 		panic(err)
 	}

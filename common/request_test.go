@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 func TestRequest(t *testing.T) {
 	require := require.New(t)
 	var client *mixin.Client
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = EnableTestEnvironment(ctx)
 
 	req := &Request{Action: ActionBitcoinSafeProposeAccount}

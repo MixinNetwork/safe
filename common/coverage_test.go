@@ -110,7 +110,7 @@ func TestCoverageChainMappings(t *testing.T) {
 }
 
 func TestCoverageHTTPHelpers(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 
 	w := httptest.NewRecorder()
 	RenderJSON(w, req, http.StatusCreated, map[string]string{"ok": "yes"})
@@ -141,7 +141,7 @@ func TestCoverageHTTPHelpers(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, w.Code)
 	require.Equal(t, 1, called)
 
-	preflight := httptest.NewRequest(http.MethodOptions, "/", nil)
+	preflight := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/", nil)
 	preflight.Header.Set("Origin", "https://safe.example")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, preflight)
@@ -150,7 +150,7 @@ func TestCoverageHTTPHelpers(t *testing.T) {
 	require.Equal(t, "OPTIONS,GET,POST,DELETE", w.Header().Get("Access-Control-Allow-Methods"))
 	require.Equal(t, 1, called)
 
-	corsRequest := httptest.NewRequest(http.MethodPost, "/", nil)
+	corsRequest := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
 	corsRequest.Header.Set("Origin", "https://safe.example")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, corsRequest)
@@ -209,7 +209,7 @@ func TestCoverageMixinPureHelpers(t *testing.T) {
 	req.RawTransaction = buildRaw("different")
 	require.ErrorContains(t, checkTransactionRequestRaw(req, raw), "raw transaction mismatch")
 
-	ctx := EnableTestEnvironment(context.Background())
+	ctx := EnableTestEnvironment(t.Context())
 	hash, err := SafeReadWithdrawalHashUntilSufficient(ctx, nil, "request")
 	require.NoError(t, err)
 	require.NotEmpty(t, hash)
@@ -251,7 +251,7 @@ func TestCoverageOperationValidation(t *testing.T) {
 }
 
 func TestCoverageRequestValidation(t *testing.T) {
-	ctx := EnableTestEnvironment(context.Background())
+	ctx := EnableTestEnvironment(t.Context())
 	id := uuid.Must(uuid.NewV4()).String()
 	assetID := uuid.Must(uuid.NewV4()).String()
 	holder := "02a99c2e0e2b1da4d648755ef19bd95139acbbe6564cfb06dec7cd34931ca72cdc"
@@ -353,7 +353,7 @@ func TestCoverageRequestValidation(t *testing.T) {
 }
 
 func TestCoverageSQLiteAndWalletHelpers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	path := t.TempDir() + "/properties.sqlite3"
 	schema := `CREATE TABLE properties (
 		key TEXT PRIMARY KEY,
@@ -389,7 +389,7 @@ func TestCoverageSQLiteAndWalletHelpers(t *testing.T) {
 	readOnly, err := OpenSQLite3ReadOnlyStore(path)
 	require.NoError(t, err)
 	var value string
-	require.NoError(t, readOnly.QueryRow("SELECT value FROM properties WHERE key='key'").Scan(&value))
+	require.NoError(t, readOnly.QueryRowContext(t.Context(), "SELECT value FROM properties WHERE key='key'").Scan(&value))
 	require.Equal(t, "two", value)
 	require.NoError(t, readOnly.Close())
 
@@ -441,7 +441,7 @@ func TestCoverageUtilityHelpers(t *testing.T) {
 	require.Panics(t, func() { DecodeHexOrPanic("zz") })
 	require.True(t, CheckUnique("a", "b", 1))
 	require.False(t, CheckUnique("a", "a"))
-	require.True(t, CheckTestEnvironment(EnableTestEnvironment(context.Background())))
+	require.True(t, CheckTestEnvironment(EnableTestEnvironment(t.Context())))
 
 	for _, message := range []string{
 		"insufficient outputs for transaction",

@@ -42,9 +42,9 @@ var _ io.Closer = coverageCloser{}
 
 func TestCoverageGroupConfigurationAndAccessors(t *testing.T) {
 	req := require.New(t)
-	ctx, node := testBuildGroup(req)
+	ctx, node := testBuildGroup(t.Context(), req)
 	grp := node.Group
-	defer teardownTestDatabase(grp.store)
+	defer teardownTestDatabase(t, grp.store)
 
 	req.Equal(0, grp.Index())
 	req.False(grp.Synced(ctx))
@@ -172,7 +172,7 @@ func TestCoverageEncodingAndTransactionValidation(t *testing.T) {
 	})
 
 	action := &Action{UnifiedOutput: UnifiedOutput{OutputId: actionID, AppId: appID, Sequence: 42}}
-	req.NoError(tx.check(context.Background(), action))
+	req.NoError(tx.check(t.Context(), action))
 	mutations := []func(*Transaction){
 		func(v *Transaction) { v.AppId = uuid.Must(uuid.NewV4()).String() },
 		func(v *Transaction) { v.references = []crypto.Hash{reference, reference, reference} },
@@ -187,7 +187,7 @@ func TestCoverageEncodingAndTransactionValidation(t *testing.T) {
 		candidate.Receivers = append([]string(nil), tx.Receivers...)
 		candidate.references = append([]crypto.Hash(nil), tx.references...)
 		mutate(&candidate)
-		req.Error(candidate.check(context.Background(), action))
+		req.Error(candidate.check(t.Context(), action))
 	}
 
 	req.Equal(tx.TraceId, tx.RequestID())
@@ -211,9 +211,9 @@ func TestCoverageEncodingAndTransactionValidation(t *testing.T) {
 
 func TestCoverageUtilitiesAndCachedReads(t *testing.T) {
 	req := require.New(t)
-	ctx, node := testBuildGroup(req)
+	ctx, node := testBuildGroup(t.Context(), req)
 	grp := node.Group
-	defer teardownTestDatabase(grp.store)
+	defer teardownTestDatabase(t, grp.store)
 
 	for _, message := range []string{
 		"EOF",
@@ -230,7 +230,7 @@ func TestCoverageUtilitiesAndCachedReads(t *testing.T) {
 	req.False(CheckRetryableError(nil))
 	req.False(CheckRetryableError(errors.New("permanent")))
 
-	testCtx := util.EnableTestEnvironment(context.Background())
+	testCtx := util.EnableTestEnvironment(t.Context())
 	members := []string{"member-one", "member-two"}
 	address, uuidMembers, err := NewMixAddress(testCtx, members, 2)
 	req.NoError(err)
@@ -238,7 +238,7 @@ func TestCoverageUtilitiesAndCachedReads(t *testing.T) {
 	req.Equal(uint8(2), address.Threshold)
 	req.Panics(func() { NewMixAddress(testCtx, nil, 1) })
 	req.Panics(func() { NewMixAddress(testCtx, []string{"one"}, 0) })
-	_, _, err = NewMixAddress(context.Background(), []string{"invalid"}, 1)
+	_, _, err = NewMixAddress(t.Context(), []string{"invalid"}, 1)
 	req.Error(err)
 
 	appID := uuid.Must(uuid.NewV4()).String()
@@ -259,7 +259,7 @@ func TestCoverageUtilitiesAndCachedReads(t *testing.T) {
 	req.NoError(grp.store.WriteCache(ctx, "current", "value"))
 	req.Equal("value", mustReadMTGCache(t, grp.store, ctx, "current"))
 	req.Error(grp.store.WriteCache(ctx, "current", "duplicate"))
-	_, err = grp.store.db.Exec("INSERT INTO caches (key,value,created_at) VALUES (?,?,?)", "expired", "old", time.Now().Add(-cacheTTL-time.Hour))
+	_, err = grp.store.db.ExecContext(t.Context(), "INSERT INTO caches (key,value,created_at) VALUES (?,?,?)", "expired", "old", time.Now().Add(-cacheTTL-time.Hour))
 	req.NoError(err)
 	req.Empty(mustReadMTGCache(t, grp.store, ctx, "expired"))
 
@@ -318,9 +318,9 @@ func TestCoverageUtilitiesAndCachedReads(t *testing.T) {
 
 func TestCoverageStoreWithdrawalLifecycle(t *testing.T) {
 	req := require.New(t)
-	ctx, node := testBuildGroup(req)
+	ctx, node := testBuildGroup(t.Context(), req)
 	grp := node.Group
-	defer teardownTestDatabase(grp.store)
+	defer teardownTestDatabase(t, grp.store)
 
 	assetID := uuid.Must(uuid.NewV4()).String()
 	out := testBuildOutput(grp, req, assetID, "1", "", SafeUtxoStateUnspent, grp.epoch+10, "")
@@ -392,7 +392,7 @@ func TestCoverageStoreWithdrawalLifecycle(t *testing.T) {
 	req.Len(listed, 1)
 	_, err = grp.store.listOutputs(ctx, []string{"invalid"})
 	req.Error(err)
-	req.Panics(func() { grp.TestUpdateOutputsState(context.Background(), listed, string(SafeUtxoStateUnspent)) })
+	req.Panics(func() { grp.TestUpdateOutputsState(t.Context(), listed, string(SafeUtxoStateUnspent)) })
 	req.NoError(grp.TestUpdateOutputsState(ctx, listed, string(SafeUtxoStateUnspent)))
 
 	requestFromStore, err := grp.readTransactionUntilSufficientImpl(ctx, traceID)
@@ -437,7 +437,7 @@ func TestCoverageRowAndSQLiteErrorPaths(t *testing.T) {
 	req.NoError(err)
 	req.Equal("INSERT INTO sample (a,b) VALUES (?, ?)", buildInsertionSQL("sample", []string{"a", "b"}))
 	req.NoError(store.Close())
-	_, err = store.ReadProperty(context.Background(), "closed")
+	_, err = store.ReadProperty(t.Context(), "closed")
 	req.Error(err)
 }
 

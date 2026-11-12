@@ -54,7 +54,7 @@ var (
 )
 
 func TestCMPEthereumERC20Transaction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 
 	if polygonRpc := os.Getenv("POLYGONRPC"); polygonRpc != "" {
@@ -104,7 +104,7 @@ func TestCMPEthereumERC20Transaction(t *testing.T) {
 }
 
 func TestCMPEthereumMultiSendTransaction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 	accountAddress := testPrepareEthereumAccount(ctx, require)
 
@@ -140,7 +140,7 @@ func TestCMPEthereumMultiSendTransaction(t *testing.T) {
 }
 
 func TestCMPEthereumTransaction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	require := require.New(t)
 	accountAddress := testPrepareEthereumAccount(ctx, require)
 
@@ -296,7 +296,7 @@ func testIsTxHashSignedWithPrefix(priv string, hash, signature []byte) bool {
 
 func TestCMPEthereumSign(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes, _ := TestPrepare(require)
+	ctx, nodes, _ := TestPrepare(t)
 
 	public, _ := TestCMPPrepareKeys(ctx, require, nodes, 2)
 

@@ -247,7 +247,7 @@ func (fixture *transactionHTTPFixture) addSignature(t *testing.T, id, hash strin
 
 func (fixture *transactionHTTPFixture) get(t *testing.T) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodGet, "/transactions/"+fixture.requestID, nil).WithContext(t.Context())
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/transactions/"+fixture.requestID, nil)
 	response := httptest.NewRecorder()
 	fixture.node.httpGetTransaction(response, request, map[string]string{"id": fixture.requestID})
 	return response
@@ -281,7 +281,7 @@ func TestApprovalBindsRequestedTransactionAndReturnsUpdatedSignatures(t *testing
 				raw = hex.EncodeToString(st.Marshal())
 			}
 			body := fmt.Sprintf(`{"chain":%d,"action":"approve","raw":%q}`, chain, raw)
-			r := httptest.NewRequest(http.MethodPost, "/transactions/"+f.requestID, strings.NewReader(body)).WithContext(t.Context())
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/transactions/"+f.requestID, strings.NewReader(body))
 			w := httptest.NewRecorder()
 			f.node.httpApproveTransaction(w, r, map[string]string{"id": f.requestID})
 			approval, err := f.node.store.ReadTransactionApproval(t.Context(), f.hash)

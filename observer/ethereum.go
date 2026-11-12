@@ -442,16 +442,14 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 			if ckpt+delay > int64(height)+1 {
 				break
 			}
-			wg.Add(1)
 			checkpoint = ckpt
-			go func(current int64) {
-				defer wg.Done()
-				err := node.processEthereumRPCBlock(ctx, current, chain)
-				logger.Printf("node.processEthereumRPCBlock(%d, %d) => %v", chain, current, err)
+			wg.Go(func() {
+				err := node.processEthereumRPCBlock(ctx, ckpt, chain)
+				logger.Printf("node.processEthereumRPCBlock(%d, %d) => %v", chain, ckpt, err)
 				if err != nil {
 					panic(err)
 				}
-			}(ckpt)
+			})
 		}
 		wg.Wait()
 

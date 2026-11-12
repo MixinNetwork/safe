@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +16,7 @@ import (
 
 func TestWallet(t *testing.T) {
 	require := require.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = EnableTestEnvironment(ctx)
 
 	root, err := os.MkdirTemp("", "wallet-test")

@@ -1,7 +1,6 @@
 package ethereum
 
 import (
-	"context"
 	"encoding/hex"
 	"math/big"
 	"strings"
@@ -18,7 +17,7 @@ func TestCheckTransactionPartiallySignedByRejectsWalletRecoveryId(t *testing.T) 
 	require.Nil(err)
 	holder := hex.EncodeToString(crypto.CompressPubkey(&key.PublicKey))
 
-	tx, err := CreateTransaction(context.Background(), TypeETHTx, 1, "4a4f4e17-4394-42a3-9d84-3cb2e0b34f28",
+	tx, err := CreateTransaction(t.Context(), TypeETHTx, 1, "4a4f4e17-4394-42a3-9d84-3cb2e0b34f28",
 		"0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222",
 		EthereumEmptyAddress, "1000000000000000000", big.NewInt(0))
 	require.Nil(err)

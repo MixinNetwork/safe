@@ -54,7 +54,7 @@ func TestObserverConfiguration(t *testing.T) {
 
 func TestObserver(t *testing.T) {
 	logger.SetLevel(logger.VERBOSE)
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = common.EnableTestEnvironment(ctx)
 	require := require.New(t)
 
@@ -100,7 +100,7 @@ func TestObserver(t *testing.T) {
 
 func TestObserverMigrateBondAsset(t *testing.T) {
 	logger.SetLevel(logger.VERBOSE)
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = common.EnableTestEnvironment(ctx)
 	require := require.New(t)
 
@@ -149,7 +149,7 @@ func TestAsset(t *testing.T) {
 }
 
 func TestNode(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = common.EnableTestEnvironment(ctx)
 	require := require.New(t)
 

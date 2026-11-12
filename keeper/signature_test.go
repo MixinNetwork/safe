@@ -47,6 +47,7 @@ func TestBitcoinRemovalSignatureAuthorization(t *testing.T) {
 				{"unrelated key", outsider, false},
 			} {
 				t.Run(test.name, func(t *testing.T) {
+					ctx := t.Context()
 					sig := ecdsa.Sign(test.key, hash).Serialize()
 					err := node.verifyRemoveMessageSignatureWithHolderOrObserver(ctx, safe, message, sig)
 					if test.want {

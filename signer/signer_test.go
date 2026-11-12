@@ -26,7 +26,7 @@ import (
 
 func TestCMPSigner(t *testing.T) {
 	require := require.New(t)
-	ctx, nodes, saverStore := TestPrepare(require)
+	ctx, nodes, saverStore := TestPrepare(t)
 	public, chainCode := testCMPKeyGen(ctx, require, nodes, common.CurveSecp256k1ECDSABitcoin)
 	testSaverItemsCheck(ctx, require, nodes, saverStore, 1)
 
@@ -124,7 +124,7 @@ func TestUnknownSignerSessionResponsesAreIgnored(t *testing.T) {
 func TestSSID(t *testing.T) {
 	require := require.New(t)
 
-	_, nodes, _ := TestPrepare(require)
+	_, nodes, _ := TestPrepare(t)
 	node := nodes[0]
 	sessionId := []byte("test-session-id-at-least-16")
 

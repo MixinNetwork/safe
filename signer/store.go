@@ -224,7 +224,7 @@ func (s *SQLite3Store) WriteSessionWorkIfNotExist(ctx context.Context, sessionId
 	err = s.execOne(ctx, tx, buildInsertionSQL("session_works", cols),
 		sessionId, signerId, round, common.Base91Encode(extra), time.Now().UTC())
 	if err != nil {
-		return fmt.Errorf("SQLite3Store INSERT session_works %v", err)
+		return fmt.Errorf("SQLite3Store INSERT session_works %w", err)
 	}
 
 	return tx.Commit()
