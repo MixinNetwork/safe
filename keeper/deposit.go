@@ -17,6 +17,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/keeper/store"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/btcsuite/btcd/btcutil/v2"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -278,6 +279,7 @@ func (node *Node) doEthereumHolderDeposit(ctx context.Context, req *common.Reque
 }
 
 func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx *bitcoin.RPCTransaction) (bool, error) {
+	matched := make(map[string]bool)
 	for i := range btx.Vin {
 		vin, spentBy, err := node.store.ReadBitcoinUTXO(ctx, btx.Vin[i].TxId, int(btx.Vin[i].VOUT))
 		if err != nil {
@@ -286,12 +288,8 @@ func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx 
 		if vin == nil {
 			continue
 		}
-		if deposit.Hash != spentBy {
-			// The input UTXO was spent by a transaction other than the recorded
-			// one, i.e. a double-spend of a pending proposal or an external spend
-			// the keeper never built. Typically when a user uses holder key and
-			// custom recovery key signed a transaction and sent to the blockchain,
-			// then this utxo should only be recorded as a change.
+		if spentBy == "" {
+			// An external spend or revoked proposal must not mint new assets.
 			return true, nil
 		}
 		tx, err := node.store.ReadTransaction(ctx, spentBy)
@@ -299,7 +297,33 @@ func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx 
 			return false, err
 		}
 		if tx == nil {
+			if deposit.Hash != spentBy {
+				// The input UTXO was spent by a transaction other than the recorded
+				// one, i.e. a double-spend of a pending proposal or an external spend
+				// the keeper never built. Typically when a user uses holder key and
+				// custom recovery key signed a transaction and sent to the blockchain,
+				// then this utxo should only be recorded as a change.
+				return true, nil
+			}
 			return false, fmt.Errorf("store.ReadTransaction(%s) => nil", spentBy)
+		}
+		if deposit.Hash != spentBy {
+			// The observer appends fee inputs, changing the on-chain txid.
+			// Only recognize a completed proposal: an unfinished one could
+			// still be revoked and refunded after this deposit is credited.
+			if tx.State != common.RequestStateDone {
+				return true, nil
+			}
+			if !matched[spentBy] {
+				matches, err := bitcoinTransactionMatchesWithFeeInputs(deposit.Hash, btx, tx)
+				if err != nil {
+					return false, err
+				}
+				if !matches {
+					return true, nil
+				}
+				matched[spentBy] = true
+			}
 		}
 		var recipients []map[string]string
 		err = json.Unmarshal([]byte(tx.Data), &recipients)
@@ -311,6 +335,33 @@ func (node *Node) checkBitcoinChange(ctx context.Context, deposit *Deposit, btx 
 		}
 	}
 	return false, nil
+}
+
+func bitcoinTransactionMatchesWithFeeInputs(hash string, btx *bitcoin.RPCTransaction, tx *store.Transaction) (bool, error) {
+	raw := common.DecodeHexOrPanic(btx.Hex)
+	actual, _ := btcutil.NewTxFromBytes(raw)
+	signedTx := actual.MsgTx()
+	if signedTx.TxHash().String() != hash || len(signedTx.TxIn) != len(btx.Vin) {
+		return false, fmt.Errorf("inconsistent bitcoin transaction %s", hash)
+	}
+	for i, input := range signedTx.TxIn {
+		vin := btx.Vin[i]
+		if vin == nil || vin.TxId != input.PreviousOutPoint.Hash.String() || vin.VOUT != int64(input.PreviousOutPoint.Index) {
+			return false, fmt.Errorf("inconsistent bitcoin transaction input %s:%d", hash, i)
+		}
+	}
+
+	raw = common.DecodeHexOrPanic(tx.RawTransaction)
+	proposal, _ := bitcoin.UnmarshalPartiallySignedTransaction(raw)
+	vin := len(proposal.UnsignedTx.TxIn)
+	if vin == 0 || len(signedTx.TxIn) <= vin {
+		return false, nil
+	}
+	// Removing only appended fee inputs must restore the exact proposal txid.
+	// This commits to its original inputs, sequences, outputs and locktime;
+	// the witnesses added during signing do not affect the txid.
+	signedTx.TxIn = signedTx.TxIn[:vin]
+	return signedTx.TxHash().String() == tx.TransactionHash, nil
 }
 
 func (node *Node) verifyBitcoinTransaction(ctx context.Context, req *common.Request, deposit *Deposit, safe *store.Safe, typ int) (*bitcoin.Input, error) {
