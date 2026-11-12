@@ -121,7 +121,7 @@ func (node *Node) processEthereumSafeCloseAccountByInheritance(ctx context.Conte
 	if info == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	latest, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
 	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
 	if err != nil {
 		panic(err)
@@ -241,7 +241,7 @@ func (node *Node) processEthereumSafeCloseAccount(ctx context.Context, req *comm
 	if info == nil {
 		return node.failRequest(ctx, req, "")
 	}
-	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	latest, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
 	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
 	if err != nil {
 		panic(err)
@@ -733,7 +733,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		return node.failRequest(ctx, req, "")
 	}
 	// FIXME no info height used yet
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(ctx, node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
 		panic(fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err))
@@ -956,7 +956,7 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 			logger.Printf("invalid recovery transaction outputs: %d", len(outputs))
 			return node.refundAndFailRequest(ctx, req, safe.Receivers, int(safe.Threshold))
 		}
-		latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+		latest, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
 		if err != nil {
 			panic(fmt.Errorf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err))
 		}

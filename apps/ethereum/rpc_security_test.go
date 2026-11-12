@@ -94,35 +94,35 @@ func TestEthereumRPCClientParsesNativeChainData(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	height, err := RPCGetBlockHeight(server.URL)
+	height, err := RPCGetBlockHeight(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Equal(t, int64(42), height)
 
-	block, err := RPCGetBlock(server.URL, blockHash)
+	block, err := RPCGetBlock(t.Context(), server.URL, blockHash)
 	require.NoError(t, err)
 	require.Equal(t, uint64(42), block.Height)
 	require.Equal(t, time.Unix(100, 0), block.Time)
 
-	blockByHeight, err := RPCGetBlockByHeight(server.URL, height)
+	blockByHeight, err := RPCGetBlockByHeight(t.Context(), server.URL, height)
 	require.NoError(t, err)
 	require.Equal(t, uint64(42), blockByHeight.Height)
 	require.Equal(t, time.Unix(100, 0), blockByHeight.Time)
 
-	fullBlock, err := RPCGetBlockWithTransactions(server.URL, height)
+	fullBlock, err := RPCGetBlockWithTransactions(t.Context(), server.URL, height)
 	require.NoError(t, err)
 	require.Equal(t, uint64(42), fullBlock.Height)
 	require.Len(t, fullBlock.Tx, 1)
 	require.Equal(t, blockHash, fullBlock.Tx[0].BlockHash)
 
-	tx, err := RPCGetTransactionByHash(server.URL, txHash)
+	tx, err := RPCGetTransactionByHash(t.Context(), server.URL, txHash)
 	require.NoError(t, err)
 	require.Equal(t, uint64(42), tx.BlockHeight)
 
-	gasPrice, err := RPCGetGasPrice(server.URL)
+	gasPrice, err := RPCGetGasPrice(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(1_000_000_000), gasPrice)
 
-	balance, err := RPCGetAssetBalanceAtBlock(
+	balance, err := RPCGetAssetBalanceAtBlock(t.Context(),
 		server.URL,
 		"0x1111111111111111111111111111111111111111",
 		EthereumEmptyAddress,
@@ -131,7 +131,7 @@ func TestEthereumRPCClientParsesNativeChainData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(1_000_000_000_000_000_000), balance)
 
-	_, err = callEthereumRPC(server.URL, "reject", nil)
+	_, err = callEthereumRPC(t.Context(), server.URL, "reject", nil)
 	require.ErrorContains(t, err, "execution rejected")
 }
 
@@ -156,7 +156,7 @@ func TestEthereumRPCRetriesTransientMalformedResponse(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	height, err := RPCGetBlockHeight(server.URL)
+	height, err := RPCGetBlockHeight(t.Context(), server.URL)
 	require.NoError(t, err)
 	require.Equal(t, int64(99), height)
 	require.Equal(t, int32(2), calls.Load())

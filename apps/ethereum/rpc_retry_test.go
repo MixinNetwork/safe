@@ -60,7 +60,7 @@ func TestEthereumRPCHTTPRetries(t *testing.T) {
 				}, nil
 			})
 
-			height, err := RPCGetBlockHeight("http://rpc.invalid")
+			height, err := RPCGetBlockHeight(t.Context(), "http://rpc.invalid")
 			if tc.retryable {
 				require.NoError(t, err)
 				require.Equal(t, int64(42), height)
@@ -93,7 +93,7 @@ func TestEthereumTraceRetriesExecutionTimeout(t *testing.T) {
 		}, nil
 	})
 
-	trace, err := RPCDebugTraceTransactionByHash("http://rpc.invalid", "0x"+strings.Repeat("a", 64))
+	trace, err := RPCDebugTraceTransactionByHash(t.Context(), "http://rpc.invalid", "0x"+strings.Repeat("a", 64))
 	require.NoError(t, err)
 	require.NotNil(t, trace)
 	require.Equal(t, "CALL", trace.Type)

@@ -71,7 +71,7 @@ func (node *Node) writeNetworkInfo(ctx context.Context, req *common.Request) ([]
 		}
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		info.Hash = "0x" + hex.EncodeToString(extra[17:])
-		valid, err := node.verifyEthereumNetworkInfo(info, old)
+		valid, err := node.verifyEthereumNetworkInfo(ctx, info, old)
 		logger.Printf("node.verifyEthereumNetworkInfo(%s, %v) => %t", req.Id, info, valid)
 		if err != nil {
 			panic(fmt.Errorf("node.verifyEthereumNetworkInfo(%v) => %v", info, err))
@@ -168,7 +168,7 @@ func (node *Node) verifyBitcoinNetworkInfo(ctx context.Context, info, old *store
 	return true, nil
 }
 
-func (node *Node) verifyEthereumNetworkInfo(info, old *store.NetworkInfo) (bool, error) {
+func (node *Node) verifyEthereumNetworkInfo(ctx context.Context, info, old *store.NetworkInfo) (bool, error) {
 	if len(info.Hash) != 66 {
 		return false, nil
 	}
@@ -178,9 +178,12 @@ func (node *Node) verifyEthereumNetworkInfo(info, old *store.NetworkInfo) (bool,
 		}
 	} else {
 		rpc, _ := node.ethereumParams(info.Chain)
-		block, err := ethereum.RPCGetBlock(rpc, info.Hash)
-		if err != nil || block == nil {
-			return false, fmt.Errorf("malicious ethereum block or node not in sync? %s %v", info.Hash, err)
+		block, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
+		if err != nil {
+			return false, fmt.Errorf("malicious ethereum block or node not in sync? %s: %w", info.Hash, err)
+		}
+		if block == nil {
+			return false, fmt.Errorf("missing ethereum block %s", info.Hash)
 		}
 		if block.Height != info.Height {
 			return false, fmt.Errorf("malicious ethereum block %s", info.Hash)
@@ -223,7 +226,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		panic(chain)
 	}
 	rpc, _ := node.ethereumParams(chain)
-	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
+	token, err := ethereum.FetchAsset(ctx, chain, rpc, assetContract)
 	if err != nil {
 		return nil, err
 	}

@@ -136,7 +136,7 @@ func (node *Node) handleBondAsset(ctx context.Context, out *mtg.Action) (bool, e
 	if meta.Chain != common.SafeChainPolygon {
 		return false, nil
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(ctx, node.conf.PolygonRPC, meta.AssetKey)
 	logger.Verbosef("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil {
 		return false, fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err)

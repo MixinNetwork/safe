@@ -114,7 +114,7 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 
 	for {
 		time.Sleep(depositNetworkInfoDelay)
-		height, err := ethereum.RPCGetBlockHeight(rpc)
+		height, err := ethereum.RPCGetBlockHeight(ctx, rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
@@ -132,12 +132,12 @@ func (node *Node) ethereumNetworkInfoLoop(ctx context.Context, chain byte) {
 			logger.Printf("node.keeperStore.ReadLatestNetworkInfo(%d) => %v %d", chain, info, height)
 			continue
 		}
-		gasPrice, err := ethereum.RPCGetGasPrice(rpc)
+		gasPrice, err := ethereum.RPCGetGasPrice(ctx, rpc)
 		if err != nil {
 			logger.Printf("ethereum.RPCGetGasPrice(%d) => %v", chain, err)
 			continue
 		}
-		block, err := ethereum.RPCGetBlockByHeight(rpc, height)
+		block, err := ethereum.RPCGetBlockByHeight(ctx, rpc, height)
 		if err != nil || block == nil {
 			logger.Printf("ethereum.RPCGetBlockHash(%d, %d) => %v %v", chain, height, block, err)
 			continue
@@ -178,14 +178,14 @@ func (node *Node) processEthereumRPCBlock(ctx context.Context, num int64, chain 
 
 func (node *Node) doProcessEthereumRPCBlock(ctx context.Context, num int64, chain byte) error {
 	rpc, ethAssetId, _ := node.ethereumParams(chain)
-	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, num)
+	blockTraces, err := ethereum.RPCDebugTraceBlockByNumber(ctx, rpc, num)
 	if err != nil {
 		return err
 	}
 	if len(blockTraces) == 0 {
 		return nil
 	}
-	block, err := ethereum.RPCGetBlockWithTransactions(rpc, num)
+	block, err := ethereum.RPCGetBlockWithTransactions(ctx, rpc, num)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 	case chainAssetId:
 		amount = decimal.NewFromBigInt(transfer.Value, -ethereum.ValuePrecision)
 	default:
-		asset, err := ethereum.FetchAsset(chain, rpc, transfer.TokenAddress)
+		asset, err := ethereum.FetchAsset(ctx, chain, rpc, transfer.TokenAddress)
 		logger.Printf("ethereum.FetchAsset(%s, %s) => %v %v", transfer.Hash, transfer.TokenAddress, asset, err)
 		if err != nil {
 			return nil
@@ -423,7 +423,7 @@ func (node *Node) ethereumRPCBlocksLoop(ctx context.Context, chain byte) {
 		if err != nil {
 			panic(err)
 		}
-		height, err := ethereum.RPCGetBlockHeight(rpc)
+		height, err := ethereum.RPCGetBlockHeight(ctx, rpc)
 		if err != nil {
 			logger.Printf("node.RPCGetBlockHeight(%d) => %v", chain, err)
 			continue
@@ -478,11 +478,11 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 		}
 		address, tokenAddress := items[0], items[1]
 
-		balancePrev, err := ethereum.RPCGetAssetBalanceAtBlock(rpc, address, tokenAddress, block.Height-1)
+		balancePrev, err := ethereum.RPCGetAssetBalanceAtBlock(ctx, rpc, address, tokenAddress, block.Height-1)
 		if err != nil {
 			return err
 		}
-		balanceNow, err := ethereum.RPCGetAssetBalanceAtBlock(rpc, address, tokenAddress, block.Height)
+		balanceNow, err := ethereum.RPCGetAssetBalanceAtBlock(ctx, rpc, address, tokenAddress, block.Height)
 		if err != nil {
 			return err
 		}
@@ -510,7 +510,7 @@ func (node *Node) ethereumProcessBlock(ctx context.Context, chain byte, block *e
 
 func (node *Node) ethereumProcessTransaction(ctx context.Context, tx *ethereum.RPCTransaction, chain byte) error {
 	rpc, ethereumAssetId, _ := node.ethereumParams(chain)
-	traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, tx.Hash)
+	traces, err := ethereum.RPCDebugTraceTransactionByHash(ctx, rpc, tx.Hash)
 	if err != nil {
 		return err
 	}
@@ -852,7 +852,7 @@ func (node *Node) httpCreateEthereumAccountRecoveryRequest(ctx context.Context, 
 	if info == nil {
 		return nil
 	}
-	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	latest, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
 	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
 	if err != nil {
 		return err
@@ -961,7 +961,7 @@ func (node *Node) httpSignEthereumAccountRecoveryRequest(ctx context.Context, sa
 	if info == nil {
 		return nil
 	}
-	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	latest, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
 	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
 	if err != nil {
 		return err
@@ -1206,7 +1206,7 @@ func (node *Node) httpCreateEthereumInheritanceTransaction(ctx context.Context, 
 	if err != nil || info == nil {
 		return nil, fmt.Errorf("store.ReadLatestNetworkInfo(%d) => %v %v", safe.Chain, info, err)
 	}
-	latest, err := ethereum.RPCGetBlock(rpc, info.Hash)
+	latest, err := ethereum.RPCGetBlock(ctx, rpc, info.Hash)
 	logger.Printf("ethereum.RPCGetBlock(%s %s) => %v %v", rpc, info.Hash, latest, err)
 	if err != nil {
 		return nil, err

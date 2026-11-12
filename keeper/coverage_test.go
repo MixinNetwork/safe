@@ -267,13 +267,13 @@ func TestCoverageKeeperDepositAndNetworkParsing(t *testing.T) {
 	require.False(t, valid)
 
 	ethInfo := &store.NetworkInfo{Chain: common.SafeChainEthereum, Hash: "0x" + hash.String(), Height: 10}
-	valid, err = node.verifyEthereumNetworkInfo(ethInfo, &store.NetworkInfo{Hash: ethInfo.Hash, Height: ethInfo.Height})
+	valid, err = node.verifyEthereumNetworkInfo(t.Context(), ethInfo, &store.NetworkInfo{Hash: ethInfo.Hash, Height: ethInfo.Height})
 	require.NoError(t, err)
 	require.True(t, valid)
-	_, err = node.verifyEthereumNetworkInfo(ethInfo, &store.NetworkInfo{Hash: ethInfo.Hash, Height: ethInfo.Height + 1})
+	_, err = node.verifyEthereumNetworkInfo(t.Context(), ethInfo, &store.NetworkInfo{Hash: ethInfo.Hash, Height: ethInfo.Height + 1})
 	require.Error(t, err)
 	ethInfo.Hash = "short"
-	valid, err = node.verifyEthereumNetworkInfo(ethInfo, nil)
+	valid, err = node.verifyEthereumNetworkInfo(t.Context(), ethInfo, nil)
 	require.NoError(t, err)
 	require.False(t, valid)
 }

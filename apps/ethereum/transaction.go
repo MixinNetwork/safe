@@ -330,6 +330,7 @@ func (tx *SafeTransaction) ValidTransaction(ctx context.Context, rpc string) err
 	}
 
 	success, err := abi.ValidTransaction(
+		&bind.CallOpts{Context: ctx},
 		tx.Destination,
 		tx.Value,
 		tx.Data,
@@ -341,8 +342,11 @@ func (tx *SafeTransaction) ValidTransaction(ctx context.Context, rpc string) err
 		tx.RefundReceiver,
 		signature,
 	)
-	if !success || err != nil {
-		return fmt.Errorf("ValidTransaction(%s) => %t %v", tx.RequestHash, success, err)
+	if err != nil {
+		return fmt.Errorf("ValidTransaction(%s) => %t: %w", tx.RequestHash, success, err)
+	}
+	if !success {
+		return fmt.Errorf("ValidTransaction(%s) => false", tx.RequestHash)
 	}
 	return nil
 }
@@ -353,7 +357,10 @@ func (tx *SafeTransaction) BuildTransaction(ctx context.Context, rpc, key string
 		return nil, err
 	}
 	defer conn.Close()
-	signer := SignerInit(ctx, conn, key, tx.ChainID)
+	signer, err := SignerInit(ctx, conn, key, tx.ChainID)
+	if err != nil {
+		return nil, err
+	}
 
 	var signature []byte
 	count := 0
@@ -404,7 +411,7 @@ func WaitMinedSuccess(ctx context.Context, conn *ethclient.Client, t *types.Tran
 }
 
 func SendAndWaitMined(ctx context.Context, rpc string, t *types.Transaction) error {
-	conn, err := ethclient.Dial(rpc)
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return err
 	}

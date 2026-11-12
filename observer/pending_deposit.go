@@ -197,15 +197,15 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		var assetID string
 		rpc, assetID, params = node.ethereumParams(chain)
-		height, err := ethereum.RPCGetBlockHeight(rpc)
+		height, err := ethereum.RPCGetBlockHeight(ctx, rpc)
 		if err != nil {
 			return nil, nil, err
 		}
-		block, err := ethereum.RPCGetBlockWithTransactions(rpc, height)
+		block, err := ethereum.RPCGetBlockWithTransactions(ctx, rpc, height)
 		if err != nil {
 			return nil, nil, err
 		}
-		traces, err := ethereum.RPCDebugTraceBlockByNumber(rpc, height)
+		traces, err := ethereum.RPCDebugTraceBlockByNumber(ctx, rpc, height)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -221,7 +221,7 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 			}
 			precision, ok := decimals[transfer.AssetId]
 			if !ok {
-				asset, err := ethereum.FetchAsset(chain, rpc, transfer.TokenAddress)
+				asset, err := ethereum.FetchAsset(ctx, chain, rpc, transfer.TokenAddress)
 				if err != nil {
 					return nil, nil, err
 				}

@@ -62,7 +62,7 @@ func requireMainnetTransfers(t *testing.T, transfers []*Transfer, hash string, e
 
 func TestLoopCallsRealEthereumDelegateCallInheritance(t *testing.T) {
 	rpc := mainnetRPC("ETHEREUMRPC", "https://eth.drpc.org")
-	trace, err := RPCDebugTraceTransactionByHash(rpc, mainnetDelegateCallTxEthereum)
+	trace, err := RPCDebugTraceTransactionByHash(t.Context(), rpc, mainnetDelegateCallTxEthereum)
 	require.NoError(t, err)
 	require.Equal(t, "CALL", trace.Type)
 
@@ -82,7 +82,7 @@ func TestLoopCallsRealEthereumDelegateCallInheritance(t *testing.T) {
 
 func TestLoopCallsRealPolygonDelegateCallInheritance(t *testing.T) {
 	rpc := mainnetRPC("POLYGONRPC", "https://polygon.drpc.org")
-	trace, err := RPCDebugTraceTransactionByHash(rpc, mainnetDelegateCallTxPolygon)
+	trace, err := RPCDebugTraceTransactionByHash(t.Context(), rpc, mainnetDelegateCallTxPolygon)
 	require.NoError(t, err)
 	require.Equal(t, "CALL", trace.Type)
 

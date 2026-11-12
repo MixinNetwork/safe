@@ -27,7 +27,7 @@ func (node *Node) checkSafeTokenMigration(ctx context.Context, req *common.Reque
 		logger.Printf("invalid meta asset chain: %d", meta.Chain)
 		return node.failRequest(ctx, req, "")
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(ctx, node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil {
 		panic(fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err))

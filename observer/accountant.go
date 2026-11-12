@@ -416,7 +416,7 @@ func (node *Node) ethereumTransactionSpendLoop(ctx context.Context, chain byte) 
 			if err != nil {
 				panic(err)
 			}
-			etx, err := ethereum.RPCGetTransactionByHash(rpc, spentHash)
+			etx, err := ethereum.RPCGetTransactionByHash(ctx, rpc, spentHash)
 			if err != nil || etx == nil || etx.BlockHeight == 0 {
 				panic(fmt.Errorf("ethereum.RPCGetTransactionByHash(%s) => %v %v", spentHash, etx, err))
 			}
@@ -756,11 +756,11 @@ func (node *Node) isTxStuck(ctx context.Context, tx *Transaction) bool {
 	}
 
 	rpc, _, _ := node.ethereumParams(tx.Chain)
-	height, err := ethereum.RPCGetBlockHeight(rpc)
+	height, err := ethereum.RPCGetBlockHeight(ctx, rpc)
 	if err != nil {
 		panic(err)
 	}
-	block, err := ethereum.RPCGetBlockByHeight(rpc, height)
+	block, err := ethereum.RPCGetBlockByHeight(ctx, rpc, height)
 	if err != nil {
 		panic(err)
 	}

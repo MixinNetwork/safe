@@ -147,7 +147,7 @@ func GetSafeAccountGuard(ctx context.Context, chainId int64, rpc, address string
 	if err != nil {
 		return "", err
 	}
-	bGuard, err := abi.GetStorageAt(nil, new(big.Int).SetBytes(bGuardOffset), new(big.Int).SetInt64(1))
+	bGuard, err := abi.GetStorageAt(&bind.CallOpts{Context: ctx}, new(big.Int).SetBytes(bGuardOffset), new(big.Int).SetInt64(1))
 	if err != nil {
 		if strings.Contains(err.Error(), "no contract code at given address") {
 			return "", nil
@@ -207,13 +207,16 @@ func DeploySafeAccount(ctx context.Context, rpc, key string, chainId int64, owne
 	nonce := new(big.Int)
 	nonce.SetString(predeterminedSaltNonce[2:], 16)
 
-	conn, factoryAbi, err := factoryInit(rpc)
+	conn, factoryAbi, err := factoryInit(ctx, rpc)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	signer := SignerInit(ctx, conn, key, chainId)
+	signer, err := SignerInit(ctx, conn, key, chainId)
+	if err != nil {
+		return err
+	}
 
 	t, err := factoryAbi.CreateProxyWithNonce(signer, common.HexToAddress(EthereumSafeL2Address), initializer, nonce)
 	if err != nil {
@@ -233,14 +236,14 @@ func GetSafeLastTxTime(ctx context.Context, chainId int64, rpc, address string) 
 		panic(fmt.Errorf("safe %s is not deployed or guard is not enabled", address))
 	}
 
-	conn, abi, err := guardInit(rpc, guardAddress)
+	conn, abi, err := guardInit(ctx, rpc, guardAddress)
 	if err != nil {
 		return time.Time{}, err
 	}
 	defer conn.Close()
 
 	addr := common.HexToAddress(address)
-	timestamp, err := abi.SafeLastTxTime(nil, addr)
+	timestamp, err := abi.SafeLastTxTime(&bind.CallOpts{Context: ctx}, addr)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -347,7 +350,7 @@ func FetchBalanceFromKey(ctx context.Context, rpc, key string) (*big.Int, error)
 	if err != nil {
 		return nil, err
 	}
-	client, err := ethclient.Dial(rpc)
+	client, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}

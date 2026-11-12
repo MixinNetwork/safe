@@ -209,12 +209,15 @@ func LoopCalls(chain byte, chainId, hash string, trace *RPCTransactionCallTrace,
 }
 
 func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAddress, destination string, precision int32, index int64, amount *big.Int) (*Transfer, *RPCTransaction, error) {
-	etx, err := RPCGetTransactionByHash(rpc, hash)
+	etx, err := RPCGetTransactionByHash(ctx, rpc, hash)
 	logger.Printf("ethereum.RPCGetTransactionByHash(%s) => %v %v", hash, etx, err)
-	if err != nil || etx == nil {
-		return nil, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s %v", hash, err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("malicious ethereum deposit or node not in sync? %s: %w", hash, err)
 	}
-	traces, err := RPCDebugTraceTransactionByHash(rpc, hash)
+	if etx == nil {
+		return nil, nil, fmt.Errorf("missing ethereum deposit transaction %s", hash)
+	}
+	traces, err := RPCDebugTraceTransactionByHash(ctx, rpc, hash)
 	logger.Printf("ethereum.RPCDebugTraceTransactionByHash(%s) => %v", hash, err)
 	if err != nil {
 		return nil, nil, err
@@ -229,7 +232,7 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 	transfers = append(transfers, erc20Transfers...)
 	for i, t := range transfers {
 		logger.Verbosef("transfer %d: %v", i, t)
-		match, err := matchDepositTransferAndBalanceChange(rpc, etx.BlockHeight, t, hash, assetAddress, destination, index, amount, precision)
+		match, err := matchDepositTransferAndBalanceChange(ctx, rpc, etx.BlockHeight, t, hash, assetAddress, destination, index, amount, precision)
 		if err != nil || match {
 			return t, etx, err
 		}
@@ -262,15 +265,15 @@ func VerifyDeposit(ctx context.Context, chain byte, rpc, hash, chainId, assetAdd
 // and the keeper deposit verification) escalate this error to a panic,
 // halting deposit processing until manual intervention, rather than
 // crediting a possibly fabricated deposit.
-func matchDepositTransferAndBalanceChange(rpc string, blockHeight uint64, t *Transfer, hash, assetAddress, destination string, index int64, amount *big.Int, precision int32) (bool, error) {
+func matchDepositTransferAndBalanceChange(ctx context.Context, rpc string, blockHeight uint64, t *Transfer, hash, assetAddress, destination string, index int64, amount *big.Int, precision int32) (bool, error) {
 	if !matchDepositTransfer(t, hash, assetAddress, destination, index, amount, precision) {
 		return false, nil
 	}
-	balancePrev, err := RPCGetAssetBalanceAtBlock(rpc, t.Receiver, t.TokenAddress, blockHeight-1)
+	balancePrev, err := RPCGetAssetBalanceAtBlock(ctx, rpc, t.Receiver, t.TokenAddress, blockHeight-1)
 	if err != nil {
 		return false, err
 	}
-	balanceNow, err := RPCGetAssetBalanceAtBlock(rpc, t.Receiver, t.TokenAddress, blockHeight)
+	balanceNow, err := RPCGetAssetBalanceAtBlock(ctx, rpc, t.Receiver, t.TokenAddress, blockHeight)
 	if err != nil {
 		return false, err
 	}
@@ -348,11 +351,11 @@ func GetMixinChainID(chain int64) string {
 	}
 }
 
-func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
+func FetchAsset(ctx context.Context, chain byte, rpc, address string) (*Asset, error) {
 	addr := common.HexToAddress(address)
 	assetId := GenerateAssetId(chain, strings.ToLower(address))
 
-	conn, err := ethclient.Dial(rpc)
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}
@@ -362,15 +365,16 @@ func FetchAsset(chain byte, rpc, address string) (*Asset, error) {
 	if err != nil {
 		return nil, err
 	}
-	name, err := token.Name(nil)
+	opts := &bind.CallOpts{Context: ctx}
+	name, err := token.Name(opts)
 	if err != nil {
 		return nil, err
 	}
-	symbol, err := token.Symbol(nil)
+	symbol, err := token.Symbol(opts)
 	if err != nil {
 		return nil, err
 	}
-	decimals, err := token.Decimals(nil)
+	decimals, err := token.Decimals(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -595,45 +599,51 @@ func packDomainSeparatorArguments(chainID int64, safeAddress string) []byte {
 	return args
 }
 
-func SignerInit(ctx context.Context, conn *ethclient.Client, key string, evmChainId int64) *bind.TransactOpts {
+func SignerInit(ctx context.Context, conn *ethclient.Client, key string, evmChainId int64) (*bind.TransactOpts, error) {
 	chainId := new(big.Int).SetInt64(evmChainId)
 	priv, err := crypto.HexToECDSA(key)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	signer, err := bind.NewKeyedTransactorWithChainID(priv, chainId)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	signer.GasFeeCap = suggestMaxFeePerGas(ctx, conn)
-	signer.GasTipCap = suggestMaxPriorityFeePerGas(ctx, conn)
+	signer.GasFeeCap, err = suggestMaxFeePerGas(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
+	signer.GasTipCap, err = suggestMaxPriorityFeePerGas(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
 	signer.Context = ctx
-	return signer
+	return signer, nil
 }
 
-func suggestMaxFeePerGas(ctx context.Context, conn *ethclient.Client) *big.Int {
+func suggestMaxFeePerGas(ctx context.Context, conn *ethclient.Client) (*big.Int, error) {
 	gasPrice, err := conn.SuggestGasPrice(ctx)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(15))
 	gasPrice = new(big.Int).Div(gasPrice, big.NewInt(10))
-	return gasPrice
+	return gasPrice, nil
 }
 
-func suggestMaxPriorityFeePerGas(ctx context.Context, conn *ethclient.Client) *big.Int {
+func suggestMaxPriorityFeePerGas(ctx context.Context, conn *ethclient.Client) (*big.Int, error) {
 	gasPrice, err := conn.SuggestGasTipCap(ctx)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(15))
 	gasPrice = new(big.Int).Div(gasPrice, big.NewInt(10))
-	return gasPrice
+	return gasPrice, nil
 }
 
 func safeInit(ctx context.Context, chainId int64, rpc, address string) (*ethclient.Client, *abi.GnosisSafe, error) {
-	conn, err := ethclient.Dial(rpc)
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -656,8 +666,8 @@ func safeInit(ctx context.Context, chainId int64, rpc, address string) (*ethclie
 	return conn, abi, nil
 }
 
-func factoryInit(rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
-	conn, err := ethclient.Dial(rpc)
+func factoryInit(ctx context.Context, rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -671,8 +681,8 @@ func factoryInit(rpc string) (*ethclient.Client, *abi.ProxyFactory, error) {
 	return conn, abi, nil
 }
 
-func guardInit(rpc string, guard string) (*ethclient.Client, *abi.MixinSafeGuard, error) {
-	conn, err := ethclient.Dial(rpc)
+func guardInit(ctx context.Context, rpc string, guard string) (*ethclient.Client, *abi.MixinSafeGuard, error) {
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -709,7 +709,7 @@ func (node *Node) processBitcoinSafeProposeTransaction(ctx context.Context, req 
 	if meta.Chain != common.SafeChainPolygon {
 		return node.failRequest(ctx, req, "")
 	}
-	deployed, err := abi.CheckFactoryAssetDeployed(node.conf.PolygonRPC, meta.AssetKey)
+	deployed, err := abi.CheckFactoryAssetDeployed(ctx, node.conf.PolygonRPC, meta.AssetKey)
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s) => %v %v", meta.AssetKey, deployed, err)
 	if err != nil || deployed.Sign() <= 0 {
 		panic(fmt.Errorf("abi.CheckFactoryAssetDeployed(%s) => %v", meta.AssetKey, err))

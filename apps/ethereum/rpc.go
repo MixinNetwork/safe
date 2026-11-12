@@ -77,8 +77,8 @@ type RPCTransactionCallTrace struct {
 	Value   string                     `json:"value"`
 }
 
-func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByHash", []any{hash, false})
+func RPCGetBlock(ctx context.Context, rpc, hash string) (*RPCBlock, error) {
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_getBlockByHash", []any{hash, false})
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +109,8 @@ func RPCGetBlock(rpc, hash string) (*RPCBlock, error) {
 	return b, nil
 }
 
-func RPCGetBlockHeight(rpc string) (int64, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_blockNumber", []any{})
+func RPCGetBlockHeight(ctx context.Context, rpc string) (int64, error) {
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_blockNumber", []any{})
 	if err != nil {
 		return 0, err
 	}
@@ -129,12 +129,12 @@ func RPCGetBlockHeight(rpc string) (int64, error) {
 	return int64(height), nil
 }
 
-func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
+func RPCGetBlockByHeight(ctx context.Context, rpc string, height int64) (*RPCBlock, error) {
 	if height < 0 {
 		return nil, fmt.Errorf("invalid block height %d", height)
 	}
 	h := fmt.Sprintf("0x%x", height)
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, false})
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_getBlockByNumber", []any{h, false})
 	if err != nil {
 		return nil, err
 	}
@@ -165,12 +165,12 @@ func RPCGetBlockByHeight(rpc string, height int64) (*RPCBlock, error) {
 	return b, err
 }
 
-func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransactions, error) {
+func RPCGetBlockWithTransactions(ctx context.Context, rpc string, height int64) (*RPCBlockWithTransactions, error) {
 	if height < 0 {
 		return nil, fmt.Errorf("invalid block height %d", height)
 	}
 	h := fmt.Sprintf("0x%x", height)
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBlockByNumber", []any{h, true})
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_getBlockByNumber", []any{h, true})
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +199,8 @@ func RPCGetBlockWithTransactions(rpc string, height int64) (*RPCBlockWithTransac
 	return b, nil
 }
 
-func RPCGetGasPrice(rpc string) (*big.Int, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_gasPrice", []any{})
+func RPCGetGasPrice(ctx context.Context, rpc string) (*big.Int, error) {
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_gasPrice", []any{})
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +219,8 @@ func RPCGetGasPrice(rpc string) (*big.Int, error) {
 	return value, err
 }
 
-func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getTransactionByHash", []any{hash})
+func RPCGetTransactionByHash(ctx context.Context, rpc, hash string) (*RPCTransaction, error) {
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_getTransactionByHash", []any{hash})
 	if err != nil {
 		return nil, err
 	}
@@ -245,11 +245,11 @@ func RPCGetTransactionByHash(rpc, hash string) (*RPCTransaction, error) {
 	return b, nil
 }
 
-func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace, error) {
+func RPCDebugTraceTransactionByHash(ctx context.Context, rpc, hash string) (*RPCTransactionCallTrace, error) {
 	if !strings.HasPrefix(hash, "0x") {
 		hash = "0x" + hash
 	}
-	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceTransaction", []any{hash, map[string]any{"tracer": "callTracer"}})
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "debug_traceTransaction", []any{hash, map[string]any{"tracer": "callTracer"}})
 	if err != nil {
 		return nil, err
 	}
@@ -264,9 +264,9 @@ func RPCDebugTraceTransactionByHash(rpc, hash string) (*RPCTransactionCallTrace,
 	return t, nil
 }
 
-func RPCDebugTraceBlockByNumber(rpc string, height int64) ([]*RPCBlockCallTrace, error) {
+func RPCDebugTraceBlockByNumber(ctx context.Context, rpc string, height int64) ([]*RPCBlockCallTrace, error) {
 	h := fmt.Sprintf("0x%x", height)
-	res, err := callEthereumRPCUntilSufficient(rpc, "debug_traceBlockByNumber", []any{h, map[string]any{"tracer": "callTracer"}})
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "debug_traceBlockByNumber", []any{h, map[string]any{"tracer": "callTracer"}})
 	if err != nil {
 		return nil, err
 	}
@@ -306,16 +306,16 @@ func validateCallTrace(trace *RPCTransactionCallTrace) error {
 	return nil
 }
 
-func RPCGetAssetBalanceAtBlock(rpc, address, asset string, blockNumber uint64) (*big.Int, error) {
+func RPCGetAssetBalanceAtBlock(ctx context.Context, rpc, address, asset string, blockNumber uint64) (*big.Int, error) {
 	if asset == EthereumEmptyAddress {
-		return rpcGetEtherBalanceAtBlock(rpc, address, blockNumber)
+		return rpcGetEtherBalanceAtBlock(ctx, rpc, address, blockNumber)
 	}
-	return rpcGetTokenBalanceAtBlock(rpc, address, asset, blockNumber)
+	return rpcGetTokenBalanceAtBlock(ctx, rpc, address, asset, blockNumber)
 }
 
-func rpcGetEtherBalanceAtBlock(rpc, address string, blockNumber uint64) (*big.Int, error) {
+func rpcGetEtherBalanceAtBlock(ctx context.Context, rpc, address string, blockNumber uint64) (*big.Int, error) {
 	blockHeight := fmt.Sprintf("0x%x", blockNumber)
-	res, err := callEthereumRPCUntilSufficient(rpc, "eth_getBalance", []any{address, blockHeight})
+	res, err := callEthereumRPCUntilSufficient(ctx, rpc, "eth_getBalance", []any{address, blockHeight})
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +327,7 @@ func rpcGetEtherBalanceAtBlock(rpc, address string, blockNumber uint64) (*big.In
 	return hexutil.DecodeBig(b)
 }
 
-func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber uint64) (*big.Int, error) {
+func rpcGetTokenBalanceAtBlock(ctx context.Context, rpc, address, tokenAddress string, blockNumber uint64) (*big.Int, error) {
 	tokenAddr := common.HexToAddress(tokenAddress)
 	addr := common.HexToAddress(address)
 
@@ -340,14 +340,14 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 		To:   &tokenAddr,
 		Data: data,
 	}
-	conn, err := ethclient.Dial(rpc)
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
 	height := new(big.Int).SetUint64(blockNumber)
-	response, err := conn.CallContract(context.Background(), callMsg, height)
+	response, err := conn.CallContract(ctx, callMsg, height)
 	if err != nil && strings.Contains(err.Error(), "execution reverted") {
 		return big.NewInt(0), nil
 	}
@@ -359,7 +359,7 @@ func rpcGetTokenBalanceAtBlock(rpc, address, tokenAddress string, blockNumber ui
 }
 
 func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height int64) ([]*Transfer, error) {
-	client, err := ethclient.Dial(rpc)
+	client, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}
@@ -408,21 +408,31 @@ func GetERC20TransferLogFromBlock(ctx context.Context, rpc string, chain, height
 	return ts, nil
 }
 
-func callEthereumRPCUntilSufficient(rpc, method string, params []any) ([]byte, error) {
+func callEthereumRPCUntilSufficient(ctx context.Context, rpc, method string, params []any) ([]byte, error) {
 	for {
-		res, err := callEthereumRPC(rpc, method, params)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		res, err := callEthereumRPC(ctx, rpc, method, params)
 		if err == nil {
 			return res, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
 		logger.Printf("callEthereumRPC(%s, %s, %v) => %v", rpc, method, params, err)
 		if !util.CheckRetryableRPCError(err) {
 			return res, err
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
 	}
 }
 
-func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
+func callEthereumRPC(ctx context.Context, rpc, method string, params []any) ([]byte, error) {
 	client := &http.Client{Timeout: 180 * time.Second}
 
 	body, err := json.Marshal(map[string]any{
@@ -435,7 +445,7 @@ func callEthereumRPC(rpc, method string, params []any) ([]byte, error) {
 		panic(err)
 	}
 
-	req, err := http.NewRequest("POST", rpc, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", rpc, bytes.NewReader(body))
 	if err != nil {
 		return nil, buildRPCError(rpc, method, params, err)
 	}

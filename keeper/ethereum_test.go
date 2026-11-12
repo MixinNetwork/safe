@@ -65,7 +65,7 @@ func TestEthereumDepositKeeper(t *testing.T) {
 
 	hash := "8375f2b2964b74c6313225887dc5e7f5006e04b0f5cd139342d01e54360d9900"
 	rpc, _ := node.ethereumParams(common.SafeChainPolygon)
-	tx, err := ethereum.RPCGetTransactionByHash(rpc, "0x"+hash)
+	tx, err := ethereum.RPCGetTransactionByHash(t.Context(), rpc, "0x"+hash)
 	require.Nil(err)
 	value, success := new(big.Int).SetString(tx.Value, 0)
 	require.True(success)
@@ -1383,12 +1383,12 @@ func testEthereumObserverHolderDeposit(ctx context.Context, require *require.Ass
 	if !strings.HasPrefix(txHash, "0x") {
 		txHash = "0x" + txHash
 	}
-	etx, err := ethereum.RPCGetTransactionByHash(rpc, txHash)
+	etx, err := ethereum.RPCGetTransactionByHash(ctx, rpc, txHash)
 	require.Nil(err)
 	index := 0
 	switch assetId {
 	case common.SafePolygonChainId:
-		traces, err := ethereum.RPCDebugTraceTransactionByHash(rpc, txHash)
+		traces, err := ethereum.RPCDebugTraceTransactionByHash(ctx, rpc, txHash)
 		require.Nil(err)
 		transfers, _ := ethereum.LoopCalls(common.SafeChainPolygon, common.SafePolygonChainId, txHash, traces, 0)
 		for _, t := range transfers {

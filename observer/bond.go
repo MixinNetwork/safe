@@ -125,7 +125,7 @@ func (node *Node) fetchAssetMetaFromMessengerOrEthereum(ctx context.Context, id,
 		panic(chain)
 	}
 	rpc, _, _ := node.ethereumParams(chain)
-	token, err := ethereum.FetchAsset(chain, rpc, assetContract)
+	token, err := ethereum.FetchAsset(ctx, chain, rpc, assetContract)
 	if err != nil {
 		return nil, err
 	}

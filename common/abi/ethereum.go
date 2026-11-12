@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -32,20 +33,23 @@ func InitFactoryContractAddress(addr string) {
 }
 
 func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symbol, name, receiver, holder string) error {
-	conn, abi, err := factoryInit(rpc)
+	conn, abi, err := factoryInit(ctx, rpc)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
 	addr := GetFactoryAssetAddress(receiver, assetId, symbol, name, holder)
-	deployed, err := CheckFactoryAssetDeployed(rpc, addr.String())
+	deployed, err := CheckFactoryAssetDeployed(ctx, rpc, addr.String())
 	logger.Printf("abi.CheckFactoryAssetDeployed(%s, %s) => %v %v", rpc, addr, deployed, err)
 	if err != nil || deployed.Sign() > 0 {
 		return err
 	}
 
-	signer := ethereum.SignerInit(ctx, conn, key, ethereumChainId)
+	signer, err := ethereum.SignerInit(ctx, conn, key, ethereumChainId)
+	if err != nil {
+		return err
+	}
 	id := new(big.Int).SetBytes(uuid.Must(uuid.FromString(assetId)).Bytes())
 	symbol, name = "safe"+symbol, name+" @ Mixin Safe"
 	t, err := abi.Deploy(signer, common.HexToAddress(receiver), id, holder, symbol, name)
@@ -63,15 +67,15 @@ func GetOrDeployFactoryAsset(ctx context.Context, rpc, key string, assetId, symb
 	return err
 }
 
-func CheckFactoryAssetDeployed(rpc, assetKey string) (*big.Int, error) {
-	conn, abi, err := factoryInit(rpc)
+func CheckFactoryAssetDeployed(ctx context.Context, rpc, assetKey string) (*big.Int, error) {
+	conn, abi, err := factoryInit(ctx, rpc)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
 	addr := common.HexToAddress(assetKey)
-	return abi.Assets(nil, addr)
+	return abi.Assets(&bind.CallOpts{Context: ctx}, addr)
 }
 
 func GetFactoryAssetAddress(receiver, assetId, symbol, name string, holder string) common.Address {
@@ -101,8 +105,8 @@ func GetFactoryAssetAddress(receiver, assetId, symbol, name string, holder strin
 	return common.BytesToAddress(crypto.Keccak256(input))
 }
 
-func factoryInit(rpc string) (*ethclient.Client, *FactoryContract, error) {
-	conn, err := ethclient.Dial(rpc)
+func factoryInit(ctx context.Context, rpc string) (*ethclient.Client, *FactoryContract, error) {
+	conn, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
 		return nil, nil, err
 	}
