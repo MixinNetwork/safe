@@ -564,6 +564,77 @@ func TestBitcoinKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T) 
 	safe, err = node.store.ReadSafe(ctx, public)
 	require.Nil(err)
 	require.Equal(common.RequestStateFailed, int(safe.State))
+
+	original, err := node.store.ReadPendingSignatureRequestByTransactionIndex(ctx, psTx.Hash(), 0)
+	require.NoError(err)
+	require.NotNil(original)
+
+	// A retry before the signing timeout must not create another request.
+	earlyID := common.UniqueId(requestId, "early retry")
+	early := testBuildObserverRequest(node, earlyID, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
+	early.SequencerCreatedAt = out.SequencerCreatedAt.Add(SafeSignatureTimeout / 2)
+	testStep(ctx, require, node, early)
+	earlyReq, err := node.store.ReadRequest(ctx, earlyID)
+	require.NoError(err)
+	require.Equal(uint8(common.RequestStateFailed), earlyReq.State)
+	pending, err := node.store.ReadPendingSignatureRequestByTransactionIndex(ctx, psTx.Hash(), 0)
+	require.NoError(err)
+	require.Equal(original.RequestId, pending.RequestId)
+
+	// Changing the destination cannot replace an unfinished recovery.
+	conflicting, err := bitcoin.UnmarshalPartiallySignedTransaction(raw)
+	require.NoError(err)
+	conflicting.UnsignedTx.TxOut[0].PkScript, err = bitcoin.ParseAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", common.SafeChainBitcoin)
+	require.NoError(err)
+	for i := range conflicting.Inputs {
+		conflicting.Inputs[i].PartialSigs = nil
+	}
+	conflicting = bitcoin.SignPartiallySignedTransaction(conflicting.Marshal(), opk)
+	conflictingRaw := conflicting.Marshal()
+	conflictingRef := crypto.Sha256Hash(conflictingRaw)
+	require.NoError(node.store.WriteProperty(ctx, conflictingRef.String(), base64.RawURLEncoding.EncodeToString(conflictingRaw)))
+	conflictingID := common.UniqueId(l.LockId, conflictingRef.String())
+	conflictingOut := testBuildObserverRequest(node, conflictingID, public, common.ActionBitcoinSafeCloseAccountByInheritance, conflictingRef[:], common.CurveSecp256k1ECDSABitcoin)
+	conflictingOut.SequencerCreatedAt = out.SequencerCreatedAt.Add(SafeSignatureTimeout)
+	testStep(ctx, require, node, conflictingOut)
+	conflictingReq, err := node.store.ReadRequest(ctx, conflictingID)
+	require.NoError(err)
+	require.Equal(uint8(common.RequestStateFailed), conflictingReq.State)
+
+	retryID := common.UniqueId(requestId, "timed out retry")
+	retry := testBuildObserverRequest(node, retryID, public, common.ActionBitcoinSafeCloseAccountByInheritance, ref[:], common.CurveSecp256k1ECDSABitcoin)
+	retry.SequencerCreatedAt = out.SequencerCreatedAt.Add(2 * SafeSignatureTimeout)
+	testStep(ctx, require, node, retry)
+	retryReq, err := node.store.ReadRequest(ctx, retryID)
+	require.NoError(err)
+	require.Equal(uint8(common.RequestStateDone), retryReq.State)
+	pending, err = node.store.ReadPendingSignatureRequestByTransactionIndex(ctx, psTx.Hash(), 0)
+	require.NoError(err)
+	require.Equal(common.UniqueId(retryID, original.Message), pending.RequestId)
+	require.Equal(original.Message, pending.Message)
+	unchanged, err := node.store.ReadTransaction(ctx, psTx.Hash())
+	require.NoError(err)
+	require.Equal(tx, unchanged)
+	_, spentBy, err := node.store.ReadBitcoinUTXO(ctx, input.TransactionHash, int(input.Index))
+	require.NoError(err)
+	require.Equal(psTx.Hash(), spentBy)
+
+	// The new signing session must complete the original recovery transaction.
+	msg := common.DecodeHexOrPanic(pending.Message)
+	sign := testBuildSignerOutput(node, pending.RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
+	op := signer.TestProcessOutput(ctx, require, signers, sign, pending.RequestId)
+	response := testBuildSignerOutput(node, pending.RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+	response.SequencerCreatedAt = retry.SequencerCreatedAt.Add(time.Second)
+	testStep(ctx, require, node, response)
+	finished, err := node.store.ReadTransaction(ctx, psTx.Hash())
+	require.NoError(err)
+	require.Equal(common.RequestStateDone, finished.State)
+	require.Equal(requestId, finished.RequestId)
+	completed, err := node.store.ListAllSignaturesForTransaction(ctx, psTx.Hash(), common.RequestStateDone)
+	require.NoError(err)
+	require.Len(completed, 1)
+	require.Equal(pending.RequestId, completed[0].RequestId)
+	require.True(completed[0].Signature.Valid)
 }
 
 func testPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
@@ -754,6 +825,7 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	extra = append(extra, ref[:]...)
 
 	out := testBuildObserverRequest(node, id, testPublicKey(testBitcoinKeyHolderPrivate), common.ActionBitcoinSafeApproveTransaction, extra, common.CurveSecp256k1ECDSABitcoin)
+	approval := out
 	testStep(ctx, require, node, out)
 	requests, err := node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
 	require.Nil(err)
@@ -773,10 +845,13 @@ func testSafeApproveTransaction(ctx context.Context, require *require.Assertions
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStatePending, tx.State)
 
+	requests = testSignatureTimeoutRetries(ctx, require, node, approval, transactionHash)
+
 	msg, _ = hex.DecodeString(requests[1].Message)
 	out = testBuildSignerOutput(node, requests[1].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 	op = signer.TestProcessOutput(ctx, require, signers, out, requests[1].RequestId)
 	out = testBuildSignerOutput(node, requests[1].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+	out.SequencerCreatedAt = requests[1].CreatedAt.Add(time.Second)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStateInitial)
 	require.Len(requests, 0)
@@ -1081,10 +1156,13 @@ func testSafeCloseAccount(ctx context.Context, require *require.Assertions, node
 		tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 		require.Equal(common.RequestStatePending, tx.State)
 
+		requests = testSignatureTimeoutRetries(ctx, require, node, out, transactionHash)
+
 		msg, _ := hex.DecodeString(requests[0].Message)
 		out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSABitcoin)
 		op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
 		out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSABitcoin)
+		out.SequencerCreatedAt = requests[0].CreatedAt.Add(time.Second)
 		testStep(ctx, require, node, out)
 		requests, _ = node.store.ListAllSignaturesForTransaction(ctx, transactionHash, common.RequestStatePending)
 		require.Len(requests, 0)
@@ -1360,10 +1438,23 @@ func testBuildHolderRequest(node *Node, id, public string, action byte, assetId 
 			AssetId:            assetId,
 			Extra:              memo,
 			Amount:             amount,
-			SequencerCreatedAt: time.Now(),
+			SequencerCreatedAt: testRequestTime(node),
 			Sequence:           sequence,
 		},
 	}
+}
+
+// Keep later actions ordered after tests advance time to exercise a timeout.
+func testRequestTime(node *Node) time.Time {
+	now := time.Now()
+	latest, err := node.store.ReadLatestRequest(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	if latest != nil && !now.After(latest.CreatedAt) {
+		return latest.CreatedAt.Add(time.Nanosecond)
+	}
+	return now
 }
 
 func testBuildObserverRequest(node *Node, id, public string, action byte, extra []byte, crv byte) *mtg.Action {
@@ -1378,7 +1469,7 @@ func testBuildObserverRequest(node *Node, id, public string, action byte, extra 
 	}
 	memo := mtg.EncodeMixinExtraBase64(node.conf.AppId, node.encryptObserverOperation(op))
 	memo = hex.EncodeToString([]byte(memo))
-	timestamp := time.Now()
+	timestamp := testRequestTime(node)
 	if action == common.ActionObserverAddKey {
 		timestamp = timestamp.Add(-SafeKeyBackupMaturity)
 	}
@@ -1414,7 +1505,7 @@ func testBuildSignerOutput(node *Node, id, public string, action byte, extra []b
 		Curve: crv,
 		Extra: extra,
 	}
-	timestamp := time.Now()
+	timestamp := testRequestTime(node)
 	appId := node.conf.AppId
 	switch action {
 	case common.OperationTypeKeygenInput:

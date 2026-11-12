@@ -335,7 +335,7 @@ func (mm *MixinMessenger) sendMessagesWithoutTimeout(ctx context.Context, batch 
 			return err
 		}
 		err := mm.postEncryptedMessages(ctx, batch)
-		if err != nil && mtg.CheckRetryableError(err) {
+		if mtg.CheckRetryableError(err) {
 			logger.Printf("messenger.sendMessagesWithoutTimeout(retry, %d) => %v", len(batch), err)
 			if !waitForMessengerRetry(ctx, 3*time.Second) {
 				return ctx.Err()
@@ -463,7 +463,7 @@ func validateEncryptedMessage(data, sessionID string) error {
 		return fmt.Errorf("invalid messenger session: %w", err)
 	}
 	found := false
-	for i := 0; i < sessionCount; i++ {
+	for i := range sessionCount {
 		offset := encryptedMessagePrefixSize + i*encryptedMessageSessionSize
 		session, err := uuid.FromBytes(b[offset : offset+16])
 		if err != nil {

@@ -141,7 +141,7 @@ func TestEthereumKeeper(t *testing.T) {
 
 	rid := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testEthereumKeyHolder)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	extra := []byte{common.FlagProposeCancelTransaction}
 	extra = append(extra, uuid.Must(uuid.FromString(tx.RequestId)).Bytes()...)
@@ -341,7 +341,7 @@ func TestEthereumKeeperCancelStuckTransactionTwice(t *testing.T) {
 	// another refund or re-crediting the safe balances
 	rid := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testEthereumKeyHolder)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	extra := []byte{common.FlagProposeCancelTransaction}
 	extra = append(extra, uuid.Must(uuid.FromString(tx.RequestId)).Bytes()...)
@@ -454,10 +454,13 @@ func TestEthereumKeeperCloseAccountWithSignerObserver(t *testing.T) {
 	tx, _ = node.store.ReadTransaction(ctx, tx.TransactionHash)
 	require.Equal(common.RequestStatePending, tx.State)
 
+	requests = testSignatureTimeoutRetries(ctx, require, node, out, tx.TransactionHash)
+
 	msg, _ := hex.DecodeString(requests[0].Message)
 	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
 	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
+	out.SequencerCreatedAt = requests[0].CreatedAt.Add(time.Second)
 	testStep(ctx, require, node, out)
 	requests, _ = node.store.ListAllSignaturesForTransaction(ctx, tx.TransactionHash, common.RequestStatePending)
 	require.Len(requests, 0)
@@ -800,6 +803,26 @@ func TestEthereumKeeperCloseAccountByInheritanceWithSignerObserver(t *testing.T)
 	require.Nil(err)
 	require.Equal(common.RequestStateFailed, int(safe.State))
 
+	requests := testSignatureTimeoutRetries(ctx, require, node, out, st.RequestHash)
+	require.Len(requests, 1)
+	msg := common.DecodeHexOrPanic(requests[0].Message)
+	sign := testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
+	op := signer.TestProcessOutput(ctx, require, signers, sign, requests[0].RequestId)
+	response := testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
+	response.SequencerCreatedAt = requests[0].CreatedAt.Add(time.Second)
+	testStep(ctx, require, node, response)
+	completed, err := node.store.ListAllSignaturesForTransaction(ctx, st.RequestHash, common.RequestStateDone)
+	require.NoError(err)
+	require.Len(completed, 1)
+	require.Equal(requests[0].RequestId, completed[0].RequestId)
+	require.True(completed[0].Signature.Valid)
+	closed, err := node.store.ReadSafe(ctx, holder)
+	require.NoError(err)
+	require.Equal(uint8(common.RequestStateFailed), closed.State)
+	require.Equal(safe.Nonce+1, closed.Nonce)
+	balances, err := node.store.ReadPositiveEthereumTokenBalancesMap(ctx, closed.Address)
+	require.NoError(err)
+	require.Empty(balances)
 }
 
 func testEthereumPrepare(require *require.Assertions) (context.Context, *Node, *mtg.SQLite3Store, string, []*signer.Node) {
@@ -886,7 +909,7 @@ func testEthereumSafeSetInheritanceLock(ctx context.Context, require *require.As
 	holder := testPublicKey(testEthereumKeyHolder)
 	hash := mc.Sha256Hash([]byte{flag, byte(lock)})
 
-	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, _ := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	extra := []byte{flag}
 	if flag == common.FlagProposeRemoveInheritance {
 		extra = append(extra, uuid.FromStringOrNil(removeId).Bytes()...)
@@ -977,7 +1000,7 @@ func testEthereumSafeApproveLockTransaction(ctx context.Context, require *requir
 
 func testEthereumProposeTransaction(ctx context.Context, require *require.Assertions, node *Node, bondId string, rid string) string {
 	holder := testPublicKey(testEthereumKeyHolder)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
@@ -1005,7 +1028,7 @@ func testEthereumProposeTransaction(ctx context.Context, require *require.Assert
 
 func testEthereumProposeERC20Transaction(ctx context.Context, require *require.Assertions, node *Node, bondId string, rid string) string {
 	holder := testPublicKey(testEthereumKeyHolder)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	extra := []byte{0}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
@@ -1029,7 +1052,7 @@ func testEthereumProposeERC20Transaction(ctx context.Context, require *require.A
 
 func testEthereumProposeRecoveryTransaction(ctx context.Context, require *require.Assertions, node *Node, bondId string, rid string) string {
 	holder := testPublicKey(testEthereumKeyHolder)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	extra := []byte{1}
 	extra = append(extra, uuid.Must(uuid.FromString(info.RequestId)).Bytes()...)
@@ -1112,10 +1135,13 @@ func testEthereumApproveTransaction(ctx context.Context, require *require.Assert
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
 	require.Equal(common.RequestStatePending, tx.State)
 
+	requests = testSignatureTimeoutRetries(ctx, require, node, out, transactionHash)
+
 	msg, _ := hex.DecodeString(requests[0].Message)
 	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignInput, msg, common.CurveSecp256k1ECDSAEthereum)
 	op := signer.TestProcessOutput(ctx, require, signers, out, requests[0].RequestId)
 	out = testBuildSignerOutput(node, requests[0].RequestId, safe.Signer, common.OperationTypeSignOutput, op.Extra, common.CurveSecp256k1ECDSAEthereum)
+	out.SequencerCreatedAt = requests[0].CreatedAt.Add(time.Second)
 	testStep(ctx, require, node, out)
 
 	tx, _ = node.store.ReadTransaction(ctx, transactionHash)
@@ -1145,7 +1171,7 @@ func testEthereumCancelTransaction(ctx context.Context, require *require.Asserti
 
 	rid := uuid.Must(uuid.NewV4()).String()
 	holder := testPublicKey(testEthereumKeyHolder)
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	extra := []byte{common.FlagProposeCancelTransaction}
 	extra = append(extra, uuid.Must(uuid.FromString(cancelRequestId)).Bytes()...)
@@ -1367,7 +1393,7 @@ func testEthereumUpdateNetworkStatus(ctx context.Context, require *require.Asser
 	out := testBuildObserverRequest(node, id, dummy, common.ActionObserverUpdateNetworkStatus, extra, common.CurveSecp256k1ECDSAPolygon)
 	testStep(ctx, require, node, out)
 
-	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, time.Now())
+	info, err := node.store.ReadLatestNetworkInfo(ctx, common.SafeChainPolygon, testRequestTime(node))
 	require.Nil(err)
 	require.NotNil(info)
 	require.Equal(byte(common.SafeChainPolygon), info.Chain)

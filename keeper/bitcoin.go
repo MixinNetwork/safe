@@ -80,13 +80,55 @@ func (node *Node) processBitcoinSafeCloseAccountByInheritance(ctx context.Contex
 	if err != nil {
 		return node.failRequest(ctx, req, "")
 	}
-	if count > 0 {
-		return node.failRequest(ctx, req, "")
-	}
-	mainInputs, err := node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
-	logger.Printf("store.ListAllBitcoinUTXOsForHolder(%s) => %d %v", safe.Holder, len(mainInputs), err)
+	old, err := node.store.ReadTransaction(ctx, txHash)
 	if err != nil {
-		panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
+		panic(err)
+	}
+	var mainInputs []*bitcoin.Input
+	if old == nil {
+		if count > 0 {
+			return node.failRequest(ctx, req, "")
+		}
+		mainInputs, err = node.store.ListAllBitcoinUTXOsForHolder(ctx, req.Holder)
+		logger.Printf("store.ListAllBitcoinUTXOsForHolder(%s) => %d %v", safe.Holder, len(mainInputs), err)
+		if err != nil {
+			panic(fmt.Errorf("store.ListAllBitcoinUTXOsForHolder(%s) => %v", req.Holder, err))
+		}
+	} else {
+		// bitcoin inheritance close account also sets the output state to done without waiting for
+		// all signatures are collected, but normal and recovery bitcoin transactions are not like this
+		// so when signer timeout and retries we can't read unspent outputs from db
+		if count != 1 || old.State != common.RequestStateInitial || old.Holder != safe.Holder ||
+			old.Chain != safe.Chain || safe.State != SafeStateClosed {
+			return node.failRequest(ctx, req, "")
+		}
+		original, err := node.store.ReadRequest(ctx, old.RequestId)
+		if err != nil {
+			panic(err)
+		}
+		if original == nil || original.Action != common.ActionBitcoinSafeCloseAccountByInheritance {
+			return node.failRequest(ctx, req, "")
+		}
+
+		// The first attempt already reserved these inputs and closed the Safe.
+		// Retry the stored PSBT so its signature messages remain unchanged.
+		raw = common.DecodeHexOrPanic(old.RawTransaction)
+		opsbt, err = bitcoin.UnmarshalPartiallySignedTransaction(raw)
+		if err != nil {
+			panic(err)
+		}
+		msgTx = opsbt.UnsignedTx
+		for _, in := range msgTx.TxIn {
+			pop := in.PreviousOutPoint
+			utxo, spentBy, err := node.store.ReadBitcoinUTXO(ctx, pop.Hash.String(), int(pop.Index))
+			if err != nil {
+				panic(err)
+			}
+			if utxo == nil || spentBy != txHash {
+				return node.failRequest(ctx, req, "")
+			}
+			mainInputs = append(mainInputs, utxo)
+		}
 	}
 	if len(mainInputs) == 0 {
 		return node.failRequest(ctx, req, "")
