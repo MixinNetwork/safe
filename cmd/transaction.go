@@ -3,19 +3,15 @@ package cmd
 import (
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/common/abi"
 	"github.com/MixinNetwork/safe/config"
-	"github.com/MixinNetwork/safe/util"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/psbt/v2"
 	"github.com/gofrs/uuid/v5"
@@ -57,7 +53,7 @@ func GenerateTestTransactionProposal(c *cli.Context) error {
 	abi.InitFactoryContractAddress(mc.Keeper.PolygonFactoryAddress)
 	addr := abi.GetFactoryAssetAddress(mc.Keeper.PolygonKeeperDepositEntry, common.SafeBitcoinChainId, "BTC", "Bitcoin", holder)
 	assetKey := strings.ToLower(addr.String())
-	bondId := fetchAssetId(ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey))
+	bondId := ethereum.GenerateAssetId(common.SafeChainPolygon, assetKey)
 
 	extra := append([]byte{common.FlagProposeNormalTransaction}, head.Bytes()...)
 	extra = append(extra, c.String("address")...)
@@ -105,29 +101,4 @@ func GenerateTestTransactionApproval(c *cli.Context) error {
 	sig := ecdsa.Sign(holder, msg).Serialize()
 	fmt.Printf("signature: %s\n", base64.RawURLEncoding.EncodeToString(sig))
 	return nil
-}
-
-func fetchAssetId(mixinId string) string {
-	client := &http.Client{Timeout: 10 * time.Second}
-	path := "https://api.mixin.one/network/assets/" + mixinId
-	resp, err := client.Get(path)
-	if err != nil {
-		panic(mixinId)
-	}
-	defer util.CloseOrPanic(resp.Body)
-
-	var body struct {
-		Data struct {
-			AssetId string `json:"asset_id"`
-			MixinId string `json:"mixin_id"`
-		} `json:"data"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&body)
-	if err != nil {
-		panic(err)
-	}
-	if body.Data.MixinId != mixinId {
-		panic(mixinId)
-	}
-	return body.Data.AssetId
 }
