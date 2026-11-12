@@ -61,15 +61,17 @@ func (raw *PartiallySignedTransaction) Marshal() []byte {
 }
 
 func (psbt *PartiallySignedTransaction) EstimateVirtualSize() int {
-	tx := btcutil.NewTx(psbt.UnsignedTx)
-	raw, err := MarshalWiredTransaction(tx.MsgTx(), wire.BaseEncoding, ChainBitcoin)
-	if err != nil || len(raw) < 100 {
-		panic(err)
+	weight := psbt.UnsignedTx.SerializeSizeStripped() * blockchain.WitnessScaleFactor
+	// SegWit marker and flag each contribute one unit of weight.
+	weight += 2
+	// Allow two maximum-sized DER signatures (including their sighash bytes),
+	// one empty signature and the Safe witness script, on either spending route.
+	var signature [73]byte
+	for _, in := range psbt.Inputs {
+		witness := wire.TxWitness{nil, signature[:], signature[:], in.WitnessScript}
+		weight += witness.SerializeSize()
 	}
-	const witnessSize = 264
-	weight := len(tx.MsgTx().TxIn) * witnessSize
-	weight = weight + 4*len(raw)
-	return weight / 4
+	return (weight + blockchain.WitnessScaleFactor - 1) / blockchain.WitnessScaleFactor
 }
 
 func UnmarshalPartiallySignedTransaction(b []byte) (*PartiallySignedTransaction, error) {
@@ -344,11 +346,6 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		}
 	}
 
-	estvb := (40 + len(msgTx.TxIn)*300 + (len(msgTx.TxOut)+1)*128) / 4
-	if len(rid) > 0 && len(rid) <= 64 {
-		estvb += len(rid)
-	}
-
 	if len(rid) > 0 && len(rid) <= 64 {
 		builder := txscript.NewScriptBuilder()
 		builder.AddOp(txscript.OP_RETURN)
@@ -358,17 +355,6 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 			return nil, fmt.Errorf("return(%x) => %v", rid, err)
 		}
 		msgTx.AddTxOut(wire.NewTxOut(0, script))
-	}
-
-	rawBytes, err := MarshalWiredTransaction(msgTx, wire.BaseEncoding, chain)
-	if err != nil {
-		return nil, err
-	}
-	if len(rawBytes) > estvb {
-		return nil, fmt.Errorf("estimation %d %d", len(rawBytes), estvb)
-	}
-	if estvb*4 > MaxStandardTxWeight {
-		return nil, fmt.Errorf("large %d", estvb)
 	}
 
 	tx := btcutil.NewTx(msgTx)
@@ -411,9 +397,12 @@ func BuildPartiallySignedTransaction(mainInputs []*Input, outputs []*Output, rid
 		return nil, fmt.Errorf("psbt.SanityCheck() => %v", err)
 	}
 
-	return &PartiallySignedTransaction{
-		Packet: pkt,
-	}, nil
+	transaction := &PartiallySignedTransaction{Packet: pkt}
+	estvb := transaction.EstimateVirtualSize()
+	if estvb*blockchain.WitnessScaleFactor > MaxStandardTxWeight {
+		return nil, fmt.Errorf("large %d", estvb)
+	}
+	return transaction, nil
 }
 
 func addInputs(tx *wire.MsgTx, inputs []*Input, chain byte) (string, int64, error) {
