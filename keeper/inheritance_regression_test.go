@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"encoding/hex"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -14,6 +15,60 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAccountClosureDoesNotInterpretStorageReferenceAsProposalFlags(t *testing.T) {
+	node, closeNode := coverageKeeperNode(t)
+	defer closeNode()
+	for _, tc := range []struct {
+		name      string
+		action    byte
+		curve     byte
+		extraSize int
+	}{
+		{"bitcoin inheritance", common.ActionBitcoinSafeCloseAccountByInheritance, common.CurveSecp256k1ECDSABitcoin, 32},
+		{"ethereum inheritance", common.ActionEthereumSafeCloseAccountByInheritance, common.CurveSecp256k1ECDSAEthereum, 32},
+		{"bitcoin recovery", common.ActionBitcoinSafeCloseAccount, common.CurveSecp256k1ECDSABitcoin, 48},
+		{"ethereum recovery", common.ActionEthereumSafeCloseAccount, common.CurveSecp256k1ECDSAEthereum, 48},
+	} {
+		for _, prefix := range []byte{common.FlagProposeCancelTransaction, common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance} {
+			t.Run(fmt.Sprintf("%s/prefix-%02x", tc.name, prefix), func(t *testing.T) {
+				ref := make([]byte, tc.extraSize)
+				ref[0] = prefix
+				out := coverageKeeperOutput(node, uuid.Must(uuid.NewV4()).String(), tc.action, tc.curve, ref, "observer")
+				req, err := node.parseObserverRequest(out)
+				require.NoError(t, err)
+				require.NoError(t, node.store.WriteRequestIfNotExist(t.Context(), req))
+				flag, extra := node.getTransactionFlagAndExtra(t.Context(), req.Id)
+				require.Equal(t, byte(common.FlagProposeRecoveryTransaction), flag)
+				require.Empty(t, extra, "storage references must not become proposal arguments")
+			})
+		}
+	}
+}
+
+func TestTransactionProposalFlagsRemainAvailable(t *testing.T) {
+	node, closeNode := coverageKeeperNode(t)
+	defer closeNode()
+	for _, action := range []byte{common.ActionBitcoinSafeProposeTransaction, common.ActionEthereumSafeProposeTransaction} {
+		curve := byte(common.CurveSecp256k1ECDSABitcoin)
+		if action == common.ActionEthereumSafeProposeTransaction {
+			curve = common.CurveSecp256k1ECDSAEthereum
+		}
+		for _, flag := range []byte{common.FlagProposeNormalTransaction, common.FlagProposeRecoveryTransaction,
+			common.FlagProposeCancelTransaction, common.FlagProposeSetInheritance, common.FlagProposeRemoveInheritance} {
+			t.Run(fmt.Sprintf("action-%d/flag-%d", action, flag), func(t *testing.T) {
+				extra := append([]byte{flag}, uuid.Must(uuid.NewV4()).Bytes()...)
+				out := coverageKeeperOutput(node, uuid.Must(uuid.NewV4()).String(), action, curve, extra, "holder")
+				req, err := node.parseHolderRequest(out)
+				require.NoError(t, err)
+				require.NoError(t, node.store.WriteRequestIfNotExist(t.Context(), req))
+				actualFlag, actualExtra := node.getTransactionFlagAndExtra(t.Context(), req.Id)
+				require.Equal(t, flag, actualFlag)
+				require.Equal(t, extra[1:], actualExtra)
+			})
+		}
+	}
+}
 
 func TestInheritanceRemovalRejectsAnotherSafe(t *testing.T) {
 	ctx := t.Context()

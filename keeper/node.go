@@ -134,6 +134,18 @@ func (node *Node) getTransactionFlagAndExtra(ctx context.Context, id string) (by
 	if err != nil {
 		panic(err)
 	}
+	// Account closures carry storage references, not proposal flags.
+	switch txReq.Action {
+	case common.ActionBitcoinSafeCloseAccount,
+		common.ActionBitcoinSafeCloseAccountByInheritance,
+		common.ActionEthereumSafeCloseAccount,
+		common.ActionEthereumSafeCloseAccountByInheritance:
+		return common.FlagProposeRecoveryTransaction, nil
+	case common.ActionBitcoinSafeProposeTransaction,
+		common.ActionEthereumSafeProposeTransaction:
+	default:
+		panic(txReq.Action)
+	}
 	extra := txReq.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
 	return flag, extra

@@ -786,6 +786,15 @@ func (node *Node) processEthereumSafeProposeTransaction(ctx context.Context, req
 		if ct == nil || ct.Holder != safe.Holder || ct.State != common.RequestStateDone {
 			return node.failRequest(ctx, req, "")
 		}
+		ctReq, err := node.store.ReadRequest(ctx, ct.RequestId)
+		if err != nil {
+			panic(err)
+		}
+		// The holder can reference account setup or closure transactions here.
+		// Only transfer proposals are eligible for cancellation.
+		if ctReq == nil || ctReq.Action != common.ActionEthereumSafeProposeTransaction {
+			return node.failRequest(ctx, req, "")
+		}
 		flag, _ := node.getTransactionFlagAndExtra(ctx, ct.RequestId)
 		if flag != common.FlagProposeNormalTransaction {
 			return node.failRequest(ctx, req, "")

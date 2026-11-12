@@ -450,6 +450,10 @@ func (node *Node) getStuckTxHash(ctx context.Context, hash string) string {
 	if err != nil {
 		panic(err)
 	}
+	// Only transaction proposals can encode a cancellation flag.
+	if txReq.Action != common.ActionEthereumSafeProposeTransaction {
+		return ""
+	}
 	extra := txReq.ExtraBytes()
 	flag, extra := extra[0], extra[1:]
 	if flag != common.FlagProposeCancelTransaction {
