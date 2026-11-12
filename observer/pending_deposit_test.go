@@ -131,6 +131,12 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 	for _, chain := range []byte{common.SafeChainEthereum, common.SafeChainPolygon} {
 		t.Run(fmt.Sprint(chain), func(t *testing.T) {
 			f := newPendingDepositsHTTPFixture(t, chain)
+			assets := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				id := strings.TrimPrefix(r.URL.Path, "/network/assets/")
+				fmt.Fprintf(w, `{"data":{"asset_id":%q,"chain_id":%q,"icon_url":"icon","price_usd":"1"}}`, id, common.SafeChainAssetId(chain))
+			}))
+			t.Cleanup(assets.Close)
+			f.node.conf.MixinMessengerAPI = assets.URL
 			const sender = "0x2222222222222222222222222222222222222222"
 			const token = "0x3333333333333333333333333333333333333333"
 			hash := "0x" + strings.Repeat("a", 64)

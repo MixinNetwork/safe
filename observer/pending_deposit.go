@@ -72,18 +72,31 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool 
 		cached = append(cached, cachedPendingDeposit{Holder: d.Holder, View: common.MarshalJSONOrPanic(views[i])})
 	}
 	// A transfer can leave the latest block long before keeper processes it.
-	// Retain the first discovery, including its timestamps, until keeper records it.
+	// Retain eligible transfers with their original timestamps until keeper records them.
 	type depositKey struct {
 		Hash  string `json:"transaction_hash"`
 		Index int64  `json:"output_index"`
 	}
+	isEVM := chain == common.SafeChainEthereum || chain == common.SafeChainPolygon
+	var minimum decimal.Decimal
+	if isEVM {
+		_, _, params := node.ethereumParams(chain)
+		minimum = decimal.RequireFromString(params.TransactionMinimum)
+	}
+	assets := make(map[string]*Asset)
 	seen := make(map[depositKey]bool)
 	snapshot := make([]cachedPendingDeposit, 0, len(cached))
 	for _, d := range cached {
-		var key depositKey
-		if err := json.Unmarshal(d.View, &key); err != nil {
+		var view struct {
+			Hash    string `json:"transaction_hash"`
+			Index   int64  `json:"output_index"`
+			AssetId string `json:"asset_id"`
+			Amount  string `json:"amount"`
+		}
+		if err := json.Unmarshal(d.View, &view); err != nil {
 			return err
 		}
+		key := depositKey{Hash: view.Hash, Index: view.Index}
 		if seen[key] {
 			continue
 		}
@@ -93,6 +106,20 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool 
 			return err
 		} else if confirmed != nil {
 			continue
+		}
+		if isEVM {
+			asset, ok := assets[view.AssetId]
+			if !ok {
+				asset, err = node.fetchMixinAsset(ctx, view.AssetId)
+				if err != nil {
+					return err
+				}
+				assets[view.AssetId] = asset
+			}
+			amount := decimal.RequireFromString(view.Amount)
+			if !checkEthereumDeposit(asset, amount, minimum) {
+				continue
+			}
 		}
 		snapshot = append(snapshot, d)
 	}

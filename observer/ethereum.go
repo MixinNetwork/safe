@@ -28,6 +28,14 @@ const ethereumKeygenRequestTimeKey = "ethereum-keygen-request-time"
 
 var minimumEthereumDepositValueUSD = decimal.RequireFromString("0.1")
 
+func checkEthereumDeposit(asset *Asset, amount, minimum decimal.Decimal) bool {
+	if !checkGoodAsset(asset) || amount.Cmp(minimum) < 0 {
+		return false
+	}
+	price := decimal.RequireFromString(asset.PriceUSD)
+	return amount.Mul(price).Cmp(minimumEthereumDepositValueUSD) >= 0
+}
+
 func validateObserverEthereumSweep(safe *store.Safe, transaction *ethereum.SafeTransaction, requestID, transactionHash, destination string, balances map[string]*store.SafeBalance) ([]*ethereum.Output, error) {
 	expectedBalances := make(map[string]*big.Int, len(balances))
 	for _, balance := range balances {
@@ -245,11 +253,7 @@ func (node *Node) ethereumWritePendingDeposit(ctx context.Context, transfer *eth
 		amount = decimal.NewFromBigInt(transfer.Value, -int32(asset.Decimals))
 	}
 	amount = amount.RoundFloor(8)
-	if amount.Cmp(minimum) < 0 {
-		return nil
-	}
-	priceUSD := decimal.RequireFromString(asset.PriceUSD)
-	if amount.Mul(priceUSD).Cmp(minimumEthereumDepositValueUSD) < 0 {
+	if !checkEthereumDeposit(asset, amount, minimum) {
 		return nil
 	}
 
