@@ -152,6 +152,14 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(out.AppId)
 	}
 
+	invalid, err := outputFromRow(tx.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM outputs WHERE sequence>?", strings.Join(outputCols, ",")), out.Sequence))
+	if err != nil {
+		return err
+	}
+	if invalid != nil {
+		panic(fmt.Errorf("invalid output to write: %v %v", out, invalid))
+	}
+
 	oldAct, err := s.readAction(ctx, tx, out.OutputId)
 	if err != nil {
 		return err
