@@ -5,6 +5,8 @@ import (
 )
 
 var (
+	// ErrorDone indicates that the receive stream has ended. Context
+	// cancellation is reported separately through ctx.Err().
 	ErrorDone = newError("DONE")
 )
 

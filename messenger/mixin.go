@@ -138,6 +138,9 @@ func NewMixinMessenger(ctx context.Context, conf *MixinConfiguration, members []
 }
 
 func (mm *MixinMessenger) ReceiveMessage(ctx context.Context) (*MixinMessage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	select {
 	case msg := <-mm.recv:
 		if msg == nil {
@@ -145,7 +148,7 @@ func (mm *MixinMessenger) ReceiveMessage(ctx context.Context) (*MixinMessage, er
 		}
 		return msg, nil
 	case <-ctx.Done():
-		return nil, ErrorDone
+		return nil, ctx.Err()
 	}
 }
 
@@ -173,6 +176,9 @@ func (mm *MixinMessenger) SendMessage(ctx context.Context, receiver string, b []
 }
 
 func (mm *MixinMessenger) QueueMessage(ctx context.Context, receiver string, b []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	msg, err := mm.buildMessage(receiver, b)
 	if err != nil {
 		return err
@@ -181,7 +187,7 @@ func (mm *MixinMessenger) QueueMessage(ctx context.Context, receiver string, b [
 	case mm.send <- msg:
 		return nil
 	case <-ctx.Done():
-		return ErrorDone
+		return ctx.Err()
 	}
 }
 

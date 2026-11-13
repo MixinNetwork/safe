@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/MixinNetwork/safe/cmd"
 	"github.com/urfave/cli/v2"
@@ -432,7 +435,9 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

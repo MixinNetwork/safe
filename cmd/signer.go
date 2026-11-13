@@ -25,7 +25,7 @@ import (
 )
 
 func SignerBootCmd(c *cli.Context) error {
-	ctx := context.Background()
+	ctx := c.Context
 
 	version := c.App.Metadata["VERSION"].(string)
 	ua := fmt.Sprintf("Mixin Safe Signer (%s)", version)

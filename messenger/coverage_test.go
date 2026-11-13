@@ -74,7 +74,7 @@ func TestMixinMessengerSendQueueAndReceiveBoundaries(t *testing.T) {
 	require.NoError(t, messenger.QueueMessage(t.Context(), testReceiverID, []byte("queued")))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	require.ErrorIs(t, messenger.QueueMessage(ctx, testReceiverID, []byte("blocked")), ErrorDone)
+	require.ErrorIs(t, messenger.QueueMessage(ctx, testReceiverID, []byte("blocked")), context.Canceled)
 
 	require.Error(t, messenger.SendMessage(t.Context(), "invalid", []byte("payload")))
 	require.Error(t, messenger.SendMessage(t.Context(), testSenderID, []byte("payload")))
@@ -87,13 +87,65 @@ func TestMixinMessengerSendQueueAndReceiveBoundaries(t *testing.T) {
 	message, err := messenger.ReceiveMessage(t.Context())
 	require.Nil(t, message)
 	require.ErrorIs(t, err, ErrorDone)
+	close(messenger.recv)
+	message, err = messenger.ReceiveMessage(t.Context())
+	require.Nil(t, message)
+	require.ErrorIs(t, err, ErrorDone)
 
 	empty := newTestMixinMessenger(t, testSenderID, testSenderSessionID, 1)
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	message, err = empty.ReceiveMessage(canceled)
 	require.Nil(t, message)
-	require.ErrorIs(t, err, ErrorDone)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestMixinMessengerContextErrors(t *testing.T) {
+	for _, operation := range []string{"receive", "queue"} {
+		for _, state := range []string{"canceled", "expired", "blocked"} {
+			t.Run(operation+"/"+state, func(t *testing.T) {
+				messenger := newTestMixinMessenger(t, testSenderID, testSenderSessionID, 1)
+				messenger.send = make(chan *bot.MessageRequest, 1)
+				var ctx context.Context
+				var cancel context.CancelFunc
+				want := context.DeadlineExceeded
+				switch state {
+				case "canceled":
+					ctx, cancel = context.WithCancel(t.Context())
+					cancel()
+					want = context.Canceled
+				case "expired":
+					ctx, cancel = context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+				case "blocked":
+					ctx, cancel = context.WithTimeout(t.Context(), 20*time.Millisecond)
+				}
+				defer cancel()
+
+				if operation == "receive" {
+					if state != "blocked" {
+						messenger.recv <- &MixinMessage{Data: []byte("buffered")}
+					}
+					message, err := messenger.ReceiveMessage(ctx)
+					require.Nil(t, message)
+					require.ErrorIs(t, err, want)
+					require.NotErrorIs(t, err, ErrorDone)
+					if state != "blocked" {
+						require.Len(t, messenger.recv, 1, "canceled receive must not consume a buffered message")
+					}
+				} else {
+					if state == "blocked" {
+						messenger.send <- &bot.MessageRequest{}
+					}
+					err := messenger.QueueMessage(ctx, testReceiverID, []byte("queued"))
+					require.ErrorIs(t, err, want)
+					require.NotErrorIs(t, err, ErrorDone)
+					if state != "blocked" {
+						require.Empty(t, messenger.send, "canceled send must not enqueue a message")
+					}
+				}
+			})
+		}
+	}
 }
 
 func TestMixinMessengerLoopSendBatchesDeduplicatesAndFlushes(t *testing.T) {

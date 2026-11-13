@@ -38,7 +38,7 @@ import (
 )
 
 func ObserverBootCmd(c *cli.Context) error {
-	ctx := context.Background()
+	ctx := c.Context
 
 	version := c.App.Metadata["VERSION"].(string)
 	ua := fmt.Sprintf("Mixin Safe Observer (%s)", version)
@@ -316,7 +316,7 @@ func GenerateObserverKeys(c *cli.Context) error {
 		if c.Bool("private") {
 			line = fmt.Sprintf("%s:%x", line, account.Private)
 		}
-		content.WriteString(line + "\n")
+		_, _ = content.WriteString(line + "\n")
 	}
 	path := c.String("list") + ".pub"
 	file, err := os.CreateTemp(filepath.Dir(path), ".observer-keys-*")

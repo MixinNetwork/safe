@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -18,7 +17,7 @@ import (
 )
 
 func KeeperBootCmd(c *cli.Context) error {
-	ctx := context.Background()
+	ctx := c.Context
 
 	version := c.App.Metadata["VERSION"].(string)
 	ua := fmt.Sprintf("Mixin Safe Keeper (%s)", version)
