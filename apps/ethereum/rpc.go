@@ -36,9 +36,10 @@ type RPCBlock struct {
 }
 
 type RPCBlockWithTransactions struct {
-	Hash   string            `json:"hash"`
-	Number string            `json:"number"`
-	Tx     []*RPCTransaction `json:"transactions"`
+	Hash       string            `json:"hash"`
+	ParentHash string            `json:"parentHash"`
+	Number     string            `json:"number"`
+	Tx         []*RPCTransaction `json:"transactions"`
 
 	Height uint64
 }

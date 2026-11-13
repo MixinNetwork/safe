@@ -172,8 +172,8 @@ func TestPendingBitcoinDepositSurvivesSlowUnrelatedTransactions(t *testing.T) {
 	f.node.conf.BitcoinRPC = server.URL
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	mempool := new(pendingBitcoinMempool)
-	require.NoError(t, f.node.cachePendingDeposits(ctx, common.SafeChainBitcoin, mempool))
+	scan := new(pendingDepositScan)
+	require.NoError(t, f.node.cachePendingDeposits(ctx, common.SafeChainBitcoin, scan))
 	deposits := getPendingDepositsHTTP(t, f, common.SafeChainBitcoin, "", true)
 	require.Len(t, deposits, 1)
 	require.Equal(t, hash, deposits[0]["transaction_hash"])
@@ -181,6 +181,6 @@ func TestPendingBitcoinDepositSurvivesSlowUnrelatedTransactions(t *testing.T) {
 	require.Equal(t, "3", deposits[0]["amount"])
 	require.Equal(t, int32(4), unavailable.Load())
 	for i := range 4 {
-		require.NotContains(t, mempool.transactions, fmt.Sprintf("unavailable-%d", i), "failed reads must be retried on the next refresh")
+		require.NotContains(t, scan.bitcoin.transactions, fmt.Sprintf("unavailable-%d", i), "failed reads must be retried on the next refresh")
 	}
 }

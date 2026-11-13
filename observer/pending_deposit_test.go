@@ -9,7 +9,9 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -147,15 +149,22 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 				case "eth_blockNumber":
 					return "0x64"
 				case "eth_getBlockByNumber":
-					assert.JSONEq(t, `"0x64"`, string(params[0]))
+					var height string
+					assert.NoError(t, json.Unmarshal(params[0], &height))
+					number, err := strconv.ParseInt(strings.TrimPrefix(height, "0x"), 16, 64)
+					assert.NoError(t, err)
 					transactions := []any{}
-					if !empty.Load() {
-						transactions = []any{map[string]any{"hash": hash}}
+					if !empty.Load() && height == "0x64" {
+						if string(params[1]) == "true" {
+							transactions = []any{map[string]any{"hash": hash}}
+						} else {
+							transactions = []any{hash}
+						}
 					}
-					return map[string]any{"number": "0x64", "hash": "tip", "transactions": transactions}
+					return map[string]any{"number": height, "hash": fmt.Sprintf("0x%064x", number),
+						"parentHash": fmt.Sprintf("0x%064x", number-1), "timestamp": "0x0", "transactions": transactions}
 				case "debug_traceBlockByNumber":
-					assert.JSONEq(t, `"0x64"`, string(params[0]))
-					if empty.Load() {
+					if empty.Load() || string(params[0]) != `"0x64"` {
 						return []*ethereum.RPCBlockCallTrace{}
 					}
 					return []*ethereum.RPCBlockCallTrace{{Result: &ethereum.RPCTransactionCallTrace{
@@ -170,9 +179,8 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 				case "eth_getLogs":
 					var filter map[string]any
 					assert.NoError(t, json.Unmarshal(params[0], &filter))
-					assert.Equal(t, "0x64", filter["fromBlock"])
-					assert.Equal(t, "0x64", filter["toBlock"])
-					if empty.Load() {
+					assert.Equal(t, filter["fromBlock"], filter["toBlock"])
+					if empty.Load() || filter["fromBlock"] != "0x64" {
 						return []types.Log{}
 					}
 					return []types.Log{{Address: ec.HexToAddress(token), TxHash: ec.HexToHash(hash), Index: 2,
@@ -225,6 +233,159 @@ func TestHTTPPendingEthereumDeposits(t *testing.T) {
 			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, nil))
 			require.Empty(t, getPendingDepositsHTTP(t, f, chain, "", true), "confirmed deposits must not reappear")
 			require.Equal(t, before, getPendingDepositsHTTP(t, f, chain, "", false))
+		})
+	}
+}
+
+func TestPendingEthereumDepositsScanRecentBlocks(t *testing.T) {
+	for _, chain := range []byte{common.SafeChainEthereum, common.SafeChainPolygon} {
+		t.Run(fmt.Sprint(chain), func(t *testing.T) {
+			f := newPendingDepositsHTTPFixture(t, chain)
+			assets := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				id := strings.TrimPrefix(r.URL.Path, "/network/assets/")
+				fmt.Fprintf(w, `{"data":{"asset_id":%q,"chain_id":%q,"icon_url":"icon","price_usd":"1"}}`, id, common.SafeChainAssetId(chain))
+			}))
+			t.Cleanup(assets.Close)
+			f.node.conf.MixinMessengerAPI = assets.URL
+			const sender = "0x2222222222222222222222222222222222222222"
+			const token = "0x3333333333333333333333333333333333333333"
+			const untracked = "0x4444444444444444444444444444444444444444"
+			var tip atomic.Int64
+			var readsMu sync.Mutex
+			reads := make(map[string][]string)
+			rpc := pendingDepositsRPC(t, func(method string, params []json.RawMessage) any {
+				switch method {
+				case "eth_blockNumber":
+					return fmt.Sprintf("0x%x", tip.Load())
+				case "eth_call":
+					var call map[string]string
+					assert.NoError(t, json.Unmarshal(params[0], &call))
+					if call["input"] == "0x313ce567" || call["data"] == "0x313ce567" {
+						return fmt.Sprintf("0x%064x", 6)
+					}
+					return fmt.Sprintf("0x%064x%064x", 32, 4) + hex.EncodeToString([]byte("TEST")) + strings.Repeat("0", 56)
+				}
+				var height string
+				if method == "eth_getLogs" {
+					var filter struct {
+						FromBlock string `json:"fromBlock"`
+						ToBlock   string `json:"toBlock"`
+					}
+					assert.NoError(t, json.Unmarshal(params[0], &filter))
+					assert.Equal(t, filter.FromBlock, filter.ToBlock)
+					height = filter.FromBlock
+				} else {
+					assert.NoError(t, json.Unmarshal(params[0], &height))
+				}
+				number, err := strconv.ParseInt(strings.TrimPrefix(height, "0x"), 16, 64)
+				assert.NoError(t, err)
+				readMethod := method
+				if method == "eth_getBlockByNumber" && string(params[1]) == "false" {
+					readMethod = "header"
+				}
+				readsMu.Lock()
+				reads[readMethod] = append(reads[readMethod], height)
+				readsMu.Unlock()
+				hash := fmt.Sprintf("0x%064x", number)
+				switch method {
+				case "eth_getBlockByNumber":
+					transactions := []any{}
+					if number > 100 {
+						if string(params[1]) == "true" {
+							transactions = append(transactions, map[string]any{"hash": hash})
+						} else {
+							transactions = append(transactions, hash)
+						}
+					}
+					return map[string]any{"number": height, "hash": hash, "parentHash": fmt.Sprintf("0x%064x", number-1),
+						"timestamp": "0x0", "transactions": transactions}
+				case "debug_traceBlockByNumber":
+					if number <= 100 {
+						return []*ethereum.RPCBlockCallTrace{}
+					}
+					return []*ethereum.RPCBlockCallTrace{{Result: &ethereum.RPCTransactionCallTrace{
+						Type: "CALL", From: sender, To: f.address, Value: "0xde0b6b3a7640000",
+						Calls: []*ethereum.RPCTransactionCallTrace{{Type: "CALL", From: sender, To: untracked, Value: "0xde0b6b3a7640000"}},
+					}}}
+				case "eth_getLogs":
+					if number <= 100 {
+						return []types.Log{}
+					}
+					return []types.Log{{Address: ec.HexToAddress(token), TxHash: ec.HexToHash(hash), Index: 0,
+						Topics: []ec.Hash{crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")), ec.HexToHash(sender), ec.HexToHash(f.address)},
+						Data:   ec.LeftPadBytes(big.NewInt(1234567).Bytes(), 32)}}
+				default:
+					t.Errorf("unexpected RPC method %s", method)
+					return nil
+				}
+			})
+			f.node.conf.EthereumRPC, f.node.conf.PolygonRPC = rpc, rpc
+			previous := make(map[string]map[string]any)
+			scan := new(pendingDepositScan)
+			for _, step := range []struct {
+				height   int64
+				blocks   []string
+				deposits []int64
+			}{
+				{0, []string{"0x0"}, nil},
+				{2, []string{"0x2", "0x1"}, nil},
+				{100, []string{"0x64", "0x63", "0x62", "0x61"}, nil},
+				{102, []string{"0x66", "0x65"}, []int64{101, 102}},
+				{110, []string{"0x6e", "0x6d", "0x6c", "0x6b"}, []int64{101, 102, 107, 108, 109, 110}},
+				{110, nil, []int64{101, 102, 107, 108, 109, 110}},
+			} {
+				tip.Store(step.height)
+				require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, scan))
+				readsMu.Lock()
+				calls := reads
+				reads = make(map[string][]string)
+				readsMu.Unlock()
+				for _, method := range []string{"eth_getBlockByNumber", "debug_traceBlockByNumber", "eth_getLogs"} {
+					require.Equal(t, step.blocks, calls[method], "%s at height %d", method, step.height)
+				}
+				headers := 1
+				if len(step.blocks) > 0 {
+					headers++ // Validate that fresh traces and logs still belong to this tip.
+				}
+				require.Len(t, calls["header"], headers)
+				for _, height := range calls["header"] {
+					require.Equal(t, fmt.Sprintf("0x%x", step.height), height)
+				}
+				require.Len(t, scan.ethereum, int(min(step.height+1, 4)))
+				views := getPendingDepositsHTTP(t, f, chain, "", true)
+				require.Len(t, views, 2*len(step.deposits))
+				current := make(map[string]map[string]any)
+				for _, view := range views {
+					key := fmt.Sprintf("%s:%v", view["transaction_hash"], view["output_index"])
+					require.NotContains(t, current, key, "overlapping scans must not duplicate deposits")
+					current[key] = view
+					if old := previous[key]; old != nil {
+						require.Equal(t, old, view, "rediscovery must preserve timestamps")
+					}
+				}
+				for _, height := range step.deposits {
+					for _, index := range []int64{0, math.MaxInt32} {
+						require.Contains(t, current, fmt.Sprintf("0x%064x:%v", height, float64(index)))
+					}
+				}
+				previous = current
+			}
+			// A newly tracked address can use all transfers retained in the
+			// window, without fetching or tracing those blocks again.
+			_, err := f.keeperDB.ExecContext(t.Context(), "UPDATE safes SET address=?", untracked)
+			require.NoError(t, err)
+			require.NoError(t, f.node.cachePendingDeposits(t.Context(), chain, scan))
+			readsMu.Lock()
+			calls := reads
+			reads = make(map[string][]string)
+			readsMu.Unlock()
+			require.Equal(t, map[string][]string{"header": {"0x6e"}}, calls)
+			views := getPendingDepositsHTTP(t, f, chain, "", true)
+			require.Len(t, views, len(previous)+4)
+			for _, view := range views[len(previous):] {
+				require.Equal(t, untracked, view["receiver"])
+				require.Equal(t, float64(1), view["output_index"])
+			}
 		})
 	}
 }
@@ -340,7 +501,10 @@ func TestPendingDepositsCachePreservedOnParserPanic(t *testing.T) {
 		case "eth_blockNumber":
 			return "0x64"
 		case "eth_getBlockByNumber":
-			return map[string]any{"number": "0x64", "transactions": []any{map[string]any{"hash": "transaction"}}}
+			if string(params[1]) == "false" {
+				return map[string]any{"number": "0x64", "hash": "tip", "timestamp": "0x0", "transactions": []string{"transaction"}}
+			}
+			return map[string]any{"number": "0x64", "hash": "tip", "transactions": []any{map[string]any{"hash": "transaction"}}}
 		case "debug_traceBlockByNumber", "eth_getLogs":
 			return []any{}
 		default:

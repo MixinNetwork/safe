@@ -27,8 +27,21 @@ type pendingBitcoinMempool struct {
 	safes        map[string]*store.Safe
 }
 
+// Each chain's refresh goroutine owns its scan state. Keep all EVM transfers
+// in the recent window so newly tracked safes can use already scanned blocks.
+type pendingDepositScan struct {
+	bitcoin  pendingBitcoinMempool
+	ethereum map[int64]*pendingEthereumBlock
+}
+
+type pendingEthereumBlock struct {
+	hash       string
+	parentHash string
+	transfers  []*ethereum.Transfer
+}
+
 func (node *Node) pendingDepositsLoop(ctx context.Context, chain byte) {
-	mempool := new(pendingBitcoinMempool)
+	scan := new(pendingDepositScan)
 	interval := 5 * time.Second
 	switch chain {
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
@@ -44,14 +57,14 @@ func (node *Node) pendingDepositsLoop(ctx context.Context, chain byte) {
 			return
 		case <-timer.C:
 		}
-		if err := node.cachePendingDeposits(ctx, chain, mempool); err != nil {
+		if err := node.cachePendingDeposits(ctx, chain, scan); err != nil {
 			logger.Printf("node.cachePendingDeposits(%d) => %v", chain, err)
 		}
 		timer.Reset(interval)
 	}
 }
 
-func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool *pendingBitcoinMempool) (err error) {
+func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, scan *pendingDepositScan) (err error) {
 	// RPC parsers may panic on inconsistent snapshots. A failed cache refresh
 	// must not stop normal deposit processing.
 	defer func() {
@@ -59,7 +72,7 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool 
 			err = fmt.Errorf("pending deposits for chain %d: %v", chain, r)
 		}
 	}()
-	deposits, sent, err := node.listPendingDeposits(ctx, chain, "", mempool)
+	deposits, sent, err := node.listPendingDeposits(ctx, chain, "", scan)
 	if err != nil {
 		return err
 	}
@@ -71,7 +84,7 @@ func (node *Node) cachePendingDeposits(ctx context.Context, chain byte, mempool 
 	for i, d := range deposits {
 		cached = append(cached, cachedPendingDeposit{Holder: d.Holder, View: common.MarshalJSONOrPanic(views[i])})
 	}
-	// A transfer can leave the latest block long before keeper processes it.
+	// A transfer can leave the scanned blocks long before keeper processes it.
 	// Retain eligible transfers with their original timestamps until keeper records them.
 	type depositKey struct {
 		Hash  string `json:"transaction_hash"`
@@ -158,9 +171,9 @@ func (node *Node) readPendingDeposits(ctx context.Context, chain byte, holder st
 	return views, nil
 }
 
-// listPendingDeposits returns a live snapshot, without writing deposits, caches,
-// checkpoints or bonds. Normal deposit processing still verifies these transfers.
-func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder string, mempool *pendingBitcoinMempool) ([]*Deposit, map[string]string, error) {
+// listPendingDeposits returns a live snapshot using the in-memory scan cache,
+// without writing persistent state. Normal deposit processing still verifies transfers.
+func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder string, scan *pendingDepositScan) ([]*Deposit, map[string]string, error) {
 	ss, err := node.keeperStore.ListSafesWithState(ctx, common.RequestStateDone)
 	if err != nil {
 		return nil, nil, err
@@ -174,6 +187,9 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 	if len(safes) == 0 {
 		return nil, nil, nil
 	}
+	if scan == nil {
+		scan = new(pendingDepositScan)
+	}
 
 	var deposits []*Deposit
 	var rpc string
@@ -183,7 +199,7 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 	case common.SafeChainBitcoin, common.SafeChainLitecoin:
 		var assetID string
 		rpc, assetID, params = node.bitcoinParams(chain)
-		txs, err := readPendingBitcoinMempool(ctx, chain, rpc, safes, mempool)
+		txs, err := readPendingBitcoinMempool(ctx, chain, rpc, safes, &scan.bitcoin)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -224,23 +240,10 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 	case common.SafeChainEthereum, common.SafeChainPolygon:
 		var assetID string
 		rpc, assetID, params = node.ethereumParams(chain)
-		height, err := ethereum.RPCGetBlockHeight(ctx, rpc)
+		transfers, err := readPendingEthereumBlocks(ctx, chain, rpc, assetID, scan)
 		if err != nil {
 			return nil, nil, err
 		}
-		block, err := ethereum.RPCGetBlockWithTransactions(ctx, rpc, height)
-		if err != nil {
-			return nil, nil, err
-		}
-		traces, err := ethereum.RPCDebugTraceBlockByNumber(ctx, rpc, height)
-		if err != nil {
-			return nil, nil, err
-		}
-		transfers, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), height)
-		if err != nil {
-			return nil, nil, err
-		}
-		transfers = append(ethereum.LoopBlockTraces(chain, assetID, traces, block), transfers...)
 		decimals := map[string]int32{assetID: ethereum.ValuePrecision}
 		for _, transfer := range transfers {
 			if safes[transfer.Receiver] == nil {
@@ -305,6 +308,71 @@ func (node *Node) listPendingDeposits(ctx context.Context, chain byte, holder st
 		pending = append(pending, d)
 	}
 	return pending, sent, nil
+}
+
+func readPendingEthereumBlocks(ctx context.Context, chain byte, rpc, assetID string, scan *pendingDepositScan) ([]*ethereum.Transfer, error) {
+	height, err := ethereum.RPCGetBlockHeight(ctx, rpc)
+	if err != nil {
+		return nil, err
+	}
+	tip, err := ethereum.RPCGetBlockByHeight(ctx, rpc, height)
+	if err != nil {
+		return nil, err
+	}
+	if tip.Hash == "" {
+		return nil, fmt.Errorf("missing pending block hash at %d", height)
+	}
+
+	// Follow hashes from the current tip, reusing only matching ancestors.
+	// Limit both new reads and retained blocks to the tip and three below it.
+	window := make(map[int64]*pendingEthereumBlock)
+	var transfers []*ethereum.Transfer
+	hash := tip.Hash
+	var fetched bool
+	for number := height; number >= max(int64(0), height-3); number-- {
+		block := scan.ethereum[number]
+		if hash == "" {
+			return nil, fmt.Errorf("missing pending block hash at %d", number)
+		}
+		if block == nil || block.hash != hash {
+			full, err := ethereum.RPCGetBlockWithTransactions(ctx, rpc, number)
+			if err != nil {
+				return nil, err
+			}
+			if full.Hash != hash {
+				return nil, fmt.Errorf("pending block changed at %d", number)
+			}
+			traces, err := ethereum.RPCDebugTraceBlockByNumber(ctx, rpc, number)
+			if err != nil {
+				return nil, err
+			}
+			logs, err := ethereum.GetERC20TransferLogFromBlock(ctx, rpc, int64(chain), number)
+			if err != nil {
+				return nil, err
+			}
+			block = &pendingEthereumBlock{
+				hash: full.Hash, parentHash: full.ParentHash,
+				transfers: append(ethereum.LoopBlockTraces(chain, assetID, traces, full), logs...),
+			}
+			fetched = true
+		}
+		window[number] = block
+		transfers = append(transfers, block.transfers...)
+		hash = block.parentHash
+	}
+	if fetched {
+		// Trace and log RPCs use heights. Do not cache a snapshot if its
+		// canonical tip changed while those separate requests were in flight.
+		current, err := ethereum.RPCGetBlockByHeight(ctx, rpc, height)
+		if err != nil {
+			return nil, err
+		}
+		if current.Hash != tip.Hash {
+			return nil, fmt.Errorf("pending block changed at %d", height)
+		}
+	}
+	scan.ethereum = window
+	return transfers, nil
 }
 
 func readPendingBitcoinMempool(ctx context.Context, chain byte, rpc string, safes map[string]*store.Safe, mempool *pendingBitcoinMempool) ([]*bitcoin.RPCTransaction, error) {
