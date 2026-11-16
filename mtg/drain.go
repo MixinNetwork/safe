@@ -11,6 +11,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 )
 
@@ -21,16 +22,16 @@ const (
 func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string]bool, batch int) {
 	logger.Verbosef("Group.drainOutputsFromNetwork(%d)\n", batch)
 
-	for {
+	for ctx.Err() == nil {
 		checkpoint, err := grp.readDrainingCheckpoint(ctx)
 		if err != nil {
-			time.Sleep(time.Millisecond * 100)
+			util.WaitOrDone(ctx, time.Millisecond*100)
 			continue
 		}
 		outputs, err := grp.readSafeOutputsAsUnspent(ctx, grp.GetMembers(), uint8(grp.threshold), checkpoint, batch)
 		logger.Verbosef("Group.readSafeOutputsAsUnspent(%d) => %d %v\n", checkpoint, len(outputs), err)
 		if err != nil {
-			time.Sleep(time.Millisecond * 100)
+			util.WaitOrDone(ctx, time.Millisecond*100)
 			continue
 		}
 

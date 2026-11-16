@@ -15,6 +15,7 @@ import (
 	"time"
 
 	bot "github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/require"
 )
@@ -83,14 +84,11 @@ func TestMixinMessengerSendQueueAndReceiveBoundaries(t *testing.T) {
 	require.Error(t, messenger.SendMessage(t.Context(), testReceiverID,
 		make([]byte, maximumEncryptedMessageSize-encryptedEnvelopeHeaderSize+1)))
 
-	messenger.recv <- nil
+	expected := &MixinMessage{Peer: testReceiverID, Data: []byte("received")}
+	messenger.recv <- expected
 	message, err := messenger.ReceiveMessage(t.Context())
-	require.Nil(t, message)
-	require.ErrorIs(t, err, ErrorDone)
-	close(messenger.recv)
-	message, err = messenger.ReceiveMessage(t.Context())
-	require.Nil(t, message)
-	require.ErrorIs(t, err, ErrorDone)
+	require.NoError(t, err)
+	require.Same(t, expected, message)
 
 	empty := newTestMixinMessenger(t, testSenderID, testSenderSessionID, 1)
 	canceled, cancel := context.WithCancel(t.Context())
@@ -128,7 +126,6 @@ func TestMixinMessengerContextErrors(t *testing.T) {
 					message, err := messenger.ReceiveMessage(ctx)
 					require.Nil(t, message)
 					require.ErrorIs(t, err, want)
-					require.NotErrorIs(t, err, ErrorDone)
 					if state != "blocked" {
 						require.Len(t, messenger.recv, 1, "canceled receive must not consume a buffered message")
 					}
@@ -138,7 +135,6 @@ func TestMixinMessengerContextErrors(t *testing.T) {
 					}
 					err := messenger.QueueMessage(ctx, testReceiverID, []byte("queued"))
 					require.ErrorIs(t, err, want)
-					require.NotErrorIs(t, err, ErrorDone)
 					if state != "blocked" {
 						require.Empty(t, messenger.send, "canceled send must not enqueue a message")
 					}
@@ -364,10 +360,10 @@ func TestEncryptedMessageStructuralValidationBranches(t *testing.T) {
 }
 
 func TestWaitForMessengerRetry(t *testing.T) {
-	require.True(t, waitForMessengerRetry(t.Context(), time.Millisecond))
+	require.False(t, util.WaitOrDone(t.Context(), time.Millisecond))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	require.False(t, waitForMessengerRetry(ctx, time.Hour))
+	require.True(t, util.WaitOrDone(ctx, time.Hour))
 }
 
 func coverageMixinConfiguration() *MixinConfiguration {

@@ -2,7 +2,6 @@ package signer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 type scriptedMessageNetwork struct {
 	messages [][]byte
 	received int
-	stop     error
+	cancel   context.CancelFunc
 }
 
 func TestSessionMessageRejectsInvalidLengths(t *testing.T) {
@@ -43,9 +42,10 @@ func TestSessionMessageRejectsInvalidLengths(t *testing.T) {
 	require.Equal(t, id, decoded)
 }
 
-func (n *scriptedMessageNetwork) ReceiveMessage(context.Context) (*messenger.MixinMessage, error) {
+func (n *scriptedMessageNetwork) ReceiveMessage(ctx context.Context) (*messenger.MixinMessage, error) {
 	if n.received == len(n.messages) {
-		return nil, n.stop
+		n.cancel()
+		return nil, ctx.Err()
 	}
 	data := n.messages[n.received]
 	n.received++
@@ -56,14 +56,17 @@ func (*scriptedMessageNetwork) QueueMessage(context.Context, string, []byte) err
 
 func TestIncomingMessagesCheckDecodeErrorBeforeLogging(t *testing.T) {
 	// A valid message without an SSID is ignored after decoding. Reaching the
-	// scripted receive error proves the preceding malformed messages were skipped.
+	// end of the script cancels the loop after the malformed messages were skipped.
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	valid := marshalSessionMessage(uuid.Must(uuid.NewV4()).Bytes(), &protocol.Message{})
 	network := &scriptedMessageNetwork{
 		messages: [][]byte{nil, {1}, make([]byte, 16), valid},
-		stop:     errors.New("end of scripted messages"),
+		cancel:   cancel,
 	}
 	node := &Node{network: network}
-	require.PanicsWithError(t, network.stop.Error(), func() { node.acceptIncomingMessages(t.Context()) })
+	require.NotPanics(t, func() { node.acceptIncomingMessages(ctx) })
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
 	require.Equal(t, len(network.messages), network.received)
 }
 

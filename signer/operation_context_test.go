@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/multi-party-sig/pkg/party"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
@@ -30,20 +31,19 @@ func (n operationPanicNetwork) QueueMessage(context.Context, string, []byte) err
 	panic(n.value)
 }
 
-func TestRunOperationOnlyRecoversCancellation(t *testing.T) {
+func TestStartOperationPropagatesPanics(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		cancel  bool
-		value   any
-		recover bool
+		name   string
+		cancel bool
+		value  any
 	}{
-		{"cancellation", true, context.Canceled, true},
-		{"wrapped cancellation", true, fmt.Errorf("write: %w", context.Canceled), true},
-		{"canceled transaction", true, sql.ErrTxDone, true},
-		{"unrelated error", true, errors.New("network failed"), false},
-		{"non-error panic", true, "invalid operation", false},
-		{"live context", false, context.Canceled, false},
-		{"unexpected rollback", false, sql.ErrTxDone, false},
+		{"cancellation", true, context.Canceled},
+		{"wrapped cancellation", true, fmt.Errorf("write: %w", context.Canceled)},
+		{"canceled transaction", true, sql.ErrTxDone},
+		{"unrelated error", true, errors.New("network failed")},
+		{"non-error panic", true, "invalid operation"},
+		{"live context", false, context.Canceled},
+		{"unexpected rollback", false, sql.ErrTxDone},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
@@ -59,12 +59,7 @@ func TestRunOperationOnlyRecoversCancellation(t *testing.T) {
 				network: network, mutex: new(sync.Mutex), sessions: make(map[string]*MultiPartySession),
 			}
 			op := &common.Operation{Id: uuid.Must(uuid.NewV4()).String(), Type: common.OperationTypeKeygenInput, Curve: common.CurveEdwards25519Default}
-			run := func() { require.ErrorIs(t, node.runOperation(ctx, op, nil), context.Canceled) }
-			if tc.recover {
-				run()
-			} else {
-				require.PanicsWithValue(t, tc.value, run)
-			}
+			require.PanicsWithValue(t, tc.value, func() { node.startOperation(ctx, op, nil) })
 		})
 	}
 }
@@ -94,48 +89,33 @@ func TestQueueOperationReturnsNormalResults(t *testing.T) {
 	}
 }
 
-func TestQueuedOperationsFinishOnFixtureCancellation(t *testing.T) {
-	var results []<-chan error
-	t.Run("fixture", func(t *testing.T) {
-		ctx, nodes, _ := TestPrepare(t)
-		id := uuid.Must(uuid.NewV4()).String()
-		op := common.Operation{Id: id, Type: common.OperationTypeKeygenInput, Curve: common.CurveEdwards25519Default}
-		for _, node := range nodes {
-			require.NoError(t, node.store.WriteSessionIfNotExist(ctx, &op, crypto.Sha256Hash([]byte(id)), 0, time.Now(), false))
+func TestQueuedOperationCancellationPanics(t *testing.T) {
+	// A queued operation's panic is fatal, so exercise it in a subprocess.
+	const childEnv = "SAFE_TEST_OPERATION_CANCELLATION"
+	if os.Getenv(childEnv) == "1" {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		conf := &mtg.Configuration{}
+		conf.Genesis.Members = []string{"sender", "receiver"}
+		node := &Node{
+			id: "sender", threshold: 1, conf: &Configuration{MTG: conf},
+			network: operationPanicNetwork{cancel: cancel, value: context.Canceled},
+			mutex:   new(sync.Mutex), sessions: make(map[string]*MultiPartySession),
+			operations: make(map[string]bool),
 		}
-
-		store := nodes[0].store
-		store.db.SetMaxOpenConns(1)
-		conn, err := store.db.Conn(ctx)
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, conn.Close()) })
-		for _, node := range nodes {
-			operation := op
-			results = append(results, node.queueOperation(ctx, &operation, node.GetPartySlice()))
-		}
-
-		// Hold the connection until a session read and protocol write contend
-		// for the store, then end the test with the operation still in flight.
-		require.Eventually(t, func() bool {
-			if store.db.Stats().WaitCount == 0 {
-				return false
-			}
-			if !store.mutex.TryRLock() {
-				return true
-			}
-			store.mutex.RUnlock()
-			return false
-		}, 2*time.Second, time.Millisecond)
-	})
-
-	// Fixture cleanup has canceled the context and waited for every worker.
-	for _, result := range results {
-		select {
-		case err := <-result:
-			require.ErrorIs(t, err, context.Canceled)
-		default:
-			t.Fatal("operation finished without sending its cancellation result")
-		}
-		require.Empty(t, result)
+		op := &common.Operation{Id: uuid.Must(uuid.NewV4()).String(), Type: common.OperationTypeKeygenInput, Curve: common.CurveEdwards25519Default}
+		node.queueOperation(ctx, op, nil)
+		node.operationWorkers.Wait()
+		return
 	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestQueuedOperationCancellationPanics$")
+	child.Env = append(os.Environ(), childEnv+"=1")
+	output, err := child.CombinedOutput()
+	require.NoError(t, ctx.Err(), "operation subprocess timed out")
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	require.Contains(t, string(output), "panic: context canceled")
 }

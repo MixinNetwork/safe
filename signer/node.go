@@ -3,9 +3,7 @@ package signer
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -21,6 +19,7 @@ import (
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
 	"github.com/MixinNetwork/safe/signer/protocol"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
@@ -100,15 +99,14 @@ func (node *Node) Boot(ctx context.Context) {
 }
 
 func (node *Node) loopBackup(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
+	for ctx.Err() == nil {
+		if util.WaitOrDone(ctx, 5*time.Second) {
 			return
-		case <-time.After(5 * time.Second):
 		}
 		keys, err := node.store.ListUnbackupedKeys(ctx, 1000)
 		if err != nil {
-			panic(err)
+			logger.Printf("store.ListUnbackupedKeys(%s) => %v", node.id, err)
+			continue
 		}
 
 		for _, key := range keys {
@@ -119,10 +117,7 @@ func (node *Node) loopBackup(ctx context.Context) {
 			op := key.asOperation()
 			saved, err := node.sendKeygenBackup(ctx, op, share)
 			logger.Printf("node.sendKeygenBackup(%v, %d) => %t %v", op, len(share), saved, err)
-			if err != nil {
-				panic(err)
-			}
-			if !saved {
+			if err != nil || !saved {
 				continue
 			}
 			err = node.store.MarkKeyBackuped(ctx, op.Public)
@@ -134,11 +129,9 @@ func (node *Node) loopBackup(ctx context.Context) {
 }
 
 func (node *Node) loopInitialSessions(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
+	for ctx.Err() == nil {
+		if util.WaitOrDone(ctx, time.Millisecond*100) {
 			return
-		case <-time.After(time.Millisecond * 500):
 		}
 		synced := node.synced(ctx)
 		if !synced {
@@ -147,7 +140,8 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 		}
 		sessions, err := node.store.ListInitialSessions(ctx, 64)
 		if err != nil {
-			panic(err)
+			logger.Printf("store.ListInitialSessions(%s) => %v", node.id, err)
+			continue
 		}
 
 		for _, s := range sessions {
@@ -167,11 +161,9 @@ func (node *Node) loopInitialSessions(ctx context.Context) {
 }
 
 func (node *Node) loopPreparedSessions(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
+	for ctx.Err() == nil {
+		if util.WaitOrDone(ctx, time.Millisecond*100) {
 			return
-		case <-time.After(time.Millisecond * 500):
 		}
 		synced := node.synced(ctx)
 		if !synced {
@@ -195,7 +187,7 @@ func (node *Node) loopPreparedSessions(ctx context.Context) {
 			if res == nil {
 				continue
 			}
-			if err := <-res; err != nil && ctx.Err() == nil {
+			if err := <-res; err != nil {
 				panic(err)
 			}
 		}
@@ -228,11 +220,9 @@ func (node *Node) listPreparedSessions(ctx context.Context) []*Session {
 }
 
 func (node *Node) loopPendingSessions(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
+	for ctx.Err() == nil {
+		if util.WaitOrDone(ctx, time.Millisecond*100) {
 			return
-		case <-time.After(time.Millisecond * 500):
 		}
 		synced := node.synced(ctx)
 		if !synced {
@@ -241,7 +231,8 @@ func (node *Node) loopPendingSessions(ctx context.Context) {
 		}
 		sessions, err := node.store.ListPendingSessions(ctx, 64)
 		if err != nil {
-			panic(err)
+			logger.Printf("store.ListPendingSessions(%s) => %v", node.id, err)
+			continue
 		}
 
 		for _, s := range sessions {
@@ -305,7 +296,8 @@ func (node *Node) acceptIncomingMessages(ctx context.Context) {
 	for ctx.Err() == nil {
 		mm, err := node.network.ReceiveMessage(ctx)
 		if err != nil {
-			panic(err)
+			util.WaitOrDone(ctx, time.Second)
+			continue
 		}
 		logger.Debugf("network.ReceiveMessage() => %s %x %s %v", mm.Peer, mm.Data, mm.CreatedAt, err)
 		sessionId, msg, err := unmarshalSessionMessage(mm.Data)
@@ -377,25 +369,9 @@ func (node *Node) queueOperation(ctx context.Context, op *common.Operation, memb
 
 	res := make(chan error, 1)
 	node.operationWorkers.Go(func() {
-		res <- node.runOperation(ctx, op, members)
+		res <- node.startOperation(ctx, op, members)
 	})
 	return res
-}
-
-func (node *Node) runOperation(ctx context.Context, op *common.Operation, members []party.ID) (err error) {
-	// Recover in the operation's goroutine so cancellation still produces a
-	// result for the caller. Unrelated failures retain their panic behavior.
-	defer func() {
-		if value := recover(); value != nil {
-			failure, ok := value.(error)
-			if ok && ctx.Err() != nil && (errors.Is(failure, ctx.Err()) || errors.Is(failure, sql.ErrTxDone)) {
-				err = ctx.Err()
-				return
-			}
-			panic(value)
-		}
-	}()
-	return node.startOperation(ctx, op, members)
 }
 
 func (node *Node) handlerLoop(ctx context.Context, start round.Session, sessionId []byte, roundTimeout time.Duration) (any, error) {

@@ -221,11 +221,16 @@ func (grp *Group) calculateIndex() int {
 func (grp *Group) Run(ctx context.Context) {
 	logger.Printf("Group(%s, %d).Run(%s)\n", mixinnet.HashMembers(grp.GetMembers()), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
-	for {
-		time.Sleep(time.Millisecond * 500)
+	for ctx.Err() == nil {
+		if util.WaitOrDone(ctx, time.Millisecond*200) {
+			return
+		}
 		// drain all the utxos in the order of sequence
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500)
+		if ctx.Err() != nil {
+			return
+		}
 		err := grp.store.WriteProperty(ctx, groupBootSynced, "1")
 		if err != nil {
 			panic(err)
@@ -235,28 +240,32 @@ func (grp *Group) Run(ctx context.Context) {
 		logger.Verbosef("Group.Run(handleActionsQueue)\n")
 		err = grp.handleActionsQueue(ctx)
 		if err != nil {
-			panic(err)
+			logger.Printf("Group.Run(handleActionsQueue) => %v\n", err)
+			continue
 		}
 
 		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
 		err = grp.signTransactions(ctx)
 		if err != nil {
-			panic(err)
+			logger.Printf("Group.Run(signTransactions) => %v\n", err)
+			continue
 		}
 
 		// verify all transactions
 		logger.Verbosef("Group.Run(publishTransactions)\n")
 		err = grp.publishTransactions(ctx)
 		if err != nil {
-			panic(err)
+			logger.Printf("Group.Run(publishTransactions) => %v\n", err)
+			continue
 		}
 
 		// verify all withdrawal transactions
 		logger.Verbosef("Group.Run(confirmWithdrawalTransactions)\n")
 		err = grp.confirmWithdrawalTransactions(ctx)
 		if err != nil {
-			panic(err)
+			logger.Printf("Group.Run(confirmWithdrawalTransactions) => %v\n", err)
+			continue
 		}
 	}
 }

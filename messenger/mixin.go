@@ -16,6 +16,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/common"
 	"github.com/MixinNetwork/safe/mtg"
+	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -143,9 +144,6 @@ func (mm *MixinMessenger) ReceiveMessage(ctx context.Context) (*MixinMessage, er
 	}
 	select {
 	case msg := <-mm.recv:
-		if msg == nil {
-			return nil, ErrorDone
-		}
 		return msg, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -231,7 +229,7 @@ func (mm *MixinMessenger) loopReceive(ctx context.Context) {
 		blaze := bot.NewBlazeClientWithSafeUser(mm.user)
 		err := blaze.Loop(ctx, mm)
 		logger.Printf("messenger.loopReceive %v\n", err)
-		if !waitForMessengerRetry(ctx, 3*time.Second) {
+		if util.WaitOrDone(ctx, 3*time.Second) {
 			return
 		}
 	}
@@ -343,7 +341,7 @@ func (mm *MixinMessenger) sendMessagesWithoutTimeout(ctx context.Context, batch 
 		err := mm.postEncryptedMessages(ctx, batch)
 		if mtg.CheckRetryableError(err) {
 			logger.Printf("messenger.sendMessagesWithoutTimeout(retry, %d) => %v", len(batch), err)
-			if !waitForMessengerRetry(ctx, 3*time.Second) {
+			if util.WaitOrDone(ctx, 3*time.Second) {
 				return ctx.Err()
 			}
 			continue
@@ -489,17 +487,6 @@ func canonicalUUID(name, value string) (string, error) {
 		return "", fmt.Errorf("invalid messenger %s %q: %w", name, value, err)
 	}
 	return id.String(), nil
-}
-
-func waitForMessengerRetry(ctx context.Context, duration time.Duration) bool {
-	timer := time.NewTimer(duration)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return true
-	case <-ctx.Done():
-		return false
-	}
 }
 
 func uniqueMessageId(receiver string, b []byte) string {
