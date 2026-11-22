@@ -176,6 +176,7 @@ func listUnspentUTXOsUntilSufficient(ctx context.Context, client *mixin.Client, 
 			State:     mixin.SafeUtxoStateUnspent,
 			Asset:     assetId,
 			Offset:    offset,
+			Order:     "ASC",
 		})
 		logger.Verbosef("common.mixin.SafeListUtxos(%s, %s) => %d %v\n", client.ClientID, assetId, len(utxos), err)
 		if CheckRetryableError(err) {
