@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/bot-api-go-client/v4"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	"github.com/MixinNetwork/safe/apps/ethereum"

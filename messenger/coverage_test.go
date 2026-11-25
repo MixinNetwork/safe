@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	bot "github.com/MixinNetwork/bot-api-go-client/v3"
+	bot "github.com/MixinNetwork/bot-api-go-client/v4"
 	"github.com/MixinNetwork/safe/util"
 	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/require"

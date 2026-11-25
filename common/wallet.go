@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/bot-api-go-client/v4"
 	"github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/fox-one/mixin-sdk-go/v3/mixinnet"
 	"github.com/shopspring/decimal"

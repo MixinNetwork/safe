@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	bot "github.com/MixinNetwork/bot-api-go-client/v3"
+	bot "github.com/MixinNetwork/bot-api-go-client/v4"
 	mixincommon "github.com/MixinNetwork/mixin/common"
 	mixincrypto "github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/safe/mtg"

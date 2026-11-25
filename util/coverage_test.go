@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	bot "github.com/MixinNetwork/bot-api-go-client/v3"
+	bot "github.com/MixinNetwork/bot-api-go-client/v4"
 	mixin "github.com/fox-one/mixin-sdk-go/v3"
 	"github.com/stretchr/testify/require"
 )

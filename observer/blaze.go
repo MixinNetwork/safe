@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/bot-api-go-client/v4"
 	"github.com/MixinNetwork/mixin/logger"
 )
 

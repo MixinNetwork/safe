@@ -408,7 +408,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 	raw := hex.EncodeToString(ver.Marshal())
 	req, err := grp.createMultisigUntilSufficient(ctx, tx.RequestID(), raw)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("createMultisigUntilSufficient(%s) => %v", raw, err))
 	}
 	// A multisig request id is public and deterministic, so anyone may
 	// have created the request beforehand with a different raw transaction.

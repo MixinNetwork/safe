@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/bot-api-go-client/v4"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/safe/apps/bitcoin"
 	m "github.com/MixinNetwork/safe/apps/mixin"

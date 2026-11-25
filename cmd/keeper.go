@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MixinNetwork/bot-api-go-client/v3"
+	"github.com/MixinNetwork/bot-api-go-client/v4"
 	"github.com/MixinNetwork/safe/config"
 	"github.com/MixinNetwork/safe/keeper"
 	"github.com/MixinNetwork/safe/mtg"
